@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__linear-server__list_projects",
+      "mcp__linear-server__list_documents",
+      "mcp__linear-server__get_document",
+      "mcp__linear-server__list_issues",
+      "Bash(jq:*)",
+      "mcp__ide__executeCode",
+      "mcp__linear-server__get_issue",
+      "Bash(dotnet new:*)",
+      "Bash(mkdir:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet --version)",
+      "Bash(dotnet --list-runtimes)",
+      "Read(//c/Program Files/dotnet/sdk//**)",
+      "Read(//c/Program Files \\(x86\\)/dotnet/**)",
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\":*)",
+      "Bash(where dotnet:*)",
+      "Bash(echo:*)",
+      "mcp__linear-server__save_comment",
+      "mcp__linear-server__save_issue"
+    ]
+  }
+}

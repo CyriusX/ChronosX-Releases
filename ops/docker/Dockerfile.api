@@ -1,0 +1,34 @@
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+EXPOSE 8080
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copiar csprojs
+COPY ["src/backend/TimeTrack.Api/TimeTrack.Api.csproj", "TimeTrack.Api/"]
+COPY ["src/backend/TimeTrack.Backend.Application/TimeTrack.Backend.Application.csproj", "TimeTrack.Backend.Application/"]
+COPY ["src/backend/TimeTrack.Backend.Domain/TimeTrack.Backend.Domain.csproj", "TimeTrack.Backend.Domain/"]
+COPY ["src/backend/TimeTrack.Backend.Infrastructure/TimeTrack.Backend.Infrastructure.csproj", "TimeTrack.Backend.Infrastructure/"]
+COPY ["shared/TimeTrack.SharedKernel/TimeTrack.SharedKernel.csproj", "TimeTrack.SharedKernel/"]
+
+# Restore
+RUN dotnet restore "TimeTrack.Api/TimeTrack.Api.csproj"
+
+# Copiar código fonte
+COPY src/backend/. .
+COPY shared/. ../shared/
+
+# Build
+WORKDIR "/src/TimeTrack.Api"
+RUN dotnet build "TimeTrack.Api.csproj" -c Release -o /app/build
+
+# Publish
+FROM build AS publish
+RUN dotnet publish "TimeTrack.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Final
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "TimeTrack.Api.dll"]

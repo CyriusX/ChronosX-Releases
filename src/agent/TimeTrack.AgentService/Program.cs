@@ -1,0 +1,40 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using TimeTrack.Agent.Infrastructure.Extensions;
+using TimeTrack.AgentService.Extensions;
+
+// Configura prioridade do processo o mais cedo possível
+var priority = Environment.GetEnvironmentVariable("TIMETRACK_PROCESS_PRIORITY") ?? "BelowNormal";
+ServiceCollectionExtensions.ConfigureProcessPriority(priority);
+
+IHost host = Host.CreateDefaultBuilder(args)
+    .UseWindowsService(options =>
+    {
+        options.ServiceName = "TimeTrack Agent";
+    })
+    .ConfigureServices((context, services) =>
+    {
+        // Configuration
+        services.AddAgentConfiguration(context.Configuration);
+
+        // Infrastructure - SQLite Persistence
+        services.AddInfrastructurePersistence(context.Configuration);
+
+        // Infrastructure Providers (placeholders)
+        services.AddInfrastructureProviders();
+
+        // Application Layer - Use Cases
+        services.AddApplicationLayer();
+
+        // Workers
+        services.AddAgentWorkers();
+    })
+    .Build();
+
+// Inicializa o banco de dados na inicialização
+using (var scope = host.Services.CreateScope())
+{
+    await scope.ServiceProvider.InitializeDatabaseAsync();
+}
+
+await host.RunAsync();

@@ -1,0 +1,160 @@
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.Extensions.Logging;
+using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Domain.Entities;
+using TimeTrack.Agent.Domain.ValueObjects;
+
+namespace TimeTrack.Agent.Application.UseCases.RecordActiveWindow;
+
+/// <summary>
+/// Use Case para registrar a janela ativa atual
+/// Ponto de entrada principal do loop de captura do Agent
+/// </summary>
+public sealed class RecordActiveWindowUseCase
+{
+    private readonly IActivitySessionRepository _sessionRepository;
+    private readonly ITrackingStateRepository _stateRepository;
+    private readonly ILogger<RecordActiveWindowUseCase> _logger;
+
+    /// <summary>
+    /// Intervalo padrão entre capturas (em segundos)
+    /// </summary>
+    private const int DefaultCaptureIntervalSeconds = 5;
+
+    public RecordActiveWindowUseCase(
+        IActivitySessionRepository sessionRepository,
+        ITrackingStateRepository stateRepository,
+        ILogger<RecordActiveWindowUseCase> logger)
+    {
+        _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
+        _stateRepository = stateRepository ?? throw new ArgumentNullException(nameof(stateRepository));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    /// Executa o registro da janela ativa
+    /// </summary>
+    public async Task<RecordActiveWindowResponse> ExecuteAsync(
+        RecordActiveWindowRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ExecutablePath))
+            throw new ArgumentException("ExecutablePath is required", nameof(request));
+
+        if (string.IsNullOrWhiteSpace(request.ApplicationName))
+            throw new ArgumentException("ApplicationName is required", nameof(request));
+
+        // Verifica se o tracking está ativo
+        var state = await _stateRepository.GetAsync(cancellationToken);
+        if (state != null && !state.IsActive)
+        {
+            _logger.LogDebug("Tracking is paused, skipping window capture");
+            return new RecordActiveWindowResponse
+            {
+                SessionId = Guid.Empty,
+                ApplicationName = request.ApplicationName,
+                IsNewSession = false,
+                SessionDuration = TimeSpan.Zero
+            };
+        }
+
+        // Cria identidade da aplicação
+        var appIdentity = CreateAppIdentity(request);
+
+        // Cria hash da janela para agrupamento
+        var windowHash = ComputeWindowHash(request.WindowTitle);
+
+        // Busca sessão ativa para possível extensão
+        var activeSession = await _sessionRepository.GetActiveSessionAsync(cancellationToken);
+
+        ActivitySession session;
+        bool isNewSession;
+
+        if (activeSession != null && CanExtendSession(activeSession, appIdentity, windowHash))
+        {
+            // Estende a sessão existente
+            activeSession.Extend(request.CapturedAt);
+            await _sessionRepository.SaveAsync(activeSession, cancellationToken);
+            session = activeSession;
+            isNewSession = false;
+
+            _logger.LogDebug(
+                "Extended session for {App} ({Duration:mm\\:ss})",
+                appIdentity.DisplayName, session.Duration);
+        }
+        else
+        {
+            // Cria nova sessão
+            var period = new TimeRange(
+                request.CapturedAt,
+                request.CapturedAt.AddSeconds(DefaultCaptureIntervalSeconds));
+
+            session = ActivitySession.Create(appIdentity, period, windowHash, request.WindowTitle);
+            await _sessionRepository.SaveAsync(session, cancellationToken);
+            isNewSession = true;
+
+            _logger.LogDebug(
+                "Created new session for {App}",
+                appIdentity.DisplayName);
+        }
+
+        return new RecordActiveWindowResponse
+        {
+            SessionId = session.Id,
+            ApplicationName = appIdentity.DisplayName,
+            IsNewSession = isNewSession,
+            SessionDuration = session.Duration
+        };
+    }
+
+    /// <summary>
+    /// Cria a identidade da aplicação a partir do request
+    /// </summary>
+    private static AppIdentity CreateAppIdentity(RecordActiveWindowRequest request)
+    {
+        var exePathHash = ComputeHash(request.ExecutablePath);
+        var category = AppCategory.Unknown;
+
+        return new AppIdentity(exePathHash, request.ApplicationName, category);
+    }
+
+    /// <summary>
+    /// Verifica se pode estender a sessão existente
+    /// </summary>
+    private static bool CanExtendSession(
+        ActivitySession session,
+        AppIdentity newApp,
+        string? newWindowHash)
+    {
+        // Mesmo aplicativo?
+        if (session.App.ExePathHash != newApp.ExePathHash)
+            return false;
+
+        // Mesmo hash de janela (ou ambos null)?
+        if (session.WindowHash != newWindowHash)
+            return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Computa hash SHA256 truncado para o caminho do executável
+    /// </summary>
+    private static string ComputeHash(string input)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        return Convert.ToHexString(bytes).ToLowerInvariant()[..16];
+    }
+
+    /// <summary>
+    /// Computa hash para o título da janela (para agrupamento)
+    /// </summary>
+    private static string? ComputeWindowHash(string? windowTitle)
+    {
+        if (string.IsNullOrWhiteSpace(windowTitle))
+            return null;
+
+        return ComputeHash(windowTitle);
+    }
+}
