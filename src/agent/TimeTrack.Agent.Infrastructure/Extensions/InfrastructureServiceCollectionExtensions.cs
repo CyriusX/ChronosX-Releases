@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Infrastructure.Persistence;
+using TimeTrack.Agent.Infrastructure.Providers.Windows;
 
 namespace TimeTrack.Agent.Infrastructure.Extensions;
 
@@ -49,5 +51,24 @@ public static class InfrastructureServiceCollectionExtensions
     {
         var context = serviceProvider.GetRequiredService<SqliteContext>();
         await context.InitializeSchemaAsync();
+    }
+
+    /// <summary>
+    /// Adiciona providers do Windows (ActiveWindow, IdleDetector)
+    /// </summary>
+    public static IServiceCollection AddWindowsProviders(this IServiceCollection services)
+    {
+        // ActiveWindowProvider - Singleton para manter o hook ativo
+        services.AddSingleton<IActiveWindowProvider, WindowsActiveWindowProvider>();
+
+        // Configuração padrão
+        services.Configure<ActiveWindowProviderOptions>(options =>
+        {
+            options.PollingIntervalMs = 250;
+            options.CacheValidityMs = 500;
+            options.DebounceMs = 200;
+        });
+
+        return services;
     }
 }

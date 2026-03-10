@@ -19,7 +19,8 @@
       "Bash(where dotnet:*)",
       "Bash(echo:*)",
       "mcp__linear-server__save_comment",
-      "mcp__linear-server__save_issue"
+      "mcp__linear-server__save_issue",
+      "Bash(cmd //c \"dotnet build src/agent/TimeTrack.Agent.Infrastructure/TimeTrack.Agent.Infrastructure.csproj\" 2>&1)"
     ]
   }
 }
