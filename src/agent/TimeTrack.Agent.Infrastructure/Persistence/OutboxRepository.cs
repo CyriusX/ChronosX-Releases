@@ -53,7 +53,21 @@ public sealed class OutboxRepository : IOutboxRepository
         var items = (await connection.QueryAsync<OutboxItemDto>(sql, new { Now = now, Limit = limit }))
             .ToList();
 
-        return items.Select(MapToDomain).ToList();
+        // Filter out items with invalid data and log warnings
+        var validItems = new List<OutboxItem>();
+        foreach (var dto in items)
+        {
+            try
+            {
+                validItems.Add(MapToDomain(dto));
+            }
+            catch (FormatException ex)
+            {
+                _logger.LogWarning("Skipping outbox item with invalid data: {Id}, Error: {Error}", dto.Id, ex.Message);
+            }
+        }
+
+        return validItems;
     }
 
     /// <inheritdoc />
@@ -229,24 +243,30 @@ public sealed class OutboxRepository : IOutboxRepository
     private sealed class OutboxItemDto
     {
         public string Id { get; set; } = string.Empty;
-        public string EntityType { get; set; } = string.Empty;
-        public string EntityId { get; set; } = string.Empty;
-        public string PayloadJson { get; set; } = string.Empty;
-        public string IdempotencyKey { get; set; } = string.Empty;
-        public int AttemptCount { get; set; }
-        public string? NextAttemptUtc { get; set; }
-        public string? SentAt { get; set; }
-        public string? LastError { get; set; }
-        public string CreatedAt { get; set; } = string.Empty;
+        public string entity_type { get; set; } = string.Empty;
+        public string entity_id { get; set; } = string.Empty;
+        public string payload_json { get; set; } = string.Empty;
+        public string idempotency_key { get; set; } = string.Empty;
+        public int attempt_count { get; set; }
+        public string? next_attempt_utc { get; set; }
+        public string? sent_at { get; set; }
+        public string? last_error { get; set; }
+        public string created_at { get; set; } = string.Empty;
     }
 
     private static OutboxItem MapToDomain(OutboxItemDto dto)
     {
+        // Handle empty or invalid GUID strings (SQLite stores as strings)
+        if (string.IsNullOrWhiteSpace(dto.entity_id) || !Guid.TryParse(dto.entity_id, out var entityId))
+        {
+            throw new FormatException($"Invalid EntityId format in outbox item: '{dto.entity_id}'");
+        }
+
         return OutboxItem.Create(
-            dto.EntityType,
-            Guid.Parse(dto.EntityId),
-            dto.PayloadJson,
-            dto.IdempotencyKey);
+            dto.entity_type,
+            entityId,
+            dto.payload_json,
+            dto.idempotency_key);
     }
 
     private static object MapToDto(OutboxItem item)

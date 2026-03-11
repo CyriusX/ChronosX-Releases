@@ -83,11 +83,19 @@ public sealed class TrackingWorker : BackgroundService
     {
         // 1. Verificar estado do tracking
         var state = await _stateRepository.GetAsync(cancellationToken);
-        if (state == null || !state.IsActive)
+        if (state == null)
         {
-            _logger.LogDebug("Tracking não está ativo. Pulando ciclo.");
+            _logger.LogInformation("Nenhum estado de tracking encontrado. Pulando ciclo.");
             return;
         }
+
+        if (!state.IsActive)
+        {
+            _logger.LogInformation("Tracking não está ativo (Status: {Status}). Pulando ciclo.", state.Status);
+            return;
+        }
+
+        _logger.LogDebug("Tracking ativo. Executando ciclo de captura...");
 
         // 2. Verificar idle
         var idleTime = await _idleDetector.GetIdleTimeAsync(cancellationToken);

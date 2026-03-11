@@ -173,6 +173,11 @@ public sealed class RecordActiveWindowUseCase
     /// </summary>
     private async Task SaveSessionWithOutboxAsync(ActivitySession session, CancellationToken cancellationToken)
     {
+        _logger.LogInformation(
+            "SaveSessionWithOutboxAsync: SessionId={SessionId}, App={App}",
+            session.Id,
+            session.App.DisplayName);
+
         var payload = CreateSessionPayload(session);
         var payloadJson = JsonSerializer.Serialize(payload, JsonOptions);
         var idempotencyKey = _idempotencyKeyGenerator.Generate(
@@ -185,6 +190,12 @@ public sealed class RecordActiveWindowUseCase
             session.Id,
             payloadJson,
             idempotencyKey);
+
+        _logger.LogInformation(
+            "Created outbox item: Id={OutboxId}, EntityType={EntityType}, EntityId={EntityId}",
+            outboxItem.Id,
+            outboxItem.EntityType,
+            outboxItem.EntityId);
 
         await _sessionRepository.SaveWithOutboxAsync(session, new[] { outboxItem }, cancellationToken);
     }

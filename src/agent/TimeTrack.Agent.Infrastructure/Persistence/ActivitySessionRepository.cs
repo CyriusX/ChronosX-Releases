@@ -74,6 +74,10 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                 var itemList = outboxItems.ToList();
                 foreach (var item in itemList)
                 {
+                    _logger.LogInformation(
+                        "Saving outbox item to DB: Id={Id}, EntityType={EntityType}, EntityId={EntityId}, EntityIdString={EntityIdString}",
+                        item.Id, item.EntityType, item.EntityId, item.EntityId.ToString());
+
                     await connection.ExecuteAsync(outboxSql, new
                     {
                         Id = item.Id.ToString(),

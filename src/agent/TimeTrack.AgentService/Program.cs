@@ -23,8 +23,14 @@ IHost host = Host.CreateDefaultBuilder(args)
         // Infrastructure Providers (placeholders)
         services.AddInfrastructureProviders();
 
+        // Sync Services (uses NullSyncTransport for local testing)
+        services.AddSyncServices(context.Configuration);
+
         // Application Layer - Use Cases
         services.AddApplicationLayer();
+
+        // IPC Server for DesktopHost communication
+        services.AddIpcServer();
 
         // Workers
         services.AddAgentWorkers();

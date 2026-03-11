@@ -6,6 +6,7 @@ using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Infrastructure.Extensions;
 using TimeTrack.AgentService.Configuration;
 using TimeTrack.AgentService.Health;
+using TimeTrack.AgentService.Ipc;
 using TimeTrack.AgentService.Workers;
 
 namespace TimeTrack.AgentService.Extensions;
@@ -62,7 +63,8 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adiciona serviços de sincronização
+    /// Adiciona serviços de sincronização.
+    /// Usa NullSyncTransport se não houver backend configurado.
     /// </summary>
     public static IServiceCollection AddSyncServices(
         this IServiceCollection services,
@@ -71,7 +73,21 @@ public static class ServiceCollectionExtensions
         var settings = configuration.GetSection(AgentSettings.SectionName).Get<AgentSettings>()
             ?? new AgentSettings();
 
-        services.AddSyncServices(settings.Sync);
+        // Check if we have a valid backend URL configured
+        var backendUrl = settings.Sync?.BackendUrl;
+        var useNullTransport = string.IsNullOrWhiteSpace(backendUrl) ||
+                               backendUrl == "https://api.timetrack.local" ||
+                               backendUrl.Contains("localhost") == false && backendUrl.Contains("127.0.0.1") == false && !Uri.TryCreate(backendUrl, UriKind.Absolute, out _);
+
+        if (useNullTransport)
+        {
+            // Use null transport for local testing
+            services.AddNullSyncTransport();
+        }
+        else
+        {
+            services.AddSyncServices(settings.Sync!);
+        }
 
         return services;
     }
@@ -92,6 +108,22 @@ public static class ServiceCollectionExtensions
     {
         services.AddHostedService<TrackingWorker>();
         services.AddHostedService<SyncWorker>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adiciona IPC Server para comunicação com DesktopHost
+    /// </summary>
+    public static IServiceCollection AddIpcServer(this IServiceCollection services)
+    {
+        // Register message handler (scoped for per-request lifetime)
+        services.AddScoped<IpcMessageHandler>();
+
+        // Register IPC server as both HostedService and IIpcServer
+        services.AddSingleton<AgentService.Ipc.NamedPipeIpcServer>();
+        services.AddHostedService(sp => sp.GetRequiredService<AgentService.Ipc.NamedPipeIpcServer>());
+        services.AddSingleton<AgentService.Ipc.IIpcServer>(sp => sp.GetRequiredService<AgentService.Ipc.NamedPipeIpcServer>());
 
         return services;
     }

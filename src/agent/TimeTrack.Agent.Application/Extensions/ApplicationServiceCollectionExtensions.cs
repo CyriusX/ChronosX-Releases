@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using TimeTrack.Agent.Application.UseCases.ConsolidateSession;
 using TimeTrack.Agent.Application.UseCases.GetLocalDashboard;
+using TimeTrack.Agent.Application.UseCases.GetSyncState;
 using TimeTrack.Agent.Application.UseCases.RecordActiveWindow;
 using TimeTrack.Agent.Application.UseCases.TrackingControl;
 
@@ -20,6 +21,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<ConsolidateSessionUseCase>();
         services.AddSingleton<TrackingControlUseCase>();
         services.AddSingleton<GetLocalDashboardUseCase>();
+        services.AddSingleton<GetSyncStateUseCase>();
         services.AddSingleton<RecordActiveWindowUseCase>();
 
         return services;

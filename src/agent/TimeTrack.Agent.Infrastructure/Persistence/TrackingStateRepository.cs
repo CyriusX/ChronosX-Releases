@@ -4,9 +4,6 @@ using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Domain.Aggregates;
 using TimeTrack.Agent.Domain.Enums;
 
-// Alias para evitar conflict with local DTO
-using DomainTrackingStateDto = TimeTrack.Agent.Domain.Aggregates.TrackingStateDto;
-
 namespace TimeTrack.Agent.Infrastructure.Persistence;
 
 /// <summary>
@@ -47,9 +44,8 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
         if (state == null) throw new ArgumentNullException(nameof(state));
 
         var connection = await _context.GetConnectionAsync(cancellationToken);
-        var dto = state.ToDto();
 
-        // SQLite não tem UPSERT nativo elegante, então deleta e insere
+        // SQLite doesn't have elegant UPSERT, so delete and insert
         const string deleteSql = "DELETE FROM tracking_state";
         const string insertSql = @"
             INSERT INTO tracking_state (id, status, reason, paused_at, resumed_at, updated_at, last_modified_by)
@@ -58,24 +54,27 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
         await connection.ExecuteAsync(deleteSql);
         await connection.ExecuteAsync(insertSql, new
         {
-            Id = dto.Id.ToString(),
-            Status = (int)dto.Status,
-            dto.Reason,
-            dto.PausedAt,
-            dto.ResumedAt,
-            dto.UpdatedAt,
-            dto.LastModifiedBy
+            Id = state.Id.ToString(),
+            Status = (int)state.Status,
+            Reason = state.Reason,
+            PausedAt = state.PausedAt?.ToString() ?? null,
+            ResumedAt = state.ResumedAt?.ToString() ?? null,
+            UpdatedAt = state.UpdatedAt.ToString("O"),
+            LastModifiedBy = state.LastModifiedBy
         });
 
-        _logger.LogDebug("Tracking state saved: {Status}", dto.Status);
+        _logger.LogDebug("Tracking state saved: {Status}", state.Status);
     }
 
-    private static TrackingState MapToDomain(DapperTrackingStateDto dto)
+    private static TrackingState? MapToDomain(DapperTrackingStateDto dto)
     {
-        return TrackingState.FromDto(new DomainTrackingStateDto
+        if (dto == null)
+            return null;
+
+        return TrackingState.FromDto(new TrackingStateDto
         {
-            Id = dto.Id,
-            Status = dto.Status,
+            Id = Guid.Parse(dto.Id),
+            Status = (TrackingStatus)dto.Status,
             Reason = dto.Reason,
             PausedAt = dto.PausedAt,
             ResumedAt = dto.ResumedAt,
@@ -89,8 +88,8 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
     /// </summary>
     private sealed class DapperTrackingStateDto
     {
-        public Guid Id { get; set; }
-        public TrackingStatus Status { get; set; }
+        public string Id { get; set; }  // Store as string in SQLite
+        public int Status { get; set; }  // Keep as int for Dapper mapping
         public string? Reason { get; set; }
         public DateTime? PausedAt { get; set; }
         public DateTime? ResumedAt { get; set; }

@@ -128,4 +128,13 @@ public static class InfrastructureServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Adiciona NullSyncTransport para modo local/teste (sem backend)
+    /// </summary>
+    public static IServiceCollection AddNullSyncTransport(this IServiceCollection services)
+    {
+        services.AddSingleton<ISyncTransport, NullSyncTransport>();
+        return services;
+    }
 }

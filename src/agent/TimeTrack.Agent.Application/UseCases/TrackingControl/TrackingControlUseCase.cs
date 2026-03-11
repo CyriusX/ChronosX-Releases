@@ -78,6 +78,118 @@ public sealed class TrackingControlUseCase
     }
 
     /// <summary>
+    /// Inicia o tracking (cria novo estado ou reativa existente)
+    /// </summary>
+    public async Task<StartTrackingResponse> StartAsync(
+        StartTrackingRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.StartedBy))
+            throw new ArgumentException("StartedBy is required", nameof(request));
+
+        var existingState = await _stateRepository.GetAsync(cancellationToken);
+
+        if (existingState == null)
+        {
+            // No state exists, create new active state
+            var newState = TrackingState.CreateActive();
+            await _stateRepository.SaveAsync(newState, cancellationToken);
+
+            _logger.LogInformation(
+                "Tracking started (new state created) by {StartedBy}",
+                request.StartedBy);
+
+            return new StartTrackingResponse
+            {
+                Status = newState.Status.ToString(),
+                StartedAt = newState.UpdatedAt,
+                WasCreated = true
+            };
+        }
+
+        // State exists, handle based on current status
+        switch (existingState.Status)
+        {
+            case Domain.Enums.TrackingStatus.Active:
+                // Already active, nothing to do
+                _logger.LogInformation("Tracking already active, no action needed");
+                return new StartTrackingResponse
+                {
+                    Status = existingState.Status.ToString(),
+                    StartedAt = existingState.UpdatedAt,
+                    WasCreated = false
+                };
+
+            case Domain.Enums.TrackingStatus.PausedByUser:
+            case Domain.Enums.TrackingStatus.PausedByPolicy:
+                // Resume from paused
+                existingState.Resume(request.StartedBy);
+                await _stateRepository.SaveAsync(existingState, cancellationToken);
+                _logger.LogInformation("Tracking resumed (was paused) by {StartedBy}", request.StartedBy);
+                return new StartTrackingResponse
+                {
+                    Status = existingState.Status.ToString(),
+                    StartedAt = existingState.ResumedAt ?? DateTime.UtcNow,
+                    WasCreated = false
+                };
+
+            case Domain.Enums.TrackingStatus.Disabled:
+                // Enable from disabled
+                existingState.Enable();
+                await _stateRepository.SaveAsync(existingState, cancellationToken);
+                _logger.LogInformation("Tracking enabled (was disabled) by {StartedBy}", request.StartedBy);
+                return new StartTrackingResponse
+                {
+                    Status = existingState.Status.ToString(),
+                    StartedAt = existingState.UpdatedAt,
+                    WasCreated = false
+                };
+
+            default:
+                throw new InvalidOperationException($"Unknown tracking status: {existingState.Status}");
+        }
+    }
+
+    /// <summary>
+    /// Para o tracking (desabilita completamente)
+    /// </summary>
+    public async Task<StopTrackingResponse> StopAsync(
+        StopTrackingRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.StoppedBy))
+            throw new ArgumentException("StoppedBy is required", nameof(request));
+
+        var state = await _stateRepository.GetAsync(cancellationToken);
+
+        if (state == null)
+        {
+            // No state exists, nothing to stop
+            _logger.LogInformation("No tracking state to stop");
+            return new StopTrackingResponse
+            {
+                Status = "None",
+                StoppedAt = DateTime.UtcNow
+            };
+        }
+
+        // Disable the tracking state
+        state.Disable(request.Reason);
+        await _stateRepository.SaveAsync(state, cancellationToken);
+
+        _logger.LogInformation(
+            "Tracking stopped by {StoppedBy}: {Reason}",
+            request.StoppedBy,
+            request.Reason ?? "User requested");
+
+        return new StopTrackingResponse
+        {
+            Status = state.Status.ToString(),
+            StoppedAt = state.UpdatedAt
+        };
+    }
+
+    /// <summary>
     /// Obtém o estado atual ou cria um novo se não existir
     /// </summary>
     private async Task<TrackingState> GetOrCreateStateAsync(CancellationToken cancellationToken)

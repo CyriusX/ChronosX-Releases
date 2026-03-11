@@ -2,10 +2,135 @@
 
 :root {
   color-scheme: dark;
+
+  --background: 250 250 250;
+  --foreground: 39 39 42;
+
+  --card: 24 24 27;
+  --card-foreground: 250 250 250;
+
+  --popover: 24 24 27;
+  --popover-foreground: 250 250 250;
+
+  --primary: 99 102 241;
+  --primary-foreground: 255 255 255;
+
+  --secondary: 39 39 42;
+  --secondary-foreground: 250 250 250;
+
+  --muted: 39 39 42;
+  --muted-foreground: 161 161 170;
+
+  --accent: 39 39 42;
+  --accent-foreground: 250 250 250;
+
+  --destructive: 239 68 68;
+  --destructive-foreground: 250 250 250;
+
+  --border: 39 39 42;
+  --input: 39 39 42;
+  --ring: 99 102 241;
+
+  --radius: 0.5rem;
+}
+
+* {
+  border-color: rgb(39 39 42);
 }
 
 body {
   margin: 0;
   padding: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: rgb(9 9 11);
+  color: rgb(250 250 250);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(39 39 42);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(63 63 70);
+}
+
+/* Animations */
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-from-bottom {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-in {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-fill-mode: both;
+}
+
+.slide-in-from-right-full {
+  animation-name: slide-in-from-right;
+}
+
+.slide-in-from-bottom {
+  animation-name: slide-in-from-bottom;
+}
+
+.fade-in {
+  animation-name: fade-in;
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid rgb(99 102 241);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background-color: rgb(99 102 241 / 0.3);
 }
