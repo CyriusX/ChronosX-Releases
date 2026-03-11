@@ -1,0 +1,59 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using TimeTrack.Backend.Domain.Entities;
+
+namespace TimeTrack.Backend.Infrastructure.Persistence.Configurations;
+
+internal sealed class IdlePeriodConfiguration : IEntityTypeConfiguration<IdlePeriod>
+{
+    public void Configure(EntityTypeBuilder<IdlePeriod> builder)
+    {
+        builder.ToTable("idle_periods");
+
+        builder.HasKey(i => i.Id);
+
+        builder.Property(i => i.Id)
+            .HasColumnName("id")
+            .HasDefaultValueSql("gen_random_uuid()");
+
+        builder.Property(i => i.OrgId)
+            .HasColumnName("org_id")
+            .IsRequired();
+
+        builder.Property(i => i.DeviceId)
+            .HasColumnName("device_id")
+            .IsRequired();
+
+        builder.Property(i => i.UserId)
+            .HasColumnName("user_id")
+            .IsRequired();
+
+        builder.Property(i => i.StartedAt)
+            .HasColumnName("started_at")
+            .IsRequired();
+
+        builder.Property(i => i.EndedAt)
+            .HasColumnName("ended_at")
+            .IsRequired();
+
+        builder.Property(i => i.DurationSeconds)
+            .HasColumnName("duration_seconds")
+            .IsRequired();
+
+        builder.Property(i => i.IdempotencyKey)
+            .HasColumnName("idempotency_key")
+            .HasMaxLength(64)
+            .IsRequired();
+
+        builder.HasIndex(i => i.IdempotencyKey)
+            .IsUnique();
+
+        builder.Property(i => i.CreatedAt)
+            .HasColumnName("created_at")
+            .HasDefaultValueSql("now()");
+
+        // Indexes for queries
+        builder.HasIndex(i => new { i.OrgId, i.UserId, i.StartedAt });
+        builder.HasIndex(i => new { i.DeviceId, i.StartedAt });
+    }
+}

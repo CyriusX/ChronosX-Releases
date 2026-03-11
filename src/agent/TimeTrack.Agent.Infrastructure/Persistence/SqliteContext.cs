@@ -46,6 +46,11 @@ public sealed class SqliteContext : IAsyncDisposable
 
         var connection = await GetConnectionAsync(cancellationToken);
 
+        // Configurar PRAGMAs para performance
+        await connection.ExecuteAsync("PRAGMA journal_mode = WAL");
+        await connection.ExecuteAsync("PRAGMA synchronous = NORMAL");
+        await connection.ExecuteAsync("PRAGMA busy_timeout = 5000");
+
         var createTablesSql = @"
             -- Tabela de estado do tracking
             CREATE TABLE IF NOT EXISTS tracking_state (
@@ -83,16 +88,66 @@ public sealed class SqliteContext : IAsyncDisposable
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
+            -- Tabela sync_outbox (Transactional Outbox Pattern)
+            CREATE TABLE IF NOT EXISTS sync_outbox (
+                id TEXT PRIMARY KEY,
+                entity_type TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                next_attempt_utc TEXT NOT NULL,
+                sent_at TEXT,
+                last_error TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             -- Índices para consultas comuns
             CREATE INDEX IF NOT EXISTS ix_activity_sessions_start_utc ON activity_sessions(start_utc);
             CREATE INDEX IF NOT EXISTS ix_activity_sessions_exe_path_hash ON activity_sessions(exe_path_hash);
             CREATE INDEX IF NOT EXISTS ix_idle_periods_start_utc ON idle_periods(start_utc);
+            CREATE INDEX IF NOT EXISTS ix_sync_outbox_next_attempt ON sync_outbox(next_attempt_utc);
+            CREATE INDEX IF NOT EXISTS ix_sync_outbox_entity_type_entity_id ON sync_outbox(entity_type, entity_id);
+
+            -- Tabela de erros de sincronização
+            CREATE TABLE IF NOT EXISTS sync_errors (
+                id TEXT PRIMARY KEY,
+                timestamp_utc TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                status_code INTEGER NOT NULL,
+                error_message TEXT NOT NULL,
+                attempt_count INTEGER NOT NULL DEFAULT 1
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_sync_errors_timestamp ON sync_errors(timestamp_utc);
         ";
 
         await connection.ExecuteAsync(createTablesSql);
 
         _initialized = true;
-        _logger.LogInformation("SQLite schema initialized successfully");
+        _logger.LogInformation("SQLite schema initialized successfully with WAL mode");
+    }
+
+    /// <summary>
+    /// Inicia uma transação SQLite
+    /// </summary>
+    public async Task<SqliteTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        var connection = await GetConnectionAsync(cancellationToken);
+        return (SqliteTransaction)await connection.BeginTransactionAsync();
+    }
+
+    /// <summary>
+    /// Executa múltiplas comandos dentro de uma transação
+    /// </summary>
+    public async Task ExecuteInTransactionAsync(
+        SqliteTransaction transaction,
+        string sql,
+        object? param = null,
+        CancellationToken cancellationToken = default)
+    {
+        var connection = await GetConnectionAsync(cancellationToken);
+        await Dapper.SqlMapper.ExecuteAsync(connection, sql, param, transaction);
     }
 
     public async ValueTask DisposeAsync()

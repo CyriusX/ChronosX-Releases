@@ -1,5 +1,9 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TimeTrack.Agent.Application.UseCases.RecordActiveWindow;
+using TimeTrack.Agent.Contracts.Providers;
+using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Domain.Enums;
 using TimeTrack.AgentService.Configuration;
 using TimeTrack.AgentService.Extensions;
 
@@ -12,13 +16,28 @@ public sealed class TrackingWorker : BackgroundService
 {
     private readonly ILogger<TrackingWorker> _logger;
     private readonly AgentSettings _settings;
+    private readonly IActiveWindowProvider _activeWindowProvider;
+    private readonly IIdleDetector _idleDetector;
+    private readonly ITrackingStateRepository _stateRepository;
+    private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
+
+    private bool _isIdle = false;
+    private DateTime? _idleStartedAt;
 
     public TrackingWorker(
         ILogger<TrackingWorker> logger,
-        AgentSettings settings)
+        AgentSettings settings,
+        IActiveWindowProvider activeWindowProvider,
+        IIdleDetector idleDetector,
+        ITrackingStateRepository stateRepository,
+        RecordActiveWindowUseCase recordActiveWindowUseCase)
     {
         _logger = logger;
         _settings = settings;
+        _activeWindowProvider = activeWindowProvider;
+        _idleDetector = idleDetector;
+        _stateRepository = stateRepository;
+        _recordActiveWindowUseCase = recordActiveWindowUseCase;
 
         // Configura prioridade do processo
         ServiceCollectionExtensions.ConfigureProcessPriority(_settings.ProcessPriority);
@@ -62,15 +81,64 @@ public sealed class TrackingWorker : BackgroundService
 
     private async Task ExecuteTrackingCycleAsync(CancellationToken cancellationToken)
     {
-        // TODO: Implementar em CX-90 (RecordActiveWindow)
-        // 1. Obter janela ativa via IActiveWindowProvider
-        // 2. Verificar idle via IIdleDetector
-        // 3. Registrar sessão ou idle period
-        // 4. Atualizar estado
+        // 1. Verificar estado do tracking
+        var state = await _stateRepository.GetAsync(cancellationToken);
+        if (state == null || !state.IsActive)
+        {
+            _logger.LogDebug("Tracking não está ativo. Pulando ciclo.");
+            return;
+        }
 
-        _logger.LogDebug("Ciclo de tracking executado em {Time}", DateTime.UtcNow);
+        // 2. Verificar idle
+        var idleTime = await _idleDetector.GetIdleTimeAsync(cancellationToken);
+        var idleThreshold = TimeSpan.FromSeconds(_settings.IdleThresholdSeconds);
 
-        await Task.CompletedTask;
+        if (idleTime.HasValue && idleTime.Value >= idleThreshold)
+        {
+            if (!_isIdle)
+            {
+                _isIdle = true;
+                _idleStartedAt = DateTime.UtcNow;
+                _logger.LogInformation(
+                    "Usuário entrou em idle. Tempo de inatividade: {IdleTime}",
+                    idleTime.Value);
+            }
+            return; // Não registra enquanto está idle
+        }
+
+        // 3. Se estava idle e retornou
+        if (_isIdle)
+        {
+            var idleDuration = DateTime.UtcNow - _idleStartedAt;
+            _logger.LogInformation(
+                "Usuário retornou de idle após {Duration}",
+                idleDuration);
+            _isIdle = false;
+            _idleStartedAt = null;
+        }
+
+        // 4. Obter janela ativa
+        var activeWindow = await _activeWindowProvider.GetActiveWindowAsync(cancellationToken);
+        if (activeWindow == null)
+        {
+            _logger.LogDebug("Nenhuma janela ativa detectada");
+            return;
+        }
+
+        // 5. Registrar atividade via Use Case
+        var request = new RecordActiveWindowRequest
+        {
+            ExecutablePath = activeWindow.ExePath ?? activeWindow.ExePathHash,
+            ApplicationName = activeWindow.DisplayName,
+            WindowTitle = activeWindow.WindowTitle
+        };
+
+        await _recordActiveWindowUseCase.ExecuteAsync(request, cancellationToken);
+
+        _logger.LogDebug(
+            "Ciclo concluído: {App} - {Title}",
+            activeWindow.DisplayName,
+            activeWindow.WindowTitle ?? "sem título");
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

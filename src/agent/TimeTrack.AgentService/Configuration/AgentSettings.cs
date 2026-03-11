@@ -1,3 +1,5 @@
+using TimeTrack.Agent.Contracts.Configuration;
+
 namespace TimeTrack.AgentService.Configuration;
 
 /// <summary>
@@ -39,4 +41,9 @@ public sealed class AgentSettings
     /// Habilita modo de diagnóstico
     /// </summary>
     public bool EnableDiagnostics { get; set; } = false;
+
+    /// <summary>
+    /// Configurações de sincronização
+    /// </summary>
+    public SyncSettings Sync { get; set; } = new();
 }

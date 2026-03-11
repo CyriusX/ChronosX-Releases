@@ -1,0 +1,72 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using TimeTrack.Backend.Domain.Entities;
+
+namespace TimeTrack.Backend.Infrastructure.Persistence.Configurations;
+
+internal sealed class ActivitySessionConfiguration : IEntityTypeConfiguration<ActivitySession>
+{
+    public void Configure(EntityTypeBuilder<ActivitySession> builder)
+    {
+        builder.ToTable("activity_sessions");
+
+        builder.HasKey(a => a.Id);
+
+        builder.Property(a => a.Id)
+            .HasColumnName("id")
+            .HasDefaultValueSql("gen_random_uuid()");
+
+        builder.Property(a => a.OrgId)
+            .HasColumnName("org_id")
+            .IsRequired();
+
+        builder.Property(a => a.DeviceId)
+            .HasColumnName("device_id")
+            .IsRequired();
+
+        builder.Property(a => a.UserId)
+            .HasColumnName("user_id")
+            .IsRequired();
+
+        builder.Property(a => a.ProcessName)
+            .HasColumnName("process_name")
+            .HasMaxLength(255)
+            .IsRequired();
+
+        builder.Property(a => a.WindowTitle)
+            .HasColumnName("window_title")
+            .HasMaxLength(500);
+
+        builder.Property(a => a.AppCategory)
+            .HasColumnName("app_category")
+            .HasMaxLength(100);
+
+        builder.Property(a => a.StartedAt)
+            .HasColumnName("started_at")
+            .IsRequired();
+
+        builder.Property(a => a.EndedAt)
+            .HasColumnName("ended_at")
+            .IsRequired();
+
+        builder.Property(a => a.DurationSeconds)
+            .HasColumnName("duration_seconds")
+            .IsRequired();
+
+        builder.Property(a => a.IdempotencyKey)
+            .HasColumnName("idempotency_key")
+            .HasMaxLength(64)
+            .IsRequired();
+
+        builder.HasIndex(a => a.IdempotencyKey)
+            .IsUnique();
+
+        builder.Property(a => a.CreatedAt)
+            .HasColumnName("created_at")
+            .HasDefaultValueSql("now()");
+
+        // Indexes for queries
+        builder.HasIndex(a => new { a.OrgId, a.UserId, a.StartedAt });
+        builder.HasIndex(a => new { a.DeviceId, a.StartedAt });
+    }
+}

@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Domain.Entities;
+using TimeTrack.Agent.Domain.Services;
 using TimeTrack.Agent.Domain.ValueObjects;
 
 namespace TimeTrack.Agent.Application.UseCases.RecordActiveWindow;
@@ -15,6 +17,7 @@ public sealed class RecordActiveWindowUseCase
 {
     private readonly IActivitySessionRepository _sessionRepository;
     private readonly ITrackingStateRepository _stateRepository;
+    private readonly IIdempotencyKeyGenerator _idempotencyKeyGenerator;
     private readonly ILogger<RecordActiveWindowUseCase> _logger;
 
     /// <summary>
@@ -22,13 +25,20 @@ public sealed class RecordActiveWindowUseCase
     /// </summary>
     private const int DefaultCaptureIntervalSeconds = 5;
 
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public RecordActiveWindowUseCase(
         IActivitySessionRepository sessionRepository,
         ITrackingStateRepository stateRepository,
+        IIdempotencyKeyGenerator idempotencyKeyGenerator,
         ILogger<RecordActiveWindowUseCase> logger)
     {
         _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
         _stateRepository = stateRepository ?? throw new ArgumentNullException(nameof(stateRepository));
+        _idempotencyKeyGenerator = idempotencyKeyGenerator ?? throw new ArgumentNullException(nameof(idempotencyKeyGenerator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -75,7 +85,7 @@ public sealed class RecordActiveWindowUseCase
         {
             // Estende a sessão existente
             activeSession.Extend(request.CapturedAt);
-            await _sessionRepository.SaveAsync(activeSession, cancellationToken);
+            await SaveSessionWithOutboxAsync(activeSession, cancellationToken);
             session = activeSession;
             isNewSession = false;
 
@@ -91,7 +101,7 @@ public sealed class RecordActiveWindowUseCase
                 request.CapturedAt.AddSeconds(DefaultCaptureIntervalSeconds));
 
             session = ActivitySession.Create(appIdentity, period, windowHash, request.WindowTitle);
-            await _sessionRepository.SaveAsync(session, cancellationToken);
+            await SaveSessionWithOutboxAsync(session, cancellationToken);
             isNewSession = true;
 
             _logger.LogDebug(
@@ -156,5 +166,63 @@ public sealed class RecordActiveWindowUseCase
             return null;
 
         return ComputeHash(windowTitle);
+    }
+
+    /// <summary>
+    /// Salva a sessão com outbox item em uma única transação
+    /// </summary>
+    private async Task SaveSessionWithOutboxAsync(ActivitySession session, CancellationToken cancellationToken)
+    {
+        var payload = CreateSessionPayload(session);
+        var payloadJson = JsonSerializer.Serialize(payload, JsonOptions);
+        var idempotencyKey = _idempotencyKeyGenerator.Generate(
+            "activity_session",
+            session.Id,
+            session.Period.StartUtc);
+
+        var outboxItem = OutboxItem.Create(
+            "activity_session",
+            session.Id,
+            payloadJson,
+            idempotencyKey);
+
+        await _sessionRepository.SaveWithOutboxAsync(session, new[] { outboxItem }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Cria o payload para sincronização
+    /// </summary>
+    private static SessionSyncPayload CreateSessionPayload(ActivitySession session)
+    {
+        return new SessionSyncPayload
+        {
+            Id = session.Id,
+            ExePathHash = session.App.ExePathHash,
+            DisplayName = session.App.DisplayName,
+            CategoryProductivity = session.App.Category.Productivity,
+            CategorySubcategory = session.App.Category.Subcategory,
+            CategorySource = session.App.Category.Source,
+            StartUtc = session.Period.StartUtc,
+            EndUtc = session.Period.EndUtc,
+            WindowHash = session.WindowHash,
+            WindowTitle = session.WindowTitle
+        };
+    }
+
+    /// <summary>
+    /// Payload de sincronização para activity_session
+    /// </summary>
+    private sealed class SessionSyncPayload
+    {
+        public Guid Id { get; init; }
+        public string ExePathHash { get; init; } = string.Empty;
+        public string DisplayName { get; init; } = string.Empty;
+        public string CategoryProductivity { get; init; } = string.Empty;
+        public string CategorySubcategory { get; init; } = string.Empty;
+        public string CategorySource { get; init; } = string.Empty;
+        public DateTime StartUtc { get; init; }
+        public DateTime EndUtc { get; init; }
+        public string? WindowHash { get; init; }
+        public string? WindowTitle { get; init; }
     }
 }

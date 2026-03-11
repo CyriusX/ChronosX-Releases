@@ -5,6 +5,7 @@ using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Infrastructure.Extensions;
 using TimeTrack.AgentService.Configuration;
+using TimeTrack.AgentService.Health;
 using TimeTrack.AgentService.Workers;
 
 namespace TimeTrack.AgentService.Extensions;
@@ -50,15 +51,27 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adiciona providers de infraestrutura (placeholders - implementação futura)
+    /// Adiciona providers de infraestrutura do Windows
     /// </summary>
     public static IServiceCollection AddInfrastructureProviders(this IServiceCollection services)
     {
-        // TODO: Implementar WindowsActiveWindowProvider
-        // services.AddSingleton<IActiveWindowProvider, WindowsActiveWindowProvider>();
+        // Registra providers do Windows (ActiveWindow + IdleDetector)
+        services.AddWindowsProviders();
 
-        // TODO: Implementar idle detector
-        // services.AddSingleton<IIdleDetector, WindowsIdleDetector>();
+        return services;
+    }
+
+    /// <summary>
+    /// Adiciona serviços de sincronização
+    /// </summary>
+    public static IServiceCollection AddSyncServices(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var settings = configuration.GetSection(AgentSettings.SectionName).Get<AgentSettings>()
+            ?? new AgentSettings();
+
+        services.AddSyncServices(settings.Sync);
 
         return services;
     }
@@ -78,6 +91,23 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddAgentWorkers(this IServiceCollection services)
     {
         services.AddHostedService<TrackingWorker>();
+        services.AddHostedService<SyncWorker>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adiciona health checks do Agent
+    /// </summary>
+    public static IServiceCollection AddAgentHealthChecks(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var settings = configuration.GetSection(AgentSettings.SectionName).Get<AgentSettings>()
+            ?? new AgentSettings();
+
+        services.AddHealthChecks()
+            .AddCheck<AgentHealthCheck>("agent_health", tags: new[] { "ready" });
 
         return services;
     }

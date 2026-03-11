@@ -20,7 +20,26 @@
       "Bash(echo:*)",
       "mcp__linear-server__save_comment",
       "mcp__linear-server__save_issue",
-      "Bash(cmd //c \"dotnet build src/agent/TimeTrack.Agent.Infrastructure/TimeTrack.Agent.Infrastructure.csproj\" 2>&1)"
+      "Bash(cmd //c \"dotnet build src/agent/TimeTrack.Agent.Infrastructure/TimeTrack.Agent.Infrastructure.csproj\" 2>&1)",
+      "Bash(tr ';' '\\\\n')",
+      "Bash(powershell -Command \"[Environment]::SetEnvironmentVariable\\(''PATH'', [Environment]::GetEnvironmentVariable\\(''PATH'', ''Machine''\\) + '';C:\\\\Program Files\\\\dotnet'', ''Machine''\\)\")",
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" --version)",
+      "Bash(source ~/.bashrc)",
+      "Bash(printf '%s\\\\n' \"$PATH\")",
+      "Bash(bash -c 'echo \"\"$PATH\"\"')",
+      "Bash(ls \"/c/Program Files \\(x86\\)/dotnet/sdk/\")",
+      "Bash(bash -l -c 'dotnet --version')",
+      "Bash(bash -l -c \"dotnet build --no-restore -v q\")",
+      "Bash(cmd //c dir \"C:\\\\Projetos\\\\TimeTracking\\\\src\\\\agent\\\\TimeTrack.Agent.Infrastructure\\\\Providers\\\\Windows\")",
+      "Bash(dir / 2>&1 | head -30)",
+      "Bash(cd \"C:\\\\Projetos\\\\TimeTracking\" && dir / && ls -la)",
+      "Bash(find src/backend -name \"*.csproj\" -type f 2>/dev/null | head -20)",
+      "Bash(cd TimeTrack.Backend.Infrastructure && dotnet ef migrations add InitialCreate --startup-project ../TimeTrack.Api/TimeTrack.Api.csproj --output-dir Persistence/Migrations 2>&1)",
+      "Bash(dotnet tool:*)",
+      "Bash(dotnet restore:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Usuario"
     ]
   }
 }

@@ -40,7 +40,7 @@ public interface IActivitySessionRepository
     Task SaveBatchAsync(IEnumerable<ActivitySession> sessions, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Atualiza o tempo de término de uma sessão ativa
+    /// Salva a sessão com outbox items em uma única transação
     /// </summary>
-    Task UpdateSessionEndAsync(Guid sessionId, DateTime endUtc, CancellationToken cancellationToken = default);
+    Task SaveWithOutboxAsync(ActivitySession session, IEnumerable<OutboxItem> outboxItems, CancellationToken cancellationToken = default);
 }

@@ -6,7 +6,7 @@ function App() {
         <p className="text-gray-400">Sistema de rastreamento de tempo</p>
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

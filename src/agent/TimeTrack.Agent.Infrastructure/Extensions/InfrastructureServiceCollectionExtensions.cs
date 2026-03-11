@@ -1,15 +1,21 @@
+using System.Runtime.Versioning;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TimeTrack.Agent.Contracts.Configuration;
 using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Contracts.Services;
+using TimeTrack.Agent.Domain.Services;
 using TimeTrack.Agent.Infrastructure.Persistence;
 using TimeTrack.Agent.Infrastructure.Providers.Windows;
+using TimeTrack.Agent.Infrastructure.Services;
 
 namespace TimeTrack.Agent.Infrastructure.Extensions;
 
 /// <summary>
 /// Extension methods para configurar serviços de infraestrutura
 /// </summary>
+[SupportedOSPlatform("windows")]
 public static class InfrastructureServiceCollectionExtensions
 {
     /// <summary>
@@ -40,6 +46,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<ITrackingStateRepository, TrackingStateRepository>();
         services.AddSingleton<IActivitySessionRepository, ActivitySessionRepository>();
         services.AddSingleton<IIdlePeriodRepository, IdlePeriodRepository>();
+        services.AddSingleton<IOutboxRepository, OutboxRepository>();
+        services.AddSingleton<ISyncErrorRepository, SyncErrorRepository>();
+        services.AddSingleton<IIdempotencyKeyGenerator, IdempotencyKeyGenerator>();
 
         return services;
     }
@@ -61,12 +70,60 @@ public static class InfrastructureServiceCollectionExtensions
         // ActiveWindowProvider - Singleton para manter o hook ativo
         services.AddSingleton<IActiveWindowProvider, WindowsActiveWindowProvider>();
 
-        // Configuração padrão
+        // IdleDetector - Singleton para eficiência
+        services.AddSingleton<IIdleDetector, WindowsIdleDetector>();
+
+        // Configuração padrão ActiveWindow
         services.Configure<ActiveWindowProviderOptions>(options =>
         {
             options.PollingIntervalMs = 250;
             options.CacheValidityMs = 500;
             options.DebounceMs = 200;
+        });
+
+        // Configuração padrão IdleDetector
+        services.Configure<IdleDetectorOptions>(options =>
+        {
+            options.DefaultThresholdSeconds = 180;
+            options.MinThresholdSeconds = 60;
+            options.MaxThresholdSeconds = 600;
+            options.PollingIntervalMs = 2000;
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adiciona serviços de sincronização com o backend
+    /// </summary>
+    public static IServiceCollection AddSyncServices(
+        this IServiceCollection services,
+        SyncSettings settings)
+    {
+        if (settings == null)
+            throw new ArgumentNullException(nameof(settings));
+
+        // Registra SyncSettings para injeção
+        services.AddSingleton(settings);
+
+        // Registra TokenStore com DPAPI
+        services.AddHttpClient<ITokenStore, DpapiTokenStore>(client =>
+        {
+            client.BaseAddress = new Uri(settings.BackendUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
+        });
+
+        // Registra HttpClient para sync
+        services.AddHttpClient<ISyncTransport, HttpSyncTransport>(client =>
+        {
+            client.BaseAddress = new Uri(settings.BackendUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
+
+            if (!string.IsNullOrWhiteSpace(settings.AuthToken))
+            {
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.AuthToken);
+            }
         });
 
         return services;
