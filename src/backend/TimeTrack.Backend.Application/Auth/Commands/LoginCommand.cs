@@ -77,6 +77,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
             UserId = user.Id,
             OrgId = user.OrgId,
             DisplayName = user.DisplayName,
+            Role = user.Role.ToString(),
             OrgName = user.Organization?.Name ?? "",
             PasswordMustChange = user.PasswordMustChange
         };

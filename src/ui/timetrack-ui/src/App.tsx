@@ -1,13 +1,14 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { useEffect } from 'react';
-import { useIpc } from './hooks/useIpc';
-import { useTrackingStore } from './stores/trackingStore';
-import Dashboard from './pages/Dashboard';
-import Settings from './pages/Settings';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { Toaster } from './components/Toaster';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
+import { useIpc } from "./hooks/useIpc";
+import { useTrackingStore } from "./stores/trackingStore";
+import Dashboard from "./pages/Dashboard";
+import Settings from "./pages/Settings";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Projects from "./pages/Projects";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { Toaster } from "./components/Toaster";
 
 function App() {
   const { isConnected, isReady } = useIpc();
@@ -48,7 +49,7 @@ function App() {
             path="/projects"
             element={
               <ProtectedRoute>
-                <div>Projects (TODO)</div>
+                <Projects />
               </ProtectedRoute>
             }
           />

@@ -14,6 +14,11 @@ public sealed class TrackingState : EntityBase
     private readonly List<IDomainEvent> _events = new();
 
     /// <summary>
+    /// ID do usuário proprietário deste estado
+    /// </summary>
+    public Guid UserId { get; private set; }
+
+    /// <summary>
     /// Status atual do tracking
     /// </summary>
     public TrackingStatus Status { get; private set; }
@@ -66,18 +71,22 @@ public sealed class TrackingState : EntityBase
 
     private TrackingState() { }
 
-    public TrackingState(Guid id) : base(id)
+    public TrackingState(Guid id, Guid userId) : base(id)
     {
+        if (userId == Guid.Empty)
+            throw new ArgumentException("UserId is required", nameof(userId));
+
+        UserId = userId;
         Status = TrackingStatus.Active;
         UpdatedAt = DateTime.UtcNow;
     }
 
     /// <summary>
-    /// Cria um novo estado de tracking ativo
+    /// Cria um novo estado de tracking ativo para um usuário
     /// </summary>
-    public static TrackingState CreateActive()
+    public static TrackingState CreateActive(Guid userId)
     {
-        return new TrackingState(Guid.NewGuid());
+        return new TrackingState(Guid.NewGuid(), userId);
     }
 
     /// <summary>
@@ -184,6 +193,7 @@ public sealed class TrackingState : EntityBase
         return new TrackingStateDto
         {
             Id = Id,
+            UserId = UserId,
             Status = Status,
             Reason = Reason,
             PausedAt = PausedAt,
@@ -198,9 +208,8 @@ public sealed class TrackingState : EntityBase
     /// </summary>
     public static TrackingState FromDto(TrackingStateDto dto)
     {
-        var state = new TrackingState
+        var state = new TrackingState(dto.Id, dto.UserId)
         {
-            Id = dto.Id,
             Status = dto.Status,
             Reason = dto.Reason,
             PausedAt = dto.PausedAt,
@@ -220,6 +229,7 @@ public sealed class TrackingState : EntityBase
 public sealed class TrackingStateDto
 {
     public Guid Id { get; set; }
+    public Guid UserId { get; set; }
     public TrackingStatus Status { get; set; }
     public string? Reason { get; set; }
     public DateTime? PausedAt { get; set; }

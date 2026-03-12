@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Entities;
 using TimeTrack.Agent.Domain.Services;
 using TimeTrack.Agent.Domain.ValueObjects;
@@ -17,6 +18,7 @@ public sealed class RecordActiveWindowUseCase
 {
     private readonly IActivitySessionRepository _sessionRepository;
     private readonly ITrackingStateRepository _stateRepository;
+    private readonly ICurrentUserContext _userContext;
     private readonly IIdempotencyKeyGenerator _idempotencyKeyGenerator;
     private readonly ILogger<RecordActiveWindowUseCase> _logger;
 
@@ -33,11 +35,13 @@ public sealed class RecordActiveWindowUseCase
     public RecordActiveWindowUseCase(
         IActivitySessionRepository sessionRepository,
         ITrackingStateRepository stateRepository,
+        ICurrentUserContext userContext,
         IIdempotencyKeyGenerator idempotencyKeyGenerator,
         ILogger<RecordActiveWindowUseCase> logger)
     {
         _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
         _stateRepository = stateRepository ?? throw new ArgumentNullException(nameof(stateRepository));
+        _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _idempotencyKeyGenerator = idempotencyKeyGenerator ?? throw new ArgumentNullException(nameof(idempotencyKeyGenerator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -55,8 +59,11 @@ public sealed class RecordActiveWindowUseCase
         if (string.IsNullOrWhiteSpace(request.ApplicationName))
             throw new ArgumentException("ApplicationName is required", nameof(request));
 
+        var userId = _userContext.UserId
+            ?? throw new InvalidOperationException("User not authenticated");
+
         // Verifica se o tracking está ativo
-        var state = await _stateRepository.GetAsync(cancellationToken);
+        var state = await _stateRepository.GetAsync(userId, cancellationToken);
         if (state != null && !state.IsActive)
         {
             _logger.LogDebug("Tracking is paused, skipping window capture");
@@ -75,8 +82,8 @@ public sealed class RecordActiveWindowUseCase
         // Cria hash da janela para agrupamento
         var windowHash = ComputeWindowHash(request.WindowTitle);
 
-        // Busca sessão ativa para possível extensão
-        var activeSession = await _sessionRepository.GetActiveSessionAsync(cancellationToken);
+        // Busca sessão ativa para possível extensão (filtrada por usuário)
+        var activeSession = await _sessionRepository.GetActiveSessionAsync(userId, cancellationToken);
 
         ActivitySession session;
         bool isNewSession;
@@ -95,12 +102,12 @@ public sealed class RecordActiveWindowUseCase
         }
         else
         {
-            // Cria nova sessão
+            // Cria nova sessão (com userId)
             var period = new TimeRange(
                 request.CapturedAt,
                 request.CapturedAt.AddSeconds(DefaultCaptureIntervalSeconds));
 
-            session = ActivitySession.Create(appIdentity, period, windowHash, request.WindowTitle);
+            session = ActivitySession.Create(userId, appIdentity, period, windowHash, request.WindowTitle);
             await SaveSessionWithOutboxAsync(session, cancellationToken);
             isNewSession = true;
 

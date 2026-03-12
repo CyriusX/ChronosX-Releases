@@ -8,9 +8,9 @@ namespace TimeTrack.Agent.Contracts.Repositories;
 public interface ITrackingStateRepository
 {
     /// <summary>
-    /// Obtém o estado atual de tracking
+    /// Obtém o estado de tracking para um usuário específico
     /// </summary>
-    Task<TrackingState?> GetAsync(CancellationToken cancellationToken = default);
+    Task<TrackingState?> GetAsync(Guid userId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Salva o estado de tracking

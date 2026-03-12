@@ -22,16 +22,17 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<TrackingState?> GetAsync(CancellationToken cancellationToken = default)
+    public async Task<TrackingState?> GetAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
-            SELECT id, status, reason, paused_at, resumed_at, updated_at, last_modified_by
+            SELECT id, user_id, status, reason, paused_at, resumed_at, updated_at, last_modified_by
             FROM tracking_state
+            WHERE user_id = @UserId
             LIMIT 1";
 
-        var dto = await connection.QueryFirstOrDefaultAsync<DapperTrackingStateDto>(sql);
+        var dto = await connection.QueryFirstOrDefaultAsync<DapperTrackingStateDto>(sql, new { UserId = userId.ToString() });
 
         if (dto == null)
             return null;
@@ -45,16 +46,17 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
 
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
-        // SQLite doesn't have elegant UPSERT, so delete and insert
-        const string deleteSql = "DELETE FROM tracking_state";
+        // SQLite doesn't have elegant UPSERT, so delete and insert for this user
+        const string deleteSql = "DELETE FROM tracking_state WHERE user_id = @UserId";
         const string insertSql = @"
-            INSERT INTO tracking_state (id, status, reason, paused_at, resumed_at, updated_at, last_modified_by)
-            VALUES (@Id, @Status, @Reason, @PausedAt, @ResumedAt, @UpdatedAt, @LastModifiedBy)";
+            INSERT INTO tracking_state (id, user_id, status, reason, paused_at, resumed_at, updated_at, last_modified_by)
+            VALUES (@Id, @UserId, @Status, @Reason, @PausedAt, @ResumedAt, @UpdatedAt, @LastModifiedBy)";
 
-        await connection.ExecuteAsync(deleteSql);
+        await connection.ExecuteAsync(deleteSql, new { UserId = state.UserId.ToString() });
         await connection.ExecuteAsync(insertSql, new
         {
             Id = state.Id.ToString(),
+            UserId = state.UserId.ToString(),
             Status = (int)state.Status,
             Reason = state.Reason,
             PausedAt = state.PausedAt?.ToString() ?? null,
@@ -63,7 +65,7 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
             LastModifiedBy = state.LastModifiedBy
         });
 
-        _logger.LogDebug("Tracking state saved: {Status}", state.Status);
+        _logger.LogDebug("Tracking state saved for user {UserId}: {Status}", state.UserId, state.Status);
     }
 
     private static TrackingState? MapToDomain(DapperTrackingStateDto dto)
@@ -74,6 +76,7 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
         return TrackingState.FromDto(new TrackingStateDto
         {
             Id = Guid.Parse(dto.Id),
+            UserId = Guid.Parse(dto.User_Id),
             Status = (TrackingStatus)dto.Status,
             Reason = dto.Reason,
             PausedAt = dto.PausedAt,
@@ -88,8 +91,9 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
     /// </summary>
     private sealed class DapperTrackingStateDto
     {
-        public string Id { get; set; }  // Store as string in SQLite
-        public int Status { get; set; }  // Keep as int for Dapper mapping
+        public string Id { get; set; } = string.Empty;
+        public string User_Id { get; set; } = string.Empty;
+        public int Status { get; set; }
         public string? Reason { get; set; }
         public DateTime? PausedAt { get; set; }
         public DateTime? ResumedAt { get; set; }

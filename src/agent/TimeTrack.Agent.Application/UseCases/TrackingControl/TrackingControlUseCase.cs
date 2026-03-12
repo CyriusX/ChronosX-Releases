@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Aggregates;
 
 namespace TimeTrack.Agent.Application.UseCases.TrackingControl;
@@ -10,13 +11,16 @@ namespace TimeTrack.Agent.Application.UseCases.TrackingControl;
 public sealed class TrackingControlUseCase
 {
     private readonly ITrackingStateRepository _stateRepository;
+    private readonly ICurrentUserContext _userContext;
     private readonly ILogger<TrackingControlUseCase> _logger;
 
     public TrackingControlUseCase(
         ITrackingStateRepository stateRepository,
+        ICurrentUserContext userContext,
         ILogger<TrackingControlUseCase> logger)
     {
         _stateRepository = stateRepository ?? throw new ArgumentNullException(nameof(stateRepository));
+        _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -33,7 +37,10 @@ public sealed class TrackingControlUseCase
         if (string.IsNullOrWhiteSpace(request.PausedBy))
             throw new ArgumentException("PausedBy is required", nameof(request));
 
-        var state = await GetOrCreateStateAsync(cancellationToken);
+        var userId = _userContext.UserId
+            ?? throw new InvalidOperationException("User not authenticated");
+
+        var state = await GetOrCreateStateAsync(userId, cancellationToken);
 
         state.Pause(request.Reason, request.PausedBy, request.IsPolicy);
 
@@ -60,7 +67,10 @@ public sealed class TrackingControlUseCase
         if (string.IsNullOrWhiteSpace(request.ResumedBy))
             throw new ArgumentException("ResumedBy is required", nameof(request));
 
-        var state = await GetOrCreateStateAsync(cancellationToken);
+        var userId = _userContext.UserId
+            ?? throw new InvalidOperationException("User not authenticated");
+
+        var state = await GetOrCreateStateAsync(userId, cancellationToken);
 
         state.Resume(request.ResumedBy);
 
@@ -87,12 +97,15 @@ public sealed class TrackingControlUseCase
         if (string.IsNullOrWhiteSpace(request.StartedBy))
             throw new ArgumentException("StartedBy is required", nameof(request));
 
-        var existingState = await _stateRepository.GetAsync(cancellationToken);
+        var userId = _userContext.UserId
+            ?? throw new InvalidOperationException("User not authenticated");
+
+        var existingState = await _stateRepository.GetAsync(userId, cancellationToken);
 
         if (existingState == null)
         {
             // No state exists, create new active state
-            var newState = TrackingState.CreateActive();
+            var newState = TrackingState.CreateActive(userId);
             await _stateRepository.SaveAsync(newState, cancellationToken);
 
             _logger.LogInformation(
@@ -160,7 +173,10 @@ public sealed class TrackingControlUseCase
         if (string.IsNullOrWhiteSpace(request.StoppedBy))
             throw new ArgumentException("StoppedBy is required", nameof(request));
 
-        var state = await _stateRepository.GetAsync(cancellationToken);
+        var userId = _userContext.UserId
+            ?? throw new InvalidOperationException("User not authenticated");
+
+        var state = await _stateRepository.GetAsync(userId, cancellationToken);
 
         if (state == null)
         {
@@ -192,15 +208,15 @@ public sealed class TrackingControlUseCase
     /// <summary>
     /// Obtém o estado atual ou cria um novo se não existir
     /// </summary>
-    private async Task<TrackingState> GetOrCreateStateAsync(CancellationToken cancellationToken)
+    private async Task<TrackingState> GetOrCreateStateAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var state = await _stateRepository.GetAsync(cancellationToken);
+        var state = await _stateRepository.GetAsync(userId, cancellationToken);
 
         if (state == null)
         {
-            state = TrackingState.CreateActive();
+            state = TrackingState.CreateActive(userId);
             await _stateRepository.SaveAsync(state, cancellationToken);
-            _logger.LogInformation("New tracking state created");
+            _logger.LogInformation("New tracking state created for user {UserId}", userId);
         }
 
         return state;

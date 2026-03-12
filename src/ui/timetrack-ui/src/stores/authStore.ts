@@ -167,6 +167,19 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           });
 
+          // Notify Agent about the new tokens
+          try {
+            const { getIpcService } = await import('../services');
+            const ipcService = getIpcService();
+            await ipcService.sendCommand('storeTokens', {
+              accessToken: response.accessToken,
+              refreshToken: response.refreshToken
+            });
+            console.log('[AuthStore] Tokens sent to Agent');
+          } catch (ipcError) {
+            console.warn('[AuthStore] Failed to send tokens to Agent:', ipcError);
+          }
+
           return true;
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Login failed';
@@ -206,6 +219,10 @@ export const useAuthStore = create<AuthState>()(
         if (tokens?.refreshToken) {
           await logoutApi(tokens.refreshToken);
         }
+
+        // Reset tracking store to clear user-specific data
+        const { useTrackingStore } = await import('./trackingStore');
+        useTrackingStore.getState().reset();
 
         set({
           user: null,

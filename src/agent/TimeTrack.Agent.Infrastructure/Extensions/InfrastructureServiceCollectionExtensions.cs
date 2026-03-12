@@ -114,6 +114,9 @@ public static class InfrastructureServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
         });
 
+        // Registra CurrentUserContext (extrai user_id do JWT)
+        services.AddSingleton<ICurrentUserContext, JwtCurrentUserContext>();
+
         // Registra HttpClient para sync
         services.AddHttpClient<ISyncTransport, HttpSyncTransport>(client =>
         {
@@ -136,6 +139,8 @@ public static class InfrastructureServiceCollectionExtensions
     public static IServiceCollection AddNullSyncTransport(this IServiceCollection services)
     {
         services.AddSingleton<ISyncTransport, NullSyncTransport>();
+        services.AddSingleton<ITokenStore, NullTokenStore>();
+        services.AddSingleton<ICurrentUserContext, JwtCurrentUserContext>();
         return services;
     }
 }

@@ -9,6 +9,11 @@ namespace TimeTrack.Agent.Domain.Entities;
 public sealed class IdlePeriod : EntityBase
 {
     /// <summary>
+    /// ID do usuário proprietário deste período
+    /// </summary>
+    public Guid UserId { get; }
+
+    /// <summary>
     /// Intervalo de tempo do período de inatividade
     /// </summary>
     public TimeRange Period { get; private set; }
@@ -27,14 +32,19 @@ public sealed class IdlePeriod : EntityBase
 
     public IdlePeriod(
         Guid id,
+        Guid userId,
         TimeRange period,
         int thresholdSeconds,
         bool isSystemDetected = true)
         : base(id)
     {
+        if (userId == Guid.Empty)
+            throw new ArgumentException("UserId is required", nameof(userId));
+
         if (thresholdSeconds <= 0)
             throw new DomainException("INVALID_THRESHOLD", "O limiar de inatividade deve ser maior que zero.");
 
+        UserId = userId;
         Period = period ?? throw new ArgumentNullException(nameof(period));
         ThresholdSeconds = thresholdSeconds;
         IsSystemDetected = isSystemDetected;
@@ -44,11 +54,12 @@ public sealed class IdlePeriod : EntityBase
     /// Cria um novo período de inatividade com ID gerado automaticamente
     /// </summary>
     public static IdlePeriod Create(
+        Guid userId,
         TimeRange period,
         int thresholdSeconds,
         bool isSystemDetected = true)
     {
-        return new IdlePeriod(Guid.NewGuid(), period, thresholdSeconds, isSystemDetected);
+        return new IdlePeriod(Guid.NewGuid(), userId, period, thresholdSeconds, isSystemDetected);
     }
 
     /// <summary>

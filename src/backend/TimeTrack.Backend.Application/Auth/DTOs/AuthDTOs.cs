@@ -27,6 +27,7 @@ public sealed class LoginResponse
     public Guid UserId { get; init; }
     public Guid OrgId { get; init; }
     public string DisplayName { get; init; } = string.Empty;
+    public string Role { get; init; } = string.Empty;
     public string OrgName { get; init; } = string.Empty;
     public bool PasswordMustChange { get; init; }
 }
@@ -275,4 +276,26 @@ public sealed class UpdateMemberRoleRequest
 
     [Required]
     public string Role { get; init; } = string.Empty; // "Colaborador", "Gestor", "Admin"
+}
+
+/// <summary>
+/// Item de membro na listagem
+/// </summary>
+public sealed class MemberListItem
+{
+    public Guid UserId { get; init; }
+    public string Email { get; init; } = string.Empty;
+    public string DisplayName { get; init; } = string.Empty;
+    public string Role { get; init; } = string.Empty;
+    public string Status { get; init; } = string.Empty;
+    public DateTime CreatedAt { get; init; }
+}
+
+/// <summary>
+/// Response da listagem de membros
+/// </summary>
+public sealed class ListMembersResponse
+{
+    public List<MemberListItem> Members { get; init; } = [];
+    public int TotalCount { get; init; }
 }

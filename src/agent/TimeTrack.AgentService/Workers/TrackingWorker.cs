@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Application.UseCases.RecordActiveWindow;
 using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Enums;
 using TimeTrack.AgentService.Configuration;
 using TimeTrack.AgentService.Extensions;
@@ -19,6 +20,7 @@ public sealed class TrackingWorker : BackgroundService
     private readonly IActiveWindowProvider _activeWindowProvider;
     private readonly IIdleDetector _idleDetector;
     private readonly ITrackingStateRepository _stateRepository;
+    private readonly ICurrentUserContext _userContext;
     private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
 
     private bool _isIdle = false;
@@ -30,6 +32,7 @@ public sealed class TrackingWorker : BackgroundService
         IActiveWindowProvider activeWindowProvider,
         IIdleDetector idleDetector,
         ITrackingStateRepository stateRepository,
+        ICurrentUserContext userContext,
         RecordActiveWindowUseCase recordActiveWindowUseCase)
     {
         _logger = logger;
@@ -37,6 +40,7 @@ public sealed class TrackingWorker : BackgroundService
         _activeWindowProvider = activeWindowProvider;
         _idleDetector = idleDetector;
         _stateRepository = stateRepository;
+        _userContext = userContext;
         _recordActiveWindowUseCase = recordActiveWindowUseCase;
 
         // Configura prioridade do processo
@@ -81,8 +85,16 @@ public sealed class TrackingWorker : BackgroundService
 
     private async Task ExecuteTrackingCycleAsync(CancellationToken cancellationToken)
     {
-        // 1. Verificar estado do tracking
-        var state = await _stateRepository.GetAsync(cancellationToken);
+        // 0. Verificar se há usuário autenticado
+        var userId = _userContext.UserId;
+        if (userId == null)
+        {
+            _logger.LogDebug("Nenhum usuário autenticado. Pulando ciclo de tracking.");
+            return;
+        }
+
+        // 1. Verificar estado do tracking (filtrado por usuário)
+        var state = await _stateRepository.GetAsync(userId.Value, cancellationToken);
         if (state == null)
         {
             _logger.LogInformation("Nenhum estado de tracking encontrado. Pulando ciclo.");

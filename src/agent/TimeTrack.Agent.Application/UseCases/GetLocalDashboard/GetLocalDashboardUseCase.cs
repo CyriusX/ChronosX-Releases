@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Contracts.Services;
 
 namespace TimeTrack.Agent.Application.UseCases.GetLocalDashboard;
 
@@ -11,17 +12,20 @@ public sealed class GetLocalDashboardUseCase
     private readonly ITrackingStateRepository _stateRepository;
     private readonly IActivitySessionRepository _sessionRepository;
     private readonly IIdlePeriodRepository _idleRepository;
+    private readonly ICurrentUserContext _userContext;
     private readonly ILogger<GetLocalDashboardUseCase> _logger;
 
     public GetLocalDashboardUseCase(
         ITrackingStateRepository stateRepository,
         IActivitySessionRepository sessionRepository,
         IIdlePeriodRepository idleRepository,
+        ICurrentUserContext userContext,
         ILogger<GetLocalDashboardUseCase> logger)
     {
         _stateRepository = stateRepository ?? throw new ArgumentNullException(nameof(stateRepository));
         _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
         _idleRepository = idleRepository ?? throw new ArgumentNullException(nameof(idleRepository));
+        _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -32,12 +36,15 @@ public sealed class GetLocalDashboardUseCase
         DateTime? date = null,
         CancellationToken cancellationToken = default)
     {
+        var userId = _userContext.UserId
+            ?? throw new InvalidOperationException("User not authenticated");
+
         var targetDate = date?.Date ?? DateTime.UtcNow.Date;
 
-        // Busca dados em paralelo
-        var stateTask = _stateRepository.GetAsync(cancellationToken);
-        var sessionsTask = _sessionRepository.GetByDateAsync(targetDate, cancellationToken);
-        var idlePeriodsTask = _idleRepository.GetByDateAsync(targetDate, cancellationToken);
+        // Busca dados em paralelo (filtrados por usuário)
+        var stateTask = _stateRepository.GetAsync(userId, cancellationToken);
+        var sessionsTask = _sessionRepository.GetByDateAsync(userId, targetDate, cancellationToken);
+        var idlePeriodsTask = _idleRepository.GetByDateAsync(userId, targetDate, cancellationToken);
 
         await Task.WhenAll(stateTask, sessionsTask, idlePeriodsTask);
 

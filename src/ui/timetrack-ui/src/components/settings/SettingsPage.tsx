@@ -1,24 +1,28 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { SettingsTabs } from './SettingsTabs';
+import { SettingsTabs, type SettingsTab } from './SettingsTabs';
 import { PreferencesSection } from './PreferencesSection';
 import { AboutSection } from './AboutSection';
+import { MembersSection } from './MembersSection';
 import { PolicyCards } from './PolicyCards';
 import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
+import { useAuthStore } from '../../stores/authStore';
 import type { LocalSettings, OrgPolicies, UpdateLocalSettingsRequest } from '../../types/settings';
 
 /**
- * SettingsPage - Página de configurações do colaborador
+ * SettingsPage - Página de configurações
  *
  * Layout:
  * - Sidebar à esquerda (reutilizada do Dashboard)
  * - Área principal com:
  *   - Header com título e botão voltar
- *   - Tabs (Preferências | Sobre)
+ *   - Tabs (Preferências | Membros* | Sobre)
  *   - Conteúdo da aba
  *   - Grid de PolicyCards (políticas da organização)
+ *
+ * * Membros visível apenas para Admin/Gestor
  *
  * SOLID:
  * - SRP: Apenas orquestração da UI de settings
@@ -32,10 +36,14 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const { sendQuery, sendCommand } = useIpc();
   const { notify } = useNotifications();
-  const [activeTab, setActiveTab] = useState<'preferences' | 'about'>('preferences');
+  const { user } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<SettingsTab>('preferences');
   const [settings, setSettings] = useState<LocalSettings | null>(null);
   const [policies, setPolicies] = useState<OrgPolicies | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Show members tab only for Admin/Gestor
+  const showMembersTab = user?.role === 'Admin' || user?.role === 'Gestor';
 
   // Load settings on mount
   useEffect(() => {
@@ -141,15 +149,20 @@ export function SettingsPage() {
 
       {/* Tabs */}
       <div className="mb-6">
-        <SettingsTabs activeTab={activeTab} onTabChange={setActiveTab} />
+        <SettingsTabs
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          showMembersTab={showMembersTab}
+        />
       </div>
 
       {/* Content Area */}
       <div className="space-y-8">
-        {/* Preferences or About Section */}
+        {/* Tab Content */}
         {activeTab === 'preferences' && settings && (
           <PreferencesSection settings={settings} onUpdate={handleUpdateSettings} />
         )}
+        {activeTab === 'members' && showMembersTab && <MembersSection />}
         {activeTab === 'about' && <AboutSection />}
 
         {/* Policy Cards - Full width grid below content */}

@@ -9,13 +9,15 @@ namespace TimeTrack.Agent.Tests.Domain;
 
 public class TrackingStateTests
 {
+    private readonly Guid _testUserId = Guid.NewGuid();
+
     #region Creation
 
     [Fact]
     public void CreateActive_ShouldCreateWithActiveStatus()
     {
         // Act
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
 
         // Assert
         state.Status.Should().Be(TrackingStatus.Active);
@@ -23,6 +25,7 @@ public class TrackingStateTests
         state.IsPaused.Should().BeFalse();
         state.IsDisabled.Should().BeFalse();
         state.Id.Should().NotBe(Guid.Empty);
+        state.UserId.Should().Be(_testUserId);
     }
 
     #endregion
@@ -33,7 +36,7 @@ public class TrackingStateTests
     public void Pause_FromActive_ShouldSucceed()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
 
         // Act
         state.Pause("Taking a break", "user123");
@@ -50,7 +53,7 @@ public class TrackingStateTests
     public void Pause_WithIsPolicy_ShouldSetPausedByPolicy()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
 
         // Act
         state.Pause("Inactivity timeout", "system", isPolicy: true);
@@ -63,7 +66,7 @@ public class TrackingStateTests
     public void Pause_ShouldRaiseTrackingPausedEvent()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
 
         // Act
         state.Pause("Break", "user123");
@@ -84,7 +87,7 @@ public class TrackingStateTests
     public void Pause_FromPausedByUser_ShouldThrowDomainException()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Pause("First pause", "user123");
 
         // Act
@@ -99,7 +102,7 @@ public class TrackingStateTests
     public void Pause_FromDisabled_ShouldThrowDomainException()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Disable();
 
         // Act
@@ -118,7 +121,7 @@ public class TrackingStateTests
     public void Resume_FromPausedByUser_ShouldSucceed()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Pause("Break", "user123");
 
         // Act
@@ -136,7 +139,7 @@ public class TrackingStateTests
     public void Resume_FromPausedByPolicy_ShouldSucceed()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Pause("Policy", "system", isPolicy: true);
 
         // Act
@@ -150,7 +153,7 @@ public class TrackingStateTests
     public void Resume_ShouldRaiseTrackingResumedEvent()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Pause("Break", "user123");
         state.ClearEvents();
 
@@ -172,7 +175,7 @@ public class TrackingStateTests
     public void Resume_FromActive_ShouldThrowDomainException()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
 
         // Act
         var act = () => state.Resume("user123");
@@ -186,7 +189,7 @@ public class TrackingStateTests
     public void Resume_FromDisabled_ShouldThrowDomainException()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Disable();
 
         // Act
@@ -205,7 +208,7 @@ public class TrackingStateTests
     public void Disable_FromActive_ShouldSucceed()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
 
         // Act
         state.Disable("Maintenance");
@@ -220,7 +223,7 @@ public class TrackingStateTests
     public void Disable_FromPausedByUser_ShouldSucceed()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Pause("Break", "user123");
 
         // Act
@@ -234,7 +237,7 @@ public class TrackingStateTests
     public void Disable_FromPausedByPolicy_ShouldSucceed()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Pause("Policy", "system", isPolicy: true);
 
         // Act
@@ -248,7 +251,7 @@ public class TrackingStateTests
     public void Disable_FromDisabled_ShouldThrowDomainException()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Disable();
 
         // Act
@@ -267,7 +270,7 @@ public class TrackingStateTests
     public void Enable_FromDisabled_ShouldSucceed()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Disable();
 
         // Act
@@ -285,7 +288,7 @@ public class TrackingStateTests
     public void Enable_FromActive_ShouldThrowDomainException()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
 
         // Act
         var act = () => state.Enable();
@@ -299,7 +302,7 @@ public class TrackingStateTests
     public void Enable_FromPaused_ShouldThrowDomainException()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Pause("Break", "user123");
 
         // Act
@@ -318,7 +321,7 @@ public class TrackingStateTests
     public void ClearEvents_ShouldRemoveAllEvents()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
         state.Pause("Break", "user123");
         state.Events.Should().HaveCount(1);
 
@@ -333,7 +336,7 @@ public class TrackingStateTests
     public void MultipleTransitions_ShouldAccumulateEvents()
     {
         // Arrange
-        var state = TrackingState.CreateActive();
+        var state = TrackingState.CreateActive(_testUserId);
 
         // Act
         state.Pause("Break 1", "user123");
@@ -355,7 +358,7 @@ public class TrackingStateTests
     public void ToDto_And_FromDto_ShouldPreserveState()
     {
         // Arrange
-        var original = TrackingState.CreateActive();
+        var original = TrackingState.CreateActive(_testUserId);
         original.Pause("Break", "user123", isPolicy: false);
 
         // Act
@@ -364,6 +367,7 @@ public class TrackingStateTests
 
         // Assert
         restored.Id.Should().Be(original.Id);
+        restored.UserId.Should().Be(original.UserId);
         restored.Status.Should().Be(original.Status);
         restored.Reason.Should().Be(original.Reason);
         restored.PausedAt.Should().Be(original.PausedAt);
@@ -376,7 +380,7 @@ public class TrackingStateTests
     public void Serialization_ActiveState_ShouldPreserveAllFields()
     {
         // Arrange
-        var original = TrackingState.CreateActive();
+        var original = TrackingState.CreateActive(_testUserId);
 
         // Act
         var dto = original.ToDto();
@@ -384,6 +388,7 @@ public class TrackingStateTests
 
         // Assert
         restored.Status.Should().Be(TrackingStatus.Active);
+        restored.UserId.Should().Be(_testUserId);
         restored.Reason.Should().BeNull();
         restored.PausedAt.Should().BeNull();
         restored.ResumedAt.Should().BeNull();
@@ -393,7 +398,7 @@ public class TrackingStateTests
     public void Serialization_DisabledState_ShouldPreserveAllFields()
     {
         // Arrange
-        var original = TrackingState.CreateActive();
+        var original = TrackingState.CreateActive(_testUserId);
         original.Disable("Maintenance mode");
 
         // Act

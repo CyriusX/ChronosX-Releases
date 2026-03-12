@@ -38,18 +38,19 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                 // 1. Salvar sessão
                 const string sessionSql = @"
                     INSERT OR REPLACE INTO activity_sessions
-                        (id, exe_path_hash, display_name, category_productivity,
-                                     category_subcategory, category_source, start_utc, end_utc,
-                        window_hash, window_title)
+                        (id, user_id, exe_path_hash, display_name, category_productivity,
+                         category_subcategory, category_source, start_utc, end_utc,
+                         window_hash, window_title)
                     VALUES
-                        (@Id, @ExePathHash, @DisplayName, @CategoryProductivity,
+                        (@Id, @UserId, @ExePathHash, @DisplayName, @CategoryProductivity,
                          @CategorySubcategory, @CategorySource, @StartUtc, @EndUtc,
-                        @WindowHash, @WindowTitle)
+                         @WindowHash, @WindowTitle)
                 ";
 
                 await connection.ExecuteAsync(sessionSql, new
                 {
                     Id = session.Id.ToString(),
+                    UserId = session.UserId.ToString(),
                     ExePathHash = session.App.ExePathHash,
                     DisplayName = session.App.DisplayName,
                     CategoryProductivity = session.App.Category.Productivity,
@@ -64,23 +65,24 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                 // 2. Salvar outbox items
                 const string outboxSql = @"
                     INSERT OR IGNORE INTO sync_outbox
-                        (id, entity_type, entity_id, payload_json, idempotency_key,
+                        (id, user_id, entity_type, entity_id, payload_json, idempotency_key,
                          attempt_count, next_attempt_utc, sent_at, last_error, created_at)
                     VALUES
-                        (@Id, @EntityType, @EntityId, @PayloadJson, @IdempotencyKey,
+                        (@Id, @UserId, @EntityType, @EntityId, @PayloadJson, @IdempotencyKey,
                          @AttemptCount, @NextAttemptUtc, @SentAt, @LastError, @CreatedAt)
                 ";
 
                 var itemList = outboxItems.ToList();
                 foreach (var item in itemList)
                 {
-                    _logger.LogInformation(
-                        "Saving outbox item to DB: Id={Id}, EntityType={EntityType}, EntityId={EntityId}, EntityIdString={EntityIdString}",
-                        item.Id, item.EntityType, item.EntityId, item.EntityId.ToString());
+                    _logger.LogDebug(
+                        "Saving outbox item: Id={Id}, EntityType={EntityType}, EntityId={EntityId}",
+                        item.Id, item.EntityType, item.EntityId);
 
                     await connection.ExecuteAsync(outboxSql, new
                     {
                         Id = item.Id.ToString(),
+                        UserId = session.UserId.ToString(),
                         EntityType = item.EntityType,
                         EntityId = item.EntityId.ToString(),
                         PayloadJson = item.PayloadJson,
@@ -95,7 +97,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
 
                 await transaction.CommitAsync();
 
-                _logger.LogDebug("Activity session {SessionId} saved with {Count} outbox items in transaction", session.Id, itemList.Count);
+                _logger.LogDebug("Activity session {SessionId} saved with {Count} outbox items", session.Id, itemList.Count);
             }
             catch (Exception ex)
             {
@@ -106,16 +108,18 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
         }
 
         public async Task<IReadOnlyList<ActivitySession>> GetByDateAsync(
+            Guid userId,
             DateTime date,
             CancellationToken cancellationToken = default)
         {
             var startOfDay = date.Date;
             var endOfDay = startOfDay.AddDays(1);
 
-            return await GetByDateRangeAsync(startOfDay, endOfDay, cancellationToken);
+            return await GetByDateRangeAsync(userId, startOfDay, endOfDay, cancellationToken);
         }
 
         public async Task<IReadOnlyList<ActivitySession>> GetByDateRangeAsync(
+            Guid userId,
             DateTime start,
             DateTime end,
             CancellationToken cancellationToken = default)
@@ -123,36 +127,41 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             var connection = await _context.GetConnectionAsync(cancellationToken);
 
             const string sql = @"
-            SELECT id, exe_path_hash, display_name, category_productivity,
+            SELECT id, user_id, exe_path_hash, display_name, category_productivity,
                    category_subcategory, category_source, start_utc, end_utc,
                    window_hash, window_title
             FROM activity_sessions
-            WHERE start_utc >= @Start AND start_utc < @End
+            WHERE user_id = @UserId AND start_utc >= @Start AND start_utc < @End
             ORDER BY start_utc";
 
-            var dtos = await connection.QueryAsync<ActivitySessionDto>(sql, new { Start = start, End = end });
+            var dtos = await connection.QueryAsync<ActivitySessionDto>(sql, new { UserId = userId.ToString(), Start = start, End = end });
 
             return dtos.Select(MapToDomain).ToList();
         }
 
-        public async Task<ActivitySession?> GetMostRecentAsync(CancellationToken cancellationToken = default)
+        public async Task<ActivitySession?> GetMostRecentAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
         {
             var connection = await _context.GetConnectionAsync(cancellationToken);
 
             const string sql = @"
-            SELECT id, exe_path_hash, display_name, category_productivity,
+            SELECT id, user_id, exe_path_hash, display_name, category_productivity,
                    category_subcategory, category_source, start_utc, end_utc,
                    window_hash, window_title
             FROM activity_sessions
+            WHERE user_id = @UserId
             ORDER BY end_utc DESC
             LIMIT 1";
 
-            var dto = await connection.QueryFirstOrDefaultAsync<ActivitySessionDto>(sql);
+            var dto = await connection.QueryFirstOrDefaultAsync<ActivitySessionDto>(sql, new { UserId = userId.ToString() });
 
             return dto != null ? MapToDomain(dto) : null;
         }
 
-        public async Task<ActivitySession?> GetActiveSessionAsync(CancellationToken cancellationToken = default)
+        public async Task<ActivitySession?> GetActiveSessionAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
         {
             var connection = await _context.GetConnectionAsync(cancellationToken);
 
@@ -160,15 +169,15 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             var threshold = DateTime.UtcNow.AddSeconds(-60);
 
             const string sql = @"
-            SELECT id, exe_path_hash, display_name, category_productivity,
+            SELECT id, user_id, exe_path_hash, display_name, category_productivity,
                    category_subcategory, category_source, start_utc, end_utc,
                    window_hash, window_title
             FROM activity_sessions
-            WHERE end_utc >= @Threshold
+            WHERE user_id = @UserId AND end_utc >= @Threshold
             ORDER BY end_utc DESC
             LIMIT 1";
 
-            var dto = await connection.QueryFirstOrDefaultAsync<ActivitySessionDto>(sql, new { Threshold = threshold });
+            var dto = await connection.QueryFirstOrDefaultAsync<ActivitySessionDto>(sql, new { UserId = userId.ToString(), Threshold = threshold });
 
             return dto != null ? MapToDomain(dto) : null;
         }
@@ -181,11 +190,11 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
 
             const string sql = @"
             INSERT OR REPLACE INTO activity_sessions
-                (id, exe_path_hash, display_name, category_productivity,
+                (id, user_id, exe_path_hash, display_name, category_productivity,
                  category_subcategory, category_source, start_utc, end_utc,
                  window_hash, window_title)
             VALUES
-                (@Id, @ExePathHash, @DisplayName, @CategoryProductivity,
+                (@Id, @UserId, @ExePathHash, @DisplayName, @CategoryProductivity,
                  @CategorySubcategory, @CategorySource, @StartUtc, @EndUtc,
                  @WindowHash, @WindowTitle)
             ";
@@ -193,6 +202,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             await connection.ExecuteAsync(sql, new
             {
                 Id = session.Id.ToString(),
+                UserId = session.UserId.ToString(),
                 ExePathHash = session.App.ExePathHash,
                 DisplayName = session.App.DisplayName,
                 CategoryProductivity = session.App.Category.Productivity,
@@ -217,11 +227,11 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
 
             const string sql = @"
             INSERT OR REPLACE INTO activity_sessions
-                (id, exe_path_hash, display_name, category_productivity,
+                (id, user_id, exe_path_hash, display_name, category_productivity,
                  category_subcategory, category_source, start_utc, end_utc,
                  window_hash, window_title)
             VALUES
-                (@Id, @ExePathHash, @DisplayName, @CategoryProductivity,
+                (@Id, @UserId, @ExePathHash, @DisplayName, @CategoryProductivity,
                  @CategorySubcategory, @CategorySource, @StartUtc, @EndUtc,
                  @WindowHash, @WindowTitle)
             ";
@@ -229,6 +239,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             var parameters = sessions.Select(s => new
             {
                 Id = s.Id.ToString(),
+                UserId = s.UserId.ToString(),
                 ExePathHash = s.App.ExePathHash,
                 DisplayName = s.App.DisplayName,
                 CategoryProductivity = s.App.Category.Productivity,
@@ -245,24 +256,6 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             _logger.LogDebug("Batch of {Count} activity sessions saved", parameters.Count());
         }
 
-        public async Task UpdateSessionEndAsync(
-            Guid sessionId,
-            DateTime endUtc,
-            CancellationToken cancellationToken = default)
-        {
-            var connection = await _context.GetConnectionAsync(cancellationToken);
-
-            const string sql = @"
-            UPDATE activity_sessions
-            SET end_utc = @EndUtc
-            WHERE id = @Id
-            ";
-
-            await connection.ExecuteAsync(sql, new { Id = sessionId.ToString(), EndUtc = endUtc });
-
-            _logger.LogDebug("Session {SessionId} end time updated to {EndUtc}", sessionId, endUtc);
-        }
-
         private static ActivitySession MapToDomain(ActivitySessionDto dto)
         {
             var category = new AppCategory(
@@ -275,6 +268,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
 
             return new ActivitySession(
                 Guid.Parse(dto.Id),
+                Guid.Parse(dto.User_Id),
                 app,
                 period,
                 dto.Window_Hash,
@@ -288,6 +282,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
         private sealed class ActivitySessionDto
         {
             public string Id { get; set; } = string.Empty;
+            public string User_Id { get; set; } = string.Empty;
             public string Exe_Path_Hash { get; set; } = string.Empty;
             public string Display_Name { get; set; } = string.Empty;
             public string Category_Productivity { get; set; } = string.Empty;

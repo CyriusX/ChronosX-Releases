@@ -1,10 +1,17 @@
-import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Layers, Cog } from 'lucide-react';
+import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Layers, Cog, LogOut } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { NavItem } from './shared';
+import { useAuthStore } from '../../stores/authStore';
 
 export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout, user } = useAuthStore();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   return (
     <aside className="w-[200px] bg-gradient-to-b from-[rgba(11,13,20,0.5)] to-[rgba(17,19,28,0.5)] border-r border-[rgba(255,255,255,0.04)] flex flex-col">
@@ -34,6 +41,7 @@ export function Sidebar() {
         <NavItem
           icon={<FolderOpen className="w-[18px] h-[18px]" />}
           label="Projetos"
+          active={location.pathname === '/projects'}
           onClick={() => navigate('/projects')}
         />
         <NavItem
@@ -121,6 +129,26 @@ export function Sidebar() {
             <div className="w-2 h-2 rounded-full bg-[#ff6b7a]" />
             <span className="text-[10px] text-[rgba(245,247,251,0.4)]">Projetos</span>
           </div>
+        </div>
+
+        {/* User & Logout */}
+        <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.04)]">
+          <div className="flex items-center gap-2 px-2 mb-2">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#4ad9ff] to-[#3c7bff] flex items-center justify-center text-white text-[11px] font-medium">
+              {user?.displayName?.charAt(0)?.toUpperCase() || '?'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-[#f5f7fb] truncate">{user?.displayName}</p>
+              <p className="text-[9px] text-[rgba(245,247,251,0.4)]">{user?.role}</p>
+            </div>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
+          >
+            <LogOut className="w-[14px] h-[14px]" />
+            Sair
+          </button>
         </div>
       </div>
     </aside>

@@ -24,6 +24,9 @@ public sealed class DpapiTokenStore : ITokenStore
 
     private sealed record TokenData(string Jwt, string RefreshToken, DateTime ExpiresAt);
 
+    public event EventHandler<TokensStoredEventArgs>? TokensStored;
+    public event EventHandler? TokensCleared;
+
     public DpapiTokenStore(
         ILogger<DpapiTokenStore> logger,
         HttpClient httpClient,
@@ -65,6 +68,13 @@ public sealed class DpapiTokenStore : ITokenStore
         }
 
         _logger.LogInformation("Tokens stored securely via DPAPI");
+
+        // Disparar evento
+        TokensStored?.Invoke(this, new TokensStoredEventArgs
+        {
+            Jwt = jwt,
+            RefreshToken = refreshToken
+        });
     }
 
     public bool IsJwtExpiringSoon(int withinMinutes = 5)
@@ -195,6 +205,11 @@ public sealed class DpapiTokenStore : ITokenStore
         }
 
         _logger.LogInformation("Tokens cleared");
+
+        // Disparar evento
+        TokensCleared?.Invoke(this, EventArgs.Empty);
+
+        await Task.CompletedTask;
     }
 
     private static DateTime ExtractExpirationFromJwt(string jwt)

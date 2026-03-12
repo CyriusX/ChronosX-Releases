@@ -9,6 +9,11 @@ namespace TimeTrack.Agent.Domain.Entities;
 public sealed class ActivitySession : EntityBase
 {
     /// <summary>
+    /// ID do usuário proprietário desta sessão
+    /// </summary>
+    public Guid UserId { get; }
+
+    /// <summary>
     /// Identidade da aplicação
     /// </summary>
     public AppIdentity App { get; }
@@ -32,12 +37,17 @@ public sealed class ActivitySession : EntityBase
 
     public ActivitySession(
         Guid id,
+        Guid userId,
         AppIdentity app,
         TimeRange period,
         string? windowHash = null,
         string? windowTitle = null)
         : base(id)
     {
+        if (userId == Guid.Empty)
+            throw new ArgumentException("UserId is required", nameof(userId));
+
+        UserId = userId;
         App = app ?? throw new ArgumentNullException(nameof(app));
         Period = period ?? throw new ArgumentNullException(nameof(period));
         WindowHash = windowHash;
@@ -48,12 +58,13 @@ public sealed class ActivitySession : EntityBase
     /// Cria uma nova sessão com ID gerado automaticamente
     /// </summary>
     public static ActivitySession Create(
+        Guid userId,
         AppIdentity app,
         TimeRange period,
         string? windowHash = null,
         string? windowTitle = null)
     {
-        return new ActivitySession(Guid.NewGuid(), app, period, windowHash, windowTitle);
+        return new ActivitySession(Guid.NewGuid(), userId, app, period, windowHash, windowTitle);
     }
 
     /// <summary>

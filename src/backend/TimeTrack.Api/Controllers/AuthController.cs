@@ -123,6 +123,23 @@ public sealed class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Lista membros da organização
+    /// </summary>
+    [HttpGet("members")]
+    [Authorize]
+    [ProducesResponseType(typeof(ListMembersResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ListMembersResponse>> ListMembers()
+    {
+        var orgId = _currentUserContext.OrgId
+            ?? throw new UnauthorizedAccessException("User not associated with an organization");
+
+        var result = await _mediator.Send(new ListMembersCommand(orgId));
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Convida um novo usuário para a organização (B2B)
     /// </summary>
     [HttpPost("invite")]

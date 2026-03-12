@@ -8,6 +8,7 @@ namespace TimeTrack.Agent.Tests.Domain;
 
 public class ActivitySessionTests
 {
+    private readonly Guid _testUserId = Guid.NewGuid();
     private readonly AppIdentity _testApp = new("hash123", "Test App");
     private readonly TimeRange _testPeriod = new(
         DateTime.UtcNow,
@@ -17,10 +18,11 @@ public class ActivitySessionTests
     public void Create_WithValidData_ShouldCreateSession()
     {
         // Act
-        var session = ActivitySession.Create(_testApp, _testPeriod);
+        var session = ActivitySession.Create(_testUserId, _testApp, _testPeriod);
 
         // Assert
         session.Id.Should().NotBe(Guid.Empty);
+        session.UserId.Should().Be(_testUserId);
         session.App.Should().Be(_testApp);
         session.Period.Should().Be(_testPeriod);
         session.Duration.Should().Be(TimeSpan.FromHours(1));
@@ -34,7 +36,7 @@ public class ActivitySessionTests
         const string windowTitle = "Document - VS Code";
 
         // Act
-        var session = ActivitySession.Create(_testApp, _testPeriod, windowHash, windowTitle);
+        var session = ActivitySession.Create(_testUserId, _testApp, _testPeriod, windowHash, windowTitle);
 
         // Assert
         session.WindowHash.Should().Be(windowHash);
@@ -45,7 +47,7 @@ public class ActivitySessionTests
     public void Constructor_WithNullApp_ShouldThrowArgumentNullException()
     {
         // Act
-        var act = () => new ActivitySession(Guid.NewGuid(), null!, _testPeriod);
+        var act = () => new ActivitySession(Guid.NewGuid(), _testUserId, null!, _testPeriod);
 
         // Assert
         act.Should().Throw<ArgumentNullException>();
@@ -55,7 +57,7 @@ public class ActivitySessionTests
     public void Constructor_WithNullPeriod_ShouldThrowArgumentNullException()
     {
         // Act
-        var act = () => new ActivitySession(Guid.NewGuid(), _testApp, null!);
+        var act = () => new ActivitySession(Guid.NewGuid(), _testUserId, _testApp, null!);
 
         // Assert
         act.Should().Throw<ArgumentNullException>();
@@ -69,7 +71,7 @@ public class ActivitySessionTests
         var initialEnd = start.AddMinutes(30);
         var newEnd = start.AddHours(1);
         var period = new TimeRange(start, initialEnd);
-        var session = ActivitySession.Create(_testApp, period);
+        var session = ActivitySession.Create(_testUserId, _testApp, period);
 
         // Act
         session.Extend(newEnd);
@@ -86,7 +88,7 @@ public class ActivitySessionTests
         var start = DateTime.UtcNow;
         var end = start.AddHours(1);
         var period = new TimeRange(start, end);
-        var session = ActivitySession.Create(_testApp, period);
+        var session = ActivitySession.Create(_testUserId, _testApp, period);
 
         // Act
         var act = () => session.Extend(start.AddMinutes(-10));
@@ -103,7 +105,7 @@ public class ActivitySessionTests
         var start = DateTime.UtcNow;
         var end = start.AddMinutes(45);
         var period = new TimeRange(start, end);
-        var session = ActivitySession.Create(_testApp, period);
+        var session = ActivitySession.Create(_testUserId, _testApp, period);
 
         // Assert
         session.Duration.Should().Be(TimeSpan.FromMinutes(45));

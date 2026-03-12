@@ -39,6 +39,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IIdlePeriodRepository, IdlePeriodRepository>();
         services.AddScoped<IIdempotencyKeyRepository, IdempotencyKeyRepository>();
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
+        services.AddScoped<IProjectRepository, ProjectRepository>();
 
         // Services
         services.AddScoped<Application.Common.Interfaces.ICurrentUserContext, CurrentUserContext>();

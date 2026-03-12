@@ -23,16 +23,18 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
     }
 
     public async Task<IReadOnlyList<IdlePeriod>> GetByDateAsync(
+        Guid userId,
         DateTime date,
         CancellationToken cancellationToken = default)
     {
         var startOfDay = date.Date;
         var endOfDay = startOfDay.AddDays(1);
 
-        return await GetByDateRangeAsync(startOfDay, endOfDay, cancellationToken);
+        return await GetByDateRangeAsync(userId, startOfDay, endOfDay, cancellationToken);
     }
 
     public async Task<IReadOnlyList<IdlePeriod>> GetByDateRangeAsync(
+        Guid userId,
         DateTime start,
         DateTime end,
         CancellationToken cancellationToken = default)
@@ -40,12 +42,12 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
-            SELECT id, start_utc, end_utc, threshold_seconds, is_system_detected
+            SELECT id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected
             FROM idle_periods
-            WHERE start_utc >= @Start AND start_utc < @End
+            WHERE user_id = @UserId AND start_utc >= @Start AND start_utc < @End
             ORDER BY start_utc";
 
-        var dtos = await connection.QueryAsync<IdlePeriodDto>(sql, new { Start = start, End = end });
+        var dtos = await connection.QueryAsync<IdlePeriodDto>(sql, new { UserId = userId.ToString(), Start = start, End = end });
 
         return dtos.Select(MapToDomain).ToList();
     }
@@ -58,13 +60,14 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
 
         const string sql = @"
             INSERT OR REPLACE INTO idle_periods
-                (id, start_utc, end_utc, threshold_seconds, is_system_detected)
+                (id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected)
             VALUES
-                (@Id, @StartUtc, @EndUtc, @ThresholdSeconds, @IsSystemDetected)";
+                (@Id, @UserId, @StartUtc, @EndUtc, @ThresholdSeconds, @IsSystemDetected)";
 
         await connection.ExecuteAsync(sql, new
         {
             Id = period.Id.ToString(),
+            UserId = period.UserId.ToString(),
             StartUtc = period.Period.StartUtc,
             EndUtc = period.Period.EndUtc,
             ThresholdSeconds = period.ThresholdSeconds,
@@ -84,13 +87,14 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
 
         const string sql = @"
             INSERT OR REPLACE INTO idle_periods
-                (id, start_utc, end_utc, threshold_seconds, is_system_detected)
+                (id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected)
             VALUES
-                (@Id, @StartUtc, @EndUtc, @ThresholdSeconds, @IsSystemDetected)";
+                (@Id, @UserId, @StartUtc, @EndUtc, @ThresholdSeconds, @IsSystemDetected)";
 
         var parameters = periods.Select(p => new
         {
             Id = p.Id.ToString(),
+            UserId = p.UserId.ToString(),
             StartUtc = p.Period.StartUtc,
             EndUtc = p.Period.EndUtc,
             ThresholdSeconds = p.ThresholdSeconds,
@@ -108,6 +112,7 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
 
         return new IdlePeriod(
             Guid.Parse(dto.Id),
+            Guid.Parse(dto.User_Id),
             period,
             dto.Threshold_Seconds,
             dto.Is_System_Detected != 0);
@@ -119,6 +124,7 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
     private sealed class IdlePeriodDto
     {
         public string Id { get; set; } = string.Empty;
+        public string User_Id { get; set; } = string.Empty;
         public DateTime Start_Utc { get; set; }
         public DateTime End_Utc { get; set; }
         public int Threshold_Seconds { get; set; }

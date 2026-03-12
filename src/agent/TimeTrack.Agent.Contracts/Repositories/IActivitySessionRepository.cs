@@ -10,24 +10,25 @@ namespace TimeTrack.Agent.Contracts.Repositories;
 public interface IActivitySessionRepository
 {
     /// <summary>
-    /// Obtém sessões do dia
+    /// Obtém sessões do dia para um usuário específico
     /// </summary>
-    Task<IReadOnlyList<ActivitySession>> GetByDateAsync(DateTime date, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ActivitySession>> GetByDateAsync(Guid userId, DateTime date, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Obtém sessões do período especificado
+    /// Obtém sessões do período especificado para um usuário específico
     /// </summary>
-    Task<IReadOnlyList<ActivitySession>> GetByDateRangeAsync(DateTime start, DateTime end, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ActivitySession>> GetByDateRangeAsync(Guid userId, DateTime start, DateTime end, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Obtém a sessão mais recente
+    /// Obtém a sessão mais recente de um usuário
     /// </summary>
-    Task<ActivitySession?> GetMostRecentAsync(CancellationToken cancellationToken = default);
+    Task<ActivitySession?> GetMostRecentAsync(Guid userId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Obtém a sessão ativa atual (se houver)
+    /// Obtém a sessão ativa atual de um usuário (se houver)
+    /// Uma sessão ativa é aquela que terminou nos últimos 60 segundos
     /// </summary>
-    Task<ActivitySession?> GetActiveSessionAsync(CancellationToken cancellationToken = default);
+    Task<ActivitySession?> GetActiveSessionAsync(Guid userId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Salva uma sessão

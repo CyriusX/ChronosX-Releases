@@ -4,6 +4,7 @@ using TimeTrack.Agent.Application.UseCases.GetLocalDashboard;
 using TimeTrack.Agent.Application.UseCases.TrackingControl;
 using TimeTrack.Agent.Application.UseCases.GetSyncState;
 using TimeTrack.Agent.Application.UseCases.LocalSettings;
+using TimeTrack.Agent.Contracts.Services;
 
 namespace TimeTrack.AgentService.Ipc;
 
@@ -24,6 +25,8 @@ public sealed class IpcMessageHandler
     private readonly GetLocalDashboardUseCase _getDashboard;
     private readonly GetSyncStateUseCase _getSyncState;
     private readonly LocalSettingsUseCase _localSettings;
+    private readonly ICurrentUserContext _userContext;
+    private readonly ITokenStore _tokenStore;
     private readonly ILogger<IpcMessageHandler> _logger;
 
     public IpcMessageHandler(
@@ -31,12 +34,16 @@ public sealed class IpcMessageHandler
         GetLocalDashboardUseCase getDashboard,
         GetSyncStateUseCase getSyncState,
         LocalSettingsUseCase localSettings,
+        ICurrentUserContext userContext,
+        ITokenStore tokenStore,
         ILogger<IpcMessageHandler> logger)
     {
         _trackingControl = trackingControl;
         _getDashboard = getDashboard;
         _getSyncState = getSyncState;
         _localSettings = localSettings;
+        _userContext = userContext;
+        _tokenStore = tokenStore;
         _logger = logger;
     }
 
@@ -46,6 +53,7 @@ public sealed class IpcMessageHandler
 
         return request.Name.ToLowerInvariant() switch
         {
+            "storetokens" => await HandleStoreTokensAsync(request, cancellationToken),
             "starttracking" => await HandleStartTrackingAsync(request, cancellationToken),
             "stoptracking" => await HandleStopTrackingAsync(request, cancellationToken),
             "pausetracking" => await HandlePauseTrackingAsync(request, cancellationToken),
@@ -96,10 +104,84 @@ public sealed class IpcMessageHandler
     // COMMAND HANDLERS
     // ============================================================================
 
+    private async Task<IpcResponse> HandleStoreTokensAsync(IpcRequest request, CancellationToken ct)
+    {
+        try
+        {
+            // Extrair tokens do payload
+            string? jwt = null;
+            string? refreshToken = null;
+
+            if (request.Payload.HasValue && request.Payload.Value.ValueKind == JsonValueKind.Object)
+            {
+                var payload = request.Payload.Value;
+                if (payload.TryGetProperty("accessToken", out var jwtProp))
+                    jwt = jwtProp.GetString();
+                if (payload.TryGetProperty("refreshToken", out var refreshProp))
+                    refreshToken = refreshProp.GetString();
+            }
+
+            if (string.IsNullOrEmpty(jwt))
+            {
+                return new IpcResponse
+                {
+                    RequestId = request.RequestId,
+                    Success = false,
+                    Error = "Access token is required"
+                };
+            }
+
+            // Armazenar tokens
+            await _tokenStore.StoreTokensAsync(jwt, refreshToken ?? string.Empty, ct);
+
+            // Atualizar contexto de usuário
+            await _userContext.RefreshAsync(ct);
+
+            if (!_userContext.IsAuthenticated)
+            {
+                _logger.LogWarning("Tokens stored but user context not authenticated");
+                return new IpcResponse
+                {
+                    RequestId = request.RequestId,
+                    Success = false,
+                    Error = "Failed to authenticate user from token"
+                };
+            }
+
+            _logger.LogInformation("Tokens stored successfully for user {UserId}", _userContext.UserId);
+            return new IpcResponse
+            {
+                RequestId = request.RequestId,
+                Success = true,
+                Data = JsonSerializer.SerializeToElement(new { stored = true, userId = _userContext.UserId })
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error storing tokens");
+            return new IpcResponse
+            {
+                RequestId = request.RequestId,
+                Success = false,
+                Error = ex.Message
+            };
+        }
+    }
+
     private async Task<IpcResponse> HandleStartTrackingAsync(IpcRequest request, CancellationToken ct)
     {
         try
         {
+            if (!_userContext.IsAuthenticated)
+            {
+                return new IpcResponse
+                {
+                    RequestId = request.RequestId,
+                    Success = false,
+                    Error = "User not authenticated"
+                };
+            }
+
             var result = await _trackingControl.StartAsync(new StartTrackingRequest
             {
                 StartedBy = "DesktopHost"

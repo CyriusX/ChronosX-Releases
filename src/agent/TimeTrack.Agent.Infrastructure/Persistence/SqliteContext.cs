@@ -51,10 +51,12 @@ public sealed class SqliteContext : IAsyncDisposable
         await connection.ExecuteAsync("PRAGMA synchronous = NORMAL");
         await connection.ExecuteAsync("PRAGMA busy_timeout = 5000");
 
+        // Criar tabelas (sem user_id inicialmente para compatibilidade)
         var createTablesSql = @"
             -- Tabela de estado do tracking
             CREATE TABLE IF NOT EXISTS tracking_state (
                 id TEXT PRIMARY KEY,
+                user_id TEXT,
                 status INTEGER NOT NULL,
                 reason TEXT,
                 paused_at TEXT,
@@ -66,6 +68,7 @@ public sealed class SqliteContext : IAsyncDisposable
             -- Tabela de sessões de atividade
             CREATE TABLE IF NOT EXISTS activity_sessions (
                 id TEXT PRIMARY KEY,
+                user_id TEXT,
                 exe_path_hash TEXT NOT NULL,
                 display_name TEXT NOT NULL,
                 category_productivity TEXT NOT NULL,
@@ -81,6 +84,7 @@ public sealed class SqliteContext : IAsyncDisposable
             -- Tabela de períodos de inatividade
             CREATE TABLE IF NOT EXISTS idle_periods (
                 id TEXT PRIMARY KEY,
+                user_id TEXT,
                 start_utc TEXT NOT NULL,
                 end_utc TEXT NOT NULL,
                 threshold_seconds INTEGER NOT NULL,
@@ -91,6 +95,7 @@ public sealed class SqliteContext : IAsyncDisposable
             -- Tabela sync_outbox (Transactional Outbox Pattern)
             CREATE TABLE IF NOT EXISTS sync_outbox (
                 id TEXT PRIMARY KEY,
+                user_id TEXT,
                 entity_type TEXT NOT NULL,
                 entity_id TEXT NOT NULL,
                 payload_json TEXT NOT NULL,
@@ -102,16 +107,10 @@ public sealed class SqliteContext : IAsyncDisposable
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
-            -- Índices para consultas comuns
-            CREATE INDEX IF NOT EXISTS ix_activity_sessions_start_utc ON activity_sessions(start_utc);
-            CREATE INDEX IF NOT EXISTS ix_activity_sessions_exe_path_hash ON activity_sessions(exe_path_hash);
-            CREATE INDEX IF NOT EXISTS ix_idle_periods_start_utc ON idle_periods(start_utc);
-            CREATE INDEX IF NOT EXISTS ix_sync_outbox_next_attempt ON sync_outbox(next_attempt_utc);
-            CREATE INDEX IF NOT EXISTS ix_sync_outbox_entity_type_entity_id ON sync_outbox(entity_type, entity_id);
-
             -- Tabela de erros de sincronização
             CREATE TABLE IF NOT EXISTS sync_errors (
                 id TEXT PRIMARY KEY,
+                user_id TEXT,
                 timestamp_utc TEXT NOT NULL,
                 endpoint TEXT NOT NULL,
                 status_code INTEGER NOT NULL,
@@ -119,11 +118,10 @@ public sealed class SqliteContext : IAsyncDisposable
                 attempt_count INTEGER NOT NULL DEFAULT 1
             );
 
-            CREATE INDEX IF NOT EXISTS ix_sync_errors_timestamp ON sync_errors(timestamp_utc);
-
             -- Tabela de configurações locais (preferências do colaborador)
             CREATE TABLE IF NOT EXISTS local_settings (
                 id TEXT PRIMARY KEY,
+                user_id TEXT,
                 auto_resume_notification_enabled INTEGER NOT NULL DEFAULT 1,
                 notification_sounds_enabled INTEGER NOT NULL DEFAULT 1,
                 language TEXT NOT NULL DEFAULT 'pt-BR',
@@ -133,8 +131,101 @@ public sealed class SqliteContext : IAsyncDisposable
 
         await connection.ExecuteAsync(createTablesSql);
 
+        // Executar migrations (adicionar colunas se não existirem)
+        await RunMigrationsAsync(connection);
+
+        // Criar índices
+        await CreateIndexesAsync(connection);
+
         _initialized = true;
         _logger.LogInformation("SQLite schema initialized successfully with WAL mode");
+    }
+
+    /// <summary>
+    /// Executa migrations para adicionar colunas user_id se não existirem
+    /// </summary>
+    private async Task RunMigrationsAsync(SqliteConnection connection)
+    {
+        var tables = new[]
+        {
+            "tracking_state",
+            "activity_sessions",
+            "idle_periods",
+            "sync_outbox",
+            "sync_errors",
+            "local_settings"
+        };
+
+        foreach (var table in tables)
+        {
+            // Verificar se a coluna user_id existe
+            var columnExists = await connection.QueryFirstOrDefaultAsync<int>(
+                "SELECT COUNT(*) FROM pragma_table_info(@Table) WHERE name = 'user_id'",
+                new { Table = table });
+
+            if (columnExists == 0)
+            {
+                _logger.LogInformation("Adding user_id column to {Table}", table);
+                await connection.ExecuteAsync($"ALTER TABLE {table} ADD COLUMN user_id TEXT");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Cria índices para consultas comuns
+    /// </summary>
+    private async Task CreateIndexesAsync(SqliteConnection connection)
+    {
+        var createIndexesSql = @"
+            CREATE INDEX IF NOT EXISTS ix_tracking_state_user_id ON tracking_state(user_id);
+            CREATE INDEX IF NOT EXISTS ix_activity_sessions_user_id ON activity_sessions(user_id);
+            CREATE INDEX IF NOT EXISTS ix_activity_sessions_start_utc ON activity_sessions(start_utc);
+            CREATE INDEX IF NOT EXISTS ix_activity_sessions_exe_path_hash ON activity_sessions(exe_path_hash);
+            CREATE INDEX IF NOT EXISTS ix_idle_periods_user_id ON idle_periods(user_id);
+            CREATE INDEX IF NOT EXISTS ix_idle_periods_start_utc ON idle_periods(start_utc);
+            CREATE INDEX IF NOT EXISTS ix_sync_outbox_user_id ON sync_outbox(user_id);
+            CREATE INDEX IF NOT EXISTS ix_sync_outbox_next_attempt ON sync_outbox(next_attempt_utc);
+            CREATE INDEX IF NOT EXISTS ix_sync_outbox_entity_type_entity_id ON sync_outbox(entity_type, entity_id);
+            CREATE INDEX IF NOT EXISTS ix_sync_errors_user_id ON sync_errors(user_id);
+            CREATE INDEX IF NOT EXISTS ix_sync_errors_timestamp ON sync_errors(timestamp_utc);
+            CREATE INDEX IF NOT EXISTS ix_local_settings_user_id ON local_settings(user_id);
+        ";
+
+        await connection.ExecuteAsync(createIndexesSql);
+    }
+
+    /// <summary>
+    /// Migra registros órfãos (sem user_id) para o usuário especificado
+    /// Deve ser chamado quando o usuário faz login
+    /// </summary>
+    public async Task MigrateOrphanRecordsToUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var connection = await GetConnectionAsync(cancellationToken);
+        var userIdStr = userId.ToString();
+
+        var tables = new[]
+        {
+            "tracking_state",
+            "activity_sessions",
+            "idle_periods",
+            "sync_outbox",
+            "sync_errors",
+            "local_settings"
+        };
+
+        foreach (var table in tables)
+        {
+            var updated = await connection.ExecuteAsync(
+                $"UPDATE {table} SET user_id = @UserId WHERE user_id IS NULL",
+                new { UserId = userIdStr });
+
+            if (updated > 0)
+            {
+                _logger.LogInformation(
+                    "Migrated {Count} orphan records in {Table} to user {UserId}",
+                    updated, table, userId);
+            }
+        }
     }
 
     /// <summary>

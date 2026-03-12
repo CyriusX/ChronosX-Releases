@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Entities;
 using TimeTrack.Agent.Domain.ValueObjects;
 
@@ -12,6 +13,7 @@ namespace TimeTrack.Agent.Application.UseCases.ConsolidateSession;
 public sealed class ConsolidateSessionUseCase
 {
     private readonly IActivitySessionRepository _sessionRepository;
+    private readonly ICurrentUserContext _userContext;
     private readonly ILogger<ConsolidateSessionUseCase> _logger;
 
     /// <summary>
@@ -21,9 +23,11 @@ public sealed class ConsolidateSessionUseCase
 
     public ConsolidateSessionUseCase(
         IActivitySessionRepository sessionRepository,
+        ICurrentUserContext userContext,
         ILogger<ConsolidateSessionUseCase> logger)
     {
         _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
+        _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -37,16 +41,19 @@ public sealed class ConsolidateSessionUseCase
         if (request.Session == null)
             throw new ArgumentNullException(nameof(request), "Session is required");
 
+        var userId = _userContext.UserId
+            ?? throw new InvalidOperationException("User not authenticated");
+
         var session = request.Session;
         var wasMerged = false;
 
-        // Busca sessão mais recente para possível mesclagem
-        var recentSession = await _sessionRepository.GetActiveSessionAsync(cancellationToken);
+        // Busca sessão mais recente para possível mesclagem (filtrada por usuário)
+        var recentSession = await _sessionRepository.GetActiveSessionAsync(userId, cancellationToken);
 
         if (recentSession != null && CanMerge(recentSession, session))
         {
             // Mescla as sessões
-            session = MergeSessions(recentSession, session);
+            session = MergeSessions(recentSession, session, userId);
             wasMerged = true;
 
             _logger.LogDebug(
@@ -96,10 +103,11 @@ public sealed class ConsolidateSessionUseCase
     /// <summary>
     /// Mescla duas sessões em uma
     /// </summary>
-    private static ActivitySession MergeSessions(ActivitySession recent, ActivitySession current)
+    private static ActivitySession MergeSessions(ActivitySession recent, ActivitySession current, Guid userId)
     {
         // Usa o ID da sessão mais recente
         return ActivitySession.Create(
+            userId,
             recent.App,
             new TimeRange(
                 recent.Period.StartUtc,

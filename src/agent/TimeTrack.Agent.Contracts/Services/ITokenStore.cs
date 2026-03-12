@@ -6,6 +6,16 @@ namespace TimeTrack.Agent.Contracts.Services;
 public interface ITokenStore
 {
     /// <summary>
+    /// Evento disparado quando tokens são armazenados
+    /// </summary>
+    event EventHandler<TokensStoredEventArgs>? TokensStored;
+
+    /// <summary>
+    /// Evento disparado quando tokens são limpos
+    /// </summary>
+    event EventHandler? TokensCleared;
+
+    /// <summary>
     /// Obtém o JWT armazenado
     /// </summary>
     Task<string?> GetJwtAsync(CancellationToken cancellationToken = default);
@@ -35,4 +45,13 @@ public interface ITokenStore
     /// </summary>
     /// <returns>True se renovado com sucesso, false se desativado ou token inválido</returns>
     Task<bool> RefreshAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Argumentos do evento de tokens armazenados
+/// </summary>
+public sealed class TokensStoredEventArgs : EventArgs
+{
+    public string Jwt { get; init; } = string.Empty;
+    public string RefreshToken { get; init; } = string.Empty;
 }
