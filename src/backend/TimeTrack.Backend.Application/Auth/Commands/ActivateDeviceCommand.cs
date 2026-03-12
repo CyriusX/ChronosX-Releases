@@ -24,19 +24,22 @@ public sealed class ActivateDeviceCommandHandler : IRequestHandler<ActivateDevic
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly ITokenService _tokenService;
     private readonly ICurrentUserContext _currentUser;
+    private readonly IAuditLogService _auditLogService;
 
     public ActivateDeviceCommandHandler(
         IDeviceRepository deviceRepository,
         IUserRepository userRepository,
         IRefreshTokenRepository refreshTokenRepository,
         ITokenService tokenService,
-        ICurrentUserContext currentUser)
+        ICurrentUserContext currentUser,
+        IAuditLogService auditLogService)
     {
         _deviceRepository = deviceRepository;
         _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _tokenService = tokenService;
         _currentUser = currentUser;
+        _auditLogService = auditLogService;
     }
 
     public async Task<ActivateDeviceResponse> Handle(ActivateDeviceCommand request, CancellationToken cancellationToken)
@@ -65,6 +68,14 @@ public sealed class ActivateDeviceCommandHandler : IRequestHandler<ActivateDevic
             // Generate new tokens for re-activation
             var accessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange);
             var (refreshToken, _) = await CreateDeviceRefreshTokenAsync(user.Id, existingDevice.Id, cancellationToken);
+
+            // Audit log - device.reactivated
+            _auditLogService.LogAsync(
+                AuditActions.DeviceReactivated,
+                "device",
+                existingDevice.Id,
+                new { hostname = request.Hostname, agentVersion = request.AgentVersion },
+                cancellationToken);
 
             return new ActivateDeviceResponse
             {
@@ -100,6 +111,14 @@ public sealed class ActivateDeviceCommandHandler : IRequestHandler<ActivateDevic
         // Generate tokens linked to this device
         var newAccessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange);
         var (newRefreshToken, _) = await CreateDeviceRefreshTokenAsync(user.Id, device.Id, cancellationToken);
+
+        // Audit log - device.registered
+        _auditLogService.LogAsync(
+            AuditActions.DeviceRegistered,
+            "device",
+            device.Id,
+            new { hostname = request.Hostname, deviceName = request.DeviceName, displayMode = displayMode.ToString(), agentVersion = request.AgentVersion },
+            cancellationToken);
 
         return new ActivateDeviceResponse
         {

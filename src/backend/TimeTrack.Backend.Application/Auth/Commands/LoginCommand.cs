@@ -18,17 +18,20 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
+    private readonly IAuditLogService _auditLogService;
 
     public LoginCommandHandler(
         IUserRepository userRepository,
         IRefreshTokenRepository refreshTokenRepository,
         IPasswordHasher passwordHasher,
-        ITokenService tokenService)
+        ITokenService tokenService,
+        IAuditLogService auditLogService)
     {
         _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
+        _auditLogService = auditLogService;
     }
 
     public async Task<LoginResponse> Handle(LoginCommand request, CancellationToken cancellationToken)
@@ -68,6 +71,14 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
         // Update last login
         user.RecordLogin();
         await _userRepository.UpdateAsync(user, cancellationToken);
+
+        // Audit log - user.login (fire-and-forget, don't block response)
+        _auditLogService.LogAsync(
+            AuditActions.UserLogin,
+            "user",
+            user.Id,
+            new { email = user.Email, role = user.Role.ToString() },
+            cancellationToken);
 
         return new LoginResponse
         {

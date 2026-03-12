@@ -234,7 +234,22 @@
       "Bash(tasklist | grep -i agent)",
       "Bash(cat /c/Projetos/TimeTracking/src/agent/TimeTrack.AgentService/bin/Debug/net8.0/logs/*.log 2>/dev/null | tail -50 || echo \"No log files found\")",
       "Bash(tasklist | grep -i desktop)",
-      "Bash(curl -s http://localhost:5000/api/v1/auth/team/status -H \"Authorization: Bearer test\" 2>&1 | head -20)"
+      "Bash(curl -s http://localhost:5000/api/v1/auth/team/status -H \"Authorization: Bearer test\" 2>&1 | head -20)",
+      "mcp__github__create_branch",
+      "Bash(git add:*)",
+      "Bash(dotnet test:*)",
+      "mcp__github__add_comment_to_pending_review",
+      "Bash(cd C:/Projetos/TimeTracking && xxd src/backend/TimeTrack.Backend.Domain/Interfaces/Repositories/IActivitySessionRepository.cs)",
+      "Bash(cd C:/Projetos/TimeTracking && head -c 5 src/backend/TimeTrack.Backend.Domain/Interfaces/Repositories/IActivitySessionRepository.cs | xxd)",
+      "Bash(cd C:/Projetos/TimeTracking && tail -c 5 src/backend/TimeTrack.Backend.Domain/Interfaces/Repositories/IActivitySessionRepository.cs | xxd)",
+      "Bash(cd C:/Projetos/TimeTracking && rm src/backend/TimeTrack.Backend.Domain/Interfaces/Repositories/IActivitySessionRepository.cs)",
+      "Bash(taskkill /F /PID 29560 2>/dev/null || true)",
+      "Bash(taskkill /F /IM TimeTrack.Api.exe 2>/dev/null || true; sleep 2)",
+      "Bash(powershell -Command \"Get-Process | Where-Object { \\\\$_.Name -like '*TimeTrack*' } | Stop-Process -Force\" 2>/dev/null || true)",
+      "Bash(powershell -Command \"Stop-Process -Id 29560 -Force -ErrorAction SilentlyContinue\" 2>/dev/null; sleep 1)",
+      "Bash(npx @linear/sdk get-issue-identifier CX-108 2>/dev/null || echo \"Linear CLI not available\")",
+      "mcp__github__search_issues",
+      "Bash(git commit:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario"

@@ -18,19 +18,22 @@ public sealed class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordC
     private readonly IPasswordHasher _passwordHasher;
     private readonly IPasswordValidator _passwordValidator;
     private readonly ITokenService _tokenService;
+    private readonly IAuditLogService _auditLogService;
 
     public ResetPasswordCommandHandler(
         IUserRepository userRepository,
         IPasswordResetTokenRepository passwordResetTokenRepository,
         IPasswordHasher passwordHasher,
         IPasswordValidator passwordValidator,
-        ITokenService tokenService)
+        ITokenService tokenService,
+        IAuditLogService auditLogService)
     {
         _userRepository = userRepository;
         _passwordResetTokenRepository = passwordResetTokenRepository;
         _passwordHasher = passwordHasher;
         _passwordValidator = passwordValidator;
         _tokenService = tokenService;
+        _auditLogService = auditLogService;
     }
 
     public async Task<ResetPasswordResponse> Handle(ResetPasswordCommand request, CancellationToken cancellationToken)
@@ -58,6 +61,9 @@ public sealed class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordC
             throw new NotFoundException("User", resetToken.UserId);
         }
 
+        // Track if this is an invite acceptance (first-time password set)
+        var isInviteAcceptance = user.PasswordMustChange;
+
         // Update password
         var newPasswordHash = _passwordHasher.Hash(request.NewPassword);
         user.ChangePassword(newPasswordHash);
@@ -67,6 +73,19 @@ public sealed class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordC
 
         await _userRepository.UpdateAsync(user, cancellationToken);
         await _passwordResetTokenRepository.UpdateAsync(resetToken, cancellationToken);
+
+        // Audit log - user.invite_accepted if this was first-time password set
+        if (isInviteAcceptance)
+        {
+            await _auditLogService.LogExplicitAsync(
+                user.OrgId,
+                user.Id,
+                AuditActions.UserInviteAccepted,
+                "user",
+                user.Id,
+                new { email = user.Email },
+                cancellationToken: cancellationToken);
+        }
 
         return new ResetPasswordResponse
         {

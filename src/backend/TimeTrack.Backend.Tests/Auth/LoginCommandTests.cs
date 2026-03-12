@@ -20,6 +20,7 @@ public class LoginCommandTests
     private readonly Mock<IRefreshTokenRepository> _refreshTokenRepositoryMock;
     private readonly Mock<IPasswordHasher> _passwordHasherMock;
     private readonly Mock<ITokenService> _tokenServiceMock;
+    private readonly Mock<IAuditLogService> _auditLogServiceMock;
     private readonly LoginCommandHandler _handler;
 
     public LoginCommandTests()
@@ -28,12 +29,14 @@ public class LoginCommandTests
         _refreshTokenRepositoryMock = new Mock<IRefreshTokenRepository>();
         _passwordHasherMock = new Mock<IPasswordHasher>();
         _tokenServiceMock = new Mock<ITokenService>();
+        _auditLogServiceMock = new Mock<IAuditLogService>();
 
         _handler = new LoginCommandHandler(
             _userRepositoryMock.Object,
             _refreshTokenRepositoryMock.Object,
             _passwordHasherMock.Object,
-            _tokenServiceMock.Object
+            _tokenServiceMock.Object,
+            _auditLogServiceMock.Object
         );
     }
 
@@ -85,6 +88,55 @@ public class LoginCommandTests
 
         _userRepositoryMock.Verify(r => r.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Once);
         _refreshTokenRepositoryMock.Verify(r => r.AddAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WithValidCredentials_LogsAuditEntry()
+    {
+        // Arrange
+        var user = CreateUser();
+        var command = new LoginCommand("test@example.com", "password123");
+
+        _userRepositoryMock
+            .Setup(r => r.GetByEmailWithOrgAsync(command.Email, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+
+        _passwordHasherMock
+            .Setup(h => h.Verify(command.Password, user.PasswordHash))
+            .Returns(true);
+
+        _tokenServiceMock
+            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange))
+            .Returns("access-token");
+
+        _tokenServiceMock
+            .Setup(t => t.GenerateRefreshToken())
+            .Returns("refresh-token");
+
+        _tokenServiceMock
+            .Setup(t => t.HashRefreshToken("refresh-token"))
+            .Returns("hashed-token");
+
+        _tokenServiceMock
+            .Setup(t => t.GetRefreshTokenExpiration())
+            .Returns(TimeSpan.FromDays(90));
+
+        _tokenServiceMock
+            .Setup(t => t.GetAccessTokenExpiration())
+            .Returns(TimeSpan.FromMinutes(60));
+
+        // Act
+        await _handler.Handle(command, CancellationToken.None);
+
+        // Assert - Verify audit log was called
+        _auditLogServiceMock.Verify(
+            s => s.LogAsync(
+                AuditActions.UserLogin,
+                "user",
+                user.Id,
+                It.IsAny<object?>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

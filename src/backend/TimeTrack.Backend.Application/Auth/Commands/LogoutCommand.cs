@@ -14,15 +14,18 @@ public sealed class LogoutCommandHandler : IRequestHandler<LogoutCommand, Unit>
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly ITokenService _tokenService;
     private readonly ICurrentUserContext _currentUser;
+    private readonly IAuditLogService _auditLogService;
 
     public LogoutCommandHandler(
         IRefreshTokenRepository refreshTokenRepository,
         ITokenService tokenService,
-        ICurrentUserContext currentUser)
+        ICurrentUserContext currentUser,
+        IAuditLogService auditLogService)
     {
         _refreshTokenRepository = refreshTokenRepository;
         _tokenService = tokenService;
         _currentUser = currentUser;
+        _auditLogService = auditLogService;
     }
 
     public async Task<Unit> Handle(LogoutCommand request, CancellationToken cancellationToken)
@@ -44,6 +47,13 @@ public sealed class LogoutCommandHandler : IRequestHandler<LogoutCommand, Unit>
         {
             await _refreshTokenRepository.RevokeAllByUserIdAsync(_currentUser.UserId.Value, cancellationToken);
         }
+
+        // Audit log - user.logout (fire-and-forget)
+        _auditLogService.LogAsync(
+            AuditActions.UserLogout,
+            "user",
+            _currentUser.UserId,
+            cancellationToken: cancellationToken);
 
         return Unit.Value;
     }

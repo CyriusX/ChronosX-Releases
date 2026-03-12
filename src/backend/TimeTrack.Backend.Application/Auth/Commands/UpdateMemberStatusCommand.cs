@@ -15,13 +15,19 @@ public sealed class UpdateMemberStatusCommandHandler : IRequestHandler<UpdateMem
 {
     private readonly IUserRepository _userRepository;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
+    private readonly ICurrentUserContext _currentUser;
+    private readonly IAuditLogService _auditLogService;
 
     public UpdateMemberStatusCommandHandler(
         IUserRepository userRepository,
-        IRefreshTokenRepository refreshTokenRepository)
+        IRefreshTokenRepository refreshTokenRepository,
+        ICurrentUserContext currentUser,
+        IAuditLogService auditLogService)
     {
         _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
+        _currentUser = currentUser;
+        _auditLogService = auditLogService;
     }
 
     public async Task<Unit> Handle(UpdateMemberStatusCommand request, CancellationToken cancellationToken)
@@ -39,22 +45,25 @@ public sealed class UpdateMemberStatusCommandHandler : IRequestHandler<UpdateMem
         }
 
         // Cannot deactivate yourself
-        var currentUserContext = await GetCurrentUserContext();
-        if (currentUserContext != null && currentUserContext.UserId == request.UserId)
+        if (_currentUser.UserId == request.UserId)
         {
             throw new ValidationException("Status", "Cannot change your own status");
         }
 
         var status = request.Status.ToLowerInvariant();
+        string? auditAction = null;
+
         if (status == "active")
         {
             user.Reactivate();
+            auditAction = AuditActions.UserReactivated;
         }
         else if (status == "inactive")
         {
             user.Deactivate();
             // Revoke all refresh tokens to prevent continued Agent operation
             await _refreshTokenRepository.RevokeAllByUserIdAsync(user.Id, cancellationToken);
+            auditAction = AuditActions.UserRemoved;
         }
         else
         {
@@ -63,14 +72,14 @@ public sealed class UpdateMemberStatusCommandHandler : IRequestHandler<UpdateMem
 
         await _userRepository.UpdateAsync(user, cancellationToken);
 
+        // Audit log
+        _auditLogService.LogAsync(
+            auditAction,
+            "user",
+            user.Id,
+            new { email = user.Email, displayName = user.DisplayName, newStatus = status },
+            cancellationToken);
+
         return Unit.Value;
     }
-
-    // This will be injected via ICurrentUserContext in production
-    private Task<CurrentUserContext?> GetCurrentUserContext() => Task.FromResult<CurrentUserContext?>(null);
 }
-
-/// <summary>
-/// Simplified current user context for validation
-/// </summary>
-public sealed record CurrentUserContext(Guid UserId, Guid OrgId);

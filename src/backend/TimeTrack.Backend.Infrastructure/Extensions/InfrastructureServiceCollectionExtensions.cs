@@ -40,6 +40,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IIdempotencyKeyRepository, IdempotencyKeyRepository>();
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 
         // Services
         services.AddScoped<Application.Common.Interfaces.ICurrentUserContext, CurrentUserContext>();
@@ -47,6 +48,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IPasswordGenerator, PasswordGenerator>();
         services.AddScoped<IPasswordValidator, PasswordValidator>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
 
         // Email Service (Resend SDK oficial)
         services.AddOptions();

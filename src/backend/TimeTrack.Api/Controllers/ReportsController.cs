@@ -21,15 +21,18 @@ public sealed class ReportsController : ControllerBase
     private readonly ISender _mediator;
     private readonly IUserAuthorizationService _authorizationService;
     private readonly ICurrentUserContext _currentUser;
+    private readonly IAuditLogService _auditLogService;
 
     public ReportsController(
         ISender mediator,
         IUserAuthorizationService authorizationService,
-        ICurrentUserContext currentUser)
+        ICurrentUserContext currentUser,
+        IAuditLogService auditLogService)
     {
         _mediator = mediator;
         _authorizationService = authorizationService;
         _currentUser = currentUser;
+        _auditLogService = auditLogService;
     }
 
     /// <summary>
@@ -67,15 +70,27 @@ public sealed class ReportsController : ControllerBase
 
         // Determine target userId
         var targetUserId = userId ?? _currentUser.UserId!.Value;
+        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
 
         // Validate authorization - if requesting another user's data
-        if (targetUserId != _currentUser.UserId!.Value)
+        if (isAccessingOtherUserData)
         {
             var userRole = _currentUser.Role;
             if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
             {
                 return Forbid();
             }
+        }
+
+        // Audit log - report.accessed (when manager/admin accesses other user's data)
+        if (isAccessingOtherUserData)
+        {
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new { startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd"), format },
+                cancellationToken);
         }
 
         // Create query
