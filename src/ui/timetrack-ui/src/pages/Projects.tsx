@@ -4,7 +4,6 @@ import { Sidebar } from '../components/dashboard';
 import { useProjectStore, Project } from '../stores/projectStore';
 import { ProjectCard } from '../components/projects/ProjectCard';
 import { ProjectModal } from '../components/projects/ProjectModal';
-import { PROJECT_COLORS } from '../components/projects/projectConstants';
 
 export default function Projects() {
   const [showArchived, setShowArchived] = useState(false);

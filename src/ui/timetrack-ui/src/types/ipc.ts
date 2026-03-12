@@ -129,6 +129,7 @@ export interface EventPayloadMap {
 // ============================================================================
 
 export type AgentCommand =
+  | 'storeTokens'
   | 'startTracking'
   | 'stopTracking'
   | 'pauseTracking'
@@ -142,6 +143,11 @@ export type AgentCommand =
   | 'setWorkHours';
 
 // Command Payloads
+export interface StoreTokensPayload {
+  accessToken: string;
+  refreshToken: string;
+}
+
 export interface PauseTrackingPayload {
   reason?: string;
 }
@@ -178,6 +184,7 @@ export interface SetWorkHoursPayload {
 
 // Command payload map for type-safe commands
 export interface CommandPayloadMap {
+  storeTokens: StoreTokensPayload;
   startTracking: undefined;
   stopTracking: undefined;
   pauseTracking: PauseTrackingPayload;

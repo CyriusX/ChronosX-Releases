@@ -8,7 +8,7 @@ import { MembersSection } from './MembersSection';
 import { PolicyCards } from './PolicyCards';
 import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
-import { useAuthStore } from '../../stores/authStore';
+import { usePermissions } from '../../hooks/usePermissions';
 import type { LocalSettings, OrgPolicies, UpdateLocalSettingsRequest } from '../../types/settings';
 
 /**
@@ -36,14 +36,11 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const { sendQuery, sendCommand } = useIpc();
   const { notify } = useNotifications();
-  const { user } = useAuthStore();
+  const { canManageTeam, canViewOrgPolicies } = usePermissions();
   const [activeTab, setActiveTab] = useState<SettingsTab>('preferences');
   const [settings, setSettings] = useState<LocalSettings | null>(null);
   const [policies, setPolicies] = useState<OrgPolicies | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Show members tab only for Admin/Gestor
-  const showMembersTab = user?.role === 'Admin' || user?.role === 'Gestor';
 
   // Load settings on mount
   useEffect(() => {
@@ -152,7 +149,7 @@ export function SettingsPage() {
         <SettingsTabs
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          showMembersTab={showMembersTab}
+          showMembersTab={canManageTeam}
         />
       </div>
 
@@ -162,11 +159,11 @@ export function SettingsPage() {
         {activeTab === 'preferences' && settings && (
           <PreferencesSection settings={settings} onUpdate={handleUpdateSettings} />
         )}
-        {activeTab === 'members' && showMembersTab && <MembersSection />}
+        {activeTab === 'members' && canManageTeam && <MembersSection />}
         {activeTab === 'about' && <AboutSection />}
 
-        {/* Policy Cards - Full width grid below content */}
-        {policies && <PolicyCards policies={policies} />}
+        {/* Policy Cards - Apenas Admin/Gestor */}
+        {policies && canViewOrgPolicies && <PolicyCards policies={policies} />}
       </div>
     </main>
   );

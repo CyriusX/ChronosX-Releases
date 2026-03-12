@@ -7,6 +7,7 @@ import type { TodaySummaryResponse, WeeklyHistoryItem } from '../../types/ipc';
 interface RightPanelProps {
   summary: TodaySummaryResponse | null;
   weeklyHistory: WeeklyHistoryItem[];
+  showTeamCard?: boolean;
 }
 
 // Team members mock data (will come from backend later)
@@ -25,36 +26,38 @@ const appsMostUsed = [
   { icon: <Globe className="w-4 h-4" />, label: 'Chrome', subtext: '8,8m', time: '22m', color: '#ff8c6b' },
 ];
 
-export function RightPanel({ weeklyHistory }: RightPanelProps) {
+export function RightPanel({ weeklyHistory, showTeamCard = false }: RightPanelProps) {
   // Calculate weekly total
   const weeklyTotal = weeklyHistory.reduce((sum, item) => sum + item.hours, 0);
 
   return (
     <aside className="w-[260px] flex flex-col gap-4">
-      {/* Equipe Agora Card */}
-      <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1),0px_8px_10px_0px_rgba(0,0,0,0.1)]">
-        <CardHeader className="pb-0 pt-[17px] px-[17px]">
-          <CardTitle className="flex items-center justify-between">
-            <span className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Equipe agora</span>
-            <button className="w-4 h-4 flex items-center justify-center">
-              <MoreVertical className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
-            </button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-3 pb-4 px-[17px]">
-          {/* Team Selector */}
-          <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-[10px] px-[13px] py-1 flex items-center justify-between mb-3">
-            <span className="text-[12px] font-medium text-[rgba(245,247,251,0.6)]">Todos os times</span>
-            <ChevronDown className="w-[14px] h-[14px] text-[rgba(245,247,251,0.4)]" />
-          </div>
-          {/* Team Members */}
-          <div className="space-y-2">
-            {teamMembers.map((member) => (
-              <TeamMember key={member.initial} {...member} />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Equipe Agora Card - Apenas Admin/Gestor */}
+      {showTeamCard && (
+        <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1),0px_8px_10px_0px_rgba(0,0,0,0.1)]">
+          <CardHeader className="pb-0 pt-[17px] px-[17px]">
+            <CardTitle className="flex items-center justify-between">
+              <span className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Equipe agora</span>
+              <button className="w-4 h-4 flex items-center justify-center">
+                <MoreVertical className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
+              </button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-3 pb-4 px-[17px]">
+            {/* Team Selector */}
+            <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-[10px] px-[13px] py-1 flex items-center justify-between mb-3">
+              <span className="text-[12px] font-medium text-[rgba(245,247,251,0.6)]">Todos os times</span>
+              <ChevronDown className="w-[14px] h-[14px] text-[rgba(245,247,251,0.4)]" />
+            </div>
+            {/* Team Members */}
+            <div className="space-y-2">
+              {teamMembers.map((member) => (
+                <TeamMember key={member.initial} {...member} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tempo por Projeto Card */}
       <Card className="flex-1 bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1),0px_8px_10px_0px_rgba(0,0,0,0.1)]">

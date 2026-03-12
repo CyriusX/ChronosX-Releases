@@ -3,7 +3,6 @@
  */
 
 import type {
-  Member,
   ListMembersResponse,
   InviteMemberRequest,
   InviteMemberResponse,

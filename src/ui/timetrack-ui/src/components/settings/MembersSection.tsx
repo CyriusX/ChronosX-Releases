@@ -3,6 +3,7 @@ import { UserPlus, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useNotifications } from '../../stores/uiStore';
 import { useMembers } from '../../hooks/useMembers';
+import { usePermissions } from '../../hooks/usePermissions';
 import { InviteForm } from './InviteForm';
 import { MembersList } from './MembersList';
 
@@ -19,10 +20,9 @@ export function MembersSection() {
   const { user: currentUser } = useAuthStore();
   const { notify } = useNotifications();
   const { members, isLoading, loadMembers, invite, toggleStatus, changeRole } = useMembers();
+  const { isAdmin, canInviteMembers } = usePermissions();
 
   const [showInviteForm, setShowInviteForm] = useState(false);
-
-  const isAdmin = currentUser?.role === 'Admin';
 
   useEffect(() => {
     loadMembers();
@@ -74,13 +74,15 @@ export function MembersSection() {
             Gerencie os membros da sua organização
           </p>
         </div>
-        <button
-          onClick={() => setShowInviteForm(!showInviteForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#4ad9ff] to-[#3c7bff] rounded-lg text-[13px] font-medium text-white hover:opacity-90 transition-opacity"
-        >
-          <UserPlus className="w-4 h-4" />
-          Convidar
-        </button>
+        {canInviteMembers && (
+          <button
+            onClick={() => setShowInviteForm(!showInviteForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#4ad9ff] to-[#3c7bff] rounded-lg text-[13px] font-medium text-white hover:opacity-90 transition-opacity"
+          >
+            <UserPlus className="w-4 h-4" />
+            Convidar
+          </button>
+        )}
       </div>
 
       {/* Invite Form */}

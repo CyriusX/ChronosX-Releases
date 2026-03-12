@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useIpc } from '../hooks/useIpc';
+import { usePermissions } from '../hooks/usePermissions';
 import {
   Sidebar,
   DashboardHeader,
@@ -14,6 +15,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'meu-dia' | 'equipe'>('meu-dia');
   const { sendCommand } = useIpc();
   const { todaySummary, weeklyHistory, isPaused, isTracking, refreshData } = useDashboardData();
+  const { canManageTeam } = usePermissions();
 
   const onStartTracking = async () => {
     console.log('[Dashboard] Starting tracking...');
@@ -51,7 +53,11 @@ export default function Dashboard() {
         <div className="h-full flex gap-6">
           {/* Left Content Area */}
           <div className="flex-1 flex flex-col gap-6">
-            <DashboardHeader activeTab={activeTab} onTabChange={setActiveTab} />
+            <DashboardHeader
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              showTeamTab={canManageTeam}
+            />
 
             <TopCards
               summary={todaySummary}
@@ -67,7 +73,11 @@ export default function Dashboard() {
             <BottomCards summary={todaySummary} />
           </div>
 
-          <RightPanel summary={todaySummary} weeklyHistory={weeklyHistory} />
+          <RightPanel
+            summary={todaySummary}
+            weeklyHistory={weeklyHistory}
+            showTeamCard={canManageTeam}
+          />
         </div>
       </main>
     </div>

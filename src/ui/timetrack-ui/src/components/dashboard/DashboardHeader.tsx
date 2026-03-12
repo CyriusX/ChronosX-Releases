@@ -3,9 +3,10 @@ import { Calendar, Search, MoreVertical } from 'lucide-react';
 interface DashboardHeaderProps {
   activeTab: 'meu-dia' | 'equipe';
   onTabChange: (tab: 'meu-dia' | 'equipe') => void;
+  showTeamTab?: boolean;
 }
 
-export function DashboardHeader({ activeTab, onTabChange }: DashboardHeaderProps) {
+export function DashboardHeader({ activeTab, onTabChange, showTeamTab = false }: DashboardHeaderProps) {
   return (
     <header className="flex items-center justify-between">
       {/* Tabs */}
@@ -23,19 +24,21 @@ export function DashboardHeader({ activeTab, onTabChange }: DashboardHeaderProps
             <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] rounded-full shadow-[0px_10px_15px_0px_rgba(0,184,219,0.3),0px_4px_6px_0px_rgba(0,184,219,0.3)]" />
           )}
         </button>
-        <button
-          onClick={() => onTabChange('equipe')}
-          className={`relative px-4 py-2 text-[14px] font-medium transition-colors ${
-            activeTab === 'equipe'
-              ? 'text-[#f5f7fb]'
-              : 'text-[rgba(245,247,251,0.45)]'
-          }`}
-        >
-          Equipe
-          {activeTab === 'equipe' && (
-            <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] rounded-full shadow-[0px_10px_15px_0px_rgba(0,184,219,0.3),0px_4px_6px_0px_rgba(0,184,219,0.3)]" />
-          )}
-        </button>
+        {showTeamTab && (
+          <button
+            onClick={() => onTabChange('equipe')}
+            className={`relative px-4 py-2 text-[14px] font-medium transition-colors ${
+              activeTab === 'equipe'
+                ? 'text-[#f5f7fb]'
+                : 'text-[rgba(245,247,251,0.45)]'
+            }`}
+          >
+            Equipe
+            {activeTab === 'equipe' && (
+              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] rounded-full shadow-[0px_10px_15px_0px_rgba(0,184,219,0.3),0px_4px_6px_0px_rgba(0,184,219,0.3)]" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* Action Buttons */}
