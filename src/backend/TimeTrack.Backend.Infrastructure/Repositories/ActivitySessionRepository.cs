@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using TimeTrack.Backend.Domain.Entities;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
@@ -78,5 +79,37 @@ public sealed class ActivitySessionRepository : IActivitySessionRepository
             .Where(a => a.OrgId == orgId && a.StartedAt < endDate && a.EndedAt >= startDate)
             .OrderByDescending(a => a.StartedAt)
             .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Retorna sessões para export CSV com streaming
+    /// Usa IAsyncEnumerable para não carregar todos os dados em memória
+    /// </summary>
+    public async IAsyncEnumerable<ActivitySession> GetSessionsForExportAsync(
+        Guid userId,
+        DateTime startDate,
+        DateTime endDate,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        // Query raw sessions with streaming
+        var sessions = _context.ActivitySessions
+            .AsNoTracking()
+            .Where(a => a.UserId == userId && a.StartedAt >= startDate && a.EndedAt <= endDate)
+            .OrderBy(a => a.StartedAt)
+            .AsAsyncEnumerable();
+
+        await foreach (var session in sessions.WithCancellation(cancellationToken))
+        {
+            yield return session;
+        }
+    }
+
+    /// <summary>
+    /// Adiciona em lote de sessões de forma eficiente
+    /// </summary>
+    public async Task AddRangeAsync(IEnumerable<ActivitySession> sessions, CancellationToken cancellationToken = default)
+    {
+        await _context.ActivitySessions.AddRangeAsync(sessions, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }
