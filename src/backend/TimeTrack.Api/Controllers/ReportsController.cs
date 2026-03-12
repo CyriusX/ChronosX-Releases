@@ -2,6 +2,8 @@ using System.Text;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using TimeTrack.Api.Extensions;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.Common.Security;
 using TimeTrack.Backend.Application.Reports.DTOs;
@@ -16,6 +18,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/reports")]
 [Authorize]
+[EnableRateLimiting(RateLimitingExtensions.PolicyNames.Reports)]
 public sealed class ReportsController : ControllerBase
 {
     private readonly ISender _mediator;

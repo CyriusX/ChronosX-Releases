@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
+using TimeTrack.Api.Extensions;
 using TimeTrack.Api.Middleware;
 using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Common.Security;
@@ -18,6 +19,12 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+
+    // Configure Kestrel limits
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        options.Limits.MaxRequestBodySize = 2 * 1024 * 1024; // 2MB
+    });
 
     // Configure Serilog
     builder.Host.UseSerilog((context, services, configuration) =>
@@ -116,6 +123,9 @@ try
     // Register application authorization service
     builder.Services.AddScoped<IUserAuthorizationService, UserAuthorizationService>();
 
+    // Rate Limiting
+    builder.Services.AddRateLimitingPolicies();
+
     // Application Layer (MediatR, FluentValidation)
     builder.Services.AddApplication();
 
@@ -157,8 +167,15 @@ try
     // CORS - Allow frontend to communicate with API
     app.UseCors();
 
+    // Security headers (must be early in pipeline)
+    app.UseMiddleware<SecurityHeadersMiddleware>();
+
     app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseHttpsRedirection();
+
+    // Rate limiting (before authentication to protect unauthenticated endpoints)
+    app.UseRateLimiter();
+
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapControllers();

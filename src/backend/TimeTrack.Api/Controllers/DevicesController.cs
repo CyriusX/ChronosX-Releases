@@ -1,6 +1,8 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using TimeTrack.Api.Extensions;
 using TimeTrack.Backend.Application.Auth.Commands;
 using TimeTrack.Backend.Application.Auth.DTOs;
 
@@ -12,6 +14,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/devices")]
 [Authorize]
+[EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class DevicesController : ControllerBase
 {
     private readonly IMediator _mediator;

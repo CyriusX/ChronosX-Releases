@@ -1,10 +1,12 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Audit.DTOs;
 using TimeTrack.Backend.Application.Audit.Queries;
 using TimeTrack.Backend.Application.Common.Interfaces;
-using TimeTrack.Api.Security;
 
 namespace TimeTrack.Api.Controllers;
 
@@ -14,6 +16,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/orgs/{orgId:guid}/audit")]
 [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+[EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class AuditController : ControllerBase
 {
     private readonly ISender _mediator;

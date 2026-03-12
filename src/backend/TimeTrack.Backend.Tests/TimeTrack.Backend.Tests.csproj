@@ -27,6 +27,7 @@
     <ProjectReference Include="..\TimeTrack.Backend.Domain\TimeTrack.Backend.Domain.csproj" />
     <ProjectReference Include="..\TimeTrack.Backend.Application\TimeTrack.Backend.Application.csproj" />
     <ProjectReference Include="..\TimeTrack.Backend.Infrastructure\TimeTrack.Backend.Infrastructure.csproj" />
+    <ProjectReference Include="..\TimeTrack.Api\TimeTrack.Api.csproj" />
   </ItemGroup>
 
 </Project>

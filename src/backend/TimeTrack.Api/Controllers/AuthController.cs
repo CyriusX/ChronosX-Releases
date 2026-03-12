@@ -1,6 +1,8 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using TimeTrack.Api.Extensions;
 using TimeTrack.Backend.Application.Auth.Commands;
 using TimeTrack.Backend.Application.Auth.DTOs;
 using TimeTrack.Backend.Application.Common.Interfaces;
@@ -12,6 +14,7 @@ namespace TimeTrack.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/auth")]
+[EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class AuthController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -27,9 +30,11 @@ public sealed class AuthController : ControllerBase
     /// Login com email e senha
     /// </summary>
     [HttpPost("login")]
+    [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Auth)]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
         var result = await _mediator.Send(new LoginCommand(request.Email, request.Password));

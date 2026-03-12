@@ -1,6 +1,8 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using TimeTrack.Api.Extensions;
 using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Ingest.Commands;
 using TimeTrack.Backend.Application.Ingest.DTOs;
@@ -13,6 +15,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/ingest")]
 [Authorize]
+[EnableRateLimiting(RateLimitingExtensions.PolicyNames.Ingest)]
 public sealed class IngestController : ControllerBase
 {
     private readonly ISender _mediator;

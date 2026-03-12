@@ -1,6 +1,8 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using TimeTrack.Api.Extensions;
 using TimeTrack.Backend.Application.Projects.Commands;
 using TimeTrack.Backend.Application.Projects.DTOs;
 using TimeTrack.Backend.Application.Projects.Queries;
@@ -13,6 +15,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/projects")]
 [Authorize]
+[EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class ProjectsController : ControllerBase
 {
     private readonly IMediator _mediator;
