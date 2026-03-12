@@ -79,6 +79,11 @@ public sealed class ActivateDeviceResponse
     public Guid DeviceId { get; init; }
     public DateTime ActivatedAt { get; init; }
     public string Status { get; init; } = string.Empty;
+
+    // Tokens for Agent to use (device-linked refresh token)
+    public string? AccessToken { get; init; }
+    public string? RefreshToken { get; init; }
+    public int ExpiresIn { get; init; }
 }
 
 /// <summary>
@@ -128,4 +133,146 @@ public sealed class ListDevicesResponse
 {
     public List<DeviceListItem> Devices { get; init; } = [];
     public int TotalCount { get; init; }
+}
+
+/// <summary>
+/// Request para registro (B2C)
+/// </summary>
+public sealed class RegisterRequest
+{
+    [Required]
+    [EmailAddress]
+    public string Email { get; init; } = string.Empty;
+
+    [Required]
+    [MinLength(8)]
+    public string Password { get; init; } = string.Empty;
+
+    [Required]
+    public string DisplayName { get; init; } = string.Empty;
+
+    [Required]
+    public string OrganizationName { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Response do registro
+/// </summary>
+public sealed class RegisterResponse
+{
+    public Guid UserId { get; init; }
+    public Guid OrgId { get; init; }
+    public string Email { get; init; } = string.Empty;
+    public string DisplayName { get; init; } = string.Empty;
+    public string OrganizationName { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Request para convite de usuário (B2B)
+/// </summary>
+public sealed class InviteUserRequest
+{
+    [Required]
+    [EmailAddress]
+    public string Email { get; init; } = string.Empty;
+
+    [Required]
+    public string DisplayName { get; init; } = string.Empty;
+
+    [Required]
+    public string Role { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Response do convite
+/// </summary>
+public sealed class InviteUserResponse
+{
+    public Guid UserId { get; init; }
+    public string Email { get; init; } = string.Empty;
+    public string TemporaryPassword { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Request para forgot password
+/// </summary>
+public sealed class ForgotPasswordRequest
+{
+    [Required]
+    [EmailAddress]
+    public string Email { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Response do forgot password
+/// </summary>
+public sealed class ForgotPasswordResponse
+{
+    public string Message { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Request para reset password
+/// </summary>
+public sealed class ResetPasswordRequest
+{
+    [Required]
+    public string Token { get; init; } = string.Empty;
+
+    [Required]
+    [MinLength(8)]
+    public string NewPassword { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Response do reset password
+/// </summary>
+public sealed class ResetPasswordResponse
+{
+    public string Message { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Request para change password
+/// </summary>
+public sealed class ChangePasswordRequest
+{
+    [Required]
+    public string CurrentPassword { get; init; } = string.Empty;
+
+    [Required]
+    [MinLength(8)]
+    public string NewPassword { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Response do change password
+/// </summary>
+public sealed class ChangePasswordResponse
+{
+    public string Message { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Request para atualizar status de membro
+/// </summary>
+public sealed class UpdateMemberStatusRequest
+{
+    [Required]
+    public Guid UserId { get; init; }
+
+    [Required]
+    public string Status { get; init; } = string.Empty; // "active" or "inactive"
+}
+
+/// <summary>
+/// Request para atualizar role de membro
+/// </summary>
+public sealed class UpdateMemberRoleRequest
+{
+    [Required]
+    public Guid UserId { get; init; }
+
+    [Required]
+    public string Role { get; init; } = string.Empty; // "Colaborador", "Gestor", "Admin"
 }

@@ -45,7 +45,7 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
 
         if (user == null || user.Status == UserStatus.Inactive)
         {
-            throw new ForbiddenException("User account is deactivated");
+            throw new UserDeactivatedException();
         }
 
         // Revoke old token (rotation)
@@ -53,7 +53,7 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
         await _refreshTokenRepository.UpdateAsync(storedToken, cancellationToken);
 
         // Generate new tokens
-        var newAccessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString());
+        var newAccessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange);
         var newRefreshToken = _tokenService.GenerateRefreshToken();
         var newRefreshTokenHash = _tokenService.HashRefreshToken(newRefreshToken);
 

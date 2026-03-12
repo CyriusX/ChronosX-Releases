@@ -120,6 +120,15 @@ public sealed class SqliteContext : IAsyncDisposable
             );
 
             CREATE INDEX IF NOT EXISTS ix_sync_errors_timestamp ON sync_errors(timestamp_utc);
+
+            -- Tabela de configurações locais (preferências do colaborador)
+            CREATE TABLE IF NOT EXISTS local_settings (
+                id TEXT PRIMARY KEY,
+                auto_resume_notification_enabled INTEGER NOT NULL DEFAULT 1,
+                notification_sounds_enabled INTEGER NOT NULL DEFAULT 1,
+                language TEXT NOT NULL DEFAULT 'pt-BR',
+                updated_at TEXT NOT NULL
+            );
         ";
 
         await connection.ExecuteAsync(createTablesSql);

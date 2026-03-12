@@ -2,11 +2,13 @@ interface NavItemProps {
   icon: React.ReactNode;
   label: string;
   active?: boolean;
+  onClick?: () => void;
 }
 
-export function NavItem({ icon, label, active = false }: NavItemProps) {
+export function NavItem({ icon, label, active = false, onClick }: NavItemProps) {
   return (
     <button
+      onClick={onClick}
       className={`w-full flex items-center gap-3 px-3 py-[10px] rounded-[10px] transition-colors ${
         active
           ? 'bg-[#1c1f2e] text-[#f5f7fb]'

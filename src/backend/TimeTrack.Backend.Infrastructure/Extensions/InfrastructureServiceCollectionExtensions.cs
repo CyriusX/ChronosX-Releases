@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
+using Resend;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
 using TimeTrack.Backend.Infrastructure.Persistence;
@@ -30,16 +32,32 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Repositories
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IOrganizationRepository, OrganizationRepository>();
         services.AddScoped<IDeviceRepository, DeviceRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IActivitySessionRepository, ActivitySessionRepository>();
         services.AddScoped<IIdlePeriodRepository, IdlePeriodRepository>();
         services.AddScoped<IIdempotencyKeyRepository, IdempotencyKeyRepository>();
+        services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
 
         // Services
         services.AddScoped<Application.Common.Interfaces.ICurrentUserContext, CurrentUserContext>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();
+        services.AddScoped<IPasswordGenerator, PasswordGenerator>();
+        services.AddScoped<IPasswordValidator, PasswordValidator>();
+
+        // Email Service (Resend SDK oficial)
+        services.AddOptions();
+        services.AddHttpClient<ResendClient>();
+        services.Configure<ResendClientOptions>(options =>
+        {
+            options.ApiToken = configuration["Resend:ApiKey"]
+                ?? configuration["RESEND_API_KEY"]
+                ?? throw new InvalidOperationException("Resend API key not found. Set Resend:ApiKey or RESEND_API_KEY");
+        });
+        services.AddTransient<IResend, ResendClient>();
+        services.AddScoped<IEmailService, ResendEmailService>();
 
         // HttpContextAccessor for CurrentUserContext
         services.AddHttpContextAccessor();

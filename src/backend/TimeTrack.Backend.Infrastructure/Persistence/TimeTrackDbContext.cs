@@ -30,6 +30,7 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
     public DbSet<Policy> Policies => Set<Policy>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,39 +45,41 @@ public sealed class TimeTrackDbContext : DbContext
 
     private void ConfigureMultiTenantFilters(ModelBuilder modelBuilder)
     {
-        var orgId = _currentUser?.OrgId ?? Guid.Empty;
+        // Query filters that bypass tenant filtering when there's no authenticated user
+        // This is necessary for login/registration flows where the user context is not yet established
+        // Note: _currentUser is always injected, but OrgId is null when not authenticated
 
         // Users
         modelBuilder.Entity<User>()
-            .HasQueryFilter(u => u.OrgId == orgId);
+            .HasQueryFilter(u => !_currentUser.IsAuthenticated || u.OrgId == _currentUser.OrgId);
 
         // Devices
         modelBuilder.Entity<Device>()
-            .HasQueryFilter(d => d.OrgId == orgId);
+            .HasQueryFilter(d => !_currentUser.IsAuthenticated || d.OrgId == _currentUser.OrgId);
 
         // Activity Sessions
         modelBuilder.Entity<ActivitySession>()
-            .HasQueryFilter(a => a.OrgId == orgId);
+            .HasQueryFilter(a => !_currentUser.IsAuthenticated || a.OrgId == _currentUser.OrgId);
 
         // Idle Periods
         modelBuilder.Entity<IdlePeriod>()
-            .HasQueryFilter(i => i.OrgId == orgId);
+            .HasQueryFilter(i => !_currentUser.IsAuthenticated || i.OrgId == _currentUser.OrgId);
 
         // Focus Sessions
         modelBuilder.Entity<FocusSession>()
-            .HasQueryFilter(f => f.OrgId == orgId);
+            .HasQueryFilter(f => !_currentUser.IsAuthenticated || f.OrgId == _currentUser.OrgId);
 
         // Idempotency Keys
         modelBuilder.Entity<IdempotencyKey>()
-            .HasQueryFilter(k => k.OrgId == orgId);
+            .HasQueryFilter(k => !_currentUser.IsAuthenticated || k.OrgId == _currentUser.OrgId);
 
         // Policies
         modelBuilder.Entity<Policy>()
-            .HasQueryFilter(p => p.OrgId == orgId);
+            .HasQueryFilter(p => !_currentUser.IsAuthenticated || p.OrgId == _currentUser.OrgId);
 
         // Audit Logs
         modelBuilder.Entity<AuditLog>()
-            .HasQueryFilter(a => a.OrgId == orgId);
+            .HasQueryFilter(a => !_currentUser.IsAuthenticated || a.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()

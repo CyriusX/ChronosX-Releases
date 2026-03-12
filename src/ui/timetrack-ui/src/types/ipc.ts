@@ -157,10 +157,16 @@ export interface AssignTaskPayload {
 }
 
 export interface UpdateSettingsPayload {
+  // Legacy fields (deprecated)
   idleTimeoutMinutes?: number;
   autoPauseOnIdle?: boolean;
   syncIntervalMinutes?: number;
   notificationsEnabled?: boolean;
+
+  // Local settings fields
+  autoResumeNotificationEnabled?: boolean;
+  notificationSoundsEnabled?: boolean;
+  language?: 'pt-BR' | 'en-US';
 }
 
 export interface SetWorkHoursPayload {
@@ -199,7 +205,8 @@ export type AgentQuery =
   | 'getTrackingState'
   | 'getCurrentStatus'
   | 'getSyncState'
-  | 'getErrors';
+  | 'getErrors'
+  | 'getSettings';
 
 // ============================================================================
 // QUERY RESPONSE TYPES
@@ -336,6 +343,17 @@ export interface TaskResponse {
   status: 'pending' | 'in_progress' | 'completed';
 }
 
+// ============================================================================
+// LOCAL SETTINGS TYPES
+// ============================================================================
+
+export interface LocalSettingsResponse {
+  autoResumeNotificationEnabled: boolean;
+  notificationSoundsEnabled: boolean;
+  language: 'pt-BR' | 'en-US';
+  updatedAt: string;
+}
+
 // Query response map for type-safe queries
 export interface QueryResponseMap {
   getCurrentSession: CurrentSessionResponse;
@@ -348,6 +366,7 @@ export interface QueryResponseMap {
   getCurrentStatus: CurrentStatusResponse;
   getSyncState: SyncStateResponse;
   getErrors: ErrorsResponse;
+  getSettings: LocalSettingsResponse;
 }
 
 // ============================================================================

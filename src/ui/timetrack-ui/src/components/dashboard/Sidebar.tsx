@@ -1,7 +1,11 @@
 import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Layers, Cog } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { NavItem } from './shared';
 
 export function Sidebar() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   return (
     <aside className="w-[200px] bg-gradient-to-b from-[rgba(11,13,20,0.5)] to-[rgba(17,19,28,0.5)] border-r border-[rgba(255,255,255,0.04)] flex flex-col">
       {/* Logo */}
@@ -16,13 +20,43 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-5 flex flex-col gap-[2px]">
-        <NavItem icon={<BarChart3 className="w-[18px] h-[18px]" />} label="Dashboard" active />
-        <NavItem icon={<TimerIcon className="w-[18px] h-[18px]" />} label="Timer" />
-        <NavItem icon={<FolderOpen className="w-[18px] h-[18px]" />} label="Projetos" />
-        <NavItem icon={<Activity className="w-[18px] h-[18px]" />} label="Atividade" />
-        <NavItem icon={<CalendarDays className="w-[18px] h-[18px]" />} label="Relatórios" />
-        <NavItem icon={<Layers className="w-[18px] h-[18px]" />} label="Agente" />
-        <NavItem icon={<Cog className="w-[18px] h-[18px]" />} label="Configurações" />
+        <NavItem
+          icon={<BarChart3 className="w-[18px] h-[18px]" />}
+          label="Dashboard"
+          active={location.pathname === '/'}
+          onClick={() => navigate('/')}
+        />
+        <NavItem
+          icon={<TimerIcon className="w-[18px] h-[18px]" />}
+          label="Timer"
+          onClick={() => navigate('/')}
+        />
+        <NavItem
+          icon={<FolderOpen className="w-[18px] h-[18px]" />}
+          label="Projetos"
+          onClick={() => navigate('/projects')}
+        />
+        <NavItem
+          icon={<Activity className="w-[18px] h-[18px]" />}
+          label="Atividade"
+          onClick={() => navigate('/')}
+        />
+        <NavItem
+          icon={<CalendarDays className="w-[18px] h-[18px]" />}
+          label="Relatórios"
+          onClick={() => navigate('/reports')}
+        />
+        <NavItem
+          icon={<Layers className="w-[18px] h-[18px]" />}
+          label="Agente"
+          onClick={() => navigate('/')}
+        />
+        <NavItem
+          icon={<Cog className="w-[18px] h-[18px]" />}
+          label="Configurações"
+          active={location.pathname === '/settings'}
+          onClick={() => navigate('/settings')}
+        />
       </nav>
 
       {/* Bottom Stats Section */}

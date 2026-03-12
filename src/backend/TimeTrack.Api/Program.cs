@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Common.Security;
 using TimeTrack.Backend.Application.Extensions;
@@ -40,6 +41,19 @@ try
     // Add services
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
+
+    // Add CORS
+    builder.Services.AddCors(options =>
+    {
+        options.AddDefaultPolicy(policy =>
+        {
+            var frontendUrl = builder.Configuration["Frontend:BaseUrl"] ?? "http://localhost:5173";
+            policy.WithOrigins(frontendUrl, "http://localhost:5174", "http://localhost:3000")
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
+        });
+    });
     builder.Services.AddSwaggerGen(options =>
     {
         options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
@@ -140,6 +154,10 @@ try
         }
     });
 
+    // CORS - Allow frontend to communicate with API
+    app.UseCors();
+
+    app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseHttpsRedirection();
     app.UseAuthentication();
     app.UseAuthorization();

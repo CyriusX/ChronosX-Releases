@@ -176,7 +176,8 @@ function createIpcClient(): IIpcClient {
   // Check if running in browser with bridge available
   console.log('[useIpc] Checking for bridge...');
   console.log('[useIpc] window.timeTrackBridge:', window.timeTrackBridge);
-  console.log('[useIpc] chrome.webview:', (window as unknown as Record<string, unknown>).chrome?.webview);
+  const chrome = (window as unknown as Record<string, Record<string, unknown>>).chrome;
+  console.log('[useIpc] chrome.webview:', chrome?.webview);
 
   if (typeof window !== 'undefined' && window.timeTrackBridge) {
     console.log('[useIpc] Bridge found! Using real IpcService');

@@ -20,13 +20,22 @@ public sealed record ActivateDeviceCommand(
 public sealed class ActivateDeviceCommandHandler : IRequestHandler<ActivateDeviceCommand, ActivateDeviceResponse>
 {
     private readonly IDeviceRepository _deviceRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
+    private readonly ITokenService _tokenService;
     private readonly ICurrentUserContext _currentUser;
 
     public ActivateDeviceCommandHandler(
         IDeviceRepository deviceRepository,
+        IUserRepository userRepository,
+        IRefreshTokenRepository refreshTokenRepository,
+        ITokenService tokenService,
         ICurrentUserContext currentUser)
     {
         _deviceRepository = deviceRepository;
+        _userRepository = userRepository;
+        _refreshTokenRepository = refreshTokenRepository;
+        _tokenService = tokenService;
         _currentUser = currentUser;
     }
 
@@ -35,6 +44,13 @@ public sealed class ActivateDeviceCommandHandler : IRequestHandler<ActivateDevic
         if (!_currentUser.UserId.HasValue || !_currentUser.OrgId.HasValue)
         {
             throw new ForbiddenException("User not authenticated");
+        }
+
+        // Get current user
+        var user = await _userRepository.GetByIdAsync(_currentUser.UserId.Value, cancellationToken);
+        if (user == null || user.Status == UserStatus.Inactive)
+        {
+            throw new ForbiddenException("User account is deactivated");
         }
 
         // Check if device already exists
@@ -46,11 +62,18 @@ public sealed class ActivateDeviceCommandHandler : IRequestHandler<ActivateDevic
             existingDevice.RecordHeartbeat(request.AgentVersion);
             await _deviceRepository.UpdateAsync(existingDevice, cancellationToken);
 
+            // Generate new tokens for re-activation
+            var accessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange);
+            var (refreshToken, _) = await CreateDeviceRefreshTokenAsync(user.Id, existingDevice.Id, cancellationToken);
+
             return new ActivateDeviceResponse
             {
                 DeviceId = existingDevice.Id,
                 ActivatedAt = existingDevice.ActivatedAt,
-                Status = "already_activated"
+                Status = "already_activated",
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                ExpiresIn = (int)_tokenService.GetAccessTokenExpiration().TotalSeconds
             };
         }
 
@@ -74,11 +97,38 @@ public sealed class ActivateDeviceCommandHandler : IRequestHandler<ActivateDevic
 
         await _deviceRepository.AddAsync(device, cancellationToken);
 
+        // Generate tokens linked to this device
+        var newAccessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange);
+        var (newRefreshToken, _) = await CreateDeviceRefreshTokenAsync(user.Id, device.Id, cancellationToken);
+
         return new ActivateDeviceResponse
         {
             DeviceId = device.Id,
             ActivatedAt = device.ActivatedAt,
-            Status = "activated"
+            Status = "activated",
+            AccessToken = newAccessToken,
+            RefreshToken = newRefreshToken,
+            ExpiresIn = (int)_tokenService.GetAccessTokenExpiration().TotalSeconds
         };
+    }
+
+    private async Task<(string Token, Guid Id)> CreateDeviceRefreshTokenAsync(
+        Guid userId,
+        Guid deviceId,
+        CancellationToken cancellationToken)
+    {
+        var refreshToken = _tokenService.GenerateRefreshToken();
+        var refreshTokenHash = _tokenService.HashRefreshToken(refreshToken);
+
+        var tokenEntity = Domain.Entities.RefreshToken.Create(
+            userId,
+            deviceId,
+            refreshTokenHash,
+            _tokenService.GetRefreshTokenExpiration()
+        );
+
+        await _refreshTokenRepository.AddAsync(tokenEntity, cancellationToken);
+
+        return (refreshToken, tokenEntity.Id);
     }
 }

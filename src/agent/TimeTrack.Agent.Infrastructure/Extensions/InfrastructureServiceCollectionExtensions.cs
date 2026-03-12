@@ -48,6 +48,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IIdlePeriodRepository, IdlePeriodRepository>();
         services.AddSingleton<IOutboxRepository, OutboxRepository>();
         services.AddSingleton<ISyncErrorRepository, SyncErrorRepository>();
+        services.AddSingleton<ILocalSettingsRepository, LocalSettingsRepository>();
         services.AddSingleton<IIdempotencyKeyGenerator, IdempotencyKeyGenerator>();
 
         return services;

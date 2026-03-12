@@ -31,7 +31,7 @@ public sealed class TokenService : ITokenService
         _refreshTokenExpirationDays = configuration.GetValue("Jwt:RefreshTokenExpirationDays", 90);
     }
 
-    public string GenerateAccessToken(Guid userId, Guid orgId, string role)
+    public string GenerateAccessToken(Guid userId, Guid orgId, string role, bool mustChangePassword = false)
     {
         var claims = new List<Claim>
         {
@@ -39,7 +39,8 @@ public sealed class TokenService : ITokenService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new("org_id", orgId.ToString()),
             new(ClaimTypes.Role, role),
-            new("role", role)
+            new("role", role),
+            new("must_change_password", mustChangePassword.ToString().ToLowerInvariant())
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSecret));

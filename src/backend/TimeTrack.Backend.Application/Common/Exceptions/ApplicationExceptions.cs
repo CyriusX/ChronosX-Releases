@@ -1,5 +1,8 @@
 namespace TimeTrack.Backend.Application.Common.Exceptions;
 
+/// <summary>
+/// Exception thrown when a resource is not found
+/// </summary>
 public class NotFoundException : Exception
 {
     public string EntityType { get; }
@@ -20,6 +23,9 @@ public class NotFoundException : Exception
     }
 }
 
+/// <summary>
+/// Exception thrown when access is forbidden
+/// </summary>
 public class ForbiddenException : Exception
 {
     public string Reason { get; }
@@ -31,6 +37,9 @@ public class ForbiddenException : Exception
     }
 }
 
+/// <summary>
+/// Exception thrown when validation fails
+/// </summary>
 public class ValidationException : Exception
 {
     public IDictionary<string, string[]> Errors { get; }
@@ -47,6 +56,9 @@ public class ValidationException : Exception
     }
 }
 
+/// <summary>
+/// Exception thrown when there's a conflict (e.g., duplicate resource)
+/// </summary>
 public class ConflictException : Exception
 {
     public string Code { get; }
@@ -55,5 +67,19 @@ public class ConflictException : Exception
         : base(message)
     {
         Code = code;
+    }
+}
+
+/// <summary>
+/// Exception thrown when a user account is deactivated.
+/// Returns 401 Unauthorized with error code "user_deactivated".
+/// </summary>
+public class UserDeactivatedException : Exception
+{
+    public string Code => "user_deactivated";
+
+    public UserDeactivatedException(string message = "User account is deactivated")
+        : base(message)
+    {
     }
 }

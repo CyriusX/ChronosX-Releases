@@ -85,6 +85,11 @@ public sealed class User
         LastLoginAt = DateTime.UtcNow;
     }
 
+    /// <summary>
+    /// Deactivates the user account.
+    /// NOTE: When calling this method, the application layer must also revoke all refresh tokens
+    /// via IRefreshTokenRepository.RevokeAllByUserIdAsync() to prevent continued Agent operation.
+    /// </summary>
     public void Deactivate()
     {
         Status = UserStatus.Inactive;

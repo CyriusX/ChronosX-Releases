@@ -9,3 +9,4 @@ export {
   CardTitle,
 } from "./card";
 export { Progress } from "./progress";
+export { Switch } from "./switch";

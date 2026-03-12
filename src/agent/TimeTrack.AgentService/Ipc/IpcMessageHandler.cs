@@ -3,28 +3,40 @@ using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Application.UseCases.GetLocalDashboard;
 using TimeTrack.Agent.Application.UseCases.TrackingControl;
 using TimeTrack.Agent.Application.UseCases.GetSyncState;
+using TimeTrack.Agent.Application.UseCases.LocalSettings;
 
 namespace TimeTrack.AgentService.Ipc;
 
 /// <summary>
 /// Handles incoming IPC messages and routes them to appropriate use cases
+///
+/// SOLID:
+/// - SRP: Apenas roteamento de mensagens IPC
+/// - OCP: Novos handlers adicionados via switch expression
+/// - DIP: Depende de Use Cases (abstrações)
+///
+/// Composition:
+/// - Composição com múltiplos Use Cases via construtor
 /// </summary>
 public sealed class IpcMessageHandler
 {
     private readonly TrackingControlUseCase _trackingControl;
     private readonly GetLocalDashboardUseCase _getDashboard;
     private readonly GetSyncStateUseCase _getSyncState;
+    private readonly LocalSettingsUseCase _localSettings;
     private readonly ILogger<IpcMessageHandler> _logger;
 
     public IpcMessageHandler(
         TrackingControlUseCase trackingControl,
         GetLocalDashboardUseCase getDashboard,
         GetSyncStateUseCase getSyncState,
+        LocalSettingsUseCase localSettings,
         ILogger<IpcMessageHandler> logger)
     {
         _trackingControl = trackingControl;
         _getDashboard = getDashboard;
         _getSyncState = getSyncState;
+        _localSettings = localSettings;
         _logger = logger;
     }
 
@@ -70,6 +82,7 @@ public sealed class IpcMessageHandler
             "getcurrentstatus" => await HandleGetCurrentStatusAsync(request, cancellationToken),
             "getsyncstate" => await HandleGetSyncStateAsync(request, cancellationToken),
             "geterrors" => await HandleGetErrorsAsync(request, cancellationToken),
+            "getsettings" => await HandleGetSettingsAsync(request, cancellationToken),
             _ => new IpcResponse
             {
                 RequestId = request.RequestId,
@@ -260,15 +273,55 @@ public sealed class IpcMessageHandler
         });
     }
 
-    private Task<IpcResponse> HandleUpdateSettingsAsync(IpcRequest request, CancellationToken ct)
+    private async Task<IpcResponse> HandleUpdateSettingsAsync(IpcRequest request, CancellationToken ct)
     {
-        // TODO: Implement settings update
-        return Task.FromResult(new IpcResponse
+        try
         {
-            RequestId = request.RequestId,
-            Success = true,
-            Data = JsonSerializer.SerializeToElement(new { updated = true })
-        });
+            // Parse payload
+            bool? autoResumeNotification = null;
+            bool? notificationSounds = null;
+            string? language = null;
+
+            if (request.Payload.HasValue && request.Payload.Value.ValueKind == JsonValueKind.Object)
+            {
+                var payload = request.Payload.Value;
+
+                if (payload.TryGetProperty("autoResumeNotificationEnabled", out var autoResumeProp))
+                    autoResumeNotification = autoResumeProp.GetBoolean();
+
+                if (payload.TryGetProperty("notificationSoundsEnabled", out var soundsProp))
+                    notificationSounds = soundsProp.GetBoolean();
+
+                if (payload.TryGetProperty("language", out var langProp))
+                    language = langProp.GetString();
+            }
+
+            var updateRequest = new UpdateLocalSettingsRequest
+            {
+                AutoResumeNotificationEnabled = autoResumeNotification,
+                NotificationSoundsEnabled = notificationSounds,
+                Language = language
+            };
+
+            var result = await _localSettings.UpdateAsync(updateRequest, ct);
+
+            return new IpcResponse
+            {
+                RequestId = request.RequestId,
+                Success = true,
+                Data = JsonSerializer.SerializeToElement(result)
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating settings");
+            return new IpcResponse
+            {
+                RequestId = request.RequestId,
+                Success = false,
+                Error = ex.Message
+            };
+        }
     }
 
     private Task<IpcResponse> HandleSetWorkHoursAsync(IpcRequest request, CancellationToken ct)
@@ -482,6 +535,37 @@ public sealed class IpcMessageHandler
                 total = 0
             })
         });
+    }
+
+    private async Task<IpcResponse> HandleGetSettingsAsync(IpcRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var settings = await _localSettings.GetAsync(ct);
+
+            return new IpcResponse
+            {
+                RequestId = request.RequestId,
+                Success = true,
+                Data = JsonSerializer.SerializeToElement(new
+                {
+                    autoResumeNotificationEnabled = settings.AutoResumeNotificationEnabled,
+                    notificationSoundsEnabled = settings.NotificationSoundsEnabled,
+                    language = settings.Language,
+                    updatedAt = settings.UpdatedAt.ToString("O")
+                })
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting settings");
+            return new IpcResponse
+            {
+                RequestId = request.RequestId,
+                Success = false,
+                Error = ex.Message
+            };
+        }
     }
 
     // ============================================================================

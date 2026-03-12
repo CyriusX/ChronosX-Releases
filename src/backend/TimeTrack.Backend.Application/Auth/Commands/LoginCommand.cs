@@ -51,7 +51,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
         }
 
         // Generate tokens
-        var accessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString());
+        var accessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange);
         var refreshToken = _tokenService.GenerateRefreshToken();
         var refreshTokenHash = _tokenService.HashRefreshToken(refreshToken);
 

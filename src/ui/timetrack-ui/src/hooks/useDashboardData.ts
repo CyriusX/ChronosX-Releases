@@ -31,7 +31,6 @@ export function useDashboardData() {
     setTodaySummary,
     setSyncState,
     setPaused,
-    setTracking,
     todaySummary,
     isPaused,
     isTracking,
