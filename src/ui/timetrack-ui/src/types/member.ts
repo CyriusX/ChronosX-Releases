@@ -19,6 +19,23 @@ export interface ListMembersResponse {
   totalCount: number;
 }
 
+export interface TeamMemberStatus {
+  userId: string;
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  todayDurationSeconds: number;
+  todayDurationFormatted: string;
+  isTracking: boolean;
+}
+
+export interface TeamStatusResponse {
+  members: TeamMemberStatus[];
+  totalCount: number;
+  activeCount: number;
+  trackingCount: number;
+}
+
 export interface InviteMemberRequest {
   email: string;
   displayName: string;

@@ -4,6 +4,7 @@
 
 import type {
   ListMembersResponse,
+  TeamStatusResponse,
   InviteMemberRequest,
   InviteMemberResponse,
   UpdateMemberStatusRequest,
@@ -36,6 +37,17 @@ export async function listMembers(accessToken: string): Promise<ListMembersRespo
     headers: await getAuthHeaders(accessToken),
   });
   return handleResponse<ListMembersResponse>(response);
+}
+
+/**
+ * Get team status with today's worked time
+ */
+export async function getTeamStatus(accessToken: string): Promise<TeamStatusResponse> {
+  const response = await fetch(`${API_BASE}/auth/team/status`, {
+    method: 'GET',
+    headers: await getAuthHeaders(accessToken),
+  });
+  return handleResponse<TeamStatusResponse>(response);
 }
 
 /**

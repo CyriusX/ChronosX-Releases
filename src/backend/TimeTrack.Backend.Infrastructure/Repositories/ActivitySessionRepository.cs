@@ -68,9 +68,14 @@ public sealed class ActivitySessionRepository : IActivitySessionRepository
         DateTime endDate,
         CancellationToken cancellationToken = default)
     {
+        // Get sessions that overlap with the date range (started before end of range AND ended after start of range)
+        // This captures sessions that:
+        // - Started within the range
+        // - Started before and ended within the range
+        // - Span across the range
         return await _context.ActivitySessions
             .IgnoreQueryFilters()
-            .Where(a => a.OrgId == orgId && a.StartedAt >= startDate && a.EndedAt <= endDate)
+            .Where(a => a.OrgId == orgId && a.StartedAt < endDate && a.EndedAt >= startDate)
             .OrderByDescending(a => a.StartedAt)
             .ToListAsync(cancellationToken);
     }

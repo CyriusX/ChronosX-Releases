@@ -299,3 +299,37 @@ public sealed class ListMembersResponse
     public List<MemberListItem> Members { get; init; } = [];
     public int TotalCount { get; init; }
 }
+
+/// <summary>
+/// Item de membro com status de tempo no team status
+/// </summary>
+public sealed class TeamMemberStatusItem
+{
+    public Guid UserId { get; init; }
+    public string DisplayName { get; init; } = string.Empty;
+    public string Role { get; init; } = string.Empty;
+    public string Status { get; init; } = string.Empty;
+    /// <summary>
+    /// Tempo trabalhado hoje em segundos
+    /// </summary>
+    public int TodayDurationSeconds { get; init; }
+    /// <summary>
+    /// Tempo trabalhado hoje formatado (ex: "2h 30m")
+    /// </summary>
+    public string TodayDurationFormatted { get; init; } = "0h 0m";
+    /// <summary>
+    /// Se o usuário está atualmente rastreando tempo
+    /// </summary>
+    public bool IsTracking { get; init; }
+}
+
+/// <summary>
+/// Response do status da equipe
+/// </summary>
+public sealed class TeamStatusResponse
+{
+    public List<TeamMemberStatusItem> Members { get; init; } = [];
+    public int TotalCount { get; init; }
+    public int ActiveCount { get; init; }
+    public int TrackingCount { get; init; }
+}

@@ -198,4 +198,21 @@ public sealed class AuthController : ControllerBase
         await _mediator.Send(new UpdateMemberRoleCommand(orgId, request.UserId, request.Role));
         return NoContent();
     }
+
+    /// <summary>
+    /// Obtém status da equipe com tempo trabalhado hoje
+    /// </summary>
+    [HttpGet("team/status")]
+    [Authorize(Roles = "Admin,Gestor")]
+    [ProducesResponseType(typeof(TeamStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<TeamStatusResponse>> GetTeamStatus()
+    {
+        var orgId = _currentUserContext.OrgId
+            ?? throw new UnauthorizedAccessException("User not associated with an organization");
+
+        var result = await _mediator.Send(new GetTeamStatusCommand(orgId));
+        return Ok(result);
+    }
 }

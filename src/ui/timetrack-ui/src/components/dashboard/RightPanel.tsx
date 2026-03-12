@@ -1,8 +1,11 @@
+import { useEffect, useMemo } from 'react';
 import { MoreVertical, ChevronDown, Code2, Layers, Globe } from 'lucide-react';
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { TeamMember, AppUsageItem } from './shared';
+import { useTeamStatus } from '../../hooks/useTeamStatus';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../../types/ipc';
+import type { TeamMemberStatus } from '../../types/member';
 
 interface RightPanelProps {
   summary: TodaySummaryResponse | null;
@@ -10,14 +13,33 @@ interface RightPanelProps {
   showTeamCard?: boolean;
 }
 
-// Team members mock data (will come from backend later)
-const teamMembers = [
-  { initial: 'B', name: 'Brenda', time: '2h 26m', gradient: 'from-[#ff8904] to-[#f6339a]' },
-  { initial: 'C', name: 'Camila', time: '7h 10m', gradient: 'from-[#51a2ff] to-[#00b8db]' },
-  { initial: 'J', name: 'João', time: '4h 46m', gradient: 'from-[#c27aff] to-[#f6339a]' },
-  { initial: 'L', name: 'Lucas', time: '11h 40m', gradient: 'from-[#05df72] to-[#00bba7]' },
-  { initial: 'R', name: 'Rafael', time: '11h 58m', gradient: 'from-[#fdc700] to-[#ff6900]' },
+// Gradient colors for team member avatars
+const MEMBER_GRADIENTS = [
+  'from-[#ff8904] to-[#f6339a]',
+  'from-[#51a2ff] to-[#00b8db]',
+  'from-[#c27aff] to-[#f6339a]',
+  'from-[#05df72] to-[#00bba7]',
+  'from-[#fdc700] to-[#ff6900]',
+  'from-[#ff6b6b] to-[#ee5a24]',
+  'from-[#a29bfe] to-[#6c5ce7]',
+  'from-[#fd79a8] to-[#e84393]',
 ];
+
+// Generate a consistent gradient index based on member name
+function getMemberGradient(name: string): string {
+  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return MEMBER_GRADIENTS[hash % MEMBER_GRADIENTS.length];
+}
+
+// Map TeamMemberStatus to TeamMember props
+function mapMemberToProps(member: TeamMemberStatus) {
+  return {
+    initial: member.displayName.charAt(0).toUpperCase(),
+    name: member.displayName,
+    time: member.todayDurationFormatted,
+    gradient: getMemberGradient(member.displayName),
+  };
+}
 
 // Apps most used mock data
 const appsMostUsed = [
@@ -27,6 +49,22 @@ const appsMostUsed = [
 ];
 
 export function RightPanel({ weeklyHistory, showTeamCard = false }: RightPanelProps) {
+  const { members, isLoading, loadTeamStatus } = useTeamStatus();
+
+  // Load team status when team card is visible
+  useEffect(() => {
+    if (showTeamCard) {
+      loadTeamStatus();
+    }
+  }, [showTeamCard, loadTeamStatus]);
+
+  // Filter only active members and map to TeamMember props
+  const teamMembers = useMemo(() => {
+    return members
+      .filter((member) => member.status === 'Active')
+      .map(mapMemberToProps);
+  }, [members]);
+
   // Calculate weekly total
   const weeklyTotal = weeklyHistory.reduce((sum, item) => sum + item.hours, 0);
 
@@ -51,9 +89,19 @@ export function RightPanel({ weeklyHistory, showTeamCard = false }: RightPanelPr
             </div>
             {/* Team Members */}
             <div className="space-y-2">
-              {teamMembers.map((member) => (
-                <TeamMember key={member.initial} {...member} />
-              ))}
+              {isLoading ? (
+                <div className="text-[12px] text-[rgba(245,247,251,0.4)] text-center py-2">
+                  Carregando...
+                </div>
+              ) : teamMembers.length === 0 ? (
+                <div className="text-[12px] text-[rgba(245,247,251,0.4)] text-center py-2">
+                  Nenhum membro ativo
+                </div>
+              ) : (
+                teamMembers.map((member) => (
+                  <TeamMember key={member.initial + member.name} {...member} />
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
