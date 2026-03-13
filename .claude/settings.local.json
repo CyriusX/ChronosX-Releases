@@ -258,7 +258,15 @@
       "Bash(tasklist | grep -i \"dotnet\\\\|TimeTrack\" || echo \"No matching processes found\")",
       "Bash(taskkill /F /PID 27420)",
       "Bash(powershell -Command \"Stop-Process -Id 27420 -Force\")",
-      "Bash(powershell -Command \"Stop-Process -Id 22828 -Force\" 2>/dev/null; sleep 2; dotnet build)"
+      "Bash(powershell -Command \"Stop-Process -Id 22828 -Force\" 2>/dev/null; sleep 2; dotnet build)",
+      "Bash(find . -name \"*.cs\" | xargs grep -l \"class.*Session\\\\|class.*Activity\\\\|class.*Entity\\\\|class.*Model\" | head -10)",
+      "Bash(find . -name \"*.cs\" | xargs grep -l \"DbContext\\\\|TimeTrackContext\" | head -5)",
+      "Bash(find TimeTrack.Backend.Domain -name \"*.cs\" 2>/dev/null | sort)",
+      "Bash(powershell -Command \"Get-Process TimeTrack.Api -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(curl -s -X POST http://localhost:5555/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@test.com\",\"password\":\"Test123!\"}' 2>&1)",
+      "Bash(curl -s -X POST http://localhost:55757/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@test.com\",\"password\":\"Test123!\"}' 2>&1)",
+      "Bash(netstat -an | findstr \"55757\" || echo \"Port not listening\")",
+      "Bash(curl -s -X POST http://localhost:5000/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@test.com\",\"password\":\"Admin@123\"}' 2>&1 | head -5)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario"

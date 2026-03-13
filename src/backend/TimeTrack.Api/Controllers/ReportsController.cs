@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Backend.Application.Common.Exceptions;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.Common.Security;
+using TimeTrack.Backend.Application.Common.Utilities;
 using TimeTrack.Backend.Application.Reports.DTOs;
 using TimeTrack.Backend.Application.Reports.Queries;
 using TimeTrack.Backend.Domain.ValueObjects;
@@ -140,6 +142,150 @@ public sealed class ReportsController : ControllerBase
         catch (Exception ex)
         {
             return StatusCode(500, new { error = $"Export failed: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Obtém resumo diário de atividade de um usuário
+    /// </summary>
+    /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
+    /// <param name="date">Data do resumo (formato YYYY-MM-DD)</param>
+    /// <param name="cancellationToken">Token de cancelamento</param>
+    /// <returns>Resumo diário com tempo ativo, idle e apps</returns>
+    [HttpGet("daily")]
+    [ProducesResponseType(typeof(DailySummaryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetDailySummary(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime date,
+        CancellationToken cancellationToken = default)
+    {
+        // Determine target userId
+        var targetUserId = userId ?? _currentUser.UserId!.Value;
+        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+
+        // Validate authorization - if requesting another user's data
+        if (isAccessingOtherUserData)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            // Audit log
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new { reportType = "daily", date = date.ToString("yyyy-MM-dd") },
+                cancellationToken);
+        }
+
+        var query = new DailySummaryQuery(
+            UserId: targetUserId,
+            Date: date
+        );
+
+        try
+        {
+            var response = await _mediator.Send(query, cancellationToken);
+
+            // Generate ETag for caching
+            var etag = ETagGenerator.Generate(response);
+            Response.Headers.ETag = $"\"{etag}\"";
+
+            // Check If-None-Match for 304
+            if (ETagGenerator.Matches(Request.Headers.IfNoneMatch, etag))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+
+            return Ok(response);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
+    /// Obtém top apps de um usuário por período
+    /// </summary>
+    /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
+    /// <param name="startDate">Data inicial do período</param>
+    /// <param name="endDate">Data final do período</param>
+    /// <param name="limit">Número máximo de apps a retornar (padrão: 10, máx: 100)</param>
+    /// <param name="cancellationToken">Token de cancelamento</param>
+    /// <returns>Lista de apps ordenados por tempo total (desc)</returns>
+    [HttpGet("top-apps")]
+    [ProducesResponseType(typeof(TopAppsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetTopApps(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        [FromQuery] int limit = 10,
+        CancellationToken cancellationToken = default)
+    {
+        // Validate date range
+        if (startDate > endDate)
+        {
+            return BadRequest(new { error = "Start date must be before or equal to end date" });
+        }
+
+        // Determine target userId
+        var targetUserId = userId ?? _currentUser.UserId!.Value;
+        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+
+        // Validate authorization - if requesting another user's data
+        if (isAccessingOtherUserData)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            // Audit log
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new { reportType = "top-apps", startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd"), limit },
+                cancellationToken);
+        }
+
+        var query = new TopAppsQuery(
+            UserId: targetUserId,
+            StartDate: startDate,
+            EndDate: endDate,
+            Limit: limit
+        );
+
+        try
+        {
+            var response = await _mediator.Send(query, cancellationToken);
+
+            // Generate ETag for caching
+            var etag = ETagGenerator.Generate(response);
+            Response.Headers.ETag = $"\"{etag}\"";
+
+            // Check If-None-Match for 304
+            if (ETagGenerator.Matches(Request.Headers.IfNoneMatch, etag))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+
+            return Ok(response);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
         }
     }
 

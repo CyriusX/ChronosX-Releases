@@ -42,6 +42,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.AddScoped<IOrgPolicyRepository, OrgPolicyRepository>();
+        services.AddScoped<IReportRepository, ReportRepository>();
 
         // Services
         services.AddScoped<Application.Common.Interfaces.ICurrentUserContext, CurrentUserContext>();

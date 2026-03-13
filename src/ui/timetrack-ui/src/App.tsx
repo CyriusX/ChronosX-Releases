@@ -7,6 +7,7 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Projects from "./pages/Projects";
+import Reports from "./pages/Reports";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Toaster } from "./components/Toaster";
 
@@ -57,7 +58,7 @@ function App() {
             path="/reports"
             element={
               <ProtectedRoute>
-                <div>Reports (TODO)</div>
+                <Reports />
               </ProtectedRoute>
             }
           />

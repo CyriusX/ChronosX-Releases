@@ -20,3 +20,4 @@ export type { IReconnectionStrategy, ReconnectionConfig } from './reconnectionSt
 // API Services
 export * from './memberApi';
 export * from './policyApi';
+export * from './reportApi';

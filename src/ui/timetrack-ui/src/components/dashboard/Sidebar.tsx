@@ -52,6 +52,7 @@ export function Sidebar() {
         <NavItem
           icon={<CalendarDays className="w-[18px] h-[18px]" />}
           label="Relatórios"
+          active={location.pathname === '/reports'}
           onClick={() => navigate('/reports')}
         />
         <NavItem
