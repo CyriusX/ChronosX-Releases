@@ -4,8 +4,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.DesktopHost.Configuration;
 using TimeTrack.DesktopHost.Ipc;
+using TimeTrack.DesktopHost.Notifications;
 using TimeTrack.DesktopHost.UI;
 
 namespace TimeTrack.DesktopHost;
@@ -80,6 +82,12 @@ static class Program
                 services.AddSingleton<IIpcClient, NamedPipeIpcClient>();
                 services.AddHostedService<IpcClientHostedService>(sp =>
                     (IpcClientHostedService)sp.GetRequiredService<IIpcClient>());
+
+                // Notification Services (Toast)
+                // SRP: ToastActivationHandler apenas processa cliques
+                // DIP: INotificationService permite injeção de diferentes implementações
+                services.AddSingleton<ToastActivationHandler>();
+                services.AddSingleton<INotificationService, WindowsToastNotificationService>();
 
                 // WebView2 Bridge
                 services.AddSingleton<WebViewBridge>();

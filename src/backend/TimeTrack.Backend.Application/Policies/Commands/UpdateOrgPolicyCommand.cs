@@ -5,6 +5,8 @@ using TimeTrack.Backend.Application.Policies.DTOs;
 using TimeTrack.Backend.Application.Policies.Validators;
 using TimeTrack.Backend.Domain.Entities;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using PomodoroConfig = TimeTrack.Backend.Domain.Entities.PomodoroConfig;
+using UltradianConfig = TimeTrack.Backend.Domain.Entities.UltradianConfig;
 
 namespace TimeTrack.Backend.Application.Policies.Commands;
 
@@ -49,6 +51,7 @@ public sealed class UpdateOrgPolicyCommandHandler : IRequestHandler<UpdateOrgPol
         // Prepare updated values
         string? workHoursJson = null;
         string? appExclusionsJson = null;
+        string? focusModeJson = null;
 
         if (request.WorkHours != null)
         {
@@ -68,12 +71,27 @@ public sealed class UpdateOrgPolicyCommandHandler : IRequestHandler<UpdateOrgPol
             appExclusionsJson = JsonSerializer.Serialize(request.AppExclusions, JsonOptions);
         }
 
+        if (request.FocusMode != null)
+        {
+            var existingFocusMode = policy.GetFocusMode();
+            var focusMode = new FocusModeConfig
+            {
+                Enabled = request.FocusMode.Enabled,
+                Mode = request.FocusMode.Mode ?? existingFocusMode?.Mode ?? "none",
+                AllowUserOverride = request.FocusMode.AllowUserOverride,
+                Pomodoro = MapPomodoroConfig(request.FocusMode.Pomodoro, existingFocusMode?.Pomodoro),
+                Ultradian = MapUltradianConfig(request.FocusMode.Ultradian, existingFocusMode?.Ultradian)
+            };
+            focusModeJson = JsonSerializer.Serialize(focusMode, JsonOptions);
+        }
+
         // Update policy
         policy.Update(
             workHoursJson,
             appExclusionsJson,
             request.IdleThresholdSeconds,
-            request.RetentionDays);
+            request.RetentionDays,
+            focusModeJson);
 
         if (isNewPolicy)
         {
@@ -92,6 +110,7 @@ public sealed class UpdateOrgPolicyCommandHandler : IRequestHandler<UpdateOrgPol
     {
         var workHours = policy.GetWorkHours();
         var appExclusions = policy.GetAppExclusions();
+        var focusMode = policy.GetFocusMode();
 
         return new OrgPolicyResponse
         {
@@ -110,8 +129,58 @@ public sealed class UpdateOrgPolicyCommandHandler : IRequestHandler<UpdateOrgPol
             AppExclusions = appExclusions ?? new List<string>(),
             IdleThresholdSeconds = policy.IdleThresholdSeconds,
             RetentionDays = policy.RetentionDays,
+            FocusMode = focusMode != null
+                ? new FocusModeDto
+                {
+                    Enabled = focusMode.Enabled,
+                    Mode = focusMode.Mode,
+                    AllowUserOverride = focusMode.AllowUserOverride,
+                    Pomodoro = focusMode.Pomodoro != null
+                        ? new PomodoroConfigDto
+                        {
+                            FocusMinutes = focusMode.Pomodoro.FocusMinutes,
+                            ShortBreakMinutes = focusMode.Pomodoro.ShortBreakMinutes,
+                            LongBreakMinutes = focusMode.Pomodoro.LongBreakMinutes,
+                            CyclesBeforeLongBreak = focusMode.Pomodoro.CyclesBeforeLongBreak
+                        }
+                        : null,
+                    Ultradian = focusMode.Ultradian != null
+                        ? new UltradianConfigDto
+                        {
+                            FocusMinutes = focusMode.Ultradian.FocusMinutes,
+                            BreakMinutes = focusMode.Ultradian.BreakMinutes
+                        }
+                        : null
+                }
+                : new FocusModeDto(),
             CreatedAt = policy.CreatedAt,
             UpdatedAt = policy.UpdatedAt
+        };
+    }
+
+    private static PomodoroConfig? MapPomodoroConfig(PomodoroConfigDto? dto, PomodoroConfig? existing)
+    {
+        if (dto == null && existing == null) return null;
+        if (dto == null) return existing;
+
+        return new PomodoroConfig
+        {
+            FocusMinutes = dto.FocusMinutes,
+            ShortBreakMinutes = dto.ShortBreakMinutes,
+            LongBreakMinutes = dto.LongBreakMinutes,
+            CyclesBeforeLongBreak = dto.CyclesBeforeLongBreak
+        };
+    }
+
+    private static UltradianConfig? MapUltradianConfig(UltradianConfigDto? dto, UltradianConfig? existing)
+    {
+        if (dto == null && existing == null) return null;
+        if (dto == null) return existing;
+
+        return new UltradianConfig
+        {
+            FocusMinutes = dto.FocusMinutes,
+            BreakMinutes = dto.BreakMinutes
         };
     }
 }

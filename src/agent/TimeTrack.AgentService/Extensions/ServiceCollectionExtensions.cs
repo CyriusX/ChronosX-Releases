@@ -3,10 +3,13 @@ using Microsoft.Extensions.DependencyInjection;
 using TimeTrack.Agent.Application.Extensions;
 using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Infrastructure.Extensions;
 using TimeTrack.AgentService.Configuration;
 using TimeTrack.AgentService.Health;
 using TimeTrack.AgentService.Ipc;
+using TimeTrack.AgentService.Ipc.Handlers;
+using TimeTrack.AgentService.Notifications;
 using TimeTrack.AgentService.Workers;
 
 namespace TimeTrack.AgentService.Extensions;
@@ -102,6 +105,21 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Adiciona serviços de notificação e modo de foco
+    /// </summary>
+    public static IServiceCollection AddNotificationAndFocusMode(this IServiceCollection services)
+    {
+        // Notification service (null implementation - logs only)
+        // TODO: Replace with IpcNotificationService that forwards to DesktopHost
+        services.AddSingleton<INotificationService, NullNotificationService>();
+
+        // Focus mode services
+        services.AddFocusModeServices();
+
+        return services;
+    }
+
+    /// <summary>
     /// Adiciona workers do Agent
     /// </summary>
     public static IServiceCollection AddAgentWorkers(this IServiceCollection services)
@@ -117,8 +135,8 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddIpcServer(this IServiceCollection services)
     {
-        // Register message handler (scoped for per-request lifetime)
-        services.AddScoped<IpcMessageHandler>();
+        // Register all IPC handlers
+        services.AddIpcHandlers();
 
         // Register IPC server as both HostedService and IIpcServer
         services.AddSingleton<AgentService.Ipc.NamedPipeIpcServer>();

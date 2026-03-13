@@ -62,6 +62,58 @@ export interface WorkHoursPolicy {
  */
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
+// ============================================================================
+// FOCUS MODE POLICY (Pomodoro / Ultradian)
+// ============================================================================
+
+/**
+ * Pomodoro technique configuration
+ */
+export interface PomodoroConfig {
+  /** Duration of focus blocks in minutes (10-180) */
+  focusMinutes: number;
+
+  /** Duration of short breaks in minutes (5-60) */
+  shortBreakMinutes: number;
+
+  /** Duration of long breaks in minutes (5-60) */
+  longBreakMinutes: number;
+
+  /** Number of cycles before a long break (2-8) */
+  cyclesBeforeLongBreak: number;
+}
+
+/**
+ * Ultradian rhythm configuration
+ */
+export interface UltradianConfig {
+  /** Duration of focus blocks in minutes (10-180) */
+  focusMinutes: number;
+
+  /** Duration of recovery breaks in minutes (5-60) */
+  breakMinutes: number;
+}
+
+/**
+ * Focus mode configuration
+ */
+export interface FocusModePolicy {
+  /** Whether focus mode is enabled for the organization */
+  enabled: boolean;
+
+  /** Focus mode type: "pomodoro", "ultradian", or "none" */
+  mode: 'pomodoro' | 'ultradian' | 'none';
+
+  /** Whether users can manually start/stop focus cycles */
+  allowUserOverride: boolean;
+
+  /** Pomodoro-specific configuration */
+  pomodoro?: PomodoroConfig;
+
+  /** Ultradian-specific configuration */
+  ultradian?: UltradianConfig;
+}
+
 /**
  * Organization policy response from backend
  */
@@ -87,6 +139,9 @@ export interface OrgPolicyResponse {
   /** Data retention period in days */
   retentionDays: number;
 
+  /** Focus mode configuration (Pomodoro / Ultradian) */
+  focusMode: FocusModePolicy;
+
   /** When the policy was created */
   createdAt: string;
 
@@ -107,6 +162,21 @@ export interface UpdateOrgPolicyRequest {
   appExclusions?: string[];
   idleThresholdSeconds?: number;
   retentionDays?: number;
+  focusMode?: {
+    enabled?: boolean;
+    mode?: 'pomodoro' | 'ultradian' | 'none';
+    allowUserOverride?: boolean;
+    pomodoro?: {
+      focusMinutes?: number;
+      shortBreakMinutes?: number;
+      longBreakMinutes?: number;
+      cyclesBeforeLongBreak?: number;
+    };
+    ultradian?: {
+      focusMinutes?: number;
+      breakMinutes?: number;
+    };
+  };
 }
 
 // ============================================================================
@@ -159,8 +229,10 @@ export function toLegacyFormat(policy: OrgPolicyResponse): OrgPolicies {
     },
     idleThresholdSeconds: policy.idleThresholdSeconds,
     focusMode: {
-      enabled: false,
-      mode: null,
+      enabled: policy.focusMode?.enabled ?? false,
+      mode: policy.focusMode?.mode === 'none' || !policy.focusMode?.enabled
+        ? null
+        : (policy.focusMode?.mode ?? null),
     },
   };
 }
@@ -195,4 +267,20 @@ export const DEFAULT_WORK_HOURS: WorkHoursPolicy = {
   days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
   startTime: '08:00',
   endTime: '18:00',
+};
+
+export const DEFAULT_FOCUS_MODE: FocusModePolicy = {
+  enabled: false,
+  mode: 'none',
+  allowUserOverride: true,
+  pomodoro: {
+    focusMinutes: 25,
+    shortBreakMinutes: 5,
+    longBreakMinutes: 15,
+    cyclesBeforeLongBreak: 4,
+  },
+  ultradian: {
+    focusMinutes: 90,
+    breakMinutes: 20,
+  },
 };

@@ -58,6 +58,24 @@ public sealed class GetOrgPolicyQueryHandler : IRequestHandler<GetOrgPolicyQuery
             AppExclusions = new List<string>(),
             IdleThresholdSeconds = 180,
             RetentionDays = 90,
+            FocusMode = new FocusModeDto
+            {
+                Enabled = false,
+                Mode = "none",
+                AllowUserOverride = true,
+                Pomodoro = new PomodoroConfigDto
+                {
+                    FocusMinutes = 25,
+                    ShortBreakMinutes = 5,
+                    LongBreakMinutes = 15,
+                    CyclesBeforeLongBreak = 4
+                },
+                Ultradian = new UltradianConfigDto
+                {
+                    FocusMinutes = 90,
+                    BreakMinutes = 20
+                }
+            },
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = null
         };
@@ -67,6 +85,7 @@ public sealed class GetOrgPolicyQueryHandler : IRequestHandler<GetOrgPolicyQuery
     {
         var workHours = policy.GetWorkHours();
         var appExclusions = policy.GetAppExclusions();
+        var focusMode = policy.GetFocusMode();
 
         return new OrgPolicyResponse
         {
@@ -85,6 +104,30 @@ public sealed class GetOrgPolicyQueryHandler : IRequestHandler<GetOrgPolicyQuery
             AppExclusions = appExclusions ?? new List<string>(),
             IdleThresholdSeconds = policy.IdleThresholdSeconds,
             RetentionDays = policy.RetentionDays,
+            FocusMode = focusMode != null
+                ? new FocusModeDto
+                {
+                    Enabled = focusMode.Enabled,
+                    Mode = focusMode.Mode,
+                    AllowUserOverride = focusMode.AllowUserOverride,
+                    Pomodoro = focusMode.Pomodoro != null
+                        ? new PomodoroConfigDto
+                        {
+                            FocusMinutes = focusMode.Pomodoro.FocusMinutes,
+                            ShortBreakMinutes = focusMode.Pomodoro.ShortBreakMinutes,
+                            LongBreakMinutes = focusMode.Pomodoro.LongBreakMinutes,
+                            CyclesBeforeLongBreak = focusMode.Pomodoro.CyclesBeforeLongBreak
+                        }
+                        : null,
+                    Ultradian = focusMode.Ultradian != null
+                        ? new UltradianConfigDto
+                        {
+                            FocusMinutes = focusMode.Ultradian.FocusMinutes,
+                            BreakMinutes = focusMode.Ultradian.BreakMinutes
+                        }
+                        : null
+                }
+                : new FocusModeDto(),
             CreatedAt = policy.CreatedAt,
             UpdatedAt = policy.UpdatedAt
         };

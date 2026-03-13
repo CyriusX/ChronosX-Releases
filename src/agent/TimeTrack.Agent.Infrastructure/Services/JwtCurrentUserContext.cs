@@ -41,6 +41,10 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
         _sqliteContext = sqliteContext;
         _logger = logger;
 
+        // Inicializar de forma assíncrona no construtor
+        // para evitar deadlock
+        _ = RefreshAsync();
+
         // Subscrever aos eventos do token store
         _tokenStore.TokensStored += async (sender, args) =>
         {
@@ -59,7 +63,7 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
     {
         get
         {
-            EnsureInitialized();
+            // Retorna o valor em cache (pode ser null se não inicializado)
             return _cachedUserId;
         }
     }
@@ -68,7 +72,7 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
     {
         get
         {
-            EnsureInitialized();
+            // Retorna o valor em cache (pode ser null se não inicializado)
             return _cachedOrgId;
         }
     }
@@ -167,14 +171,12 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
 
     private void EnsureInitialized()
     {
-        lock (_lock)
+        // A inicialização agora é feita no construtor
+        // Não precisamos mais de inicialização síncrona aqui
+        // Se ainda não foi inicializado, retornamos null
+        if (!_initialized)
         {
-            if (!_initialized)
-            {
-                // Inicialização síncrona usando GetAwaiter().GetResult()
-                // Isso é aceitável porque RefreshAsync é rápido e só lê do cache
-                RefreshAsync().GetAwaiter().GetResult();
-            }
+            _logger.LogDebug("EnsureInitialized: Not yet initialized, returning null");
         }
     }
 

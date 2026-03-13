@@ -9,6 +9,7 @@ using TimeTrack.Agent.Domain.Services;
 using TimeTrack.Agent.Infrastructure.Persistence;
 using TimeTrack.Agent.Infrastructure.Providers.Windows;
 using TimeTrack.Agent.Infrastructure.Services;
+using TimeTrack.Agent.Domain.Enums;
 
 namespace TimeTrack.Agent.Infrastructure.Extensions;
 
@@ -49,6 +50,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IOutboxRepository, OutboxRepository>();
         services.AddSingleton<ISyncErrorRepository, SyncErrorRepository>();
         services.AddSingleton<ILocalSettingsRepository, LocalSettingsRepository>();
+        services.AddSingleton<IFocusCycleRepository, FocusCycleRepository>();
         services.AddSingleton<IIdempotencyKeyGenerator, IdempotencyKeyGenerator>();
 
         return services;

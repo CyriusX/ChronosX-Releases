@@ -29,6 +29,9 @@ IHost host = Host.CreateDefaultBuilder(args)
         // Application Layer - Use Cases
         services.AddApplicationLayer();
 
+        // Notification and Focus Mode services
+        services.AddNotificationAndFocusMode();
+
         // IPC Server for DesktopHost communication
         services.AddIpcServer();
 

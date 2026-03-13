@@ -1,4 +1,8 @@
 using FluentAssertions;
+using FluentValidation;
+using System.Text.Json;
+using TimeTrack.Backend.Application.Policies.DTOs;
+using TimeTrack.Backend.Application.Policies.Validators;
 using TimeTrack.Backend.Domain.Entities;
 using Xunit;
 
@@ -149,5 +153,263 @@ public class WorkHoursConfigTests
 
         // Assert
         result.Should().BeFalse();
+    }
+}
+
+/// <summary>
+/// Tests for FocusModeConfig
+/// </summary>
+public class FocusModeConfigTests
+{
+    [Fact]
+    public void OrgPolicy_GetFocusMode_ReturnsValidConfig_WhenCreated()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var policy = OrgPolicy.Create(orgId);
+
+        // Act
+        var focusMode = policy.GetFocusMode();
+
+        // Assert
+        focusMode.Should().NotBeNull();
+        focusMode!.Enabled.Should().BeFalse();
+        focusMode.Mode.Should().Be("none");
+        focusMode.AllowUserOverride.Should().BeTrue();
+        focusMode.Pomodoro.Should().NotBeNull();
+        focusMode.Pomodoro!.FocusMinutes.Should().Be(25);
+        focusMode.Pomodoro.ShortBreakMinutes.Should().Be(5);
+        focusMode.Pomodoro.LongBreakMinutes.Should().Be(15);
+        focusMode.Pomodoro.CyclesBeforeLongBreak.Should().Be(4);
+        focusMode.Ultradian.Should().NotBeNull();
+        focusMode.Ultradian!.FocusMinutes.Should().Be(90);
+        focusMode.Ultradian.BreakMinutes.Should().Be(20);
+    }
+
+    [Fact]
+    public void OrgPolicy_Update_WithFocusMode_UpdatesFocusMode()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var policy = OrgPolicy.Create(orgId);
+
+        var newFocusMode = new FocusModeConfig
+        {
+            Enabled = true,
+            Mode = "pomodoro",
+            AllowUserOverride = false,
+            Pomodoro = new PomodoroConfig
+            {
+                FocusMinutes = 30,
+                ShortBreakMinutes = 10,
+                LongBreakMinutes = 20,
+                CyclesBeforeLongBreak = 3
+            },
+            Ultradian = new UltradianConfig
+            {
+                FocusMinutes = 120,
+                BreakMinutes = 30
+            }
+        };
+
+        var focusModeJson = JsonSerializer.Serialize(newFocusMode, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+
+        // Act
+        policy.Update(null, null, null, null, focusModeJson);
+
+        // Assert
+        var updatedFocusMode = policy.GetFocusMode();
+        updatedFocusMode.Should().NotBeNull();
+        updatedFocusMode!.Enabled.Should().BeTrue();
+        updatedFocusMode.Mode.Should().Be("pomodoro");
+        updatedFocusMode.AllowUserOverride.Should().BeFalse();
+        updatedFocusMode.Pomodoro!.FocusMinutes.Should().Be(30);
+        updatedFocusMode.Ultradian!.FocusMinutes.Should().Be(120);
+    }
+}
+
+/// <summary>
+/// Tests for FocusModeDtoValidator
+/// </summary>
+public class FocusModeDtoValidatorTests
+{
+    private readonly FocusModeDtoValidator _validator = new();
+
+    [Fact]
+    public void FocusModeDtoValidator_ValidMode_Passes()
+    {
+        // Arrange
+        var dto = new FocusModeDto
+        {
+            Enabled = true,
+            Mode = "pomodoro"
+        };
+
+        // Act
+        var result = _validator.Validate(dto);
+
+        // Assert
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void FocusModeDtoValidator_InvalidMode_Fails()
+    {
+        // Arrange
+        var dto = new FocusModeDto
+        {
+            Mode = "invalid"
+        };
+
+        // Act
+        var result = _validator.Validate(dto);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.ErrorMessage.Contains("Mode must be one of"));
+    }
+
+    [Fact]
+    public void FocusModeDtoValidator_EnabledWithNoneMode_Fails()
+    {
+        // Arrange
+        var dto = new FocusModeDto
+        {
+            Enabled = true,
+            Mode = "none"
+        };
+
+        // Act
+        var result = _validator.Validate(dto);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.ErrorMessage.Contains("Mode cannot be 'none' when focus mode is enabled"));
+    }
+
+    [Fact]
+    public void FocusModeDtoValidator_DisabledWithNoneMode_Passes()
+    {
+        // Arrange
+        var dto = new FocusModeDto
+        {
+            Enabled = false,
+            Mode = "none"
+        };
+
+        // Act
+        var result = _validator.Validate(dto);
+
+        // Assert
+        result.IsValid.Should().BeTrue();
+    }
+}
+
+/// <summary>
+/// Tests for PomodoroConfigDtoValidator
+/// </summary>
+public class PomodoroConfigDtoValidatorTests
+{
+    private readonly PomodoroConfigDtoValidator _validator = new();
+
+    [Theory]
+    [InlineData(10, true)]
+    [InlineData(25, true)]
+    [InlineData(180, true)]
+    [InlineData(9, false)]
+    [InlineData(181, false)]
+    public void PomodoroConfigDtoValidator_FocusMinutesRange(int minutes, bool expectedValid)
+    {
+        // Arrange
+        var dto = new PomodoroConfigDto { FocusMinutes = minutes };
+
+        // Act
+        var result = _validator.Validate(dto);
+
+        // Assert
+        result.IsValid.Should().Be(expectedValid);
+    }
+
+    [Theory]
+    [InlineData(5, true)]
+    [InlineData(30, true)]
+    [InlineData(60, true)]
+    [InlineData(4, false)]
+    [InlineData(61, false)]
+    public void PomodoroConfigDtoValidator_BreakMinutesRange(int minutes, bool expectedValid)
+    {
+        // Arrange
+        var dto = new PomodoroConfigDto { ShortBreakMinutes = minutes };
+
+        // Act
+        var result = _validator.Validate(dto);
+
+        // Assert
+        result.IsValid.Should().Be(expectedValid);
+    }
+
+    [Theory]
+    [InlineData(2, true)]
+    [InlineData(4, true)]
+    [InlineData(8, true)]
+    [InlineData(1, false)]
+    [InlineData(9, false)]
+    public void PomodoroConfigDtoValidator_CyclesBeforeLongBreakRange(int cycles, bool expectedValid)
+    {
+        // Arrange
+        var dto = new PomodoroConfigDto { CyclesBeforeLongBreak = cycles };
+
+        // Act
+        var result = _validator.Validate(dto);
+
+        // Assert
+        result.IsValid.Should().Be(expectedValid);
+    }
+}
+
+/// <summary>
+/// Tests for UltradianConfigDtoValidator
+/// </summary>
+public class UltradianConfigDtoValidatorTests
+{
+    private readonly UltradianConfigDtoValidator _validator = new();
+
+    [Theory]
+    [InlineData(10, true)]
+    [InlineData(90, true)]
+    [InlineData(180, true)]
+    [InlineData(9, false)]
+    [InlineData(181, false)]
+    public void UltradianConfigDtoValidator_FocusMinutesRange(int minutes, bool expectedValid)
+    {
+        // Arrange
+        var dto = new UltradianConfigDto { FocusMinutes = minutes };
+
+        // Act
+        var result = _validator.Validate(dto);
+
+        // Assert
+        result.IsValid.Should().Be(expectedValid);
+    }
+
+    [Theory]
+    [InlineData(5, true)]
+    [InlineData(20, true)]
+    [InlineData(60, true)]
+    [InlineData(4, false)]
+    [InlineData(61, false)]
+    public void UltradianConfigDtoValidator_BreakMinutesRange(int minutes, bool expectedValid)
+    {
+        // Arrange
+        var dto = new UltradianConfigDto { BreakMinutes = minutes };
+
+        // Act
+        var result = _validator.Validate(dto);
+
+        // Assert
+        result.IsValid.Should().Be(expectedValid);
     }
 }

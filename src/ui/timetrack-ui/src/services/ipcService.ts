@@ -100,35 +100,24 @@ export class IpcService implements IIpcClient {
   ): Promise<IpcResponse<void>> {
     const bridge = this.getBridge();
 
-    console.log(`[IpcService] sendCommand called: ${command}`, payload);
-
     if (!bridge) {
-      console.warn(`[IpcService] Bridge not available for command: ${command}`);
       return { success: false, error: 'Bridge not available' };
     }
 
     try {
       const payloadJson = payload !== undefined ? JSON.stringify(payload) : undefined;
 
-      console.log(`[IpcService] Calling bridge.SendCommand for: ${command}`);
+      // WebView2 host objects: access method directly via bridge proxy
+      // The bridge is chrome.webview.hostObjects.timeTrackBridge injected by MainForm.cs
+      const bridgeProxy = bridge as unknown as {
+        SendCommand: (command: string, payloadJson?: string) => Promise<string>;
+      };
 
-      // WebView2 host objects require awaiting the method reference first
-      // chrome.webview.hostObjects.proxy.method is a Promise<Function>
-      const sendCommandMethod = await (bridge as unknown as {
-        SendCommand: Promise<(command: string, payloadJson?: string) => Promise<string>>;
-      }).SendCommand;
-
-      console.log(`[IpcService] Got SendCommand method, calling with:`, command, payloadJson);
-
-      const responseJson = await sendCommandMethod(command, payloadJson);
-
-      console.log(`[IpcService] SendCommand response:`, responseJson);
-
+      const responseJson = await bridgeProxy.SendCommand(command, payloadJson);
       const response = JSON.parse(responseJson);
       return response as IpcResponse<void>;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[IpcService] Error sending command ${command}:`, errorMessage);
       return { success: false, error: errorMessage };
     }
   }

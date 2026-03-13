@@ -5,6 +5,11 @@ namespace TimeTrack.Backend.Domain.Entities;
 /// <summary>
 /// Representa a política unificada de uma organização
 /// Uma única política por organização contendo todas as configurações
+///
+/// SRP: Apenas gerencia a persistência e versionamento da política
+/// Configurações específicas são delegadas para classes dedicadas:
+/// - WorkHoursConfig: Configuração de horário de trabalho
+/// - FocusModeConfig: Configuração de modo de foco
 /// </summary>
 public sealed class OrgPolicy
 {
@@ -23,6 +28,9 @@ public sealed class OrgPolicy
 
     // App exclusions stored as JSON array
     public string AppExclusionsJson { get; private set; } = "[]";
+
+    // Focus Mode configuration stored as JSON
+    public string FocusModeJson { get; private set; } = "{}";
 
     // Simple fields
     public int IdleThresholdSeconds { get; private set; } = 180;
@@ -46,6 +54,25 @@ public sealed class OrgPolicy
             EndTime = "18:00"
         };
 
+        var defaultFocusMode = new FocusModeConfig
+        {
+            Enabled = false,
+            Mode = "none",
+            AllowUserOverride = true,
+            Pomodoro = new PomodoroConfig
+            {
+                FocusMinutes = 25,
+                ShortBreakMinutes = 5,
+                LongBreakMinutes = 15,
+                CyclesBeforeLongBreak = 4
+            },
+            Ultradian = new UltradianConfig
+            {
+                FocusMinutes = 90,
+                BreakMinutes = 20
+            }
+        };
+
         return new OrgPolicy
         {
             Id = Guid.NewGuid(),
@@ -53,6 +80,7 @@ public sealed class OrgPolicy
             Version = 1,
             WorkHoursJson = JsonSerializer.Serialize(defaultWorkHours, JsonOptions),
             AppExclusionsJson = "[]",
+            FocusModeJson = JsonSerializer.Serialize(defaultFocusMode, JsonOptions),
             IdleThresholdSeconds = 180,
             RetentionDays = 90,
             CreatedAt = DateTime.UtcNow
@@ -66,7 +94,8 @@ public sealed class OrgPolicy
         string? workHoursJson,
         string? appExclusionsJson,
         int? idleThresholdSeconds,
-        int? retentionDays)
+        int? retentionDays,
+        string? focusModeJson = null)
     {
         if (workHoursJson != null)
             WorkHoursJson = workHoursJson;
@@ -79,6 +108,9 @@ public sealed class OrgPolicy
 
         if (retentionDays.HasValue)
             RetentionDays = retentionDays.Value;
+
+        if (focusModeJson != null)
+            FocusModeJson = focusModeJson;
 
         Version++;
         UpdatedAt = DateTime.UtcNow;
@@ -99,42 +131,15 @@ public sealed class OrgPolicy
     {
         return JsonSerializer.Deserialize<List<string>>(AppExclusionsJson, JsonOptions);
     }
-}
-
-/// <summary>
-/// Configuration for work hours policy
-/// </summary>
-public sealed class WorkHoursConfig
-{
-    public string Timezone { get; set; } = "America/Sao_Paulo";
-    public List<string> Days { get; set; } = new();
-    public string StartTime { get; set; } = "08:00";
-    public string EndTime { get; set; } = "18:00";
 
     /// <summary>
-    /// Checks if a given UTC datetime falls within the work hours window
+    /// Gets the focus mode configuration deserialized
     /// </summary>
-    public bool IsWithinWindow(DateTimeOffset utcTime)
+    public FocusModeConfig? GetFocusMode()
     {
-        try
-        {
-            var tz = TimeZoneInfo.FindSystemTimeZoneById(Timezone);
-            var local = TimeZoneInfo.ConvertTimeFromUtc(utcTime.UtcDateTime, tz);
+        if (string.IsNullOrWhiteSpace(FocusModeJson) || FocusModeJson == "{}")
+            return null;
 
-            var dayName = local.DayOfWeek.ToString().ToLowerInvariant();
-            if (!Days.Contains(dayName))
-                return false;
-
-            var localTime = TimeOnly.Parse($"{local.Hour:D2}:{local.Minute:D2}");
-            var startTime = TimeOnly.Parse(StartTime);
-            var endTime = TimeOnly.Parse(EndTime);
-
-            return localTime >= startTime && localTime <= endTime;
-        }
-        catch
-        {
-            // If timezone is invalid, default to true (don't block)
-            return true;
-        }
+        return JsonSerializer.Deserialize<FocusModeConfig>(FocusModeJson, JsonOptions);
     }
 }

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TimeTrack.AgentService.Ipc.Handlers;
 
 namespace TimeTrack.AgentService.Ipc;
 
@@ -151,18 +152,17 @@ public sealed class NamedPipeIpcServer : BackgroundService, IIpcServer, IDisposa
             _logger.LogDebug("Received IPC {Type}: {Name} (RequestId: {RequestId})",
                 request.Type, request.Name, request.RequestId);
 
-            using var scope = _serviceProvider.CreateScope();
-            var handler = scope.ServiceProvider.GetRequiredService<IpcMessageHandler>();
+            var router = _serviceProvider.GetRequiredService<IpcMessageRouter>();
 
             IpcResponse response;
 
             if (request.Type.Equals("command", StringComparison.OrdinalIgnoreCase))
             {
-                response = await handler.HandleCommandAsync(request, cancellationToken);
+                response = await router.HandleCommandAsync(request, cancellationToken);
             }
             else if (request.Type.Equals("query", StringComparison.OrdinalIgnoreCase))
             {
-                response = await handler.HandleQueryAsync(request, cancellationToken);
+                response = await router.HandleQueryAsync(request, cancellationToken);
             }
             else
             {
@@ -236,17 +236,24 @@ public sealed class NamedPipeIpcServer : BackgroundService, IIpcServer, IDisposa
 
     private async Task SendResponseAsync(IpcResponse response, CancellationToken cancellationToken)
     {
-        if (_writer == null) return;
+        if (_writer == null)
+        {
+            _logger.LogWarning("SendResponseAsync: Writer is null");
+            return;
+        }
 
         try
         {
             var json = JsonSerializer.Serialize(response, _jsonOptions);
+            _logger.LogInformation("SendResponseAsync: Sending response for RequestId {RequestId}, Success: {Success}", response.RequestId, response.Success);
 
             lock (_writeLock)
             {
                 _writer.WriteLine(json);
                 _writer.Flush();
             }
+
+            _logger.LogInformation("SendResponseAsync: Response sent and flushed");
 
             _logger.LogDebug("Sent response for RequestId: {RequestId}", response.RequestId);
         }

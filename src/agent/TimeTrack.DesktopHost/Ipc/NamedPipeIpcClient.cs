@@ -124,8 +124,11 @@ public sealed class NamedPipeIpcClient : IIpcClient, IpcClientHostedService, IDi
 
     private async Task<IpcResponse> SendMessageAsync(string type, string name, object? payload, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("SendMessageAsync called: Type={Type}, Name={Name}, IsConnected={IsConnected}", type, name, IsConnected);
+
         if (!IsConnected || _writer == null)
         {
+            _logger.LogWarning("SendMessageAsync: Not connected");
             return new IpcResponse { Success = false, Error = "Not connected to AgentService" };
         }
 
@@ -148,13 +151,16 @@ public sealed class NamedPipeIpcClient : IIpcClient, IpcClientHostedService, IDi
             };
 
             var json = JsonSerializer.Serialize(message, _jsonOptions);
-            _logger.LogDebug("Sending IPC message: {Message}", json);
+            _logger.LogInformation("Sending IPC message: {Message}", json);
 
+            _logger.LogInformation("Waiting for write lock...");
             await _writeLock.WaitAsync(cancellationToken);
+            _logger.LogInformation("Write lock acquired");
             try
             {
                 await _writer!.WriteLineAsync(json);
                 await _writer.FlushAsync(cancellationToken);
+                _logger.LogInformation("Message sent and flushed");
             }
             finally
             {
@@ -200,10 +206,12 @@ public sealed class NamedPipeIpcClient : IIpcClient, IpcClientHostedService, IDi
 
     private async Task ListenAsync(CancellationToken cancellationToken)
     {
+        _logger.LogInformation("ListenAsync started");
         try
         {
             while (!cancellationToken.IsCancellationRequested && _reader != null)
             {
+                _logger.LogDebug("ListenAsync: Waiting for message...");
                 var line = await _reader.ReadLineAsync(cancellationToken);
                 if (line == null)
                 {
@@ -212,6 +220,7 @@ public sealed class NamedPipeIpcClient : IIpcClient, IpcClientHostedService, IDi
                     break;
                 }
 
+                _logger.LogInformation("ListenAsync: Received message: {Message}", line.Length > 200 ? line[..200] + "..." : line);
                 ProcessIncomingMessage(line);
             }
         }

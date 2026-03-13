@@ -36,15 +36,36 @@ public sealed class GetLocalDashboardUseCase
         DateTime? date = null,
         CancellationToken cancellationToken = default)
     {
-        var userId = _userContext.UserId
-            ?? throw new InvalidOperationException("User not authenticated");
+        _logger.LogInformation("GetLocalDashboardUseCase: Starting ExecuteAsync");
+
+        var userId = _userContext.UserId;
+
+        _logger.LogInformation("GetLocalDashboardUseCase: UserId = {UserId}", userId);
+
+        if (!userId.HasValue)
+        {
+            _logger.LogWarning("GetLocalDashboardUseCase: User not authenticated, returning empty dashboard");
+            // Return empty dashboard instead of throwing
+            return new LocalDashboardResponse
+            {
+                Date = date?.Date ?? DateTime.UtcNow.Date,
+                TrackingStatus = "NotAuthenticated",
+                TotalWorkTime = TimeSpan.Zero,
+                TotalIdleTime = TimeSpan.Zero,
+                SessionCount = 0,
+                TopApplications = new List<AppUsageSummary>(),
+                LastSession = null
+            };
+        }
 
         var targetDate = date?.Date ?? DateTime.UtcNow.Date;
 
+        var userIdValue = userId.Value;
+
         // Busca dados em paralelo (filtrados por usuário)
-        var stateTask = _stateRepository.GetAsync(userId, cancellationToken);
-        var sessionsTask = _sessionRepository.GetByDateAsync(userId, targetDate, cancellationToken);
-        var idlePeriodsTask = _idleRepository.GetByDateAsync(userId, targetDate, cancellationToken);
+        var stateTask = _stateRepository.GetAsync(userIdValue, cancellationToken);
+        var sessionsTask = _sessionRepository.GetByDateAsync(userIdValue, targetDate, cancellationToken);
+        var idlePeriodsTask = _idleRepository.GetByDateAsync(userIdValue, targetDate, cancellationToken);
 
         await Task.WhenAll(stateTask, sessionsTask, idlePeriodsTask);
 

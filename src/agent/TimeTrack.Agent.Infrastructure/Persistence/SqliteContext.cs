@@ -127,6 +127,22 @@ public sealed class SqliteContext : IAsyncDisposable
                 language TEXT NOT NULL DEFAULT 'pt-BR',
                 updated_at TEXT NOT NULL
             );
+
+            -- Tabela de ciclos de foco (Pomodoro/Ultradian)
+            CREATE TABLE IF NOT EXISTS focus_cycles (
+                id TEXT PRIMARY KEY,
+                user_id TEXT,
+                mode INTEGER NOT NULL,
+                cycle_number INTEGER NOT NULL,
+                started_at TEXT NOT NULL,
+                ended_at TEXT,
+                planned_ms INTEGER NOT NULL,
+                actual_ms INTEGER,
+                completed INTEGER NOT NULL DEFAULT 0,
+                break_taken INTEGER NOT NULL DEFAULT 0,
+                synced INTEGER NOT NULL DEFAULT 0,
+                date TEXT NOT NULL
+            );
         ";
 
         await connection.ExecuteAsync(createTablesSql);
@@ -153,7 +169,8 @@ public sealed class SqliteContext : IAsyncDisposable
             "idle_periods",
             "sync_outbox",
             "sync_errors",
-            "local_settings"
+            "local_settings",
+            "focus_cycles"
         };
 
         foreach (var table in tables)
@@ -189,6 +206,9 @@ public sealed class SqliteContext : IAsyncDisposable
             CREATE INDEX IF NOT EXISTS ix_sync_errors_user_id ON sync_errors(user_id);
             CREATE INDEX IF NOT EXISTS ix_sync_errors_timestamp ON sync_errors(timestamp_utc);
             CREATE INDEX IF NOT EXISTS ix_local_settings_user_id ON local_settings(user_id);
+            CREATE INDEX IF NOT EXISTS ix_focus_cycles_user_id ON focus_cycles(user_id);
+            CREATE INDEX IF NOT EXISTS ix_focus_cycles_date ON focus_cycles(date);
+            CREATE INDEX IF NOT EXISTS ix_focus_cycles_started_at ON focus_cycles(started_at);
         ";
 
         await connection.ExecuteAsync(createIndexesSql);

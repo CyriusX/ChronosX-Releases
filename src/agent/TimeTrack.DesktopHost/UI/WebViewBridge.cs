@@ -47,7 +47,7 @@ public sealed class WebViewBridge
     {
         try
         {
-            _logger.LogDebug("SendCommand called: {Command}", command);
+            _logger.LogInformation("SendCommand called: {Command}, Payload: {Payload}", command, payloadJson ?? "null");
 
             object? payload = null;
             if (!string.IsNullOrEmpty(payloadJson))
@@ -55,7 +55,9 @@ public sealed class WebViewBridge
                 payload = JsonSerializer.Deserialize<object>(payloadJson);
             }
 
+            _logger.LogInformation("Calling _ipcClient.SendCommandAsync, IsConnected: {IsConnected}", _ipcClient.IsConnected);
             var response = await _ipcClient.SendCommandAsync(command, payload);
+            _logger.LogInformation("SendCommandAsync returned: {Success}", response.Success);
 
             var result = new
             {

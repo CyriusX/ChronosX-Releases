@@ -284,10 +284,40 @@
       "Bash(taskkill /F /PID 32788)",
       "Bash(powershell -Command \"Stop-Process -Id 32788 -Force\")",
       "Bash(powershell -Command \"Get-Process -Name 'TimeTrack.Api' -ErrorAction SilentlyContinue | Stop-Process -Force\")",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(tasklist)",
+      "Bash(findstr /i \"VBCSCompiler MSBuild dotnet\")",
+      "Bash(taskkill /F /PID 35952)",
+      "Bash(taskkill //F //PID 35952)",
+      "Bash(taskkill //F //IM VBCSCompiler.exe)",
+      "Bash(taskkill //F //IM dotnet.exe)",
+      "Bash(taskkill //F //IM devenv.exe)",
+      "Bash(taskkill //F //IM MSBuild.exe)",
+      "Bash(cd C:/Projetos/TimeTracking && dotnet restore src/agent/TimeTrack.DesktopHost/TimeTrack.DesktopHost.csproj 2>&1 && dotnet list src/agent/TimeTrack.DesktopHost/TimeTrack.DesktopHost.csproj package --include-transitive 2>&1 | head -30)",
+      "mcp__github__search_code",
+      "Bash(cd C:/Projetos/TimeTracking && rm -rf /tmp/Typecheck && rm -f TypeCheck.csproj && rm -f /tmp/TypeCheck)",
+      "Bash(find \"C:/Projetos/TimeTracking/src/backend/TimeTrack.Backend.Application/Policies\" -name \"*.cs\" -type f 2>/dev/null | sort)",
+      "Bash(taskkill /F /IM TimeTrack.Api.exe)",
+      "Bash(taskkill /F /PID 23376)",
+      "Bash(powershell -Command \"Stop-Process -Name ''TimeTrack.Api'' -Force -ErrorAction SilentlyContinue; Stop-Process -Id 23376 -Force -ErrorAction SilentlyContinue\")",
+      "Bash(timeout 15 tail -f \"C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Projetos-TimeTracking\\\\cc1dd7b4-2a53-4e82-b973-eabf025246f2\\\\tasks\\\\b5noaxdxn.output\")",
+      "Bash(taskkill /F /IM \"DesktopHost.exe\")",
+      "Bash(taskkill /F /IM \"TimeTrack.AgentService.exe\")",
+      "Bash(taskkill /F /IM \"TimeTrack.DesktopHost.exe\")",
+      "Bash(timeout 20 tail -f \"C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Projetos-TimeTracking\\\\cc1dd7b4-2a53-4e82-b973-eabf025246f2\\\\tasks\\\\bcsaqp7tq.output\")",
+      "Bash(timeout 20 tail -f \"C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Projetos-TimeTracking\\\\cc1dd7b4-2a53-4e82-b973-eabf025246f2\\\\tasks\\\\bn4kq8mp0.output\")",
+      "Bash(taskkill /F /IM \"dotnet.exe\")",
+      "Bash(taskkill /F /IM \"dotnet.exe\" /FI \"WINDOWTITLE eq *DesktopHost*\")",
+      "Bash(taskkill /F /PID 13448)",
+      "Bash(taskkill /F /PID 12880)",
+      "Bash(powershell -Command \"Stop-Process -Name ''TimeTrack.DesktopHost'' -Force -ErrorAction SilentlyContinue; Stop-Process -Id 13448,12880 -Force -ErrorAction SilentlyContinue; Write-Host ''Done''\")",
+      "Bash(powershell -Command \"Stop-Process -Name ''TimeTrack.DesktopHost'' -Force -ErrorAction SilentlyContinue; Write-Host ''Done''\")",
+      "Bash(powershell -Command \"Stop-Process -Name ''TimeTrack.DesktopHost'' -Force -ErrorAction SilentlyContinue\")",
+      "Bash(powershell -Command \"Stop-Process -Name ''TimeTrack.AgentService'' -Force -ErrorAction SilentlyContinue; Stop-Process -Name ''TimeTrack.DesktopHost'' -Force -ErrorAction SilentlyContinue\")"
     ],
     "additionalDirectories": [
-      "C:\\Users\\Usuario"
+      "C:\\Users\\Usuario",
+      "c:\\Projetos\\TimeTracking\\src\\agent\\TimeTrack.Agent.Domain\\obj"
     ]
   }
 }
