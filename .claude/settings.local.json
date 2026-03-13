@@ -266,7 +266,12 @@
       "Bash(curl -s -X POST http://localhost:5555/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@test.com\",\"password\":\"Test123!\"}' 2>&1)",
       "Bash(curl -s -X POST http://localhost:55757/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@test.com\",\"password\":\"Test123!\"}' 2>&1)",
       "Bash(netstat -an | findstr \"55757\" || echo \"Port not listening\")",
-      "Bash(curl -s -X POST http://localhost:5000/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@test.com\",\"password\":\"Admin@123\"}' 2>&1 | head -5)"
+      "Bash(curl -s -X POST http://localhost:5000/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@test.com\",\"password\":\"Admin@123\"}' 2>&1 | head -5)",
+      "Bash(tasklist | grep -i \"TimeTrack\\\\|dotnet\")",
+      "Bash(taskkill /F /PID 27556 && taskkill /F /PID 17040)",
+      "Bash(taskkill //F //PID 27556)",
+      "Bash(taskkill //F //PID 17040)",
+      "Bash(taskkill //F //PID 35800)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario"

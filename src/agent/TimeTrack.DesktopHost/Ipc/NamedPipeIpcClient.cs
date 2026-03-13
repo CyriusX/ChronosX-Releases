@@ -25,6 +25,7 @@ public sealed class NamedPipeIpcClient : IIpcClient, IpcClientHostedService, IDi
     private int _requestId;
     private readonly Dictionary<int, TaskCompletionSource<IpcResponse>> _pendingRequests = new();
     private readonly object _lock = new();
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     private bool _isConnected;
     public bool IsConnected => _isConnected;
@@ -149,8 +150,16 @@ public sealed class NamedPipeIpcClient : IIpcClient, IpcClientHostedService, IDi
             var json = JsonSerializer.Serialize(message, _jsonOptions);
             _logger.LogDebug("Sending IPC message: {Message}", json);
 
-            await _writer.WriteLineAsync(json);
-            await _writer.FlushAsync(cancellationToken);
+            await _writeLock.WaitAsync(cancellationToken);
+            try
+            {
+                await _writer!.WriteLineAsync(json);
+                await _writer.FlushAsync(cancellationToken);
+            }
+            finally
+            {
+                _writeLock.Release();
+            }
 
             // Wait for response with timeout
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -297,6 +306,7 @@ public sealed class NamedPipeIpcClient : IIpcClient, IpcClientHostedService, IDi
     public void Dispose()
     {
         DisconnectAsync().GetAwaiter().GetResult();
+        _writeLock.Dispose();
     }
 }
 
