@@ -10,8 +10,8 @@ import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useAuthStore, selectAccessToken } from '../../stores/authStore';
-import { getOrgPolicy } from '../../services/policyApi';
-import type { LocalSettings, UpdateLocalSettingsRequest, OrgPolicyResponse } from '../../types/settings';
+import { getOrgPolicy, updateOrgPolicy } from '../../services/policyApi';
+import type { LocalSettings, UpdateLocalSettingsRequest, OrgPolicyResponse, UpdateOrgPolicyRequest } from '../../types/settings';
 
 /**
  * SettingsPage - Página de configurações
@@ -38,7 +38,7 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const { sendQuery, sendCommand } = useIpc();
   const { notify } = useNotifications();
-  const { canManageTeam, canViewOrgPolicies } = usePermissions();
+  const { canManageTeam, canViewOrgPolicies, canEditOrgPolicies } = usePermissions();
   const accessToken = useAuthStore(selectAccessToken);
   const user = useAuthStore((state) => state.user);
 
@@ -112,6 +112,23 @@ export function SettingsPage() {
     }
   };
 
+  const handleUpdatePolicy = async (request: UpdateOrgPolicyRequest) => {
+    if (!accessToken || !user?.orgId) {
+      notify.error('Erro ao atualizar políticas');
+      return;
+    }
+
+    try {
+      const updatedPolicy = await updateOrgPolicy(accessToken, user.orgId, request);
+      setPolicy(updatedPolicy);
+      notify.success('Políticas atualizadas');
+    } catch (error) {
+      console.error('[Settings] Error updating policy:', error);
+      notify.error('Erro ao atualizar políticas');
+      throw error; // Re-throw to let the component handle it
+    }
+  };
+
   const handleGoBack = () => {
     navigate(-1);
   };
@@ -168,7 +185,11 @@ export function SettingsPage() {
         {/* Policy Cards - Apenas Admin/Gestor */}
         {canViewOrgPolicies && (
           policy ? (
-            <PolicyCards policy={policy} />
+            <PolicyCards
+              policy={policy}
+              onUpdate={handleUpdatePolicy}
+              canEdit={canEditOrgPolicies}
+            />
           ) : policyError ? (
             <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,107,107,0.2)] rounded-2xl p-6">
               <p className="text-[14px] text-[#ff6b6b]">{policyError}</p>

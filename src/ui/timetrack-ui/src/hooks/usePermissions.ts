@@ -63,6 +63,11 @@ export function usePermissions() {
    */
   const canChangeMemberRole = (): boolean => isAdmin();
 
+  /**
+   * Verifica se pode editar políticas da organização (apenas Admin)
+   */
+  const canEditOrgPolicies = (): boolean => isAdmin();
+
   return {
     role,
     isAdmin: isAdmin(),
@@ -70,6 +75,7 @@ export function usePermissions() {
     isColaborador: isColaborador(),
     canManageTeam: canManageTeam(),
     canViewOrgPolicies: canViewOrgPolicies(),
+    canEditOrgPolicies: canEditOrgPolicies(),
     canInviteMembers: canInviteMembers(),
     canRemoveMembers: canRemoveMembers(),
     canChangeMemberRole: canChangeMemberRole(),

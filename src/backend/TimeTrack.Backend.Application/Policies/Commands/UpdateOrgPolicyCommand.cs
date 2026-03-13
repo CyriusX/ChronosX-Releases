@@ -39,11 +39,11 @@ public sealed class UpdateOrgPolicyCommandHandler : IRequestHandler<UpdateOrgPol
 
         // Get existing policy or create new one
         var policy = await _policyRepository.GetByOrgIdAsync(command.OrgId, cancellationToken);
+        var isNewPolicy = policy == null;
 
         if (policy == null)
         {
             policy = OrgPolicy.Create(command.OrgId);
-            await _policyRepository.AddAsync(policy, cancellationToken);
         }
 
         // Prepare updated values
@@ -52,12 +52,13 @@ public sealed class UpdateOrgPolicyCommandHandler : IRequestHandler<UpdateOrgPol
 
         if (request.WorkHours != null)
         {
+            var existingWorkHours = policy.GetWorkHours();
             var workHours = new WorkHoursConfig
             {
-                Timezone = request.WorkHours.Timezone,
-                Days = request.WorkHours.Days,
-                StartTime = request.WorkHours.StartTime,
-                EndTime = request.WorkHours.EndTime
+                Timezone = request.WorkHours.Timezone ?? existingWorkHours?.Timezone ?? "America/Sao_Paulo",
+                Days = request.WorkHours.Days ?? existingWorkHours?.Days ?? new List<string> { "monday", "tuesday", "wednesday", "thursday", "friday" },
+                StartTime = request.WorkHours.StartTime ?? existingWorkHours?.StartTime ?? "08:00",
+                EndTime = request.WorkHours.EndTime ?? existingWorkHours?.EndTime ?? "18:00"
             };
             workHoursJson = JsonSerializer.Serialize(workHours, JsonOptions);
         }
@@ -74,7 +75,14 @@ public sealed class UpdateOrgPolicyCommandHandler : IRequestHandler<UpdateOrgPol
             request.IdleThresholdSeconds,
             request.RetentionDays);
 
-        await _policyRepository.UpdateAsync(policy, cancellationToken);
+        if (isNewPolicy)
+        {
+            await _policyRepository.AddAsync(policy, cancellationToken);
+        }
+        else
+        {
+            await _policyRepository.UpdateAsync(policy, cancellationToken);
+        }
 
         // Return updated policy
         return MapToResponse(policy);

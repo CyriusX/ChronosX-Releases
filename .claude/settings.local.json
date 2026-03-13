@@ -257,7 +257,8 @@
       "Bash(taskkill /F /IM TimeTrack.Api.exe 2>/dev/null || taskkill /F /PID 27420 2>/dev/null || echo \"Process not found, continuing...\")",
       "Bash(tasklist | grep -i \"dotnet\\\\|TimeTrack\" || echo \"No matching processes found\")",
       "Bash(taskkill /F /PID 27420)",
-      "Bash(powershell -Command \"Stop-Process -Id 27420 -Force\")"
+      "Bash(powershell -Command \"Stop-Process -Id 27420 -Force\")",
+      "Bash(powershell -Command \"Stop-Process -Id 22828 -Force\" 2>/dev/null; sleep 2; dotnet build)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario"
