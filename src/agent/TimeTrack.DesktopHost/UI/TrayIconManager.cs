@@ -47,7 +47,12 @@ public sealed class TrayIconManager : IDisposable
 
     private ContextMenuStrip CreateContextMenu()
     {
-        var menu = new ContextMenuStrip();
+        var menu = new ContextMenuStrip
+        {
+            Renderer = new DarkToolStripRenderer(),
+            ShowImageMargin = false,
+            AutoSize = true
+        };
 
         // Open/Show window
         var showItem = menu.Items.Add("Abrir TimeTrack", null, OnShowClick);

@@ -271,7 +271,20 @@
       "Bash(taskkill /F /PID 27556 && taskkill /F /PID 17040)",
       "Bash(taskkill //F //PID 27556)",
       "Bash(taskkill //F //PID 17040)",
-      "Bash(taskkill //F //PID 35800)"
+      "Bash(taskkill //F //PID 35800)",
+      "Bash(cd C:/Projetos/TimeTracking/src/backend/TimeTrack.Backend.Infrastructure && dotnet add package Hangfire.Core Hangfire.AspNetCore Hangfire.PostgreSql --version 1.12.0)",
+      "Bash(dotnet package:*)",
+      "Bash(cd C:/Projetos/TimeTracking/src/backend/TimeTrack.Backend.Infrastructure && dotnet add package Hangfire.Core --version 1.8.23 && dotnet add package Hangfire.AspNetCore --version 1.8.23 && dotnet add package Hangfire.PostgreSql --version 1.21.1)",
+      "Bash(find C:/Projetos/TimeTracking -name \"*.sln\" 2>/dev/null || find C:/Projetos/TimeTracking -name \"*.csproj\" -type f 2>/dev/null | head -20)",
+      "Bash(find C:/Projetos/TimeTracking/src/backend/TimeTrack.Backend.Tests -name \"*.cs\" -type f 2>/dev/null | head -10)",
+      "Bash(taskkill /F /PID 32788 2>/dev/null || echo \"Process not found or already stopped\")",
+      "Bash(taskkill /F /IM \"TimeTrack.Api.exe\" 2>/dev/null; sleep 2)",
+      "Bash(tasklist /FI \"IMAGENAME eq TimeTrack.Api*\" 2>/dev/null || taskkill /F /IM TimeTrack.Api.exe 2>/dev/null || echo \"No TimeTrack.Api process found\")",
+      "Bash(tasklist | grep -i \"dotnet\\\\|timetrack\")",
+      "Bash(taskkill /F /PID 32788)",
+      "Bash(powershell -Command \"Stop-Process -Id 32788 -Force\")",
+      "Bash(powershell -Command \"Get-Process -Name 'TimeTrack.Api' -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(git push:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario"
