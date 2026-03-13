@@ -1,4 +1,5 @@
 using System.Text;
+using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
@@ -10,6 +11,8 @@ using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Common.Security;
 using TimeTrack.Backend.Application.Extensions;
 using TimeTrack.Backend.Infrastructure.Extensions;
+using TimeTrack.Backend.Infrastructure.Jobs.Configuration;
+using TimeTrack.Backend.Infrastructure.Jobs.Dashboard;
 
 // Configure Serilog early
 Log.Logger = new LoggerConfiguration()
@@ -178,6 +181,18 @@ try
 
     app.UseAuthentication();
     app.UseAuthorization();
+
+    // Hangfire Dashboard - protected by Admin role
+    app.MapHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = new[] { new HangfireDashboardAuthorizationFilter(app.Environment) },
+        DashboardTitle = "TimeTrack Jobs Dashboard",
+        StatsPollingInterval = 30000 // 30 seconds in milliseconds
+    });
+
+    // Configure recurring jobs after application starts
+    HangfireConfiguration.ConfigureRecurringJobs();
+
     app.MapControllers();
 
     Log.Information("Starting TimeTrack API...");

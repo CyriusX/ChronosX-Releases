@@ -5,6 +5,7 @@ using Microsoft.Extensions.Http;
 using Resend;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using TimeTrack.Backend.Infrastructure.Jobs.Configuration;
 using TimeTrack.Backend.Infrastructure.Persistence;
 using TimeTrack.Backend.Infrastructure.Repositories;
 using TimeTrack.Backend.Infrastructure.Services;
@@ -43,6 +44,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.AddScoped<IOrgPolicyRepository, OrgPolicyRepository>();
         services.AddScoped<IReportRepository, ReportRepository>();
+        services.AddScoped<IDailySummaryRepository, DailySummaryRepository>();
+
+        // Hangfire Background Jobs
+        services.AddHangfireJobs(configuration);
 
         // Services
         services.AddScoped<Application.Common.Interfaces.ICurrentUserContext, CurrentUserContext>();

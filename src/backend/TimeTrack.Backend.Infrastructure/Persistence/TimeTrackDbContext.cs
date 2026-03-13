@@ -33,6 +33,7 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Project> Projects => Set<Project>();
+    public DbSet<DailySummary> DailySummaries => Set<DailySummary>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -90,6 +91,10 @@ public sealed class TimeTrackDbContext : DbContext
         // Projects
         modelBuilder.Entity<Project>()
             .HasQueryFilter(p => !_currentUser.IsAuthenticated || p.OrgId == _currentUser.OrgId);
+
+        // Daily Summaries
+        modelBuilder.Entity<DailySummary>()
+            .HasQueryFilter(d => !_currentUser.IsAuthenticated || d.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()

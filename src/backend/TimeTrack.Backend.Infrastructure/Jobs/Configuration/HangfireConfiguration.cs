@@ -1,0 +1,138 @@
+using Hangfire;
+using Hangfire.PostgreSql;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using TimeTrack.Backend.Infrastructure.Jobs.Interfaces;
+
+namespace TimeTrack.Backend.Infrastructure.Jobs.Configuration;
+
+/// <summary>
+/// Extension methods for configuring Hangfire
+/// </summary>
+public static class HangfireConfiguration
+{
+    /// <summary>
+    /// Adds Hangfire services with PostgreSQL storage
+    /// </summary>
+    public static IServiceCollection AddHangfireJobs(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var connectionString = GetConnectionString(configuration);
+
+        // Configure Hangfire with PostgreSQL storage
+        services.AddHangfire(config =>
+        {
+            config.UsePostgreSqlStorage(
+                c => c.UseNpgsqlConnection(connectionString),
+                new PostgreSqlStorageOptions
+                {
+                    // Job expiration timeout
+                    InvisibilityTimeout = TimeSpan.FromMinutes(30),
+                    // Queue poll interval
+                    QueuePollInterval = TimeSpan.FromSeconds(15)
+                });
+
+            // Configure retry attempts for failed jobs
+            config.UseFilter(new AutomaticRetryAttribute
+            {
+                Attempts = 3,
+                DelaysInSeconds = new[] { 60, 300, 900 } // 1min, 5min, 15min
+            });
+
+            // Recommended for production
+            config.UseRecommendedSerializerSettings();
+        });
+
+        // Add Hangfire server
+        services.AddHangfireServer(options =>
+        {
+            options.ServerName = "TimeTrack-JobServer";
+            options.WorkerCount = 2; // Limit concurrent jobs
+            options.SchedulePollingInterval = TimeSpan.FromSeconds(15);
+        });
+
+        // Register job implementations
+        services.AddScoped<IRetentionJob, RetentionJob>();
+        services.AddScoped<IAggregationJob, AggregationJob>();
+        services.AddScoped<ICleanupJob, CleanupJob>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configures recurring jobs
+    /// Should be called during application startup
+    /// </summary>
+    public static void ConfigureRecurringJobs()
+    {
+        // Retention job - runs daily at 03:00 UTC
+        RecurringJob.AddOrUpdate<IRetentionJob>(
+            "retention-job",
+            job => job.ExecuteAsync(),
+            "0 3 * * *", // Daily at 03:00 UTC
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Aggregation job - runs hourly
+        RecurringJob.AddOrUpdate<IAggregationJob>(
+            "aggregation-job",
+            job => job.ExecuteForRecentDaysAsync(1), // Process yesterday's data
+            "0 * * * *", // Every hour
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Cleanup job - runs daily at 04:00 UTC
+        RecurringJob.AddOrUpdate<ICleanupJob>(
+            "cleanup-idempotency-keys-job",
+            job => job.ExecuteAsync(),
+            "0 4 * * *", // Daily at 04:00 UTC
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+    }
+
+    private static string GetConnectionString(IConfiguration configuration)
+    {
+        // Support Neon DATABASE_URL format
+        var databaseUrl = configuration["DATABASE_URL"];
+        if (!string.IsNullOrEmpty(databaseUrl))
+        {
+            return ConvertNeonUrlToConnectionString(databaseUrl);
+        }
+
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrEmpty(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Database connection string not found. Set DATABASE_URL or ConnectionStrings:DefaultConnection");
+        }
+
+        return connectionString;
+    }
+
+    private static string ConvertNeonUrlToConnectionString(string databaseUrl)
+    {
+        var uri = new Uri(databaseUrl);
+        var userInfo = uri.UserInfo.Split(':');
+
+        var builder = new Npgsql.NpgsqlConnectionStringBuilder
+        {
+            Host = uri.Host,
+            Port = uri.Port,
+            Username = userInfo[0],
+            Password = userInfo.Length > 1 ? userInfo[1] : string.Empty,
+            Database = uri.AbsolutePath.TrimStart('/'),
+            SslMode = uri.Query.Contains("sslmode=require")
+                ? Npgsql.SslMode.Require
+                : Npgsql.SslMode.Prefer
+        };
+
+        return builder.ToString();
+    }
+}
