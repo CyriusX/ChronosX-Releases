@@ -45,6 +45,12 @@ internal sealed class OrgPolicyConfiguration : IEntityTypeConfiguration<OrgPolic
             .HasDefaultValue(90)
             .IsRequired();
 
+        builder.Property(p => p.FocusModeJson)
+            .HasColumnName("focus_mode_json")
+            .HasColumnType("jsonb")
+            .HasDefaultValueSql("'{}'::jsonb")
+            .IsRequired();
+
         builder.Property(p => p.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()");
