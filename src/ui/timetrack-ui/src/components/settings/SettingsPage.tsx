@@ -9,7 +9,9 @@ import { PolicyCards } from './PolicyCards';
 import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
 import { usePermissions } from '../../hooks/usePermissions';
-import type { LocalSettings, OrgPolicies, UpdateLocalSettingsRequest } from '../../types/settings';
+import { useAuthStore, selectAccessToken } from '../../stores/authStore';
+import { getOrgPolicy } from '../../services/policyApi';
+import type { LocalSettings, UpdateLocalSettingsRequest, OrgPolicyResponse } from '../../types/settings';
 
 /**
  * SettingsPage - Página de configurações
@@ -26,7 +28,7 @@ import type { LocalSettings, OrgPolicies, UpdateLocalSettingsRequest } from '../
  *
  * SOLID:
  * - SRP: Apenas orquestração da UI de settings
- * - DIP: Usa useIpc hook para comunicação
+ * - DIP: Usa hooks para comunicação
  * - OCP: Extensível para novas abas
  *
  * Composition:
@@ -37,10 +39,14 @@ export function SettingsPage() {
   const { sendQuery, sendCommand } = useIpc();
   const { notify } = useNotifications();
   const { canManageTeam, canViewOrgPolicies } = usePermissions();
+  const accessToken = useAuthStore(selectAccessToken);
+  const user = useAuthStore((state) => state.user);
+
   const [activeTab, setActiveTab] = useState<SettingsTab>('preferences');
   const [settings, setSettings] = useState<LocalSettings | null>(null);
-  const [policies, setPolicies] = useState<OrgPolicies | null>(null);
+  const [policy, setPolicy] = useState<OrgPolicyResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [policyError, setPolicyError] = useState<string | null>(null);
 
   // Load settings on mount
   useEffect(() => {
@@ -56,21 +62,18 @@ export function SettingsPage() {
         setSettings(settingsResult.data as LocalSettings);
       }
 
-      // TODO: Query org policies from backend when available
-      // For now, use mock data
-      setPolicies({
-        workHours: {
-          startHour: 9,
-          endHour: 18,
-          workDays: [1, 2, 3, 4, 5],
-          timezone: 'America/Sao_Paulo',
-        },
-        idleThresholdSeconds: 180,
-        focusMode: {
-          enabled: false,
-          mode: null,
-        },
-      });
+      // Fetch org policies from backend API
+      if (accessToken && user?.orgId) {
+        try {
+          const policyResponse = await getOrgPolicy(accessToken, user.orgId);
+          setPolicy(policyResponse);
+          setPolicyError(null);
+        } catch (error) {
+          console.error('[Settings] Error fetching policies:', error);
+          setPolicyError('Não foi possível carregar as políticas da organização');
+          // Keep policy as null to show error state
+        }
+      }
     } catch (error) {
       console.error('[Settings] Error loading settings:', error);
     } finally {
@@ -163,7 +166,21 @@ export function SettingsPage() {
         {activeTab === 'about' && <AboutSection />}
 
         {/* Policy Cards - Apenas Admin/Gestor */}
-        {policies && canViewOrgPolicies && <PolicyCards policies={policies} />}
+        {canViewOrgPolicies && (
+          policy ? (
+            <PolicyCards policy={policy} />
+          ) : policyError ? (
+            <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,107,107,0.2)] rounded-2xl p-6">
+              <p className="text-[14px] text-[#ff6b6b]">{policyError}</p>
+              <button
+                onClick={loadSettings}
+                className="mt-3 text-[12px] text-[#4ad9ff] hover:underline"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          ) : null
+        )}
       </div>
     </main>
   );

@@ -41,6 +41,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+        services.AddScoped<IOrgPolicyRepository, OrgPolicyRepository>();
 
         // Services
         services.AddScoped<Application.Common.Interfaces.ICurrentUserContext, CurrentUserContext>();

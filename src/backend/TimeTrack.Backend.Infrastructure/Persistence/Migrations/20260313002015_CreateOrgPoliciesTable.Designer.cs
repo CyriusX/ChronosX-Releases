@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TimeTrack.Backend.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using TimeTrack.Backend.Infrastructure.Persistence;
 namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TimeTrackDbContext))]
-    partial class TimeTrackDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260313002015_CreateOrgPoliciesTable")]
+    partial class CreateOrgPoliciesTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -445,6 +448,9 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("org_id");
 
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("RetentionDays")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -470,6 +476,8 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OrgId")
                         .IsUnique();
+
+                    b.HasIndex("OrganizationId");
 
                     b.HasIndex("Version");
 
@@ -866,6 +874,21 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.Navigation("Device");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.OrgPolicy", b =>
+                {
+                    b.HasOne("TimeTrack.Backend.Domain.Entities.Organization", null)
+                        .WithOne()
+                        .HasForeignKey("TimeTrack.Backend.Domain.Entities.OrgPolicy", "OrgId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TimeTrack.Backend.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId");
+
+                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.PasswordResetToken", b =>

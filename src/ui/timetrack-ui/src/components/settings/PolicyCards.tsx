@@ -1,8 +1,8 @@
-import { Building2, Clock, Ban, Focus } from 'lucide-react';
-import type { OrgPolicies } from '../../types/settings';
+import { Building2, Clock, Ban, Database, AppWindow } from 'lucide-react';
+import type { OrgPolicyResponse } from '../../types/settings';
 
 interface PolicyCardsProps {
-  policies: OrgPolicies;
+  policy: OrgPolicyResponse;
 }
 
 /**
@@ -11,26 +11,47 @@ interface PolicyCardsProps {
  * Layout responsivo em grid para ocupar toda a tela.
  * Cada política tem seu próprio card com visual consistente.
  */
-export function PolicyCards({ policies }: PolicyCardsProps) {
+export function PolicyCards({ policy }: PolicyCardsProps) {
   const formatWorkHours = () => {
-    const { startHour, endHour } = policies.workHours;
-    return `${String(startHour).padStart(2, '0')}:00 - ${String(endHour).padStart(2, '0')}:00`;
+    const { startTime, endTime } = policy.workHours;
+    return `${startTime} - ${endTime}`;
   };
 
   const formatWorkDays = () => {
-    const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    return policies.workHours.workDays
-      .map((d) => dayNames[d])
+    const dayNames: Record<string, string> = {
+      monday: 'Seg',
+      tuesday: 'Ter',
+      wednesday: 'Qua',
+      thursday: 'Qui',
+      friday: 'Sex',
+      saturday: 'Sáb',
+      sunday: 'Dom',
+    };
+    return policy.workHours.days
+      .map((d) => dayNames[d] || d)
       .join(', ');
   };
 
   const formatIdleThreshold = () => {
-    const minutes = Math.floor(policies.idleThresholdSeconds / 60);
-    const seconds = policies.idleThresholdSeconds % 60;
+    const minutes = Math.floor(policy.idleThresholdSeconds / 60);
+    const seconds = policy.idleThresholdSeconds % 60;
     if (minutes > 0 && seconds > 0) {
       return `${minutes}min ${seconds}s`;
     }
     return minutes > 0 ? `${minutes} minutos` : `${seconds} segundos`;
+  };
+
+  const formatRetention = () => {
+    const days = policy.retentionDays;
+    if (days >= 365) {
+      const years = Math.floor(days / 365);
+      return `${years} ano${years > 1 ? 's' : ''}`;
+    }
+    if (days >= 30) {
+      const months = Math.floor(days / 30);
+      return `${months} ${months > 1 ? 'meses' : 'mês'}`;
+    }
+    return `${days} dias`;
   };
 
   return (
@@ -43,13 +64,13 @@ export function PolicyCards({ policies }: PolicyCardsProps) {
         <div>
           <h2 className="text-[18px] font-semibold text-[#f5f7fb]">Políticas da Organização</h2>
           <p className="text-[12px] text-[rgba(245,247,251,0.4)]">
-            Configuradas pelo administrador • Apenas leitura
+            Configuradas pelo administrador • Versão {policy.version}
           </p>
         </div>
       </div>
 
       {/* Policy Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* Work Hours Card */}
         <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
           <div className="flex items-center gap-3 mb-4">
@@ -66,7 +87,7 @@ export function PolicyCards({ policies }: PolicyCardsProps) {
               {formatWorkDays()}
             </p>
             <p className="text-[11px] text-[rgba(245,247,251,0.35)]">
-              Fuso: {policies.workHours.timezone}
+              Fuso: {policy.workHours.timezone}
             </p>
           </div>
         </div>
@@ -92,28 +113,51 @@ export function PolicyCards({ policies }: PolicyCardsProps) {
           </div>
         </div>
 
-        {/* Focus Mode Card */}
+        {/* App Exclusions Card */}
+        <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[rgba(255,107,107,0.15)] flex items-center justify-center">
+              <AppWindow className="w-5 h-5 text-[#ff6b6b]" />
+            </div>
+            <h3 className="text-[14px] font-medium text-[#f5f7fb]">Apps Excluídos</h3>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[24px] font-semibold text-[#f5f7fb]">
+                {policy.appExclusions.length}
+              </span>
+              <span className="text-[14px] text-[rgba(245,247,251,0.5)]">
+                {policy.appExclusions.length === 1 ? 'aplicativo' : 'aplicativos'}
+              </span>
+            </div>
+            <p className="text-[13px] text-[rgba(245,247,251,0.5)]">
+              Não rastreados pelo sistema
+            </p>
+            <p className="text-[11px] text-[rgba(245,247,251,0.35)]">
+              {policy.appExclusions.length > 0
+                ? 'Coleta ignorada para estes apps'
+                : 'Nenhum app excluído'}
+            </p>
+          </div>
+        </div>
+
+        {/* Retention Card */}
         <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-[rgba(5,223,114,0.15)] flex items-center justify-center">
-              <Focus className="w-5 h-5 text-[#05df72]" />
+              <Database className="w-5 h-5 text-[#05df72]" />
             </div>
-            <h3 className="text-[14px] font-medium text-[#f5f7fb]">Modo de Foco</h3>
+            <h3 className="text-[14px] font-medium text-[#f5f7fb]">Retenção de Dados</h3>
           </div>
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${policies.focusMode.enabled ? 'bg-[#05df72]' : 'bg-[rgba(245,247,251,0.2)]'}`} />
-              <span className="text-[24px] font-semibold text-[#f5f7fb]">
-                {policies.focusMode.enabled ? 'Ativo' : 'Desativado'}
-              </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[24px] font-semibold text-[#f5f7fb]">{formatRetention()}</span>
             </div>
-            {policies.focusMode.enabled && policies.focusMode.mode && (
-              <p className="text-[13px] text-[rgba(245,247,251,0.5)]">
-                {policies.focusMode.mode === 'pomodoro' ? 'Técnica Pomodoro' : 'Ciclo Ultradiano'}
-              </p>
-            )}
+            <p className="text-[13px] text-[rgba(245,247,251,0.5)]">
+              Período de armazenamento dos dados
+            </p>
             <p className="text-[11px] text-[rgba(245,247,251,0.35)]">
-              Sessões focadas com pausas programadas
+              Dados mais antigos são removidos automaticamente
             </p>
           </div>
         </div>

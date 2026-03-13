@@ -249,7 +249,15 @@
       "Bash(powershell -Command \"Stop-Process -Id 29560 -Force -ErrorAction SilentlyContinue\" 2>/dev/null; sleep 1)",
       "Bash(npx @linear/sdk get-issue-identifier CX-108 2>/dev/null || echo \"Linear CLI not available\")",
       "mcp__github__search_issues",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(find /c/Projetos/TimeTracking/src/backend -name \"*.cs\" | xargs grep -l \"Policy\" | grep -E \"\\(Service|UseCase|Command|Query\\)\" | head -10)",
+      "Bash(sqlite3 /c/Projetos/TimeTracking/timetrack.db \".tables\" | grep -i policy)",
+      "Bash(cd \"C:\\\\Projetos\\\\TimeTracking\\\\src\\\\backend\\\\TimeTrack.Backend.Infrastructure\" && PGPASSWORD='npg_y6PlhoBZJ9QS' psql -h ep-billowing-snow-adnjkioj-pooler.c-2.us-east-1.aws.neon.tech -U neondb_owner -d neondb -c \"\nCREATE TABLE IF NOT EXISTS org_policies \\(\n    id uuid NOT NULL DEFAULT \\(gen_random_uuid\\(\\)\\),\n    org_id uuid NOT NULL,\n    version integer NOT NULL DEFAULT 1,\n    work_hours_json jsonb NOT NULL,\n    app_exclusions_json jsonb NOT NULL,\n    idle_threshold_seconds integer NOT NULL DEFAULT 180,\n    retention_days integer NOT NULL DEFAULT 90,\n    created_at timestamp with time zone NOT NULL DEFAULT \\(now\\(\\)\\),\n    updated_at timestamp with time zone,\n    CONSTRAINT PK_org_policies PRIMARY KEY \\(id\\),\n    CONSTRAINT FK_org_policies_orgs_org_id FOREIGN KEY \\(org_id\\) REFERENCES orgs \\(id\\) ON DELETE CASCADE\n\\);\n\nCREATE UNIQUE INDEX IF NOT EXISTS IX_org_policies_org_id ON org_policies \\(org_id\\);\nCREATE INDEX IF NOT EXISTS IX_org_policies_version ON org_policies \\(version\\);\n\" 2>&1)",
+      "Bash(dotnet clean:*)",
+      "Bash(taskkill /F /IM TimeTrack.Api.exe 2>/dev/null || taskkill /F /PID 27420 2>/dev/null || echo \"Process not found, continuing...\")",
+      "Bash(tasklist | grep -i \"dotnet\\\\|TimeTrack\" || echo \"No matching processes found\")",
+      "Bash(taskkill /F /PID 27420)",
+      "Bash(powershell -Command \"Stop-Process -Id 27420 -Force\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario"

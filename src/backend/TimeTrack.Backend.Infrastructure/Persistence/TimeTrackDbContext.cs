@@ -29,6 +29,7 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<FocusSession> FocusSessions => Set<FocusSession>();
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
     public DbSet<Policy> Policies => Set<Policy>();
+    public DbSet<OrgPolicy> OrgPolicies => Set<OrgPolicy>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Project> Projects => Set<Project>();
@@ -76,6 +77,10 @@ public sealed class TimeTrackDbContext : DbContext
 
         // Policies
         modelBuilder.Entity<Policy>()
+            .HasQueryFilter(p => !_currentUser.IsAuthenticated || p.OrgId == _currentUser.OrgId);
+
+        // Org Policies
+        modelBuilder.Entity<OrgPolicy>()
             .HasQueryFilter(p => !_currentUser.IsAuthenticated || p.OrgId == _currentUser.OrgId);
 
         // Audit Logs
