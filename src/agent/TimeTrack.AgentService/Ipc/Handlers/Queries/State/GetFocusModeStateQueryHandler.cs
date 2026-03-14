@@ -29,6 +29,8 @@ public sealed class GetFocusModeStateQueryHandler : IpcHandlerBase, IIpcQueryHan
         try
         {
             var snapshot = _focusModeEngine.GetSnapshot();
+            _logger.LogInformation("GetFocusModeState query - State: {State}, Mode: {Mode}",
+                snapshot.State, snapshot.Mode);
 
             return SuccessResponse(request.RequestId, new
             {

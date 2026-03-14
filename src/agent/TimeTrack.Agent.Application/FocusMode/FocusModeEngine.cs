@@ -218,6 +218,11 @@ public sealed class FocusModeEngine : IFocusModeEngine, IDisposable
         };
     }
 
+    /// <summary>
+    /// Obtém a política atual
+    /// </summary>
+    public FocusModePolicy GetPolicy() => _policy;
+
     // ========================================================================
     // PRIVATE METHODS
     // ========================================================================

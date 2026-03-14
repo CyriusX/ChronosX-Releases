@@ -221,10 +221,12 @@ export class IpcService implements IIpcClient {
   }
 
   private setupBridgeHandlers(): void {
+    console.log('[IpcService] Setting up bridge handlers - defining window.timeTrackHandleEvent');
     (window as unknown as Record<string, unknown>).timeTrackHandleEvent = (
       eventType: string,
       payloadJson: string
     ) => {
+      console.log(`[IpcService] timeTrackHandleEvent called: eventType=${eventType}`);
       this.config.eventDispatcher.dispatchFromJson(eventType, payloadJson);
     };
   }

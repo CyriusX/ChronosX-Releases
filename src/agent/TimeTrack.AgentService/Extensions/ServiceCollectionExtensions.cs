@@ -109,9 +109,9 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddNotificationAndFocusMode(this IServiceCollection services)
     {
-        // Notification service (null implementation - logs only)
-        // TODO: Replace with IpcNotificationService that forwards to DesktopHost
-        services.AddSingleton<INotificationService, NullNotificationService>();
+        // Notification service - forwards to DesktopHost via IPC for Windows toasts
+        services.AddSingleton<IpcNotificationService>();
+        services.AddSingleton<INotificationService>(sp => sp.GetRequiredService<IpcNotificationService>());
 
         // Focus mode services
         services.AddFocusModeServices();
@@ -126,6 +126,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddHostedService<TrackingWorker>();
         services.AddHostedService<SyncWorker>();
+        services.AddHostedService<FocusModeEventBroadcaster>();
 
         return services;
     }

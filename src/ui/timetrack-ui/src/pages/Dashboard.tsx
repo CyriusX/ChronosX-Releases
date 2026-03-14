@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useIpc } from '../hooks/useIpc';
 import { usePermissions } from '../hooks/usePermissions';
+import { useFocusModePolicy } from '../hooks/useFocusModePolicy';
 import {
   Sidebar,
   DashboardHeader,
@@ -16,6 +17,7 @@ export default function Dashboard() {
   const { sendCommand } = useIpc();
   const { todaySummary, weeklyHistory, isPaused, isTracking, refreshData } = useDashboardData();
   const { canManageTeam } = usePermissions();
+  const { focusModePolicy } = useFocusModePolicy();
 
   const onStartTracking = async () => {
     console.log('[Dashboard] Starting tracking...');
@@ -63,6 +65,7 @@ export default function Dashboard() {
               summary={todaySummary}
               isPaused={isPaused}
               isTracking={isTracking}
+              focusModePolicy={focusModePolicy}
               onStartTracking={onStartTracking}
               onPauseTracking={onPauseTracking}
               onStopTracking={onStopTracking}

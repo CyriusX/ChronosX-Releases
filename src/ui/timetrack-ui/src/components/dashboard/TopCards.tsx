@@ -1,12 +1,27 @@
-import { MoreVertical, ChevronDown } from 'lucide-react';
+/**
+ * TopCards - Dashboard top cards component
+ *
+ * Displays three summary cards:
+ * 1. Tempo Rastreado - Time tracked today with circular progress
+ * 2. Foco - Focus percentage and sessions
+ * 3. Timer - Timer card with optional Focus Mode support (CX-139)
+ *
+ * CX-139: Timer Card extended with Focus Mode (Pomodoro/Ultradian)
+ */
+
+import { MoreVertical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { formatDuration } from '../../lib/utils';
 import type { TodaySummaryResponse } from '../../types/ipc';
+import type { FocusModePolicy } from '../../types/settings';
+import { TimerFocusCard } from './TimerFocusCard';
+import { useFocusMode } from '../../hooks/useFocusMode';
 
 interface TopCardsProps {
   summary: TodaySummaryResponse | null;
   isPaused: boolean;
   isTracking: boolean;
+  focusModePolicy: FocusModePolicy | null;
   onStartTracking: () => void;
   onPauseTracking: () => void;
   onStopTracking: () => void;
@@ -16,10 +31,19 @@ export function TopCards({
   summary,
   isPaused,
   isTracking,
+  focusModePolicy,
   onStartTracking,
   onPauseTracking,
   onStopTracking,
 }: TopCardsProps) {
+  // Focus mode hook - only used when focus mode is enabled
+  const focusMode = useFocusMode();
+
+  // Debug logging
+  console.log('[TopCards] focusModePolicy:', focusModePolicy);
+  console.log('[TopCards] focusMode.focusState:', focusMode.focusState);
+  console.log('[TopCards] focusMode.isLoading:', focusMode.isLoading);
+
   // Calculate values from summary
   const totalMinutes = summary?.totalDuration ?? 0;
   const focusTime = summary?.focusTime ?? 0;
@@ -117,74 +141,25 @@ export function TopCards({
         </CardContent>
       </Card>
 
-      {/* Timer Card */}
-      <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1),0px_8px_10px_0px_rgba(0,0,0,0.1)]">
-        <CardHeader className="pb-0 pt-[17px] px-[17px]">
-          <CardTitle className="flex items-center justify-between">
-            <span className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Timer</span>
-            <button className="w-4 h-4 flex items-center justify-center">
-              <MoreVertical className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
-            </button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-3 pb-4 px-[17px]">
-          <div className="flex items-center gap-2 pl-2 mb-3">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                !isTracking
-                  ? 'bg-[#ff5f5f] opacity-70'
-                  : isPaused
-                    ? 'bg-[#f3d05d] opacity-70'
-                    : 'bg-[#c8db68] opacity-50 shadow-[0px_10px_15px_0px_rgba(200,219,104,0.6),0px_4px_6px_0px_rgba(200,219,104,0.6)]'
-              }`}
-            />
-            <span className="text-[12px] text-[rgba(245,247,251,0.6)]">
-              {!isTracking ? 'Parado' : isPaused ? 'Pausado' : 'Em andamento'}
-            </span>
-          </div>
-          <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-[10px] px-[9px] py-2 flex items-center justify-between mb-2">
-            <div>
-              <p className="text-[10px] text-[rgba(245,247,251,0.4)]">Projetos</p>
-              <p className="text-[14px] text-[rgba(245,247,251,0.9)]">{currentProject}</p>
-            </div>
-            <ChevronDown className="w-[14px] h-[14px] text-[rgba(245,247,251,0.4)]" />
-          </div>
-          <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-[10px] px-[9px] py-2 flex items-center justify-between mb-3">
-            <p className="text-[10px] text-[rgba(245,247,251,0.4)]">Tags</p>
-            <ChevronDown className="w-[14px] h-[14px] text-[rgba(245,247,251,0.4)]" />
-          </div>
-          <div className="flex gap-2 pl-2 mb-4">
-            <span className="px-[13px] py-[5px] text-[12px] rounded-[8px] bg-gradient-to-r from-[rgba(255,105,0,0.2)] to-[rgba(240,177,0,0.2)] border border-[rgba(255,137,4,0.2)] text-[rgba(245,247,251,0.8)]">UI</span>
-            <span className="px-[13px] py-[5px] text-[12px] rounded-[8px] bg-gradient-to-r from-[rgba(43,127,255,0.2)] to-[rgba(0,184,219,0.2)] border border-[rgba(81,162,255,0.2)] text-[rgba(245,247,251,0.8)]">Design</span>
-            <span className="px-[13px] py-[5px] text-[12px] rounded-[8px] bg-gradient-to-r from-[rgba(173,70,255,0.2)] to-[rgba(246,51,154,0.2)] border border-[rgba(194,122,255,0.2)] text-[rgba(245,247,251,0.8)]">Core</span>
-          </div>
-          <div className="flex gap-2">
-            {!isTracking && !isPaused ? (
-              <button
-                onClick={onStartTracking}
-                className="flex-1 py-[8px] rounded-full bg-gradient-to-b from-[#05df72] to-[#00b359] text-[12px] font-medium text-white hover:opacity-90 transition-opacity"
-              >
-                Iniciar
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={onPauseTracking}
-                  className="flex-1 py-[8px] rounded-full bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] text-[12px] font-medium text-white hover:opacity-90 transition-opacity"
-                >
-                  {isPaused ? 'Retomar' : 'Pausar'}
-                </button>
-                <button
-                  onClick={onStopTracking}
-                  className="flex-1 py-[9px] rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[12px] font-medium text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-                >
-                  Finalizar
-                </button>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Timer Card - with Focus Mode support */}
+      <TimerFocusCard
+        focusModePolicy={focusModePolicy}
+        focusState={focusMode.focusState}
+        displayRemainingMs={focusMode.displayRemainingMs}
+        displayProgress={focusMode.displayProgress}
+        isLoading={focusMode.isLoading}
+        onStartFocus={focusMode.startFocus}
+        onStopFocus={focusMode.stopFocus}
+        onPauseFocus={focusMode.pauseFocus}
+        onResumeFocus={focusMode.resumeFocus}
+        onSkipBreak={focusMode.skipBreak}
+        isPaused={isPaused}
+        isTracking={isTracking}
+        currentProject={currentProject}
+        onStartTracking={onStartTracking}
+        onPauseTracking={onPauseTracking}
+        onStopTracking={onStopTracking}
+      />
     </div>
   );
 }

@@ -89,6 +89,10 @@ static class Program
                 services.AddSingleton<ToastActivationHandler>();
                 services.AddSingleton<INotificationService, WindowsToastNotificationService>();
 
+                // Notification Event Handler - routes IPC notification events to Windows toasts
+                // CX-139: Integration with Focus Mode notifications
+                services.AddHostedService<NotificationEventHandler>();
+
                 // WebView2 Bridge
                 services.AddSingleton<WebViewBridge>();
 

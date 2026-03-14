@@ -17,6 +17,7 @@ import type {
   CommandPayloadMap,
   QueryResponseMap,
   EventPayloadMap,
+  FocusModeSnapshot,
 } from '../types/ipc';
 
 // ============================================================================
@@ -109,6 +110,19 @@ const mockSyncState = {
   failedItems: 0,
 };
 
+// CX-139: Mock Focus Mode state for development (mutable)
+let mockFocusModeState: FocusModeSnapshot = {
+  state: 'Off',
+  mode: 'Pomodoro',
+  remainingMs: 0,
+  cycleNumber: 0,
+  totalCyclesToday: 0,
+  nextBreakType: 'Short',
+  plannedDurationMs: 25 * 60 * 1000, // 25 minutes
+  allowUserOverride: true,
+  timestamp: new Date().toISOString(),
+};
+
 // ============================================================================
 // MOCK IPC CLIENT (for development)
 // ============================================================================
@@ -119,11 +133,55 @@ class MockIpcClient implements IIpcClient {
   readonly connectionState = 'connected' as const;
 
   async sendCommand<K extends keyof CommandPayloadMap>(
-    _command: K,
+    command: K,
     _payload?: CommandPayloadMap[K]
   ): Promise<IpcResponse<void>> {
     await this.delay(50);
-    console.log('[MockIPC] Command executed:', _command);
+    console.log('[MockIPC] Command executed:', command);
+
+    // Simulate Focus Mode state changes for development
+    if (command === 'startFocusMode') {
+      mockFocusModeState = {
+        ...mockFocusModeState,
+        state: 'FocusRunning',
+        remainingMs: 25 * 60 * 1000, // 25 minutes
+        cycleNumber: mockFocusModeState.cycleNumber + 1,
+        timestamp: new Date().toISOString(),
+      };
+      console.log('[MockIPC] Focus mode started, state:', mockFocusModeState.state);
+    } else if (command === 'stopFocusMode') {
+      mockFocusModeState = {
+        ...mockFocusModeState,
+        state: 'Off',
+        remainingMs: 0,
+        timestamp: new Date().toISOString(),
+      };
+      console.log('[MockIPC] Focus mode stopped');
+    } else if (command === 'pauseFocusMode') {
+      mockFocusModeState = {
+        ...mockFocusModeState,
+        state: 'FocusPaused',
+        timestamp: new Date().toISOString(),
+      };
+      console.log('[MockIPC] Focus mode paused');
+    } else if (command === 'resumeFocusMode') {
+      mockFocusModeState = {
+        ...mockFocusModeState,
+        state: 'FocusRunning',
+        timestamp: new Date().toISOString(),
+      };
+      console.log('[MockIPC] Focus mode resumed');
+    } else if (command === 'skipBreak') {
+      mockFocusModeState = {
+        ...mockFocusModeState,
+        state: 'FocusRunning',
+        remainingMs: 25 * 60 * 1000,
+        cycleNumber: mockFocusModeState.cycleNumber + 1,
+        timestamp: new Date().toISOString(),
+      };
+      console.log('[MockIPC] Break skipped, starting new focus cycle');
+    }
+
     return { success: true };
   }
 
@@ -138,6 +196,7 @@ class MockIpcClient implements IIpcClient {
       getTodaySummary: mockTodaySummary,
       getCurrentStatus: mockCurrentStatus,
       getSyncState: mockSyncState,
+      getFocusModeState: { ...mockFocusModeState, timestamp: new Date().toISOString() },
     };
 
     const data = mockData[query as string] ?? null;

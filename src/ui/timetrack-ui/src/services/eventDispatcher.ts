@@ -89,8 +89,11 @@ export class EventDispatcher {
    * Dispatch an event from JSON payload (from bridge)
    */
   dispatchFromJson(eventType: string, payloadJson: string): void {
+    console.log(`[EventDispatcher] dispatchFromJson called: eventType=${eventType}, payload=${payloadJson.substring(0, 200)}`);
     try {
       const payload = JSON.parse(payloadJson);
+      const subscriberCount = this.getSubscriberCount(eventType);
+      console.log(`[EventDispatcher] Parsed payload, subscriber count for ${eventType}: ${subscriberCount}`);
       this.dispatch(eventType as keyof EventPayloadMap, payload);
     } catch (error) {
       console.error(`[EventDispatcher] Failed to parse event payload:`, error);

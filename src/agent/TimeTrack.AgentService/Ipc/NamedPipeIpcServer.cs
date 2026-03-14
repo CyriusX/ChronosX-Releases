@@ -206,9 +206,13 @@ public sealed class NamedPipeIpcServer : BackgroundService, IIpcServer, IDisposa
 
     public async Task SendEventAsync(IpcEvent @event, CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("SendEventAsync called: EventType={EventType}, IsClientConnected={IsClientConnected}",
+            @event.EventType, IsClientConnected);
+
         if (!IsClientConnected || _writer == null)
         {
-            _logger.LogDebug("Cannot send event - no client connected");
+            _logger.LogWarning("Cannot send event {EventType} - no client connected (IsClientConnected={IsClientConnected}, Writer={Writer})",
+                @event.EventType, IsClientConnected, _writer != null ? "not null" : "null");
             return;
         }
 
@@ -220,17 +224,19 @@ public sealed class NamedPipeIpcServer : BackgroundService, IIpcServer, IDisposa
                 payload = @event.Payload
             }, _jsonOptions);
 
+            _logger.LogInformation("SendEventAsync: Sending event JSON, length={Length}", json.Length);
+
             lock (_writeLock)
             {
                 _writer.WriteLine(json);
                 _writer.Flush();
             }
 
-            _logger.LogDebug("Sent event: {EventType}", @event.EventType);
+            _logger.LogInformation("SendEventAsync: Event {EventType} sent and flushed successfully", @event.EventType);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending event");
+            _logger.LogError(ex, "Error sending event {EventType}", @event.EventType);
         }
     }
 

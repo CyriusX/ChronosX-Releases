@@ -5,6 +5,8 @@
  * SOLID: ISP - Interfaces segregadas por responsabilidade
  */
 
+import type { FocusModePolicy } from './settings';
+
 // ============================================================================
 // BASE TYPES
 // ============================================================================
@@ -36,6 +38,7 @@ export type AgentEventType =
   | 'syncProgressChanged'
   | 'connectionStateChanged'
   | 'focusModeChanged'
+  | 'focusModeStateChanged'
   | 'agentHealthChanged';
 
 // ============================================================================
@@ -96,6 +99,51 @@ export interface FocusModeChangedPayload {
   duration?: number;
 }
 
+// ============================================================================
+// FOCUS MODE TYPES (CX-139)
+// ============================================================================
+
+/**
+ * Focus mode state - matches C# FocusModeState enum
+ */
+export type FocusModeState = 'Off' | 'FocusRunning' | 'FocusPaused' | 'BreakRunning';
+
+/**
+ * Focus mode type - matches C# FocusModeType enum
+ */
+export type FocusModeType = 'None' | 'Pomodoro' | 'Ultradian';
+
+/**
+ * Break type - matches C# BreakType enum
+ */
+export type BreakType = 'Short' | 'Long';
+
+/**
+ * Snapshot of the FocusModeEngine state
+ * Matches C# FocusModeSnapshot class
+ */
+export interface FocusModeSnapshot {
+  state: FocusModeState;
+  mode: FocusModeType;
+  remainingMs: number;
+  cycleNumber: number;
+  totalCyclesToday: number;
+  nextBreakType: BreakType;
+  cycleStartedAt?: string;
+  plannedDurationMs: number;
+  allowUserOverride: boolean;
+  timestamp: string;
+}
+
+/**
+ * Payload for focusModeStateChanged event
+ * Includes both current state and transition info
+ */
+export interface FocusModeStateChangedPayload extends FocusModeSnapshot {
+  previousState: FocusModeState;
+  reason: string;
+}
+
 export interface AgentHealthChangedPayload {
   status: 'healthy' | 'degraded' | 'unhealthy';
   cpuUsage?: number;
@@ -120,6 +168,7 @@ export interface EventPayloadMap {
   syncCompleted: SyncCompletedPayload;
   syncProgressChanged: SyncProgressChangedPayload;
   focusModeChanged: FocusModeChangedPayload;
+  focusModeStateChanged: FocusModeStateChangedPayload;
   agentHealthChanged: AgentHealthChangedPayload;
   connectionStateChanged: ConnectionStateChangedPayload;
 }
@@ -136,6 +185,9 @@ export type AgentCommand =
   | 'resumeTracking'
   | 'startFocusMode'
   | 'stopFocusMode'
+  | 'pauseFocusMode'
+  | 'resumeFocusMode'
+  | 'skipBreak'
   | 'assignProject'
   | 'assignTask'
   | 'syncNow'
@@ -191,6 +243,10 @@ export interface CommandPayloadMap {
   resumeTracking: undefined;
   startFocusMode: undefined;
   stopFocusMode: undefined;
+  pauseFocusMode: undefined;
+  resumeFocusMode: undefined;
+  skipBreak: undefined;
+  applyFocusPolicy: FocusModePolicy; // CX-139: Apply policy to AgentService
   assignProject: AssignProjectPayload;
   assignTask: AssignTaskPayload;
   syncNow: undefined;
@@ -213,7 +269,8 @@ export type AgentQuery =
   | 'getCurrentStatus'
   | 'getSyncState'
   | 'getErrors'
-  | 'getSettings';
+  | 'getSettings'
+  | 'getFocusModeState';
 
 // ============================================================================
 // QUERY RESPONSE TYPES
@@ -374,6 +431,7 @@ export interface QueryResponseMap {
   getSyncState: SyncStateResponse;
   getErrors: ErrorsResponse;
   getSettings: LocalSettingsResponse;
+  getFocusModeState: FocusModeSnapshot;
 }
 
 // ============================================================================

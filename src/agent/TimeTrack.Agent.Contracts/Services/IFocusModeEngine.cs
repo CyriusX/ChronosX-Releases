@@ -136,6 +136,11 @@ public interface IFocusModeEngine
     /// Obtém o snapshot atual do estado
     /// </summary>
     FocusModeSnapshot GetSnapshot();
+
+    /// <summary>
+    /// Obtém a política atual do engine
+    /// </summary>
+    FocusModePolicy GetPolicy();
 }
 
 /// <summary>

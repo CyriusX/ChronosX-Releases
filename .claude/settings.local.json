@@ -325,7 +325,13 @@
       "Bash(tasklist | findstr /i \"TimeTrack\" 2>nul || echo \"No TimeTrack processes running\")",
       "Bash(netstat -ano | findstr /i \"5000\" | head -5)",
       "Bash(cd \"C:\\\\Projetos\\\\TimeTracking\\\\src\\\\backend\\\\TimeTrack.Api\" && start TimeTrack.Api.exe)",
-      "Bash(curl -s http://localhost:5000/health 2>/dev/null && curl -s http://localhost:5173 2>/dev/null | head -c 100 || echo \"Frontend OK\")"
+      "Bash(curl -s http://localhost:5000/health 2>/dev/null && curl -s http://localhost:5173 2>/dev/null | head -c 100 || echo \"Frontend OK\")",
+      "Bash(taskkill /F \"TimeTrack.AgentService \\(29744\\)\" 2>&1 || echo \"Service killed\")",
+      "Bash(taskkill /F /PID 29744 2>&1 || true)",
+      "Bash(taskkill //F //PID 29744)",
+      "Bash(taskkill:*)",
+      "Bash(tasklist:*)",
+      "Bash(sleep:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",

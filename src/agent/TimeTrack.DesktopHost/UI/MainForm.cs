@@ -188,21 +188,38 @@ public sealed class MainForm : Form
         }
     }
 
-    private async void OnIpcEventReceived(object? sender, IpcEventArgs e)
+    private void OnIpcEventReceived(object? sender, IpcEventArgs e)
     {
-        if (_webView?.CoreWebView2 == null)
+        _logger.LogInformation("OnIpcEventReceived: EventType={EventType}", e.EventType);
+
+        // CRITICAL: IPC events come from background threads, but WebView2 can only be accessed from UI thread.
+        // Use BeginInvoke to marshal the call back to the UI thread.
+        if (InvokeRequired)
+        {
+            _logger.LogDebug("OnIpcEventReceived: Marshalling to UI thread via BeginInvoke");
+            BeginInvoke(new Action(() => OnIpcEventReceived(sender, e)));
             return;
+        }
+
+        if (_webView?.CoreWebView2 == null)
+        {
+            _logger.LogWarning("OnIpcEventReceived: WebView not ready");
+            return;
+        }
 
         try
         {
-            var eventJson = JsonSerializer.Serialize(new
-            {
-                EventType = e.EventType,
-                Payload = e.Payload
-            });
+            // Serialize payload to JSON
+            var payloadJson = JsonSerializer.Serialize(e.Payload);
+            _logger.LogInformation("OnIpcEventReceived: Forwarding to JavaScript, payload length={Length}", payloadJson.Length);
 
-            await _webView.CoreWebView2.ExecuteScriptAsync(
-                $"window.timeTrackBridge?.onEvent?.({eventJson})");
+            // Call the global event handler that IpcService expects
+            // This matches window.timeTrackHandleEvent(eventType, payloadJson)
+            var script = $"window.timeTrackHandleEvent?.('{e.EventType}', '{EscapeJavaScriptString(payloadJson)}')";
+            _logger.LogDebug("OnIpcEventReceived: Executing script: {Script}", script.Length > 200 ? script[..200] + "..." : script);
+
+            _ = _webView.CoreWebView2.ExecuteScriptAsync(script);
+            _logger.LogInformation("OnIpcEventReceived: Script executed successfully for {EventType}", e.EventType);
         }
         catch (Exception ex)
         {
@@ -210,8 +227,26 @@ public sealed class MainForm : Form
         }
     }
 
+    private static string EscapeJavaScriptString(string str)
+    {
+        return str.Replace("\\", "\\\\")
+                  .Replace("'", "\\'")
+                  .Replace("\"", "\\\"")
+                  .Replace("\n", "\\n")
+                  .Replace("\r", "\\r")
+                  .Replace("\t", "\\t");
+    }
+
     private void OnConnectionStateChanged(object? sender, bool isConnected)
     {
+        // CRITICAL: IPC events come from background threads, but WebView2 can only be accessed from UI thread.
+        // Use BeginInvoke to marshal the call back to the UI thread.
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => OnConnectionStateChanged(sender, isConnected)));
+            return;
+        }
+
         if (_webView?.CoreWebView2 == null)
             return;
 

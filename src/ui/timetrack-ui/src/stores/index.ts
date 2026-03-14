@@ -2,3 +2,10 @@ export { useTrackingStore, selectIsConnected, selectIsTracking, selectCurrentSes
 export { useUiStore, useNotifications } from './uiStore';
 export { useAuthStore, selectUser, selectIsAuthenticated, selectIsLoading, selectError, selectAccessToken } from './authStore';
 export type { User } from './authStore';
+export {
+  usePolicyStore,
+  selectFocusModePolicy,
+  selectIsPolicyLoading,
+  selectPolicyError,
+  selectIsFocusModeEnabled,
+} from './policyStore';
