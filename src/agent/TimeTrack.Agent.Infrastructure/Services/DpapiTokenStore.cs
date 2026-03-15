@@ -103,7 +103,7 @@ public sealed class DpapiTokenStore : ITokenStore
 
         try
         {
-            var request = new { refresh_token = refreshToken };
+            var request = new { refreshToken = refreshToken };
             var content = new StringContent(
                 JsonSerializer.Serialize(request),
                 Encoding.UTF8,

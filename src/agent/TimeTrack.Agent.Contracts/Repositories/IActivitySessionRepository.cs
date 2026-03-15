@@ -41,6 +41,11 @@ public interface IActivitySessionRepository
     Task SaveBatchAsync(IEnumerable<ActivitySession> sessions, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Atualiza uma sessão existente sem criar outbox item
+    /// </summary>
+    Task UpdateAsync(ActivitySession session, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Salva a sessão com outbox items em uma única transação
     /// </summary>
     Task SaveWithOutboxAsync(ActivitySession session, IEnumerable<OutboxItem> outboxItems, CancellationToken cancellationToken = default);

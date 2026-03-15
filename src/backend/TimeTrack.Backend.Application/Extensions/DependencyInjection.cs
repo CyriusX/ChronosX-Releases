@@ -2,6 +2,7 @@ using System.Reflection;
 using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using TimeTrack.Backend.Application.AppCategories.Services;
 
 namespace TimeTrack.Backend.Application.Extensions;
 
@@ -22,6 +23,9 @@ public static class DependencyInjection
 
         // Pipeline behaviors
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+
+        // App Category Services (CX-143)
+        services.AddScoped<AppCategoryResolver>();
 
         return services;
     }

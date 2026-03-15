@@ -26,6 +26,16 @@ public sealed record LocalDashboardResponse
     public TimeSpan TotalIdleTime { get; init; }
 
     /// <summary>
+    /// Tempo em apps produtivos (milissegundos)
+    /// </summary>
+    public long FocusTimeMs { get; init; }
+
+    /// <summary>
+    /// Score de foco calculado (0-100)
+    /// </summary>
+    public short FocusScore { get; init; }
+
+    /// <summary>
     /// Número de sessões registradas
     /// </summary>
     public int SessionCount { get; init; }

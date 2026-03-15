@@ -1,11 +1,12 @@
-import { Settings2, Info, Users } from 'lucide-react';
+import { Settings2, Info, Users, AppWindow } from 'lucide-react';
 
-export type SettingsTab = 'preferences' | 'about' | 'members';
+export type SettingsTab = 'preferences' | 'about' | 'members' | 'apps';
 
 interface SettingsTabsProps {
   activeTab: SettingsTab;
   onTabChange: (tab: SettingsTab) => void;
   showMembersTab?: boolean;
+  showAppsTab?: boolean;
 }
 
 /**
@@ -13,7 +14,7 @@ interface SettingsTabsProps {
  *
  * Segue padrão visual do DashboardHeader (underline gradient)
  */
-export function SettingsTabs({ activeTab, onTabChange, showMembersTab = false }: SettingsTabsProps) {
+export function SettingsTabs({ activeTab, onTabChange, showMembersTab = false, showAppsTab = false }: SettingsTabsProps) {
   return (
     <div className="flex items-center gap-1 bg-[rgba(26,29,46,0.4)] rounded-xl p-1 w-fit">
       <button
@@ -38,6 +39,19 @@ export function SettingsTabs({ activeTab, onTabChange, showMembersTab = false }:
         >
           <Users className="w-4 h-4" />
           Membros
+        </button>
+      )}
+      {showAppsTab && (
+        <button
+          onClick={() => onTabChange('apps')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-all ${
+            activeTab === 'apps'
+              ? 'bg-[rgba(74,217,255,0.15)] text-[#f5f7fb]'
+              : 'text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.03)]'
+          }`}
+        >
+          <AppWindow className="w-4 h-4" />
+          Aplicativos
         </button>
       )}
       <button

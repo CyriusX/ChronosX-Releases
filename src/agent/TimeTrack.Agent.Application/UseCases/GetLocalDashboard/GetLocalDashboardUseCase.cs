@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using TimeTrack.Agent.Application.Services;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
+using TimeTrack.Agent.Domain.Entities;
 
 namespace TimeTrack.Agent.Application.UseCases.GetLocalDashboard;
 
@@ -14,6 +16,9 @@ public sealed class GetLocalDashboardUseCase
     private readonly IIdlePeriodRepository _idleRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly ILogger<GetLocalDashboardUseCase> _logger;
+
+    // Threshold for long focus block: 25 minutes in milliseconds
+    private const long LongFocusBlockThresholdMs = 25 * 60 * 1000;
 
     public GetLocalDashboardUseCase(
         ITrackingStateRepository stateRepository,
@@ -114,9 +119,13 @@ public sealed class GetLocalDashboardUseCase
         // Última sessão
         var lastSession = sessions.OrderByDescending(s => s.Period.EndUtc).FirstOrDefault();
 
+        // Calcular métricas de foco
+        var focusMetrics = CalculateFocusMetrics(sessions, idlePeriods, appUsage, totalWorkTime);
+        var focusScore = FocusScoreCalculator.Calculate(focusMetrics);
+
         _logger.LogDebug(
-            "Dashboard generated for {Date}: {SessionCount} sessions, {WorkTime:mm\\:ss} work time",
-            targetDate, sessions.Count, totalWorkTime);
+            "Dashboard generated for {Date}: {SessionCount} sessions, {WorkTime:mm\\:ss} work time, FocusScore: {FocusScore}",
+            targetDate, sessions.Count, totalWorkTime, focusScore);
 
         return new LocalDashboardResponse
         {
@@ -124,6 +133,8 @@ public sealed class GetLocalDashboardUseCase
             TrackingStatus = state?.Status.ToString() ?? "Unknown",
             TotalWorkTime = totalWorkTime,
             TotalIdleTime = totalIdleTime,
+            FocusTimeMs = focusMetrics.FocusTimeMs,
+            FocusScore = focusScore,
             SessionCount = sessions.Count,
             TopApplications = topApps,
             LastSession = lastSession != null
@@ -137,5 +148,77 @@ public sealed class GetLocalDashboardUseCase
                 }
                 : null
         };
+    }
+
+    /// <summary>
+    /// Calcula as métricas de foco para o cálculo do Focus Score
+    /// SRP: Apenas calcula métricas de foco
+    /// </summary>
+    private FocusScoreMetrics CalculateFocusMetrics(
+        IEnumerable<ActivitySession> sessions,
+        IEnumerable<IdlePeriod> idlePeriods,
+        Dictionary<string, (TimeSpan Time, string Category)> appUsage,
+        TimeSpan totalWorkTime)
+    {
+        long focusTimeMs = 0;
+        long distractionMs = 0;
+        int distractionCount = 0;
+        int longFocusBlockCount = 0;
+        var previousCategory = "Neutral";
+        long currentFocusBlockMs = 0;
+
+        // Calcular tempo por categoria e contar distrações
+        foreach (var kvp in appUsage)
+        {
+            var timeMs = (long)kvp.Value.Time.TotalMilliseconds;
+            var category = kvp.Value.Category;
+
+            if (category == "Productive" || category == "Focus")
+            {
+                focusTimeMs += timeMs;
+                currentFocusBlockMs += timeMs;
+            }
+            else if (category == "Distraction")
+            {
+                distractionMs += timeMs;
+                distractionCount++;
+
+                // Check if we completed a long focus block
+                if (currentFocusBlockMs >= LongFocusBlockThresholdMs)
+                {
+                    longFocusBlockCount++;
+                }
+                currentFocusBlockMs = 0;
+            }
+            else
+            {
+                // Neutral - check if we completed a long focus block
+                if (currentFocusBlockMs >= LongFocusBlockThresholdMs)
+                {
+                    longFocusBlockCount++;
+                }
+                currentFocusBlockMs = 0;
+            }
+
+            previousCategory = category;
+        }
+
+        // Check final block
+        if (currentFocusBlockMs >= LongFocusBlockThresholdMs)
+        {
+            longFocusBlockCount++;
+        }
+
+        var pauseCount = 0; // TODO: Implement pause tracking
+        var idleCount = idlePeriods.Count();
+
+        return FocusScoreMetrics.Create(
+            (long)totalWorkTime.TotalMilliseconds,
+            focusTimeMs,
+            distractionMs,
+            distractionCount,
+            pauseCount,
+            idleCount,
+            longFocusBlockCount);
     }
 }

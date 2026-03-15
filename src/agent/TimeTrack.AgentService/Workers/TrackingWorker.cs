@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Application.UseCases.RecordActiveWindow;
+using TimeTrack.Agent.Application.UseCases.RecordIdlePeriod;
 using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
@@ -22,6 +23,7 @@ public sealed class TrackingWorker : BackgroundService
     private readonly ITrackingStateRepository _stateRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
+    private readonly RecordIdlePeriodUseCase _recordIdlePeriodUseCase;
 
     private bool _isIdle = false;
     private DateTime? _idleStartedAt;
@@ -33,7 +35,8 @@ public sealed class TrackingWorker : BackgroundService
         IIdleDetector idleDetector,
         ITrackingStateRepository stateRepository,
         ICurrentUserContext userContext,
-        RecordActiveWindowUseCase recordActiveWindowUseCase)
+        RecordActiveWindowUseCase recordActiveWindowUseCase,
+        RecordIdlePeriodUseCase recordIdlePeriodUseCase)
     {
         _logger = logger;
         _settings = settings;
@@ -42,6 +45,7 @@ public sealed class TrackingWorker : BackgroundService
         _stateRepository = stateRepository;
         _userContext = userContext;
         _recordActiveWindowUseCase = recordActiveWindowUseCase;
+        _recordIdlePeriodUseCase = recordIdlePeriodUseCase;
 
         // Configura prioridade do processo
         ServiceCollectionExtensions.ConfigureProcessPriority(_settings.ProcessPriority);
@@ -118,7 +122,7 @@ public sealed class TrackingWorker : BackgroundService
             if (!_isIdle)
             {
                 _isIdle = true;
-                _idleStartedAt = DateTime.UtcNow;
+                _idleStartedAt = DateTime.UtcNow.Subtract(idleThreshold);
                 _logger.LogInformation(
                     "Usuário entrou em idle. Tempo de inatividade: {IdleTime}",
                     idleTime.Value);
@@ -126,13 +130,38 @@ public sealed class TrackingWorker : BackgroundService
             return; // Não registra enquanto está idle
         }
 
-        // 3. Se estava idle e retornou
+        // 3. Se estava idle e retornou - salvar o período de inatividade
         if (_isIdle)
         {
-            var idleDuration = DateTime.UtcNow - _idleStartedAt;
+            var idleEndedAt = DateTime.UtcNow;
+            var idleDuration = idleEndedAt - _idleStartedAt;
+
             _logger.LogInformation(
-                "Usuário retornou de idle após {Duration}",
+                "Usuário retornou de idle após {Duration}. Salvando período...",
                 idleDuration);
+
+            // Salvar o período de idle no banco com sincronização
+            try
+            {
+                await _recordIdlePeriodUseCase.ExecuteAsync(
+                    new RecordIdlePeriodRequest
+                    {
+                        StartedAt = _idleStartedAt!.Value,
+                        EndedAt = idleEndedAt,
+                        ThresholdSeconds = _settings.IdleThresholdSeconds,
+                        IsSystemDetected = true
+                    },
+                    cancellationToken);
+
+                _logger.LogInformation(
+                    "Período de idle salvo: {Duration:mm\\:ss}",
+                    idleDuration);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao salvar período de idle");
+            }
+
             _isIdle = false;
             _idleStartedAt = null;
         }

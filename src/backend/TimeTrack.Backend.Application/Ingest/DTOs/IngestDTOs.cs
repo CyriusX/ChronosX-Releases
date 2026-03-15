@@ -62,3 +62,26 @@ public sealed class IngestError
     public string Code { get; init; } = string.Empty;
     public string Message { get; init; } = string.Empty;
 }
+
+/// <summary>
+/// Request para ingestão de sessões de foco
+/// </summary>
+public sealed class FocusSessionIngestRequest
+{
+    public required IEnumerable<FocusSessionItem> Items { get; init; }
+}
+
+/// <summary>
+/// Item de sessão de foco para ingestão
+/// </summary>
+public sealed class FocusSessionItem
+{
+    public required Guid Id { get; init; }
+    public required DateTime StartedAt { get; init; }
+    public DateTime? EndedAt { get; init; }
+    public required int PlannedDurationMinutes { get; init; }
+    public int? ActualDurationMinutes { get; init; }
+    public required string Status { get; init; } // "InProgress", "Completed", "Cancelled"
+    public int? FocusScore { get; init; }
+    public required string IdempotencyKey { get; init; }
+}

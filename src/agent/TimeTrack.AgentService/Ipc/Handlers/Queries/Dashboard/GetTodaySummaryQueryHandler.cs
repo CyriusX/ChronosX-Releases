@@ -34,16 +34,26 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                 totalDuration = (int)dashboard.TotalWorkTime.TotalMinutes,
                 productiveTime = (int)dashboard.TotalWorkTime.TotalMinutes,
                 idleTime = (int)dashboard.TotalIdleTime.TotalMinutes,
-                focusTime = 0,
+                focusTime = (int)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalMinutes,
+                focusScore = dashboard.FocusScore,
                 sessionsCount = dashboard.SessionCount,
                 topProjects = Array.Empty<object>(),
                 topApplications = dashboard.TopApplications.Select(a => new
                 {
                     name = a.DisplayName,
                     duration = (int)a.TotalTime.TotalMinutes,
-                    percentage = a.Percentage
+                    percentage = a.Percentage,
+                    category = a.ProductivityCategory
                 }).ToArray(),
-                categories = Array.Empty<object>(),
+                categories = dashboard.TopApplications
+                    .GroupBy(a => a.ProductivityCategory)
+                    .Select(g => new
+                    {
+                        name = g.Key,
+                        duration = (int)g.Sum(a => a.TotalTime.TotalMinutes),
+                        percentage = g.Sum(a => a.Percentage),
+                        color = GetCategoryColor(g.Key)
+                    }).ToArray(),
                 weeklyHistory = WeeklyHistoryGenerator.Generate()
             };
 
@@ -54,5 +64,16 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
             _logger.LogError(ex, "Error getting today summary");
             return UnknownErrorResponse(request.RequestId, ex);
         }
+    }
+
+    private static string GetCategoryColor(string category)
+    {
+        return category?.ToLowerInvariant() switch
+        {
+            "productive" or "focus" => "#4ade80",
+            "distraction" or "distracted" => "#f87171",
+            "neutral" => "#fbbf24",
+            _ => "#94a3b8"
+        };
     }
 }

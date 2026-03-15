@@ -1,6 +1,11 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Notifications;
+using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
+using TimeTrack.Agent.Domain.Entities;
 using TimeTrack.Agent.Domain.Enums;
 using TimeTrack.Agent.Domain.ValueObjects;
 
@@ -24,13 +29,17 @@ public sealed class FocusModeEngine : IFocusModeEngine, IDisposable
 {
     private readonly ILogger<FocusModeEngine> _logger;
     private readonly INotificationService _notificationService;
+    private readonly ICurrentUserContext _userContext;
+    private readonly IFocusCycleRepository _focusCycleRepository;
+    private readonly IOutboxRepository _outboxRepository;
 
     private FocusModeState _state = FocusModeState.Off;
     private FocusModePolicy _policy = FocusModePolicy.Disabled;
     private CancellationTokenSource? _cts;
     private PeriodicTimer? _timer;
 
-    // Cycle tracking
+    // Current cycle tracking
+    private FocusCycle? _currentCycle;
     private int _currentCycleNumber = 0;
     private int _completedCyclesToday = 0;
     private int _remainingMs = 0;
@@ -47,10 +56,16 @@ public sealed class FocusModeEngine : IFocusModeEngine, IDisposable
 
     public FocusModeEngine(
         ILogger<FocusModeEngine> logger,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        ICurrentUserContext userContext,
+        IFocusCycleRepository focusCycleRepository,
+        IOutboxRepository outboxRepository)
     {
         _logger = logger;
         _notificationService = notificationService;
+        _userContext = userContext;
+        _focusCycleRepository = focusCycleRepository;
+        _outboxRepository = outboxRepository;
     }
 
     /// <summary>
@@ -244,6 +259,9 @@ public sealed class FocusModeEngine : IFocusModeEngine, IDisposable
             _currentCycleNumber,
             focusMinutes);
 
+        // Create and save FocusCycle entity
+        _ = CreateFocusCycleAsync(focusMinutes);
+
         _ = StartTimerAsync();
 
         OnStateChanged(previousState, _state, "Focus cycle started");
@@ -252,6 +270,34 @@ public sealed class FocusModeEngine : IFocusModeEngine, IDisposable
         if (_policy.AllowUserOverride)
         {
             _ = NotifyFocusStartAsync();
+        }
+    }
+
+    private async Task CreateFocusCycleAsync(int focusMinutes)
+    {
+        var userId = _userContext.UserId;
+        if (!userId.HasValue)
+        {
+            _logger.LogWarning("Cannot create focus cycle: user not authenticated");
+            return;
+        }
+
+        try
+        {
+            _currentCycle = new FocusCycle(
+                Guid.NewGuid(),
+                userId.Value,
+                _policy.Mode,
+                _currentCycleNumber,
+                focusMinutes * 60 * 1000);
+
+            await _focusCycleRepository.SaveAsync(_currentCycle);
+            _logger.LogDebug("Focus cycle created: {CycleId}", _currentCycle.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create focus cycle");
+            _currentCycle = null;
         }
     }
 
@@ -319,6 +365,9 @@ public sealed class FocusModeEngine : IFocusModeEngine, IDisposable
         {
             _completedCyclesToday++;
 
+            // Complete and persist the focus cycle
+            await CompleteAndSyncFocusCycleAsync();
+
             // Marca ciclo como completado
             await NotifyFocusEndAsync();
 
@@ -338,6 +387,86 @@ public sealed class FocusModeEngine : IFocusModeEngine, IDisposable
             await NotifyBreakEndAsync();
             StartFocusCycle();
         }
+    }
+
+    private async Task CompleteAndSyncFocusCycleAsync()
+    {
+        if (_currentCycle == null)
+        {
+            _logger.LogWarning("No current focus cycle to complete");
+            return;
+        }
+
+        try
+        {
+            // Complete the cycle
+            _currentCycle.Complete();
+
+            // Save to local repository
+            await _focusCycleRepository.SaveAsync(_currentCycle);
+
+            // Create outbox item for sync
+            var outboxItem = CreateFocusSessionOutboxItem(_currentCycle);
+            await _outboxRepository.AddAsync(outboxItem);
+
+            _logger.LogInformation(
+                "Focus cycle completed and queued for sync: {CycleId}, Duration: {Duration}ms",
+                _currentCycle.Id,
+                _currentCycle.ActualMs);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to complete focus cycle");
+        }
+        finally
+        {
+            _currentCycle = null;
+        }
+    }
+
+    private OutboxItem CreateFocusSessionOutboxItem(FocusCycle cycle)
+    {
+        var status = cycle.Completed ? "Completed" : "Cancelled";
+        var actualMinutes = cycle.ActualMs.HasValue ? cycle.ActualMs.Value / 60000 : (int?)null;
+        var plannedMinutes = cycle.PlannedMs / 60000;
+
+        var payload = new
+        {
+            Id = cycle.Id,
+            StartedAt = cycle.StartedAt,
+            EndedAt = cycle.EndedAt,
+            PlannedDurationMinutes = plannedMinutes,
+            ActualDurationMinutes = actualMinutes,
+            Status = status,
+            FocusScore = CalculateFocusScore(cycle)
+        };
+
+        var payloadJson = JsonSerializer.Serialize(payload);
+        var idempotencyKey = GenerateIdempotencyKey(cycle.Id, cycle.StartedAt);
+
+        return OutboxItem.Create(
+            "focus_session",
+            cycle.Id,
+            payloadJson,
+            idempotencyKey);
+    }
+
+    private static int? CalculateFocusScore(FocusCycle cycle)
+    {
+        if (!cycle.Completed || !cycle.ActualMs.HasValue)
+            return null;
+
+        // Simple score based on completion percentage
+        var completionRatio = (double)cycle.ActualMs.Value / cycle.PlannedMs;
+        var score = (int)Math.Round(completionRatio * 100);
+        return Math.Clamp(score, 0, 100);
+    }
+
+    private static string GenerateIdempotencyKey(Guid cycleId, DateTime startedAt)
+    {
+        var input = $"{cycleId}:{startedAt:O}";
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     private async Task NotifyFocusStartAsync()

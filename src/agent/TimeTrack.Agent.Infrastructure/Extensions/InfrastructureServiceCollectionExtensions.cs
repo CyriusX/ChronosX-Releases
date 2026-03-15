@@ -132,6 +132,13 @@ public static class InfrastructureServiceCollectionExtensions
             }
         });
 
+        // Registra DeviceActivationService
+        services.AddHttpClient<IDeviceActivationService, DeviceActivationService>(client =>
+        {
+            client.BaseAddress = new Uri(settings.BackendUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
+        });
+
         return services;
     }
 

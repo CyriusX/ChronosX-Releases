@@ -14,5 +14,13 @@ public interface IIdempotencyKeyRepository : IRepository<IdempotencyKey>
         string entityType,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Batch check - returns set of existing keys for faster processing
+    /// </summary>
+    Task<HashSet<string>> GetExistingKeysAsync(
+        IEnumerable<string> keys,
+        string entityType,
+        CancellationToken cancellationToken = default);
+
     Task<int> CleanupExpiredAsync(CancellationToken cancellationToken = default);
 }

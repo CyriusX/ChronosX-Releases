@@ -4,10 +4,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 using Resend;
 using TimeTrack.Backend.Application.Common.Interfaces;
+using TimeTrack.Backend.Application.FocusScore;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
 using TimeTrack.Backend.Infrastructure.Jobs.Configuration;
 using TimeTrack.Backend.Infrastructure.Persistence;
 using TimeTrack.Backend.Infrastructure.Repositories;
+using TimeTrack.Backend.Domain.ValueObjects;
 using TimeTrack.Backend.Infrastructure.Services;
 
 namespace TimeTrack.Backend.Infrastructure.Extensions;
@@ -45,6 +47,15 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IOrgPolicyRepository, OrgPolicyRepository>();
         services.AddScoped<IReportRepository, ReportRepository>();
         services.AddScoped<IDailySummaryRepository, DailySummaryRepository>();
+        services.AddScoped<IDailyFocusScoreRepository, DailyFocusScoreRepository>();
+        services.AddScoped<IFocusSessionRepository, FocusSessionRepository>();
+
+        // App Category Repositories (CX-143)
+        services.AddScoped<IAppCategoryGlobalRepository, AppCategoryGlobalRepository>();
+        services.AddScoped<IAppCategoryOverrideRepository, AppCategoryOverrideRepository>();
+
+        // Focus Score Services
+        services.AddSingleton<AppProductivityClassifier>();
 
         // Hangfire Background Jobs
         services.AddHangfireJobs(configuration);
@@ -75,6 +86,9 @@ public static class InfrastructureServiceCollectionExtensions
         // Health checks
         services.AddHealthChecks()
             .AddNpgSql(connectionString, name: "database", tags: new[] { "ready" });
+
+        // Database initialization (seeds, migrations)
+        services.AddDatabaseInitializer();
 
         return services;
     }

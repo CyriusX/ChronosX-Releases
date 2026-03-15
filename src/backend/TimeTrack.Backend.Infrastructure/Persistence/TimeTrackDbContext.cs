@@ -34,6 +34,11 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<DailySummary> DailySummaries => Set<DailySummary>();
+    public DbSet<DailyFocusScore> DailyFocusScores => Set<DailyFocusScore>();
+
+    // App Categories (CX-143)
+    public DbSet<AppCategoryGlobal> AppCategoryGlobals => Set<AppCategoryGlobal>();
+    public DbSet<AppCategoryOverride> AppCategoryOverrides => Set<AppCategoryOverride>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -95,6 +100,14 @@ public sealed class TimeTrackDbContext : DbContext
         // Daily Summaries
         modelBuilder.Entity<DailySummary>()
             .HasQueryFilter(d => !_currentUser.IsAuthenticated || d.OrgId == _currentUser.OrgId);
+
+        // Daily Focus Scores
+        modelBuilder.Entity<DailyFocusScore>()
+            .HasQueryFilter(d => !_currentUser.IsAuthenticated || d.OrgId == _currentUser.OrgId);
+
+        // App Category Overrides (CX-143)
+        modelBuilder.Entity<AppCategoryOverride>()
+            .HasQueryFilter(o => !_currentUser.IsAuthenticated || o.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()
@@ -116,12 +129,18 @@ public sealed class TimeTrackDbContext : DbContext
 
         foreach (var entry in entries)
         {
-            if (entry.State == EntityState.Added && entry.Property("CreatedAt").CurrentValue == null)
+            var createdAtProperty = entry.Metadata.FindProperty("CreatedAt");
+            if (entry.State == EntityState.Added && createdAtProperty != null)
             {
-                entry.Property("CreatedAt").CurrentValue = DateTime.UtcNow;
+                var currentValue = entry.Property("CreatedAt").CurrentValue;
+                if (currentValue == null || (currentValue is DateTime dt && dt == default))
+                {
+                    entry.Property("CreatedAt").CurrentValue = DateTime.UtcNow;
+                }
             }
 
-            if (entry.State == EntityState.Modified && entry.Property("UpdatedAt") != null)
+            var updatedAtProperty = entry.Metadata.FindProperty("UpdatedAt");
+            if (entry.State == EntityState.Modified && updatedAtProperty != null)
             {
                 entry.Property("UpdatedAt").CurrentValue = DateTime.UtcNow;
             }

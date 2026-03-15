@@ -50,8 +50,20 @@ export function TopCards({
   const sessionsCount = summary?.sessionsCount ?? 0;
   const productiveTime = summary?.productiveTime ?? 0;
 
-  // Focus percentage (0-100)
-  const focusPercentage = totalMinutes > 0 ? Math.round((focusTime / totalMinutes) * 100) : 0;
+  // Use focusScore from backend if available, otherwise calculate locally
+  const focusScore = summary?.focusScore ?? (totalMinutes > 0 ? Math.round((focusTime / totalMinutes) * 100) : 0);
+  const focusPercentage = Math.min(100, Math.max(0, focusScore));
+
+  // Get focus level for color coding
+  const getFocusLevelColor = (score: number): string => {
+    if (score >= 80) return '#05df72'; // Excellent - green
+    if (score >= 60) return '#4ade80'; // Good - light green
+    if (score >= 40) return '#fbbf24'; // Moderate - yellow
+    if (score >= 20) return '#fb923c'; // Low - orange
+    return '#f87171'; // Poor - red
+  };
+
+  const focusColor = getFocusLevelColor(focusScore);
 
   // Progress towards 8-hour goal
   const progressPercentage = Math.min((totalMinutes / (8 * 60)) * 100, 100);
@@ -115,7 +127,7 @@ export function TopCards({
             <div className="relative w-[128px] h-[128px]">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
                 <circle cx="64" cy="64" r="56" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="12" />
-                <circle cx="64" cy="64" r="56" fill="none" stroke="#05df72" strokeWidth="12" strokeDasharray={`${focusPercentage * 3.52} 352`} strokeLinecap="round" />
+                <circle cx="64" cy="64" r="56" fill="none" stroke={focusColor} strokeWidth="12" strokeDasharray={`${focusPercentage * 3.52} 352`} strokeLinecap="round" />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-[36px] font-semibold text-[#f5f7fb]">{focusPercentage}</span>
@@ -131,7 +143,7 @@ export function TopCards({
             </div>
             <div className="flex gap-2 mt-4">
               <span className="px-[10px] py-1 text-[10px] rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.5)]">
-                Foco: {focusPercentage}%
+                Score: {focusScore}
               </span>
               <span className="px-[10px] py-1 text-[10px] rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.5)]">
                 {sessionsCount} sessões

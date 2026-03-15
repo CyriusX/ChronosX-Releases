@@ -22,6 +22,8 @@ public sealed class RecordActiveWindowUseCase
     private readonly IIdempotencyKeyGenerator _idempotencyKeyGenerator;
     private readonly ILogger<RecordActiveWindowUseCase> _logger;
 
+    private readonly int _pollingIntervalSeconds;
+
     /// <summary>
     /// Intervalo padrão entre capturas (em segundos)
     /// </summary>
@@ -37,13 +39,17 @@ public sealed class RecordActiveWindowUseCase
         ITrackingStateRepository stateRepository,
         ICurrentUserContext userContext,
         IIdempotencyKeyGenerator idempotencyKeyGenerator,
-        ILogger<RecordActiveWindowUseCase> logger)
+        ILogger<RecordActiveWindowUseCase> logger,
+        int pollingIntervalSeconds = 5)
     {
         _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
         _stateRepository = stateRepository ?? throw new ArgumentNullException(nameof(stateRepository));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _idempotencyKeyGenerator = idempotencyKeyGenerator ?? throw new ArgumentNullException(nameof(idempotencyKeyGenerator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _pollingIntervalSeconds = pollingIntervalSeconds;
+        if (_pollingIntervalSeconds <= 0)
+            _pollingIntervalSeconds = 5;
     }
 
     /// <summary>
@@ -90,9 +96,9 @@ public sealed class RecordActiveWindowUseCase
 
         if (activeSession != null && CanExtendSession(activeSession, appIdentity, windowHash))
         {
-            // Estende a sessão existente
+            // Estende a sessão existente - não cria novo outbox item
             activeSession.Extend(request.CapturedAt);
-            await SaveSessionWithOutboxAsync(activeSession, cancellationToken);
+            await _sessionRepository.UpdateAsync(activeSession, cancellationToken);
             session = activeSession;
             isNewSession = false;
 
@@ -144,11 +150,11 @@ public sealed class RecordActiveWindowUseCase
         AppIdentity newApp,
         string? newWindowHash)
     {
-        // Mesmo aplicativo?
+        // Mesmo aplicativo
         if (session.App.ExePathHash != newApp.ExePathHash)
             return false;
 
-        // Mesmo hash de janela (ou ambos null)?
+        // Mesmo hash de janela (ou ambos null)
         if (session.WindowHash != newWindowHash)
             return false;
 

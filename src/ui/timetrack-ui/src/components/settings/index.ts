@@ -24,3 +24,11 @@ export { AppExclusionsCard } from './AppExclusionsCard';
 export { RetentionCard } from './RetentionCard';
 export { FocusModeCard } from './FocusModeCard';
 export { usePolicyCards } from './usePolicyCards';
+
+// App Categories (CX-144)
+export { AppCategoriesSection } from './AppCategoriesSection';
+export { AppCategoriesList } from './AppCategoriesList';
+export { AppCategoryOverrideModal } from './AppCategoryOverrideModal';
+export { AddAppCategoryModal } from './AddAppCategoryModal';
+export { useAppCategories } from './useAppCategories';
+export type { OverrideRequest } from './useAppCategories';

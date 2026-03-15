@@ -5,6 +5,7 @@ using TimeTrack.Agent.Application.UseCases.GetLocalDashboard;
 using TimeTrack.Agent.Application.UseCases.GetSyncState;
 using TimeTrack.Agent.Application.UseCases.LocalSettings;
 using TimeTrack.Agent.Application.UseCases.RecordActiveWindow;
+using TimeTrack.Agent.Application.UseCases.RecordIdlePeriod;
 using TimeTrack.Agent.Application.UseCases.TrackingControl;
 using TimeTrack.Agent.Contracts.Services;
 
@@ -26,6 +27,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<GetLocalDashboardUseCase>();
         services.AddSingleton<GetSyncStateUseCase>();
         services.AddSingleton<RecordActiveWindowUseCase>();
+        services.AddSingleton<RecordIdlePeriodUseCase>();
         services.AddSingleton<LocalSettingsUseCase>();
 
         return services;

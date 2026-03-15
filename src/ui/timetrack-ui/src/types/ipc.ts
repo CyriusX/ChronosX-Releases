@@ -291,6 +291,7 @@ export interface TodaySummaryResponse {
   productiveTime: number;
   idleTime: number;
   focusTime: number;
+  focusScore: number;
   sessionsCount: number;
   topProjects: ProjectSummary[];
   topApplications: ApplicationSummary[];
@@ -303,6 +304,52 @@ export interface CategorySummary {
   duration: number;
   percentage: number;
   color: string;
+  subcategory?: string;
+  productivity?: AppProductivityCategory;
+  source?: 'global' | 'org_override' | 'default';
+}
+
+// CX-143: App Productivity Category
+export type AppProductivityCategory = 'productive' | 'neutral' | 'distraction';
+
+// CX-143: App Category Response from Backend
+export interface AppCategoryResponse {
+  identifier: string;
+  identifierType: 'exe' | 'domain';
+  displayName: string;
+  productivity: AppProductivityCategory;
+  subcategory: string;
+  source: 'global' | 'org_override' | 'default';
+  note?: string;
+}
+
+// CX-143: Category Usage Stats for Admin Dashboard
+export interface CategoryUsageStatsResponse {
+  topProductiveApps: CategoryUsageItem[];
+  topNeutralApps: CategoryUsageItem[];
+  topDistractionApps: CategoryUsageItem[];
+  uncategorizedApps: UncategorizedAppItem[];
+  totalAppsUsed: number;
+  categorizedApps: number;
+  uncategorizedCount: number;
+}
+
+export interface CategoryUsageItem {
+  identifier: string;
+  displayName: string;
+  productivity: AppProductivityCategory;
+  subcategory: string;
+  totalMinutes: number;
+  sessionCount: number;
+  source: string;
+}
+
+export interface UncategorizedAppItem {
+  identifier: string;
+  identifierType: 'exe' | 'domain';
+  totalMinutes: number;
+  sessionCount: number;
+  userCount: number;
 }
 
 export interface WeeklyHistoryItem {
@@ -323,6 +370,10 @@ export interface ApplicationSummary {
   duration: number;
   percentage: number;
   iconPath?: string;
+  // CX-143: Productivity classification
+  productivity?: AppProductivityCategory;
+  subcategory?: string;
+  source?: 'global' | 'org_override' | 'default';
 }
 
 export interface RecentActivityResponse {

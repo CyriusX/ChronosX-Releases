@@ -52,8 +52,8 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
         storedToken.Revoke();
         await _refreshTokenRepository.UpdateAsync(storedToken, cancellationToken);
 
-        // Generate new tokens
-        var newAccessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange);
+        // Generate new tokens (include device_id from stored token if available)
+        var newAccessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, storedToken.DeviceId, user.Role.ToString(), user.PasswordMustChange);
         var newRefreshToken = _tokenService.GenerateRefreshToken();
         var newRefreshTokenHash = _tokenService.HashRefreshToken(newRefreshToken);
 

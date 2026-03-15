@@ -6,6 +6,7 @@ import { PreferencesSection } from './PreferencesSection';
 import { AboutSection } from './AboutSection';
 import { MembersSection } from './MembersSection';
 import { PolicyCards } from './PolicyCards';
+import { AppCategoriesSection } from './AppCategoriesSection';
 import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -170,6 +171,7 @@ export function SettingsPage() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           showMembersTab={canManageTeam}
+          showAppsTab={canViewOrgPolicies}
         />
       </div>
 
@@ -180,6 +182,9 @@ export function SettingsPage() {
           <PreferencesSection settings={settings} onUpdate={handleUpdateSettings} />
         )}
         {activeTab === 'members' && canManageTeam && <MembersSection />}
+        {activeTab === 'apps' && canViewOrgPolicies && user && user.orgId && (
+          <AppCategoriesSection accessToken={accessToken} orgId={user.orgId as string} />
+        )}
         {activeTab === 'about' && <AboutSection />}
 
         {/* Policy Cards - Apenas Admin/Gestor */}

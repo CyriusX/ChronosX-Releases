@@ -63,17 +63,19 @@ public sealed class IngestActivitySessionsCommandHandler : IRequestHandler<Inges
             throw new UnauthorizedAccessException("Device ID not found in token");
         }
 
+        // Batch check idempotency keys - single query instead of N queries
+        var keysToCheck = items.Select(i => i.IdempotencyKey).Distinct();
+        var existingKeys = await _idempotencyKeyRepository.GetExistingKeysAsync(
+            keysToCheck,
+            EntityType,
+            cancellationToken);
+
         foreach (var item in items)
         {
             try
             {
-                // Check idempotency
-                var exists = await _idempotencyKeyRepository.ExistsAsync(
-                    item.IdempotencyKey,
-                    EntityType,
-                    cancellationToken);
-
-                if (exists)
+                // Check idempotency (in-memory check)
+                if (existingKeys.Contains(item.IdempotencyKey))
                 {
                     duplicates++;
                     _logger.LogDebug("Duplicate activity session ignored: {IdempotencyKey}", item.IdempotencyKey);
@@ -103,6 +105,9 @@ public sealed class IngestActivitySessionsCommandHandler : IRequestHandler<Inges
                 // Save both in same transaction (handled by repository SaveChangesAsync)
                 await _activitySessionRepository.AddAsync(session, cancellationToken);
                 await _idempotencyKeyRepository.AddAsync(idempotencyKey, cancellationToken);
+
+                // Add to existing set to prevent duplicates within same batch
+                existingKeys.Add(item.IdempotencyKey);
 
                 processed++;
             }

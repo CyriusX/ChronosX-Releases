@@ -61,4 +61,20 @@ public sealed class ActivitySession
             CreatedAt = DateTime.UtcNow
         };
     }
+
+    /// <summary>
+    /// Extends the session to a new end time
+    /// Used during consolidation to merge consecutive sessions
+    /// </summary>
+    public void Extend(DateTime newEndedAt)
+    {
+        if (newEndedAt <= StartedAt)
+            throw new ArgumentException("New end time must be after start time", nameof(newEndedAt));
+
+        if (newEndedAt < EndedAt)
+            throw new ArgumentException("New end time must be after current end time", nameof(newEndedAt));
+
+        EndedAt = newEndedAt;
+        DurationSeconds = (int)(EndedAt - StartedAt).TotalSeconds;
+    }
 }

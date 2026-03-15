@@ -143,6 +143,27 @@ public sealed class SqliteContext : IAsyncDisposable
                 synced INTEGER NOT NULL DEFAULT 0,
                 date TEXT NOT NULL
             );
+
+            -- CX-143: Tabela de cache de categorias de apps
+            CREATE TABLE IF NOT EXISTS app_category_cache (
+                id TEXT PRIMARY KEY,
+                identifier TEXT NOT NULL UNIQUE,
+                identifier_type TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                productivity TEXT NOT NULL,
+                subcategory TEXT NOT NULL,
+                source TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                cached_at TEXT NOT NULL,
+                note TEXT
+            );
+
+            -- CX-143: Tabela de metadados de cache
+            CREATE TABLE IF NOT EXISTS cache_info (
+                cache_type TEXT PRIMARY KEY,
+                version INTEGER NOT NULL DEFAULT 0,
+                last_sync TEXT NOT NULL
+            );
         ";
 
         await connection.ExecuteAsync(createTablesSql);
@@ -209,6 +230,10 @@ public sealed class SqliteContext : IAsyncDisposable
             CREATE INDEX IF NOT EXISTS ix_focus_cycles_user_id ON focus_cycles(user_id);
             CREATE INDEX IF NOT EXISTS ix_focus_cycles_date ON focus_cycles(date);
             CREATE INDEX IF NOT EXISTS ix_focus_cycles_started_at ON focus_cycles(started_at);
+
+            -- CX-143: App category cache indexes
+            CREATE INDEX IF NOT EXISTS ix_app_category_cache_identifier ON app_category_cache(identifier);
+            CREATE INDEX IF NOT EXISTS ix_app_category_cache_productivity ON app_category_cache(productivity);
         ";
 
         await connection.ExecuteAsync(createIndexesSql);

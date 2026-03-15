@@ -12,13 +12,16 @@ namespace TimeTrack.Agent.Infrastructure.Persistence;
 public sealed class IdlePeriodRepository : IIdlePeriodRepository
 {
     private readonly SqliteContext _context;
+    private readonly IOutboxRepository _outboxRepository;
     private readonly ILogger<IdlePeriodRepository> _logger;
 
     public IdlePeriodRepository(
         SqliteContext context,
+        IOutboxRepository outboxRepository,
         ILogger<IdlePeriodRepository> logger)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+        _outboxRepository = outboxRepository ?? throw new ArgumentNullException(nameof(outboxRepository));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -104,6 +107,79 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         await connection.ExecuteAsync(sql, parameters);
 
         _logger.LogDebug("Batch of {Count} idle periods saved", parameters.Count());
+    }
+
+    public async Task SaveWithOutboxAsync(
+        IdlePeriod period,
+        IEnumerable<OutboxItem> outboxItems,
+        CancellationToken cancellationToken = default)
+    {
+        var connection = await _context.GetConnectionAsync(cancellationToken);
+        var transaction = await _context.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            // 1. Salvar idle period
+            const string periodSql = @"
+                INSERT OR REPLACE INTO idle_periods
+                    (id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected)
+                VALUES
+                    (@Id, @UserId, @StartUtc, @EndUtc, @ThresholdSeconds, @IsSystemDetected)
+            ";
+
+            await connection.ExecuteAsync(periodSql, new
+            {
+                Id = period.Id.ToString(),
+                UserId = period.UserId.ToString(),
+                StartUtc = period.Period.StartUtc,
+                EndUtc = period.Period.EndUtc,
+                ThresholdSeconds = period.ThresholdSeconds,
+                IsSystemDetected = period.IsSystemDetected ? 1 : 0
+            });
+
+            // 2. Salvar outbox items
+            const string outboxSql = @"
+                INSERT OR IGNORE INTO sync_outbox
+                    (id, user_id, entity_type, entity_id, payload_json, idempotency_key,
+                     attempt_count, next_attempt_utc, sent_at, last_error, created_at)
+                VALUES
+                    (@Id, @UserId, @EntityType, @EntityId, @PayloadJson, @IdempotencyKey,
+                     @AttemptCount, @NextAttemptUtc, @SentAt, @LastError, @CreatedAt)
+            ";
+
+            var itemList = outboxItems.ToList();
+            foreach (var item in itemList)
+            {
+                _logger.LogDebug(
+                    "Saving outbox item for idle period: Id={Id}, EntityType={EntityType}, EntityId={EntityId}",
+                    item.Id, item.EntityType, item.EntityId);
+
+                await connection.ExecuteAsync(outboxSql, new
+                {
+                    Id = item.Id.ToString(),
+                    UserId = period.UserId.ToString(),
+                    EntityType = item.EntityType,
+                    EntityId = item.EntityId.ToString(),
+                    PayloadJson = item.PayloadJson,
+                    IdempotencyKey = item.IdempotencyKey,
+                    AttemptCount = item.AttemptCount,
+                    NextAttemptUtc = item.NextAttemptUtc?.ToString("o"),
+                    SentAt = item.SentAt?.ToString("o"),
+                    LastError = item.LastError,
+                    CreatedAt = item.CreatedAt.ToString("o")
+                });
+            }
+
+            await transaction.CommitAsync();
+
+            _logger.LogDebug("Idle period {PeriodId} saved with {Count} outbox items", period.Id, itemList.Count);
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "Failed to save idle period with outbox items");
+            throw;
+        }
     }
 
     private static IdlePeriod MapToDomain(IdlePeriodDto dto)

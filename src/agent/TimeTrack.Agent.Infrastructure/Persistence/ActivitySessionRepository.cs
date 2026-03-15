@@ -166,20 +166,42 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             var connection = await _context.GetConnectionAsync(cancellationToken);
 
             // Uma sessão "ativa" é aquela que terminou nos últimos 60 segundos
-            var threshold = DateTime.UtcNow.AddSeconds(-60);
+            // ( threshold para permitir pequenas pausas sem criar nova sessão)
+            var endThreshold = DateTime.UtcNow.AddSeconds(-60);
 
             const string sql = @"
             SELECT id, user_id, exe_path_hash, display_name, category_productivity,
                    category_subcategory, category_source, start_utc, end_utc,
                    window_hash, window_title
             FROM activity_sessions
-            WHERE user_id = @UserId AND end_utc >= @Threshold
+            WHERE user_id = @UserId AND end_utc >= @EndThreshold
             ORDER BY end_utc DESC
             LIMIT 1";
 
-            var dto = await connection.QueryFirstOrDefaultAsync<ActivitySessionDto>(sql, new { UserId = userId.ToString(), Threshold = threshold });
+            var dto = await connection.QueryFirstOrDefaultAsync<ActivitySessionDto>(sql, new { UserId = userId.ToString(), EndThreshold = endThreshold });
 
             return dto != null ? MapToDomain(dto) : null;
+        }
+
+        public async Task UpdateAsync(ActivitySession session, CancellationToken cancellationToken = default)
+        {
+            if (session == null) throw new ArgumentNullException(nameof(session));
+
+            var connection = await _context.GetConnectionAsync(cancellationToken);
+
+            const string sql = @"
+            UPDATE activity_sessions
+            SET end_utc = @EndUtc
+            WHERE id = @Id
+            ";
+
+            await connection.ExecuteAsync(sql, new
+            {
+                Id = session.Id.ToString(),
+                EndUtc = session.Period.EndUtc
+            });
+
+            _logger.LogDebug("Activity session updated: {SessionId}, new end_utc: {EndUtc}", session.Id, session.Period.EndUtc);
         }
 
         public async Task SaveAsync(ActivitySession session, CancellationToken cancellationToken = default)

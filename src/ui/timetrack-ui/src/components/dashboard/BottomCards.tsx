@@ -2,11 +2,37 @@ import { MoreVertical, TrendingUp, Globe, Briefcase, Code2, Users, MessageSquare
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { CategoryItem, AppItem, ProjectItem } from './shared';
 import { formatDuration } from '../../lib/utils';
-import type { TodaySummaryResponse } from '../../types/ipc';
+import type { TodaySummaryResponse, AppProductivityCategory } from '../../types/ipc';
 
 interface BottomCardsProps {
   summary: TodaySummaryResponse | null;
 }
+
+// CX-143: Productivity color mapping
+const getProductivityColor = (productivity?: AppProductivityCategory): string => {
+  switch (productivity) {
+    case 'productive':
+      return '#4ade80'; // Green
+    case 'distraction':
+      return '#f87171'; // Red
+    case 'neutral':
+    default:
+      return '#fbbf24'; // Yellow
+  }
+};
+
+// CX-143: Productivity badge styles
+const getProductivityBadgeStyle = (productivity?: AppProductivityCategory): string => {
+  switch (productivity) {
+    case 'productive':
+      return 'bg-[rgba(74,222,128,0.2)] border-[rgba(74,222,128,0.3)] text-[#4ade80]';
+    case 'distraction':
+      return 'bg-[rgba(248,113,113,0.2)] border-[rgba(248,113,113,0.3)] text-[#f87171]';
+    case 'neutral':
+    default:
+      return 'bg-[rgba(251,191,36,0.2)] border-[rgba(251,191,36,0.3)] text-[#fbbf24]';
+  }
+};
 
 // Icon mapping for categories
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -14,6 +40,15 @@ const categoryIcons: Record<string, React.ReactNode> = {
   'Reuniões': <Users className="w-3 h-3" />,
   'Pesquisa': <SearchIcon className="w-3 h-3" />,
   'Comunicação': <MessageSquare className="w-3 h-3" />,
+  // CX-143: New subcategory icons
+  'development': <Code2 className="w-3 h-3" />,
+  'meetings': <Users className="w-3 h-3" />,
+  'communication': <MessageSquare className="w-3 h-3" />,
+  'design': <Briefcase className="w-3 h-3" />,
+  'productivity_tools': <TrendingUp className="w-3 h-3" />,
+  'browser_general': <Globe className="w-3 h-3" />,
+  'social_media': <Users className="w-3 h-3" />,
+  'entertainment': <Music className="w-3 h-3" />,
 };
 
 // Icon mapping for applications
@@ -107,15 +142,25 @@ export function BottomCards({ summary }: BottomCardsProps) {
                   ? Math.round((app.duration / totalAppTime) * 100)
                   : app.percentage;
 
+                // CX-143: Get productivity badge style
+                const productivityBadgeStyle = getProductivityBadgeStyle(app.productivity);
+                const productivityColor = getProductivityColor(app.productivity);
+
                 return (
-                  <AppItem
-                    key={index}
-                    percentage={percentage}
-                    icon={appIcons[app.name] ?? defaultAppIcon}
-                    label={app.name}
-                    time={formatDuration(app.duration)}
-                    color="rgba(255,255,255,0.1)"
-                  />
+                  <div key={index} className="flex items-center gap-2">
+                    <AppItem
+                      percentage={percentage}
+                      icon={appIcons[app.name] ?? defaultAppIcon}
+                      label={app.name}
+                      time={formatDuration(app.duration)}
+                      color={productivityColor}
+                    />
+                    {app.productivity && (
+                      <span className={`px-2 py-0.5 text-[9px] rounded-full border ${productivityBadgeStyle}`}>
+                        {app.productivity === 'productive' ? 'P' : app.productivity === 'distraction' ? 'D' : 'N'}
+                      </span>
+                    )}
+                  </div>
                 );
               })
             ) : (

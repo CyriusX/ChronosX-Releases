@@ -3,6 +3,7 @@ using Hangfire.PostgreSql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TimeTrack.Backend.Infrastructure.Jobs.Interfaces;
+using TimeTrack.Backend.Infrastructure.Jobs;
 
 namespace TimeTrack.Backend.Infrastructure.Jobs.Configuration;
 
@@ -56,6 +57,8 @@ public static class HangfireConfiguration
         services.AddScoped<IRetentionJob, RetentionJob>();
         services.AddScoped<IAggregationJob, AggregationJob>();
         services.AddScoped<ICleanupJob, CleanupJob>();
+        services.AddScoped<IFocusScoreJob, FocusScoreJob>();
+        services.AddScoped<IActivitySessionConsolidationJob, ActivitySessionConsolidationJob>();
 
         return services;
     }
@@ -91,6 +94,27 @@ public static class HangfireConfiguration
             "cleanup-idempotency-keys-job",
             job => job.ExecuteAsync(),
             "0 4 * * *", // Daily at 04:00 UTC
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Focus Score calculation job - runs daily at 00:05 UTC (processes yesterday's data)
+        RecurringJob.AddOrUpdate<IFocusScoreJob>(
+            "focus-score-daily",
+            job => job.ExecuteForRecentDaysAsync(1), // Process yesterday's data
+            "5 0 * * *", // Daily at 00:05 UTC
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Activity Session Consolidation job - runs every 6 hours
+        // Merges duplicate sessions that may have been created due to race conditions
+        RecurringJob.AddOrUpdate<IActivitySessionConsolidationJob>(
+            "activity-session-consolidation",
+            job => job.ExecuteConsolidationAsync(), // No optional parameters - Hangfire compatible
+            "0 */6 * * *", // Every 6 hours
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc

@@ -32,6 +32,9 @@ public sealed class TokenService : ITokenService
     }
 
     public string GenerateAccessToken(Guid userId, Guid orgId, string role, bool mustChangePassword = false)
+        => GenerateAccessToken(userId, orgId, null, role, mustChangePassword);
+
+    public string GenerateAccessToken(Guid userId, Guid orgId, Guid? deviceId, string role, bool mustChangePassword = false)
     {
         var claims = new List<Claim>
         {
@@ -42,6 +45,12 @@ public sealed class TokenService : ITokenService
             new("role", role),
             new("must_change_password", mustChangePassword.ToString().ToLowerInvariant())
         };
+
+        // Add device_id claim if device is specified (for Agent/desktop clients)
+        if (deviceId.HasValue)
+        {
+            claims.Add(new Claim("device_id", deviceId.Value.ToString()));
+        }
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSecret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

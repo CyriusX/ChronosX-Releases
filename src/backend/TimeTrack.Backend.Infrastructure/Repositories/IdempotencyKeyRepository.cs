@@ -62,6 +62,21 @@ public sealed class IdempotencyKeyRepository : IIdempotencyKeyRepository
             .AnyAsync(k => k.Key == key && k.EntityType == entityType, cancellationToken);
     }
 
+    public async Task<HashSet<string>> GetExistingKeysAsync(
+        IEnumerable<string> keys,
+        string entityType,
+        CancellationToken cancellationToken = default)
+    {
+        var keyList = keys.ToList();
+        var existingKeys = await _context.IdempotencyKeys
+            .IgnoreQueryFilters()
+            .Where(k => k.EntityType == entityType && keyList.Contains(k.Key))
+            .Select(k => k.Key)
+            .ToListAsync(cancellationToken);
+
+        return existingKeys.ToHashSet();
+    }
+
     public async Task<int> CleanupExpiredAsync(CancellationToken cancellationToken = default)
     {
         var expired = await _context.IdempotencyKeys

@@ -112,10 +112,15 @@ public sealed class SyncWorker : BackgroundService
                 .Where(i => i.EntityType == "idle_period")
                 .ToList();
 
+            var focusSessions = pendingItems
+                .Where(i => i.EntityType == "focus_session")
+                .ToList();
+
             _logger.LogInformation(
-                "Processando batch: {ActivityCount} activity sessions, {IdleCount} idle periods",
+                "Processando batch: {ActivityCount} activity sessions, {IdleCount} idle periods, {FocusCount} focus sessions",
                 activitySessions.Count,
-                idlePeriods.Count);
+                idlePeriods.Count,
+                focusSessions.Count);
 
             var allProcessedIds = new List<Guid>();
             var hasFailures = false;
@@ -144,6 +149,24 @@ public sealed class SyncWorker : BackgroundService
                 var result = await ProcessBatchAsync(
                     idlePeriods,
                     () => _syncTransport.SendIdlePeriodsAsync(idlePeriods, cancellationToken),
+                    cancellationToken);
+
+                if (result.IsSuccess)
+                {
+                    allProcessedIds.AddRange(result.ProcessedIds);
+                }
+                else
+                {
+                    hasFailures = true;
+                }
+            }
+
+            // Processar focus sessions
+            if (focusSessions.Any())
+            {
+                var result = await ProcessBatchAsync(
+                    focusSessions,
+                    () => _syncTransport.SendFocusSessionsAsync(focusSessions, cancellationToken),
                     cancellationToken);
 
                 if (result.IsSuccess)

@@ -241,6 +241,82 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task<SyncResult> SendFocusSessionsAsync(
+        IEnumerable<OutboxItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        var itemList = items.ToList();
+        if (!itemList.Any())
+        {
+            return SyncResult.Success(0, 0, Array.Empty<Guid>());
+        }
+
+        try
+        {
+            // Ensure valid token before request
+            if (!await EnsureValidTokenAsync(cancellationToken))
+            {
+                return SyncResult.Failure("Authentication failed - user may be deactivated", 401);
+            }
+
+            var payload = BuildFocusSessionsPayload(itemList);
+            var content = new StringContent(
+                JsonSerializer.Serialize(payload, _jsonOptions),
+                Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient.PostAsync(
+                "/api/v1/ingest/focus-sessions",
+                content,
+                cancellationToken);
+
+            // Handle 401 - try refresh and retry once
+            if (response.StatusCode == HttpStatusCode.Unauthorized && _tokenStore is not null)
+            {
+                _logger.LogWarning("Received 401, attempting token refresh and retry");
+
+                if (await _tokenStore.RefreshAsync(cancellationToken))
+                {
+                    var jwt = await _tokenStore.GetJwtAsync(cancellationToken);
+                    if (!string.IsNullOrEmpty(jwt))
+                    {
+                        _httpClient.DefaultRequestHeaders.Authorization =
+                            new AuthenticationHeaderValue("Bearer", jwt);
+                    }
+
+                    // Retry request
+                    var retryContent = new StringContent(
+                        JsonSerializer.Serialize(payload, _jsonOptions),
+                        Encoding.UTF8,
+                        "application/json");
+
+                    response = await _httpClient.PostAsync(
+                        "/api/v1/ingest/focus-sessions",
+                        retryContent,
+                        cancellationToken);
+                }
+            }
+
+            return await ProcessResponseAsync(response, itemList);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error sending focus sessions");
+            return SyncResult.Failure($"HTTP error: {ex.Message}");
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Timeout sending focus sessions");
+            return SyncResult.Failure("Request timeout");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending focus sessions");
+            return SyncResult.Failure($"Unexpected error: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<bool> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -267,14 +343,16 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
 
             if (payload != null)
             {
+                // Use displayName as processName (required by backend)
+                // Use categoryProductivity as appCategory
                 activityItems.Add(new
                 {
                     Id = item.EntityId,
-                    payload.ProcessName,
+                    ProcessName = payload.DisplayName,
                     payload.WindowTitle,
-                    payload.AppCategory,
-                    payload.StartedAt,
-                    payload.EndedAt,
+                    AppCategory = payload.CategoryProductivity,
+                    StartedAt = payload.StartUtc,
+                    EndedAt = payload.EndUtc,
                     item.IdempotencyKey
                 });
             }
@@ -298,14 +376,43 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
                 idleItems.Add(new
                 {
                     Id = item.EntityId,
-                    payload.StartedAt,
-                    payload.EndedAt,
+                    StartedAt = payload.StartedAt,
+                    EndedAt = payload.EndedAt,
                     item.IdempotencyKey
                 });
             }
         }
 
         return new { Items = idleItems };
+    }
+
+    private object BuildFocusSessionsPayload(IEnumerable<OutboxItem> items)
+    {
+        var itemList = items.ToList();
+        var focusItems = new List<object>(itemList.Count);
+
+        foreach (var item in itemList)
+        {
+            var payload = JsonSerializer.Deserialize<FocusSessionPayload>(
+                item.PayloadJson, _jsonOptions);
+
+            if (payload != null)
+            {
+                focusItems.Add(new
+                {
+                    Id = item.EntityId,
+                    StartedAt = payload.StartedAt,
+                    EndedAt = payload.EndedAt,
+                    PlannedDurationMinutes = payload.PlannedDurationMinutes,
+                    ActualDurationMinutes = payload.ActualDurationMinutes,
+                    Status = payload.Status,
+                    FocusScore = payload.FocusScore,
+                    item.IdempotencyKey
+                });
+            }
+        }
+
+        return new { Items = focusItems };
     }
 
     private async Task<SyncResult> ProcessResponseAsync(
@@ -366,17 +473,36 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
 
     private sealed class ActivitySessionPayload
     {
-        public string ProcessName { get; set; } = string.Empty;
+        public Guid Id { get; set; }
+        public string ExePathHash { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string CategoryProductivity { get; set; } = string.Empty;
+        public string CategorySubcategory { get; set; } = string.Empty;
+        public string CategorySource { get; set; } = string.Empty;
+        public DateTime StartUtc { get; set; }
+        public DateTime EndUtc { get; set; }
+        public string? WindowHash { get; set; }
         public string? WindowTitle { get; set; }
-        public string? AppCategory { get; set; }
-        public DateTime StartedAt { get; set; }
-        public DateTime EndedAt { get; set; }
     }
 
     private sealed class IdlePeriodPayload
     {
+        public Guid Id { get; set; }
         public DateTime StartedAt { get; set; }
         public DateTime EndedAt { get; set; }
+        public int ThresholdSeconds { get; set; }
+        public bool IsSystemDetected { get; set; }
+    }
+
+    private sealed class FocusSessionPayload
+    {
+        public Guid Id { get; set; }
+        public DateTime StartedAt { get; set; }
+        public DateTime? EndedAt { get; set; }
+        public int PlannedDurationMinutes { get; set; }
+        public int? ActualDurationMinutes { get; set; }
+        public string Status { get; set; } = "InProgress";
+        public int? FocusScore { get; set; }
     }
 
     private sealed class IngestResponseDto

@@ -63,17 +63,19 @@ public sealed class IngestIdlePeriodsCommandHandler : IRequestHandler<IngestIdle
             throw new UnauthorizedAccessException("Device ID not found in token");
         }
 
+        // Batch check idempotency keys - single query instead of N queries
+        var keysToCheck = items.Select(i => i.IdempotencyKey).Distinct();
+        var existingKeys = await _idempotencyKeyRepository.GetExistingKeysAsync(
+            keysToCheck,
+            EntityType,
+            cancellationToken);
+
         foreach (var item in items)
         {
             try
             {
-                // Check idempotency
-                var exists = await _idempotencyKeyRepository.ExistsAsync(
-                    item.IdempotencyKey,
-                    EntityType,
-                    cancellationToken);
-
-                if (exists)
+                // Check idempotency (in-memory check)
+                if (existingKeys.Contains(item.IdempotencyKey))
                 {
                     duplicates++;
                     _logger.LogDebug("Duplicate idle period ignored: {IdempotencyKey}", item.IdempotencyKey);
@@ -100,6 +102,9 @@ public sealed class IngestIdlePeriodsCommandHandler : IRequestHandler<IngestIdle
                 // Save both
                 await _idlePeriodRepository.AddAsync(idlePeriod, cancellationToken);
                 await _idempotencyKeyRepository.AddAsync(idempotencyKey, cancellationToken);
+
+                // Add to existing set to prevent duplicates within same batch
+                existingKeys.Add(item.IdempotencyKey);
 
                 processed++;
             }

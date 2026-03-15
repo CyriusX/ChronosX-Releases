@@ -68,7 +68,7 @@ public sealed class ActivitySession : EntityBase
     }
 
     /// <summary>
-    /// Estende o período da sessão até um novo momento de término
+    /// Estende o período da sessão até o novo momento de término
     /// </summary>
     public void Extend(DateTime newEndUtc)
     {
@@ -76,6 +76,18 @@ public sealed class ActivitySession : EntityBase
             throw DomainException.InvalidTimeRange();
 
         Period = new TimeRange(Period.StartUtc, newEndUtc);
+    }
+
+    /// <summary>
+    /// Estende o período com base no tempo adicional (duração em segundos)
+    /// </summary>
+    /// <param name="additionalSeconds">Segundos to adicionar ao end time</param>
+    public void Extend(int additionalSeconds)
+    {
+        if (additionalSeconds <= 0)
+            throw new ArgumentException("Additional seconds must be positive", nameof(additionalSeconds));
+
+        Period = new TimeRange(Period.StartUtc, Period.EndUtc.AddSeconds(additionalSeconds));
     }
 
     /// <summary>
