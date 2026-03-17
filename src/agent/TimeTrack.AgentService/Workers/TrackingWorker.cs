@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Application.UseCases.RecordActiveWindow;
 using TimeTrack.Agent.Application.UseCases.RecordIdlePeriod;
+using TimeTrack.Agent.Application.UseCases.TrackingControl;
 using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
@@ -24,6 +25,7 @@ public sealed class TrackingWorker : BackgroundService
     private readonly ICurrentUserContext _userContext;
     private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
     private readonly RecordIdlePeriodUseCase _recordIdlePeriodUseCase;
+    private readonly TrackingControlUseCase _trackingControl;
 
     private bool _isIdle = false;
     private DateTime? _idleStartedAt;
@@ -36,7 +38,8 @@ public sealed class TrackingWorker : BackgroundService
         ITrackingStateRepository stateRepository,
         ICurrentUserContext userContext,
         RecordActiveWindowUseCase recordActiveWindowUseCase,
-        RecordIdlePeriodUseCase recordIdlePeriodUseCase)
+        RecordIdlePeriodUseCase recordIdlePeriodUseCase,
+        TrackingControlUseCase trackingControl)
     {
         _logger = logger;
         _settings = settings;
@@ -46,6 +49,7 @@ public sealed class TrackingWorker : BackgroundService
         _userContext = userContext;
         _recordActiveWindowUseCase = recordActiveWindowUseCase;
         _recordIdlePeriodUseCase = recordIdlePeriodUseCase;
+        _trackingControl = trackingControl;
 
         // Configura prioridade do processo
         ServiceCollectionExtensions.ConfigureProcessPriority(_settings.ProcessPriority);
@@ -57,6 +61,12 @@ public sealed class TrackingWorker : BackgroundService
             "TrackingWorker iniciando. PollingInterval: {PollingInterval}ms, IdleThreshold: {IdleThreshold}s",
             _settings.PollingIntervalMs,
             _settings.IdleThresholdSeconds);
+
+        // Subscribe to user authentication changes
+        _userContext.UserChanged += OnUserChanged;
+
+        // Try auto-resume on startup (if user is already authenticated)
+        await EnsureTrackingActiveAsync(stoppingToken);
 
         try
         {
@@ -85,6 +95,68 @@ public sealed class TrackingWorker : BackgroundService
         }
 
         _logger.LogInformation("TrackingWorker encerrado");
+    }
+
+    /// <summary>
+    /// Garante que o tracking está ativo no startup, resumindo automaticamente se estava pausado.
+    /// </summary>
+    private async Task EnsureTrackingActiveAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userId = _userContext.UserId;
+            if (userId == null)
+            {
+                _logger.LogDebug("Nenhum usuário autenticado. Auto-resume não executado.");
+                return;
+            }
+
+            var state = await _stateRepository.GetAsync(userId.Value, cancellationToken);
+            if (state != null && state.IsPaused)
+            {
+                _logger.LogInformation(
+                    "Tracking estava pausado ({Status}). Retomando automaticamente...",
+                    state.Status);
+
+                await _trackingControl.ResumeAsync(new ResumeTrackingRequest
+                {
+                    ResumedBy = "AutoResume"
+                }, cancellationToken);
+
+                _logger.LogInformation("Tracking retomado automaticamente com sucesso.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao tentar retomar tracking automaticamente");
+        }
+    }
+
+    /// <summary>
+    /// Handler para quando o usuário é autenticado. Retoma o tracking se estava pausado.
+    /// </summary>
+    private void OnUserChanged(object? sender, UserChangedEventArgs e)
+    {
+        _logger.LogInformation(
+            "Usuário mudou: {PreviousUserId} -> {NewUserId}",
+            e.PreviousUserId,
+            e.NewUserId);
+
+        // If a new user is authenticated, try to auto-resume tracking
+        if (e.NewUserId.HasValue)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await EnsureTrackingActiveAsync(CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Erro no auto-resume após mudança de usuário");
+                }
+            });
+        }
     }
 
     private async Task ExecuteTrackingCycleAsync(CancellationToken cancellationToken)
@@ -195,6 +267,9 @@ public sealed class TrackingWorker : BackgroundService
         _logger.LogInformation(
             "TrackingWorker recebendo sinal de parada. Aguardando até {Timeout}s para graceful shutdown",
             _settings.GracefulShutdownTimeoutSeconds);
+
+        // Unsubscribe from events
+        _userContext.UserChanged -= OnUserChanged;
 
         // Cria um timeout para graceful shutdown
         using var timeoutCts = new CancellationTokenSource(
