@@ -150,6 +150,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<ISyncTransport, NullSyncTransport>();
         services.AddSingleton<ITokenStore, NullTokenStore>();
         services.AddSingleton<ICurrentUserContext, JwtCurrentUserContext>();
+        services.AddSingleton<IDeviceActivationService, NullDeviceActivationService>();
         return services;
     }
 }

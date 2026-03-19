@@ -231,6 +231,37 @@ public sealed class OutboxRepository : IOutboxRepository
         return items.Select(MapToDomain).ToList();
     }
 
+    /// <inheritdoc />
+    public async Task<int> ResetStuckItemsAsync(CancellationToken cancellationToken = default)
+    {
+        var connection = await _context.GetConnectionAsync(cancellationToken);
+        var now = DateTime.UtcNow.ToString("o");
+
+        // Redefine itens que ainda não foram enviados e cujo next_attempt_utc está no futuro
+        const string sql = @"
+            UPDATE sync_outbox
+            SET next_attempt_utc = @Now,
+                attempt_count = 0,
+                last_error = NULL
+            WHERE sent_at IS NULL
+              AND next_attempt_utc > @Now";
+
+        var updated = await connection.ExecuteAsync(sql, new { Now = now });
+
+        if (updated > 0)
+        {
+            _logger.LogWarning(
+                "ResetStuckItemsAsync: {Count} itens do outbox redefinidos para tentativa imediata.",
+                updated);
+        }
+        else
+        {
+            _logger.LogDebug("ResetStuckItemsAsync: nenhum item preso encontrado.");
+        }
+
+        return updated;
+    }
+
     private DateTime CalculateNextAttempt(int attemptCount)
     {
         // Backoff exponencial: 1min, 2min, 4min, 8min, 16min, max 30min

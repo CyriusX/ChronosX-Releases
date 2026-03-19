@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
 using TimeTrack.Agent.Application.FocusMode;
+using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Enums;
 using TimeTrack.Agent.Domain.ValueObjects;
@@ -21,13 +22,24 @@ public class FocusModeEngineTests : IAsyncLifetime
 {
     private readonly Mock<ILogger<FocusModeEngine>> _loggerMock;
     private readonly MockNotificationService _notificationService;
+    private readonly Mock<ICurrentUserContext> _userContextMock;
+    private readonly Mock<IFocusCycleRepository> _focusCycleRepositoryMock;
+    private readonly Mock<IOutboxRepository> _outboxRepositoryMock;
     private FocusModeEngine _engine;
 
     public FocusModeEngineTests()
     {
         _loggerMock = new Mock<ILogger<FocusModeEngine>>();
         _notificationService = new MockNotificationService();
-        _engine = new FocusModeEngine(_loggerMock.Object, _notificationService);
+        _userContextMock = new Mock<ICurrentUserContext>();
+        _focusCycleRepositoryMock = new Mock<IFocusCycleRepository>();
+        _outboxRepositoryMock = new Mock<IOutboxRepository>();
+        _engine = new FocusModeEngine(
+            _loggerMock.Object,
+            _notificationService,
+            _userContextMock.Object,
+            _focusCycleRepositoryMock.Object,
+            _outboxRepositoryMock.Object);
     }
 
     public Task InitializeAsync()

@@ -112,7 +112,20 @@ public sealed class TrackingWorker : BackgroundService
             }
 
             var state = await _stateRepository.GetAsync(userId.Value, cancellationToken);
-            if (state != null && state.IsPaused)
+            if (state == null)
+            {
+                _logger.LogInformation(
+                    "Nenhum estado de tracking encontrado para o usuário {UserId}. Iniciando automaticamente...",
+                    userId.Value);
+
+                await _trackingControl.StartAsync(new StartTrackingRequest
+                {
+                    StartedBy = "AutoStart"
+                }, cancellationToken);
+
+                _logger.LogInformation("Tracking iniciado automaticamente com sucesso.");
+            }
+            else if (state.IsPaused)
             {
                 _logger.LogInformation(
                     "Tracking estava pausado ({Status}). Retomando automaticamente...",

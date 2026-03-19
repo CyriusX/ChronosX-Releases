@@ -27,6 +27,7 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
 
     private Guid? _cachedUserId;
     private Guid? _cachedOrgId;
+    private Guid? _cachedDeviceId;
     private bool _initialized;
     private HashSet<Guid> _migratedUsers = new();
 
@@ -77,6 +78,14 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
         }
     }
 
+    public Guid? DeviceId
+    {
+        get
+        {
+            return _cachedDeviceId;
+        }
+    }
+
     public bool IsAuthenticated => UserId.HasValue;
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
@@ -92,18 +101,21 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
 
         Guid? newUserId = null;
         Guid? newOrgId = null;
+        Guid? newDeviceId = null;
 
         if (!string.IsNullOrEmpty(jwt))
         {
             var claims = ExtractClaimsFromJwt(jwt);
             newUserId = claims.UserId;
             newOrgId = claims.OrgId;
+            newDeviceId = claims.DeviceId;
         }
 
         lock (_lock)
         {
             _cachedUserId = newUserId;
             _cachedOrgId = newOrgId;
+            _cachedDeviceId = newDeviceId;
             _initialized = true;
         }
 
@@ -154,6 +166,7 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
             previousUserId = _cachedUserId;
             _cachedUserId = null;
             _cachedOrgId = null;
+            _cachedDeviceId = null;
             _initialized = true;
         }
 
@@ -180,13 +193,13 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
         }
     }
 
-    private static (Guid? UserId, Guid? OrgId) ExtractClaimsFromJwt(string jwt)
+    private static (Guid? UserId, Guid? OrgId, Guid? DeviceId) ExtractClaimsFromJwt(string jwt)
     {
         try
         {
             var parts = jwt.Split('.');
             if (parts.Length != 3)
-                return (null, null);
+                return (null, null, null);
 
             var payload = parts[1];
             var padding = payload.Length % 4;
@@ -199,6 +212,7 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
 
             Guid? userId = null;
             Guid? orgId = null;
+            Guid? deviceId = null;
 
             // Tentar diferentes claim names
             if (payloadObj.TryGetProperty("sub", out var subElement))
@@ -218,11 +232,17 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
                     orgId = orgGuid;
             }
 
-            return (userId, orgId);
+            if (payloadObj.TryGetProperty("device_id", out var deviceIdElement))
+            {
+                if (Guid.TryParse(deviceIdElement.GetString(), out var deviceGuid))
+                    deviceId = deviceGuid;
+            }
+
+            return (userId, orgId, deviceId);
         }
         catch
         {
-            return (null, null);
+            return (null, null, null);
         }
     }
 }

@@ -17,6 +17,9 @@ public sealed class SyncWorker : BackgroundService
     private readonly AgentSettings _settings;
     private readonly IOutboxRepository _outboxRepository;
     private readonly ISyncTransport _syncTransport;
+    private readonly ICurrentUserContext _userContext;
+    private readonly IDeviceActivationService _deviceActivationService;
+    private readonly ITokenStore _tokenStore;
 
     private int _consecutiveFailures;
     private DateTime? _lastSuccessfulSync;
@@ -25,12 +28,18 @@ public sealed class SyncWorker : BackgroundService
         ILogger<SyncWorker> logger,
         AgentSettings settings,
         IOutboxRepository outboxRepository,
-        ISyncTransport syncTransport)
+        ISyncTransport syncTransport,
+        ICurrentUserContext userContext,
+        IDeviceActivationService deviceActivationService,
+        ITokenStore tokenStore)
     {
         _logger = logger;
         _settings = settings;
         _outboxRepository = outboxRepository;
         _syncTransport = syncTransport;
+        _userContext = userContext;
+        _deviceActivationService = deviceActivationService;
+        _tokenStore = tokenStore;
     }
 
     /// <summary>
@@ -60,6 +69,15 @@ public sealed class SyncWorker : BackgroundService
 
         try
         {
+            // Redefinir itens presos no outbox ao iniciar (recuperação de backoff acumulado)
+            var resetCount = await _outboxRepository.ResetStuckItemsAsync(stoppingToken);
+            if (resetCount > 0)
+            {
+                _logger.LogInformation(
+                    "SyncWorker: {Count} itens do outbox presos foram redefinidos na inicialização.",
+                    resetCount);
+            }
+
             // Primeira execução imediata
             await ExecuteSyncCycleAsync(stoppingToken);
 
@@ -82,10 +100,63 @@ public sealed class SyncWorker : BackgroundService
         _logger.LogInformation("SyncWorker encerrado");
     }
 
+    /// <summary>
+    /// Ensures the current token includes the device_id claim required by the backend ingest endpoints.
+    /// If the claim is missing, attempts device activation to obtain a new token with device_id.
+    /// </summary>
+    private async Task<bool> EnsureDeviceActivatedAsync(CancellationToken cancellationToken)
+    {
+        if (!_userContext.IsAuthenticated)
+            return false;
+
+        if (_userContext.DeviceId.HasValue)
+            return true;
+
+        _logger.LogWarning(
+            "JWT is missing device_id claim. Attempting device activation to unblock sync.");
+
+        var jwt = await _tokenStore.GetJwtAsync(cancellationToken);
+        var refreshToken = await _tokenStore.GetRefreshTokenAsync(cancellationToken);
+
+        if (string.IsNullOrEmpty(jwt))
+        {
+            _logger.LogError("Cannot activate device: no JWT available.");
+            return false;
+        }
+
+        var result = await _deviceActivationService.ActivateDeviceAsync(
+            jwt,
+            refreshToken ?? string.Empty,
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            _logger.LogError(
+                "Device activation failed: {Error}. Sync will remain blocked until token contains device_id.",
+                result.ErrorMessage);
+            return false;
+        }
+
+        await _userContext.RefreshAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Device activated successfully (DeviceId={DeviceId}). Sync can now proceed.",
+            result.DeviceId);
+
+        return _userContext.DeviceId.HasValue;
+    }
+
     private async Task ExecuteSyncCycleAsync(CancellationToken cancellationToken)
     {
         try
         {
+            // Garantir que o token possui device_id antes de tentar sincronizar
+            if (!await EnsureDeviceActivatedAsync(cancellationToken))
+            {
+                _logger.LogDebug("Skipping sync cycle: user not authenticated or device not activated.");
+                return;
+            }
+
             // Verificar se há itens pendentes
             if (!await _outboxRepository.HasPendingItemsAsync(cancellationToken))
             {

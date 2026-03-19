@@ -1,7 +1,9 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Entities;
+using TimeTrack.Agent.Domain.Services;
 using TimeTrack.Agent.Domain.ValueObjects;
 
 namespace TimeTrack.Agent.Application.UseCases.ConsolidateSession;
@@ -14,6 +16,7 @@ public sealed class ConsolidateSessionUseCase
 {
     private readonly IActivitySessionRepository _sessionRepository;
     private readonly ICurrentUserContext _userContext;
+    private readonly IIdempotencyKeyGenerator _idempotencyKeyGenerator;
     private readonly ILogger<ConsolidateSessionUseCase> _logger;
 
     /// <summary>
@@ -21,13 +24,20 @@ public sealed class ConsolidateSessionUseCase
     /// </summary>
     private const int MaxMergeGapSeconds = 30;
 
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public ConsolidateSessionUseCase(
         IActivitySessionRepository sessionRepository,
         ICurrentUserContext userContext,
+        IIdempotencyKeyGenerator idempotencyKeyGenerator,
         ILogger<ConsolidateSessionUseCase> logger)
     {
         _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
+        _idempotencyKeyGenerator = idempotencyKeyGenerator ?? throw new ArgumentNullException(nameof(idempotencyKeyGenerator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -61,8 +71,8 @@ public sealed class ConsolidateSessionUseCase
                 recentSession.Id, request.Session.Id, session.Duration);
         }
 
-        // Persiste a sessão
-        await _sessionRepository.SaveAsync(session, cancellationToken);
+        // Persiste a sessão com outbox item para garantir sincronização com o backend
+        await SaveWithOutboxAsync(session, cancellationToken);
 
         _logger.LogInformation(
             "Session consolidated: {App} ({Duration:mm\\:ss})",
@@ -74,6 +84,39 @@ public sealed class ConsolidateSessionUseCase
             WasMerged = wasMerged,
             Duration = session.Duration
         };
+    }
+
+    /// <summary>
+    /// Salva a sessão com outbox item em uma única transação
+    /// </summary>
+    private async Task SaveWithOutboxAsync(ActivitySession session, CancellationToken cancellationToken)
+    {
+        var payloadJson = JsonSerializer.Serialize(new
+        {
+            id = session.Id,
+            exePathHash = session.App.ExePathHash,
+            displayName = session.App.DisplayName,
+            categoryProductivity = session.App.Category.Productivity,
+            categorySubcategory = session.App.Category.Subcategory,
+            categorySource = session.App.Category.Source,
+            startUtc = session.Period.StartUtc,
+            endUtc = session.Period.EndUtc,
+            windowHash = session.WindowHash,
+            windowTitle = session.WindowTitle
+        }, _jsonOptions);
+
+        var idempotencyKey = _idempotencyKeyGenerator.Generate(
+            "activity_session",
+            session.Id,
+            session.Period.StartUtc);
+
+        var outboxItem = OutboxItem.Create(
+            "activity_session",
+            session.Id,
+            payloadJson,
+            idempotencyKey);
+
+        await _sessionRepository.SaveWithOutboxAsync(session, new[] { outboxItem }, cancellationToken);
     }
 
     /// <summary>

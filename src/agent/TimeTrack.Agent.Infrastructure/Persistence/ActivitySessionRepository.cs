@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
@@ -183,25 +184,70 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             return dto != null ? MapToDomain(dto) : null;
         }
 
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
         public async Task UpdateAsync(ActivitySession session, CancellationToken cancellationToken = default)
         {
             if (session == null) throw new ArgumentNullException(nameof(session));
 
             var connection = await _context.GetConnectionAsync(cancellationToken);
+            var transaction = await _context.BeginTransactionAsync(cancellationToken);
 
-            const string sql = @"
-            UPDATE activity_sessions
-            SET end_utc = @EndUtc
-            WHERE id = @Id
-            ";
-
-            await connection.ExecuteAsync(sql, new
+            try
             {
-                Id = session.Id.ToString(),
-                EndUtc = session.Period.EndUtc
-            });
+                // 1. Update session end_utc
+                const string sessionSql = @"
+                UPDATE activity_sessions
+                SET end_utc = @EndUtc
+                WHERE id = @Id
+                ";
 
-            _logger.LogDebug("Activity session updated: {SessionId}, new end_utc: {EndUtc}", session.Id, session.Period.EndUtc);
+                await connection.ExecuteAsync(sessionSql, new
+                {
+                    Id = session.Id.ToString(),
+                    EndUtc = session.Period.EndUtc
+                });
+
+                // 2. Update outbox payload for any pending (not yet sent) outbox items for this session
+                var newPayloadJson = JsonSerializer.Serialize(new
+                {
+                    id = session.Id,
+                    exePathHash = session.App.ExePathHash,
+                    displayName = session.App.DisplayName,
+                    categoryProductivity = session.App.Category.Productivity,
+                    categorySubcategory = session.App.Category.Subcategory,
+                    categorySource = session.App.Category.Source,
+                    startUtc = session.Period.StartUtc,
+                    endUtc = session.Period.EndUtc,
+                    windowHash = session.WindowHash,
+                    windowTitle = session.WindowTitle
+                }, _jsonOptions);
+
+                const string outboxSql = @"
+                UPDATE sync_outbox
+                SET payload_json = @PayloadJson
+                WHERE entity_id = @EntityId AND sent_at IS NULL
+                ";
+
+                await connection.ExecuteAsync(outboxSql, new
+                {
+                    PayloadJson = newPayloadJson,
+                    EntityId = session.Id.ToString()
+                });
+
+                await transaction.CommitAsync();
+
+                _logger.LogDebug("Activity session updated: {SessionId}, new end_utc: {EndUtc}", session.Id, session.Period.EndUtc);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Failed to update activity session {SessionId}", session.Id);
+                throw;
+            }
         }
 
         public async Task SaveAsync(ActivitySession session, CancellationToken cancellationToken = default)

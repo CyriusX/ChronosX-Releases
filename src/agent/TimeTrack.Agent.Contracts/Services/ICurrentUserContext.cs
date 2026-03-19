@@ -23,6 +23,12 @@ public interface ICurrentUserContext
     Guid? OrgId { get; }
 
     /// <summary>
+    /// ID do dispositivo extraído do claim device_id no JWT.
+    /// Retorna null se o token não contiver o claim (gerado antes de ActivateDevice).
+    /// </summary>
+    Guid? DeviceId { get; }
+
+    /// <summary>
     /// Indica se há um usuário autenticado
     /// </summary>
     bool IsAuthenticated { get; }

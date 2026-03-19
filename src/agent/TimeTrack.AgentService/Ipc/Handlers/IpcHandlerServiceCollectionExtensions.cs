@@ -35,6 +35,7 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcCommandHandler, SkipBreakCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, ApplyFocusPolicyCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, SyncNowCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, ResetOutboxCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, AssignProjectCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, AssignTaskCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, UpdateSettingsCommandHandler>();

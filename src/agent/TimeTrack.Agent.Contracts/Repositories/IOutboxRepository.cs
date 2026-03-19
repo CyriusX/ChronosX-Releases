@@ -58,4 +58,12 @@ public interface IOutboxRepository
     Task<IReadOnlyList<OutboxItem>> GetSentAsync(
         int limit,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Redefine itens pendentes que estão presos em backoff exponencial,
+    /// tornando-os imediatamente elegíveis para a próxima tentativa de sync.
+    /// Útil para diagnóstico e recuperação manual após investigação.
+    /// </summary>
+    /// <returns>Número de itens redefinidos</returns>
+    Task<int> ResetStuckItemsAsync(CancellationToken cancellationToken = default);
 }
