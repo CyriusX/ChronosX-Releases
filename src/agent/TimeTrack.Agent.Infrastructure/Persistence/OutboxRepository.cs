@@ -293,7 +293,16 @@ public sealed class OutboxRepository : IOutboxRepository
             throw new FormatException($"Invalid EntityId format in outbox item: '{dto.entity_id}'");
         }
 
-        return OutboxItem.Create(
+        // IMPORTANT: use the persisted DB id so MarkAsSentAsync/MarkAsFailedAsync can
+        // match the correct row. OutboxItem.Create generates a new Guid.NewGuid() which
+        // would cause MarkAsSentAsync to update zero rows and items would never be cleared.
+        if (!Guid.TryParse(dto.Id, out var id))
+        {
+            throw new FormatException($"Invalid Id format in outbox item: '{dto.Id}'");
+        }
+
+        return new OutboxItem(
+            id,
             dto.entity_type,
             entityId,
             dto.payload_json,
