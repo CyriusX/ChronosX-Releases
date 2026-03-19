@@ -29,19 +29,21 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         {
             var dashboard = await _getDashboard.ExecuteAsync(DateTime.Today, ct);
 
+            // All durations are in seconds for sub-minute precision.
+            // The UI formats them via formatDuration(seconds).
             var summary = new
             {
-                totalDuration = (int)dashboard.TotalWorkTime.TotalMinutes,
-                productiveTime = (int)dashboard.TotalWorkTime.TotalMinutes,
-                idleTime = (int)dashboard.TotalIdleTime.TotalMinutes,
-                focusTime = (int)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalMinutes,
+                totalDuration = (long)dashboard.TotalWorkTime.TotalSeconds,
+                productiveTime = (long)dashboard.TotalWorkTime.TotalSeconds,
+                idleTime = (long)dashboard.TotalIdleTime.TotalSeconds,
+                focusTime = (long)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalSeconds,
                 focusScore = dashboard.FocusScore,
                 sessionsCount = dashboard.SessionCount,
                 topProjects = Array.Empty<object>(),
                 topApplications = dashboard.TopApplications.Select(a => new
                 {
                     name = a.DisplayName,
-                    duration = (int)a.TotalTime.TotalMinutes,
+                    duration = (long)a.TotalTime.TotalSeconds,
                     percentage = a.Percentage,
                     category = a.ProductivityCategory
                 }).ToArray(),
@@ -50,7 +52,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                     .Select(g => new
                     {
                         name = g.Key,
-                        duration = (int)g.Sum(a => a.TotalTime.TotalMinutes),
+                        duration = (long)g.Sum(a => a.TotalTime.TotalSeconds),
                         percentage = g.Sum(a => a.Percentage),
                         color = GetCategoryColor(g.Key)
                     }).ToArray(),

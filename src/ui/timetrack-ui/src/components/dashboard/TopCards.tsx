@@ -44,14 +44,14 @@ export function TopCards({
   console.log('[TopCards] focusMode.focusState:', focusMode.focusState);
   console.log('[TopCards] focusMode.isLoading:', focusMode.isLoading);
 
-  // Calculate values from summary
-  const totalMinutes = summary?.totalDuration ?? 0;
+  // All durations are in seconds (agent sends seconds for sub-minute precision)
+  const totalSeconds = summary?.totalDuration ?? 0;
   const focusTime = summary?.focusTime ?? 0;
   const sessionsCount = summary?.sessionsCount ?? 0;
   const productiveTime = summary?.productiveTime ?? 0;
 
   // Use focusScore from backend if available, otherwise calculate locally
-  const focusScore = summary?.focusScore ?? (totalMinutes > 0 ? Math.round((focusTime / totalMinutes) * 100) : 0);
+  const focusScore = summary?.focusScore ?? (totalSeconds > 0 ? Math.round((focusTime / totalSeconds) * 100) : 0);
   const focusPercentage = Math.min(100, Math.max(0, focusScore));
 
   // Get focus level for color coding
@@ -65,8 +65,8 @@ export function TopCards({
 
   const focusColor = getFocusLevelColor(focusScore);
 
-  // Progress towards 8-hour goal
-  const progressPercentage = Math.min((totalMinutes / (8 * 60)) * 100, 100);
+  // Progress towards 8-hour goal (8h = 28800s)
+  const progressPercentage = Math.min((totalSeconds / 28800) * 100, 100);
 
   // Current project from top applications
   const currentProject = summary?.topProjects?.[0]?.name ?? 'Sem projeto';
@@ -97,7 +97,7 @@ export function TopCards({
                 </defs>
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[24px] font-semibold text-[#f5f7fb]">{formatDuration(totalMinutes)}</span>
+                <span className="text-[24px] font-semibold text-[#f5f7fb]">{formatDuration(totalSeconds)}</span>
               </div>
             </div>
             <div className="mt-4 text-center">
@@ -135,7 +135,7 @@ export function TopCards({
             </div>
             <div className="mt-4 text-center space-y-1">
               <p className="text-[12px] text-[rgba(245,247,251,0.5)]">
-                Produtivo: <span className="text-[rgba(245,247,251,0.8)]">{formatDuration(productiveTime)}</span>
+                Produtivo: <span className="text-[rgba(245,247,251,0.8)]">{formatDuration(Math.floor(productiveTime))}</span>
               </p>
               <p className="text-[12px] text-[rgba(245,247,251,0.5)]">
                 Sessões: <span className="text-[rgba(245,247,251,0.8)]">{sessionsCount}</span>

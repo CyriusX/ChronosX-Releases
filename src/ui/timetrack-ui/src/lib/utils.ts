@@ -11,9 +11,10 @@ export function cn(...inputs: ClassValue[]) {
 /**
  * Format duration in hours and minutes
  */
-export function formatDuration(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
+export function formatDuration(seconds: number): string {
+  const totalMins = Math.floor(seconds / 60);
+  const hours = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
 
   if (hours === 0) {
     return `${mins}m`;

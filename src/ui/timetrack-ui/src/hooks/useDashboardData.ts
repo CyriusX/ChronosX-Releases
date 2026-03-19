@@ -12,7 +12,7 @@ import { useTrackingStore, handleTrackingStateChanged, handleSessionUpdated } fr
 import { useIpc } from './useIpc';
 import type { TodaySummaryResponse, TrackingStateResponse, SyncStateResponse } from '../types/ipc';
 
-const POLLING_INTERVAL_MS = 60000; // 60 seconds
+const POLLING_INTERVAL_MS = 5000; // 5 seconds — keeps dashboard live without waiting for sessionUpdated events
 
 /**
  * Hook that manages dashboard data fetching, polling, and event subscriptions

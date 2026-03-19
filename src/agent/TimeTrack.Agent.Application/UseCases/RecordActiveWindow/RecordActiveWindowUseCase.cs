@@ -150,15 +150,10 @@ public sealed class RecordActiveWindowUseCase
         AppIdentity newApp,
         string? newWindowHash)
     {
-        // Mesmo aplicativo
-        if (session.App.ExePathHash != newApp.ExePathHash)
-            return false;
-
-        // Mesmo hash de janela (ou ambos null)
-        if (session.WindowHash != newWindowHash)
-            return false;
-
-        return true;
+        // Mesmo aplicativo — a sessão é estendida enquanto o usuário permanecer
+        // no mesmo executável, independentemente de mudanças no título da janela
+        // (ex.: troca de arquivo no VS Code, abas no browser).
+        return session.App.ExePathHash == newApp.ExePathHash;
     }
 
     /// <summary>

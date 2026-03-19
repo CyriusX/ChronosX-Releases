@@ -62,28 +62,28 @@ const mockTrackingState = {
 };
 
 const mockTodaySummary = {
-  totalDuration: 192, // 3h 12m in minutes
-  productiveTime: 160,
-  idleTime: 32,
-  focusTime: 82,
+  totalDuration: 11520, // 3h 12m in seconds (192 * 60)
+  productiveTime: 9600, // 160m in seconds
+  idleTime: 1920,       // 32m in seconds
+  focusTime: 4920,      // 82m in seconds
   sessionsCount: 8,
   topProjects: [
-    { name: 'A Gente (App)', duration: 166, percentage: 49 },
-    { name: 'Cliente X', duration: 75, percentage: 30 },
-    { name: 'Estudos', duration: 20, percentage: 12 },
-    { name: 'Admin', duration: 15, percentage: 9 },
+    { name: 'A Gente (App)', duration: 9960, percentage: 49 },
+    { name: 'Cliente X', duration: 4500, percentage: 30 },
+    { name: 'Estudos', duration: 1200, percentage: 12 },
+    { name: 'Admin', duration: 900, percentage: 9 },
   ],
   topApplications: [
-    { name: 'VS Code', duration: 166, percentage: 59 },
-    { name: 'Chrome', duration: 103, percentage: 16 },
-    { name: 'Slack', duration: 20, percentage: 8 },
-    { name: 'Spotify', duration: 20, percentage: 5 },
+    { name: 'VS Code', duration: 9960, percentage: 59 },
+    { name: 'Chrome', duration: 6180, percentage: 16 },
+    { name: 'Slack', duration: 1200, percentage: 8 },
+    { name: 'Spotify', duration: 1200, percentage: 5 },
   ],
   categories: [
-    { name: 'Desenvolvimento', duration: 402, percentage: 64, color: '#05df72' },
-    { name: 'Reuniões', duration: 75, percentage: 17, color: '#4ad9ff' },
-    { name: 'Pesquisa', duration: 46, percentage: 10, color: '#8b7aff' },
-    { name: 'Comunicação', duration: 39, percentage: 9, color: '#ff9c5b' },
+    { name: 'Desenvolvimento', duration: 24120, percentage: 64, color: '#05df72' },
+    { name: 'Reuniões', duration: 4500, percentage: 17, color: '#4ad9ff' },
+    { name: 'Pesquisa', duration: 2760, percentage: 10, color: '#8b7aff' },
+    { name: 'Comunicação', duration: 2340, percentage: 9, color: '#ff9c5b' },
   ],
   weeklyHistory: [
     { date: '2024-01-08', dayName: 'Seg', hours: 6.5, isToday: false },
