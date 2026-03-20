@@ -89,6 +89,8 @@ public sealed class GetLocalDashboardUseCase
         // Calcula totais (excluding our own app processes)
         var totalWorkTime = TimeSpan.Zero;
         var appUsage = new Dictionary<string, (TimeSpan Time, string Category, string Subcategory)>();
+        // Aggregate by executable (ExePathHash) — groups browser tabs into their parent app
+        var exeUsage = new Dictionary<string, (TimeSpan Time, string Name, string Category, string Subcategory)>();
 
         foreach (var session in sessions)
         {
@@ -96,8 +98,14 @@ public sealed class GetLocalDashboardUseCase
             if (internalApps.Contains(appName))
                 continue;
 
+            // Also skip if the original exe name (from window title) is internal
+            var exeName = ExtractExeDisplayName(session.WindowTitle, appName);
+            if (internalApps.Contains(exeName))
+                continue;
+
             totalWorkTime += session.Duration;
 
+            // Per-tab/site aggregation (for detailed Apps & Sites card)
             if (appUsage.TryGetValue(appName, out var existing))
             {
                 appUsage[appName] = (existing.Time + session.Duration, session.App.Category.Productivity, session.App.Category.Subcategory);
@@ -105,6 +113,17 @@ public sealed class GetLocalDashboardUseCase
             else
             {
                 appUsage[appName] = (session.Duration, session.App.Category.Productivity, session.App.Category.Subcategory);
+            }
+
+            // Per-executable aggregation (for "Apps mais usados")
+            var exeHash = session.App.ExePathHash;
+            if (exeUsage.TryGetValue(exeHash, out var exeExisting))
+            {
+                exeUsage[exeHash] = (exeExisting.Time + session.Duration, exeExisting.Name, exeExisting.Category, exeExisting.Subcategory);
+            }
+            else
+            {
+                exeUsage[exeHash] = (session.Duration, exeName, session.App.Category.Productivity, session.App.Category.Subcategory);
             }
         }
 
@@ -134,6 +153,22 @@ public sealed class GetLocalDashboardUseCase
             .OrderByDescending(s => s.Period.EndUtc)
             .FirstOrDefault();
 
+        // Top apps grouped by executable (browser tabs merged into parent app)
+        var topAppsByExe = exeUsage
+            .OrderByDescending(x => x.Value.Time)
+            .Take(5)
+            .Select(x => new AppUsageSummary
+            {
+                DisplayName = x.Value.Name,
+                TotalTime = x.Value.Time,
+                Percentage = totalWorkTime.TotalSeconds > 0
+                    ? (x.Value.Time.TotalSeconds / totalWorkTime.TotalSeconds) * 100
+                    : 0,
+                ProductivityCategory = x.Value.Category,
+                Subcategory = x.Value.Subcategory
+            })
+            .ToList();
+
         // Calcular métricas de foco
         var focusMetrics = CalculateFocusMetrics(sessions, idlePeriods, appUsage, totalWorkTime);
         var focusScore = FocusScoreCalculator.Calculate(focusMetrics);
@@ -152,6 +187,7 @@ public sealed class GetLocalDashboardUseCase
             FocusScore = focusScore,
             SessionCount = sessions.Count,
             TopApplications = topApps,
+            TopAppsByExe = topAppsByExe,
             LastSession = lastSession != null
                 ? new ActivitySessionSummary
                 {
@@ -232,5 +268,32 @@ public sealed class GetLocalDashboardUseCase
             pauseCount,
             idleCount,
             longFocusBlockCount);
+    }
+
+    /// <summary>
+    /// Extracts the real application name from a window title.
+    /// For browsers: "YouTube - Google Chrome" → "Google Chrome"
+    /// For regular apps: returns the displayName as-is.
+    /// </summary>
+    private static string ExtractExeDisplayName(string? windowTitle, string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(windowTitle))
+            return displayName;
+
+        // Check if the window title has a " - AppName" suffix (typical browser pattern)
+        var separators = new[] { " - ", " — ", " – " };
+        foreach (var sep in separators)
+        {
+            var lastIdx = windowTitle.LastIndexOf(sep, StringComparison.Ordinal);
+            if (lastIdx > 0)
+            {
+                var suffix = windowTitle[(lastIdx + sep.Length)..].Trim();
+                // If the suffix looks like a real app name (not too short, not the same as display)
+                if (suffix.Length > 2 && suffix != displayName)
+                    return suffix;
+            }
+        }
+
+        return displayName;
     }
 }

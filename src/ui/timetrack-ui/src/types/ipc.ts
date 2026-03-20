@@ -295,6 +295,7 @@ export interface TodaySummaryResponse {
   sessionsCount: number;
   topProjects: ProjectSummary[];
   topApplications: ApplicationSummary[];
+  topAppsByExe?: ApplicationSummary[];
   categories: CategorySummary[];
   weeklyHistory: WeeklyHistoryItem[];
 }

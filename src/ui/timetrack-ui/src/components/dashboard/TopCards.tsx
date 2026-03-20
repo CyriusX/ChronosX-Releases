@@ -5,8 +5,6 @@
  * 1. Tempo Rastreado - Time tracked today with circular progress
  * 2. Foco - Focus percentage and sessions
  * 3. Timer - Timer card with optional Focus Mode support (CX-139)
- *
- * CX-139: Timer Card extended with Focus Mode (Pomodoro/Ultradian)
  */
 
 import { MoreVertical } from 'lucide-react';
@@ -27,6 +25,8 @@ interface TopCardsProps {
   onStopTracking: () => void;
 }
 
+const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl";
+
 export function TopCards({
   summary,
   isPaused,
@@ -36,60 +36,79 @@ export function TopCards({
   onPauseTracking,
   onStopTracking,
 }: TopCardsProps) {
-  // Focus mode hook - only used when focus mode is enabled
   const focusMode = useFocusMode();
 
-  // Debug logging
-  console.log('[TopCards] focusModePolicy:', focusModePolicy);
-  console.log('[TopCards] focusMode.focusState:', focusMode.focusState);
-  console.log('[TopCards] focusMode.isLoading:', focusMode.isLoading);
-
-  // All durations are in seconds (agent sends seconds for sub-minute precision)
   const totalSeconds = summary?.totalDuration ?? 0;
   const idleSeconds = summary?.idleTime ?? 0;
   const focusTime = summary?.focusTime ?? 0;
   const sessionsCount = summary?.sessionsCount ?? 0;
   const productiveTime = summary?.productiveTime ?? 0;
 
-  // Use focusScore from backend if available, otherwise calculate locally
-  const focusScore = summary?.focusScore ?? (totalSeconds > 0 ? Math.round((focusTime / totalSeconds) * 100) : 0);
-  const focusPercentage = Math.min(100, Math.max(0, focusScore));
+  const categories = summary?.categories ?? [];
 
-  // Get focus level for color coding
-  const getFocusLevelColor = (score: number): string => {
-    if (score >= 80) return '#05df72'; // Excellent - green
-    if (score >= 60) return '#4ade80'; // Good - light green
-    if (score >= 40) return '#fbbf24'; // Moderate - yellow
-    if (score >= 20) return '#fb923c'; // Low - orange
-    return '#f87171'; // Poor - red
+  // Compute productivity score: productive time / total active time * 100
+  const productiveSecs = categories
+    .filter(c => c.productivity === 'productive')
+    .reduce((sum, c) => sum + c.duration, 0);
+  const distractionSecs = categories
+    .filter(c => c.productivity === 'distraction')
+    .reduce((sum, c) => sum + c.duration, 0);
+  const neutralSecs = Math.max(0, totalSeconds - productiveSecs - distractionSecs);
+
+  const productivityScore = totalSeconds > 0
+    ? Math.round((productiveSecs / totalSeconds) * 100)
+    : 0;
+
+  const getScoreColor = (score: number): string => {
+    if (score >= 80) return '#05df72';
+    if (score >= 60) return '#4ade80';
+    if (score >= 40) return '#fbbf24';
+    if (score >= 20) return '#fb923c';
+    return '#f87171';
   };
+  const scoreColor = getScoreColor(productivityScore);
 
-  const focusColor = getFocusLevelColor(focusScore);
+  // Build ring chart segments from categories (sorted by duration desc)
+  const ringRadius = 42;
+  const circumference = 2 * Math.PI * ringRadius;
+  const sortedCategories = [...categories].sort((a, b) => b.duration - a.duration);
 
-  // Progress towards 8-hour goal (8h = 28800s)
+  // Calculate arc segments for the ring chart
+  let accumulatedOffset = 0;
+  const ringSegments = sortedCategories.map((cat) => {
+    const fraction = totalSeconds > 0 ? cat.duration / totalSeconds : 0;
+    const arcLen = fraction * circumference;
+    const gap = sortedCategories.length > 1 ? 2 : 0; // small gap between segments
+    const segment = {
+      color: cat.color,
+      dasharray: `${Math.max(0, arcLen - gap)} ${circumference - Math.max(0, arcLen - gap)}`,
+      offset: -accumulatedOffset,
+      name: cat.name,
+      pct: Math.round(fraction * 100),
+    };
+    accumulatedOffset += arcLen;
+    return segment;
+  });
+
   const progressPercentage = Math.min((totalSeconds / 28800) * 100, 100);
-
-  // Current project from top applications
   const currentProject = summary?.topProjects?.[0]?.name ?? 'Sem projeto';
 
   return (
-    <div className="grid grid-cols-3 gap-6">
+    <div className="grid grid-cols-3 gap-4 flex-shrink-0">
       {/* Tempo Rastreado Card */}
-      <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1),0px_8px_10px_0px_rgba(0,0,0,0.1)]">
-        <CardHeader className="pb-0 pt-[17px] px-[17px]">
+      <Card className={cardBase}>
+        <CardHeader className="pb-0 pt-3 px-4">
           <CardTitle className="flex items-center justify-between">
-            <span className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Tempo rastreado</span>
-            <button className="w-4 h-4 flex items-center justify-center">
-              <MoreVertical className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
-            </button>
+            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Tempo rastreado</span>
+            <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-3 pb-4 px-[17px]">
+        <CardContent className="pt-3 pb-3 px-4">
           <div className="flex flex-col items-center">
-            <div className="relative w-[128px] h-[128px]">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
-                <circle cx="64" cy="64" r="56" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="12" />
-                <circle cx="64" cy="64" r="56" fill="none" stroke="url(#gradient1)" strokeWidth="12" strokeDasharray={`${progressPercentage * 3.52} 352`} strokeLinecap="round" />
+            <div className="relative w-[100px] h-[100px]">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
+                <circle cx="50" cy="50" r="42" fill="none" stroke="url(#gradient1)" strokeWidth="8" strokeDasharray={`${progressPercentage * 2.64} 264`} strokeLinecap="round" />
                 <defs>
                   <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stopColor="#4ad9ff" />
@@ -98,64 +117,95 @@ export function TopCards({
                 </defs>
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[24px] font-semibold text-[#f5f7fb]">{formatDuration(totalSeconds)}</span>
+                <span className="text-[20px] font-semibold text-[#f5f7fb]">{formatDuration(totalSeconds)}</span>
               </div>
             </div>
-            <div className="mt-4 text-center">
-              <p className="text-[24px] font-semibold text-[rgba(245,247,251,0.9)]">{Math.round(progressPercentage)}%</p>
-              <div className="flex items-center justify-center gap-[6px] mt-1">
-                <div className="w-1 h-1 rounded-full bg-[#00d3f3]" />
-                <span className="text-[10px] text-[rgba(245,247,251,0.4)] tracking-[0.25px] uppercase">vs ontem</span>
-              </div>
-              <p className="text-[10px] text-[rgba(245,247,251,0.3)] mt-2">Meta de hoje</p>
-              <p className="text-[10px] text-[rgba(245,247,251,0.4)] mt-1">tempo Idle: <span className="text-[rgba(245,247,251,0.6)] font-medium">{formatDuration(idleSeconds)}</span></p>
+            <div className="mt-3 text-center">
+              <p className="text-[18px] font-semibold text-[rgba(245,247,251,0.9)]">{Math.round(progressPercentage)}%</p>
+              <p className="text-[10px] text-[rgba(245,247,251,0.3)] mt-0.5">Meta de hoje</p>
+              <p className="text-[10px] text-[rgba(245,247,251,0.4)] mt-1">
+                Idle: <span className="text-[rgba(245,247,251,0.6)] font-medium">{formatDuration(idleSeconds)}</span>
+              </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Foco Card */}
-      <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1),0px_8px_10px_0px_rgba(0,0,0,0.1)]">
-        <CardHeader className="pb-0 pt-[17px] px-[17px]">
+      {/* Produtividade Card — ring chart by category with productivity score */}
+      <Card className={cardBase}>
+        <CardHeader className="pb-0 pt-3 px-4">
           <CardTitle className="flex items-center justify-between">
-            <span className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Foco</span>
-            <button className="w-4 h-4 flex items-center justify-center">
-              <MoreVertical className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
-            </button>
+            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Produtividade</span>
+            <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-3 pb-4 px-[17px]">
+        <CardContent className="pt-2 pb-3 px-4">
           <div className="flex flex-col items-center">
-            <div className="relative w-[128px] h-[128px]">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
-                <circle cx="64" cy="64" r="56" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="12" />
-                <circle cx="64" cy="64" r="56" fill="none" stroke={focusColor} strokeWidth="12" strokeDasharray={`${focusPercentage * 3.52} 352`} strokeLinecap="round" />
+            {/* Multi-segment ring chart */}
+            <div className="relative w-[100px] h-[100px]">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                {/* Background ring */}
+                <circle cx="50" cy="50" r={ringRadius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
+                {/* Category segments */}
+                {ringSegments.map((seg, i) => (
+                  <circle
+                    key={i}
+                    cx="50" cy="50" r={ringRadius}
+                    fill="none"
+                    stroke={seg.color}
+                    strokeWidth="9"
+                    strokeDasharray={seg.dasharray}
+                    strokeDashoffset={seg.offset}
+                    strokeLinecap="butt"
+                  />
+                ))}
               </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[36px] font-semibold text-[#f5f7fb]">{focusPercentage}</span>
+              {/* Center score */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-[26px] font-bold" style={{ color: scoreColor }}>{productivityScore}</span>
+                <span className="text-[8px] text-[rgba(245,247,251,0.4)] -mt-0.5">SCORE</span>
               </div>
             </div>
-            <div className="mt-4 text-center space-y-1">
-              <p className="text-[12px] text-[rgba(245,247,251,0.5)]">
-                Produtivo: <span className="text-[rgba(245,247,251,0.8)]">{formatDuration(Math.floor(productiveTime))}</span>
-              </p>
-              <p className="text-[12px] text-[rgba(245,247,251,0.5)]">
-                Sessões: <span className="text-[rgba(245,247,251,0.8)]">{sessionsCount}</span>
-              </p>
+
+            {/* Productivity breakdown */}
+            <div className="mt-2.5 w-full space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-[#4ade80]" />
+                  <span className="text-[10px] text-[rgba(245,247,251,0.6)]">Produtivo</span>
+                </div>
+                <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(productiveSecs)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-[#fbbf24]" />
+                  <span className="text-[10px] text-[rgba(245,247,251,0.6)]">Neutro</span>
+                </div>
+                <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(neutralSecs)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-[#f87171]" />
+                  <span className="text-[10px] text-[rgba(245,247,251,0.6)]">Distração</span>
+                </div>
+                <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(distractionSecs)}</span>
+              </div>
             </div>
-            <div className="flex gap-2 mt-4">
-              <span className="px-[10px] py-1 text-[10px] rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.5)]">
-                Score: {focusScore}
-              </span>
-              <span className="px-[10px] py-1 text-[10px] rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.5)]">
-                {sessionsCount} sessões
-              </span>
+
+            {/* Category legend (top 3) */}
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 justify-center">
+              {sortedCategories.slice(0, 3).map((cat, i) => (
+                <div key={i} className="flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                  <span className="text-[8px] text-[rgba(245,247,251,0.4)]">{cat.name} {Math.round(cat.percentage)}%</span>
+                </div>
+              ))}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Timer Card - with Focus Mode support */}
+      {/* Timer Card */}
       <TimerFocusCard
         focusModePolicy={focusModePolicy}
         focusState={focusMode.focusState}

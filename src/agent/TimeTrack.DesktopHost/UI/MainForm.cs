@@ -54,11 +54,17 @@ public sealed class MainForm : Form
 
         Controls.Add(_webView);
 
-        // Form settings
+        // Form settings — fixed size at 80% of screen, centered, non-resizable
         Text = _settings.AppTitle;
-        Size = new Size(_settings.WindowWidth, _settings.WindowHeight);
-        MinimumSize = new Size(800, 600);
+        var screen = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
+        var w = (int)(screen.Width * 0.80);
+        var h = (int)(screen.Height * 0.80);
+        Size = new Size(w, h);
+        MinimumSize = new Size(w, h);
+        MaximumSize = new Size(w, h);
         StartPosition = FormStartPosition.CenterScreen;
+        FormBorderStyle = FormBorderStyle.FixedSingle;
+        MaximizeBox = false;
         FormClosing += OnFormClosing;
     }
 

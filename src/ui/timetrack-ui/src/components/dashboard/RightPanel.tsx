@@ -14,25 +14,19 @@ interface RightPanelProps {
   showTeamCard?: boolean;
 }
 
-// Gradient colors for team member avatars
 const MEMBER_GRADIENTS = [
   'from-[#ff8904] to-[#f6339a]',
   'from-[#51a2ff] to-[#00b8db]',
   'from-[#c27aff] to-[#f6339a]',
   'from-[#05df72] to-[#00bba7]',
   'from-[#fdc700] to-[#ff6900]',
-  'from-[#ff6b6b] to-[#ee5a24]',
-  'from-[#a29bfe] to-[#6c5ce7]',
-  'from-[#fd79a8] to-[#e84393]',
 ];
 
-// Generate a consistent gradient index based on member name
 function getMemberGradient(name: string): string {
   const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return MEMBER_GRADIENTS[hash % MEMBER_GRADIENTS.length];
 }
 
-// Map TeamMemberStatus to TeamMember props
 function mapMemberToProps(member: TeamMemberStatus) {
   return {
     initial: member.displayName.charAt(0).toUpperCase(),
@@ -42,38 +36,33 @@ function mapMemberToProps(member: TeamMemberStatus) {
   };
 }
 
-// Productivity level to color mapping for app usage items
 const productivityColors: Record<string, string> = {
   productive: '#4ade80',
   neutral: '#fbbf24',
   distraction: '#f87171',
 };
 
+const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden";
+
 export function RightPanel({ summary, weeklyHistory, showTeamCard = false }: RightPanelProps) {
   const { members, isLoading, loadTeamStatus } = useTeamStatus();
 
-  // Load team status when team card is visible
   useEffect(() => {
-    if (showTeamCard) {
-      loadTeamStatus();
-    }
+    if (showTeamCard) loadTeamStatus();
   }, [showTeamCard, loadTeamStatus]);
 
-  // Filter only active members and map to TeamMember props
   const teamMembers = useMemo(() => {
-    return members
-      .filter((member) => member.status === 'Active')
-      .map(mapMemberToProps);
+    return members.filter((m) => m.status === 'Active').map(mapMemberToProps);
   }, [members]);
 
-  // Build top apps from real data (sorted by duration, top 5)
+  // Use topAppsByExe for "Apps mais usados" — aggregates browser tabs into parent app
   const topApps = useMemo(() => {
-    const apps = summary?.topApplications ?? [];
+    const apps = summary?.topAppsByExe ?? summary?.topApplications ?? [];
     return [...apps]
       .sort((a, b) => b.duration - a.duration)
       .slice(0, 5)
       .map((app) => ({
-        icon: <Globe className="w-4 h-4" />,
+        icon: <Globe className="w-3.5 h-3.5" />,
         label: app.name,
         subtext: `${Math.round(app.percentage)}%`,
         time: formatDuration(app.duration),
@@ -81,122 +70,81 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false }: Rig
       }));
   }, [summary]);
 
-  // Calculate weekly total
   const weeklyTotal = weeklyHistory.reduce((sum, item) => sum + item.hours, 0);
 
   return (
-    <aside className="w-[260px] flex flex-col gap-4">
-      {/* Equipe Agora Card - Apenas Admin/Gestor */}
+    <div className="flex flex-col gap-4">
+      {/* Equipe Agora */}
       {showTeamCard && (
-        <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1),0px_8px_10px_0px_rgba(0,0,0,0.1)]">
-          <CardHeader className="pb-0 pt-[17px] px-[17px]">
+        <Card className={cardBase}>
+          <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="flex items-center justify-between">
-              <span className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Equipe agora</span>
-              <button className="w-4 h-4 flex items-center justify-center">
-                <MoreVertical className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
+              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Equipe agora</span>
+              <button className="flex items-center gap-1 text-[10px] text-[rgba(245,247,251,0.4)]">
+                Todos <ChevronDown className="w-3 h-3" />
               </button>
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-3 pb-4 px-[17px]">
-            {/* Team Selector */}
-            <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-[10px] px-[13px] py-1 flex items-center justify-between mb-3">
-              <span className="text-[12px] font-medium text-[rgba(245,247,251,0.6)]">Todos os times</span>
-              <ChevronDown className="w-[14px] h-[14px] text-[rgba(245,247,251,0.4)]" />
-            </div>
-            {/* Team Members */}
+          <CardContent className="pt-2.5 pb-3 px-4">
             <div className="space-y-2">
-              {isLoading ? (
-                <div className="text-[12px] text-[rgba(245,247,251,0.4)] text-center py-2">
-                  Carregando...
-                </div>
-              ) : teamMembers.length === 0 ? (
-                <div className="text-[12px] text-[rgba(245,247,251,0.4)] text-center py-2">
-                  Nenhum membro ativo
-                </div>
-              ) : (
-                teamMembers.map((member) => (
-                  <TeamMember key={member.initial + member.name} {...member} />
+              {teamMembers.length > 0 ? (
+                teamMembers.slice(0, 5).map((member, i) => (
+                  <TeamMember key={i} {...member} />
                 ))
+              ) : (
+                <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-2">
+                  {isLoading ? 'Carregando...' : 'Nenhum membro ativo'}
+                </p>
               )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Tempo por Projeto Card */}
-      <Card className="flex-1 bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1),0px_8px_10px_0px_rgba(0,0,0,0.1)]">
-        <CardHeader className="pb-0 pt-[16px] px-[16px]">
+      {/* Tempo por Projeto */}
+      <Card className={cardBase}>
+        <CardHeader className="pb-0 pt-3 px-4">
           <CardTitle className="flex items-center justify-between">
-            <span className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Tempo por projeto</span>
-            <button className="w-4 h-4 flex items-center justify-center">
-              <MoreVertical className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
-            </button>
+            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Tempo por projeto</span>
+            <span className="text-[11px] text-[rgba(245,247,251,0.4)]">{weeklyTotal.toFixed(1)}h</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0 px-[16px] pb-4">
-          {/* Filter Tabs */}
-          <div className="flex gap-[6px] mt-3 mb-2">
-            <button className="px-3 py-1 text-[10px] font-medium rounded-lg bg-gradient-to-r from-[rgba(74,217,255,0.15)] to-[rgba(60,123,255,0.15)] border border-[rgba(74,217,255,0.2)] text-[rgba(245,247,251,0.9)]">Todos</button>
-            <button className="px-3 py-1 text-[10px] font-medium rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.4)]">A Gente</button>
-            <button className="px-3 py-1 text-[10px] font-medium rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.4)]">Clientes</button>
-          </div>
-          {/* Total Time */}
-          <div className="py-2">
-            <p className="text-[30px] font-semibold text-[#f5f7fb]">{weeklyTotal.toFixed(1)}h</p>
-            <p className="text-[10px] text-[rgba(245,247,251,0.4)]">Semana</p>
-          </div>
-
-          {/* Bar Chart */}
-          <div className="h-[80px]">
+        <CardContent className="pt-2 pb-3 px-4">
+          <div className="h-[120px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyHistory} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+              <BarChart data={weeklyHistory} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                 <XAxis
                   dataKey="dayName"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: 'rgba(245,247,251,0.3)', fontSize: 9 }}
+                  tick={{ fontSize: 9, fill: 'rgba(245,247,251,0.3)' }}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'rgba(26,29,46,0.9)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    color: '#f5f7fb',
-                  }}
+                  contentStyle={{ backgroundColor: '#1a1d2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
                   formatter={(value) => [`${Number(value).toFixed(1)}h`, 'Horas']}
                 />
-                <Bar
-                  dataKey="hours"
-                  fill="#4ad9ff"
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={24}
-                />
+                <Bar dataKey="hours" fill="#4ad9ff" radius={[3, 3, 0, 0]} maxBarSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
           {/* Apps mais usados */}
-          <div className="border-t border-[rgba(255,255,255,0.04)] pt-3 mt-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Apps mais usados</span>
-              <button className="w-4 h-4 flex items-center justify-center">
-                <MoreVertical className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
-              </button>
+          <div className="border-t border-[rgba(255,255,255,0.04)] pt-2.5 mt-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-medium text-[rgba(245,247,251,0.9)]">Apps mais usados</span>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {topApps.length > 0 ? (
                 topApps.map((app) => (
                   <AppUsageItem key={app.label} {...app} />
                 ))
               ) : (
-                <p className="text-[12px] text-[rgba(245,247,251,0.4)] text-center py-2">
-                  Nenhum app registrado
-                </p>
+                <p className="text-[10px] text-[rgba(245,247,251,0.4)] text-center py-1">Nenhum app</p>
               )}
             </div>
           </div>
         </CardContent>
       </Card>
-    </aside>
+    </div>
   );
 }

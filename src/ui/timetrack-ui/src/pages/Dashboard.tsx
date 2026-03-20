@@ -20,47 +20,36 @@ export default function Dashboard() {
   const { focusModePolicy } = useFocusModePolicy();
 
   const onStartTracking = async () => {
-    console.log('[Dashboard] Starting tracking...');
     const result = await sendCommand('startTracking');
-    console.log('[Dashboard] Start tracking result:', result);
-    if (result.success) {
-      refreshData(); // Refresh tracking state to update UI
-    }
+    if (result.success) refreshData();
   };
 
   const onStopTracking = async () => {
-    console.log('[Dashboard] Stopping tracking...');
     const result = await sendCommand('stopTracking');
-    console.log('[Dashboard] Stop tracking result:', result);
-    if (result.success) {
-      refreshData(); // Refresh tracking state to update UI
-    }
+    if (result.success) refreshData();
   };
 
   const onPauseTracking = async () => {
-    console.log('[Dashboard] Toggling pause, currently paused:', isPaused);
     const result = await sendCommand(isPaused ? 'resumeTracking' : 'pauseTracking');
-    console.log('[Dashboard] Pause toggle result:', result);
-    if (result.success) {
-      refreshData(); // Refresh tracking state to update UI
-    }
+    if (result.success) refreshData();
   };
 
   return (
-    <div className="flex h-screen bg-[#0b0d14]">
+    <div className="flex h-screen bg-[#0b0d14] overflow-hidden">
       <Sidebar />
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto bg-[#0b0d14] p-6">
-        <div className="h-full flex gap-6">
-          {/* Left Content Area */}
-          <div className="flex-1 flex flex-col gap-6">
-            <DashboardHeader
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              showTeamTab={canManageTeam}
-            />
+      <main className="flex-1 flex flex-col min-w-0 min-h-0">
+        <div className="px-5 pt-4 pb-2 flex-shrink-0">
+          <DashboardHeader
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            showTeamTab={canManageTeam}
+          />
+        </div>
 
+        <div className="flex-1 flex gap-5 px-5 pb-4 min-h-0">
+          {/* Left Content Area — scrollable */}
+          <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-0 pr-1">
             <TopCards
               summary={todaySummary}
               isPaused={isPaused}
@@ -71,16 +60,17 @@ export default function Dashboard() {
               onStopTracking={onStopTracking}
             />
 
-            <ActivitySection />
-
             <BottomCards summary={todaySummary} />
           </div>
 
-          <RightPanel
-            summary={todaySummary}
-            weeklyHistory={weeklyHistory}
-            showTeamCard={canManageTeam}
-          />
+          {/* Right Panel — fixed width, scrollable */}
+          <div className="w-[280px] flex-shrink-0 overflow-y-auto">
+            <RightPanel
+              summary={todaySummary}
+              weeklyHistory={weeklyHistory}
+              showTeamCard={canManageTeam}
+            />
+          </div>
         </div>
       </main>
     </div>

@@ -52,16 +52,22 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                     subcategory = a.Subcategory
                 }).ToArray(),
 
-                // Group by subcategory (development, communication, …) for meaningful category cards.
-                // Apps whose subcategory is still "unknown" fall back to their productivity level so
-                // they are never silently dropped from the list.
+                // Group by subcategory for category cards.
+                // "browser_general" is too broad — merge it into "Outros" (Other).
+                // "unknown" falls back to productivity level.
                 categories = dashboard.TopApplications
-                    .GroupBy(a => a.Subcategory == "unknown" || string.IsNullOrEmpty(a.Subcategory)
-                        ? a.ProductivityCategory
-                        : a.Subcategory)
+                    .GroupBy(a =>
+                    {
+                        var sub = a.Subcategory;
+                        if (string.IsNullOrEmpty(sub) || sub == "unknown")
+                            return a.ProductivityCategory;
+                        if (sub == "browser_general")
+                            return "other";
+                        return sub;
+                    })
                     .Select(g => new
                     {
-                        name        = g.Key,
+                        name        = FormatCategoryName(g.Key),
                         duration    = (long)g.Sum(a => a.TotalTime.TotalSeconds),
                         percentage  = g.Sum(a => a.Percentage),
                         color       = GetCategoryColor(g.Key),
@@ -69,6 +75,16 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                     })
                     .OrderByDescending(c => c.duration)
                     .ToArray(),
+
+                // Top apps grouped by executable (browser tabs merged into parent app name)
+                topAppsByExe = dashboard.TopAppsByExe.Select(a => new
+                {
+                    name        = a.DisplayName,
+                    duration    = (long)a.TotalTime.TotalSeconds,
+                    percentage  = a.Percentage,
+                    productivity = a.ProductivityCategory,
+                    subcategory = a.Subcategory
+                }).ToArray(),
 
                 weeklyHistory = WeeklyHistoryGenerator.Generate()
             };
@@ -82,19 +98,51 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         }
     }
 
+    /// <summary>
+    /// Formats a raw subcategory key into a user-friendly name.
+    /// "productivity_tools" → "Productivity Tools", "social_media" → "Social Media"
+    /// </summary>
+    private static string FormatCategoryName(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return "Outros";
+
+        // Known friendly names
+        var friendlyNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["development"]        = "Development",
+            ["design"]             = "Design",
+            ["productivity_tools"] = "Productivity",
+            ["communication"]      = "Communication",
+            ["meetings"]           = "Meetings",
+            ["entertainment"]      = "Entertainment",
+            ["social_media"]       = "Social Media",
+            ["browser_general"]    = "Browsing",
+            ["other"]              = "Outros",
+            ["productive"]         = "Productive",
+            ["neutral"]            = "Neutral",
+            ["distraction"]        = "Distraction",
+        };
+
+        if (friendlyNames.TryGetValue(key, out var friendly))
+            return friendly;
+
+        // Fallback: replace underscores, capitalize each word
+        return string.Join(' ', key.Split('_').Select(w =>
+            w.Length > 0 ? char.ToUpper(w[0]) + w[1..] : w));
+    }
+
     private static string GetCategoryColor(string key) =>
         key?.ToLowerInvariant() switch
         {
-            // Subcategory-based colours
             "development"        => "#4ad9ff",
             "design"             => "#8b7aff",
             "productivity_tools" => "#05df72",
+            "productivity"       => "#05df72",
             "communication"      => "#ff9c5b",
             "meetings"           => "#4ad9ff",
-            "browser_general"    => "#fbbf24",
-            "social_media"       => "#f87171",
             "entertainment"      => "#f87171",
-            // Productivity-level fallbacks
+            "social_media"       => "#fb923c",
+            "other"              => "#94a3b8",
             "productive"         => "#4ade80",
             "neutral"            => "#fbbf24",
             "distraction"        => "#f87171",

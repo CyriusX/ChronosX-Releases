@@ -9,16 +9,16 @@ interface AppItemProps {
 
 export function AppItem({ percentage, icon, label, time, color, borderColor }: AppItemProps) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-[12px] text-[rgba(245,247,251,0.4)] w-7 text-right">{Math.round(percentage)}%</span>
+    <div className="flex items-center gap-2 min-w-0">
+      <span className="text-[11px] text-[rgba(245,247,251,0.4)] w-7 text-right flex-shrink-0">{Math.round(percentage)}%</span>
       <div
-        className="w-6 h-6 rounded-lg flex items-center justify-center"
+        className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
         style={{ backgroundColor: color, border: borderColor ? `1px solid ${borderColor}` : 'none' }}
       >
         <span className="text-[rgba(245,247,251,0.8)]">{icon}</span>
       </div>
-      <span className="text-[12px] text-[rgba(245,247,251,0.8)] flex-1">{label}</span>
-      <span className="text-[12px] text-[rgba(245,247,251,0.4)]">{time}</span>
+      <span className="text-[11px] text-[rgba(245,247,251,0.8)] flex-1 truncate min-w-0">{label}</span>
+      <span className="text-[11px] text-[rgba(245,247,251,0.4)] flex-shrink-0">{time}</span>
     </div>
   );
 }

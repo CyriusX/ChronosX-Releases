@@ -46,6 +46,11 @@ public sealed record LocalDashboardResponse
     public IReadOnlyList<AppUsageSummary> TopApplications { get; init; } = Array.Empty<AppUsageSummary>();
 
     /// <summary>
+    /// Top apps grouped by executable (aggregates browser tabs into their parent app)
+    /// </summary>
+    public IReadOnlyList<AppUsageSummary> TopAppsByExe { get; init; } = Array.Empty<AppUsageSummary>();
+
+    /// <summary>
     /// Última sessão de atividade
     /// </summary>
     public ActivitySessionSummary? LastSession { get; init; }
