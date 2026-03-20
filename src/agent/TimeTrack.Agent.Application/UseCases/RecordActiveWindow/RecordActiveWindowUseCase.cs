@@ -131,29 +131,80 @@ public sealed class RecordActiveWindowUseCase
         };
     }
 
+    // Known browser executable names (without extension, lowercase)
+    private static readonly HashSet<string> BrowserExeNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "chrome", "firefox", "msedge", "opera", "brave", "safari", "arc", "iexplore",
+        "vivaldi", "waterfox", "chromium", "librewolf"
+    };
+
     /// <summary>
-    /// Cria a identidade da aplicação a partir do request
+    /// Checks if the executable path belongs to a browser
+    /// </summary>
+    private static bool IsBrowser(string? exePath)
+    {
+        if (string.IsNullOrWhiteSpace(exePath)) return false;
+        var exeName = Path.GetFileNameWithoutExtension(exePath);
+        return BrowserExeNames.Contains(exeName);
+    }
+
+    /// <summary>
+    /// Extracts the tab/site title from a browser window title.
+    /// Browser titles typically follow the pattern: "Tab Title - Browser Name"
+    /// </summary>
+    private static string ExtractBrowserTabTitle(string? windowTitle, string browserDisplayName)
+    {
+        if (string.IsNullOrWhiteSpace(windowTitle))
+            return browserDisplayName;
+
+        // Strip common browser suffixes: " - Google Chrome", " - Mozilla Firefox", " — Mozilla Firefox", etc.
+        var separators = new[] { " - ", " — ", " – " };
+        foreach (var sep in separators)
+        {
+            var lastIdx = windowTitle.LastIndexOf(sep, StringComparison.Ordinal);
+            if (lastIdx > 0)
+            {
+                var tabTitle = windowTitle[..lastIdx].Trim();
+                if (tabTitle.Length > 0)
+                    return tabTitle;
+            }
+        }
+
+        return windowTitle;
+    }
+
+    /// <summary>
+    /// Cria a identidade da aplicação a partir do request.
+    /// For browsers, uses the tab/site title as DisplayName and classifies by site.
     /// </summary>
     private static AppIdentity CreateAppIdentity(RecordActiveWindowRequest request)
     {
         var exePathHash = ComputeHash(request.ExecutablePath);
-        var category = AppCategorizer.Classify(request.ExecutablePath, request.ApplicationName);
 
-        return new AppIdentity(exePathHash, request.ApplicationName, category);
+        if (IsBrowser(request.ExecutablePath))
+        {
+            var tabTitle = ExtractBrowserTabTitle(request.WindowTitle, request.ApplicationName);
+            var category = BrowserTabCategorizer.Classify(tabTitle);
+            return new AppIdentity(exePathHash, tabTitle, category);
+        }
+
+        var appCategory = AppCategorizer.Classify(request.ExecutablePath, request.ApplicationName);
+        return new AppIdentity(exePathHash, request.ApplicationName, appCategory);
     }
 
     /// <summary>
-    /// Verifica se pode estender a sessão existente
+    /// Verifica se pode estender a sessão existente.
+    /// Sessions extend when both the executable AND display name match.
+    /// For browsers, DisplayName is the tab/site title, so tab changes create new sessions.
+    /// For regular apps, DisplayName is always the same product name.
     /// </summary>
     private static bool CanExtendSession(
         ActivitySession session,
         AppIdentity newApp,
         string? newWindowHash)
     {
-        // Mesmo aplicativo — a sessão é estendida enquanto o usuário permanecer
-        // no mesmo executável, independentemente de mudanças no título da janela
-        // (ex.: troca de arquivo no VS Code, abas no browser).
-        return session.App.ExePathHash == newApp.ExePathHash;
+        return session.App.ExePathHash == newApp.ExePathHash
+            && session.App.DisplayName == newApp.DisplayName;
     }
 
     /// <summary>
