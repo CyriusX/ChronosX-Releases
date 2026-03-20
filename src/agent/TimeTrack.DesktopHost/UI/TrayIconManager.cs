@@ -1,6 +1,8 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Extensions.Logging;
+using TimeTrack.DesktopHost.Ipc;
 
 namespace TimeTrack.DesktopHost.UI;
 
@@ -9,25 +11,32 @@ namespace TimeTrack.DesktopHost.UI;
 /// </summary>
 public sealed class TrayIconManager : IDisposable
 {
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
+
     private readonly MainForm _mainForm;
+    private readonly IIpcClient _ipcClient;
     private readonly ILogger<TrayIconManager> _logger;
     private readonly NotifyIcon _notifyIcon;
     private readonly ContextMenuStrip _contextMenu;
+
+    // Track the current HICON so we can destroy it before replacing (GDI handle leak prevention)
+    private IntPtr _currentIconHandle = IntPtr.Zero;
 
     private bool _isTrackingPaused;
     private bool _isDisposed;
 
     public TrayIconManager(
         MainForm mainForm,
+        IIpcClient ipcClient,
         ILogger<TrayIconManager> logger)
     {
         _mainForm = mainForm;
+        _ipcClient = ipcClient;
         _logger = logger;
 
         _contextMenu = CreateContextMenu();
         _notifyIcon = CreateNotifyIcon();
-
-        _mainForm.FormClosing += OnFormClosing;
     }
 
     private NotifyIcon CreateNotifyIcon()
@@ -77,19 +86,29 @@ public sealed class TrayIconManager : IDisposable
         return menu;
     }
 
-    private Icon CreateDefaultIcon()
+    private Icon CreateDefaultIcon() =>
+        CreateTrackedIcon(Color.FromArgb(99, 102, 241)); // Purple
+
+    private Icon CreateTrackedIcon(Color circleColor)
     {
-        // Create a simple icon programmatically
-        // In production, this should be loaded from resources
+        // Destroy the previous GDI HICON to prevent handle leak.
+        // Icon.FromHandle wraps but does NOT own the HICON, so it must be released manually.
+        if (_currentIconHandle != IntPtr.Zero)
+        {
+            DestroyIcon(_currentIconHandle);
+            _currentIconHandle = IntPtr.Zero;
+        }
+
         using var bitmap = new Bitmap(32, 32);
         using var graphics = Graphics.FromImage(bitmap);
 
-        graphics.Clear(Color.FromArgb(15, 15, 15)); // Dark background
-        using var brush = new SolidBrush(Color.FromArgb(99, 102, 241));
-        graphics.FillEllipse(brush, 2, 2, 28, 28); // Purple circle
+        graphics.Clear(Color.FromArgb(15, 15, 15));
+        using var brush = new SolidBrush(circleColor);
+        graphics.FillEllipse(brush, 2, 2, 28, 28);
         graphics.DrawString("T", new Font("Arial", 14, FontStyle.Bold), Brushes.White, 8, 6);
 
-        return Icon.FromHandle(bitmap.GetHicon());
+        _currentIconHandle = bitmap.GetHicon();
+        return Icon.FromHandle(_currentIconHandle);
     }
 
     private void OnShowClick(object? sender, EventArgs e)
@@ -120,25 +139,15 @@ public sealed class TrayIconManager : IDisposable
             : CreateDefaultIcon();
     }
 
-    private Icon CreatePausedIcon()
-    {
-        using var bitmap = new Bitmap(32, 32);
-        using var graphics = Graphics.FromImage(bitmap);
-
-        graphics.Clear(Color.FromArgb(15, 15, 15));
-        using var brush = new SolidBrush(Color.FromArgb(245, 158, 11));
-        graphics.FillEllipse(brush, 2, 2, 28, 28); // Orange circle
-        graphics.DrawString("T", new Font("Arial", 14, FontStyle.Bold), Brushes.White, 8, 6);
-
-        return Icon.FromHandle(bitmap.GetHicon());
-    }
+    private Icon CreatePausedIcon() =>
+        CreateTrackedIcon(Color.FromArgb(245, 158, 11)); // Orange
 
     private async void SendTrackingStateChangeAsync()
     {
         try
         {
-            // This would send IPC command to AgentService
-            // await _ipcClient.SendCommandAsync(_isTrackingPaused ? "pauseTracking" : "resumeTracking");
+            var command = _isTrackingPaused ? "pauseTracking" : "resumeTracking";
+            await _ipcClient.SendCommandAsync(command);
             _logger.LogInformation("Tracking state changed to: {State}", _isTrackingPaused ? "Paused" : "Active");
         }
         catch (Exception ex)
@@ -176,16 +185,6 @@ public sealed class TrayIconManager : IDisposable
         _mainForm.ShowWindow();
     }
 
-    private void OnFormClosing(object? sender, FormClosingEventArgs e)
-    {
-        // Clean up tray icon on form close
-        if (!_isDisposed)
-        {
-            _notifyIcon.Visible = false;
-            _notifyIcon.Dispose();
-        }
-    }
-
     public void UpdateStatus(string status, Color? color = null)
     {
         _notifyIcon.Text = $"TimeTrack - {status}";
@@ -211,5 +210,11 @@ public sealed class TrayIconManager : IDisposable
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _contextMenu.Dispose();
+
+        if (_currentIconHandle != IntPtr.Zero)
+        {
+            DestroyIcon(_currentIconHandle);
+            _currentIconHandle = IntPtr.Zero;
+        }
     }
 }

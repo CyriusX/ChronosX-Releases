@@ -72,9 +72,14 @@ public sealed record AppUsageSummary
     public double Percentage { get; init; }
 
     /// <summary>
-    /// Categoria de produtividade
+    /// Categoria de produtividade: "productive" | "neutral" | "distraction"
     /// </summary>
     public required string ProductivityCategory { get; init; }
+
+    /// <summary>
+    /// Subcategoria: "development" | "communication" | "browser_general" | etc.
+    /// </summary>
+    public string Subcategory { get; init; } = "unknown";
 }
 
 /// <summary>

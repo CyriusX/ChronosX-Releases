@@ -45,9 +45,18 @@ public static class ServiceCollectionExtensions
         var settings = configuration.GetSection(AgentSettings.SectionName).Get<AgentSettings>()
             ?? new AgentSettings();
 
-        var dbPath = settings.DatabasePath
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "TimeTrack", "timetrack.db");
+        var dbPath = settings.DatabasePath ?? "timetrack.db";
+
+        // Resolve relative paths to %LOCALAPPDATA%\TimeTrack\<name> so the same DB file
+        // is used regardless of the process working directory.
+        if (!Path.IsPathRooted(dbPath))
+        {
+            var appDataDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "TimeTrack");
+            Directory.CreateDirectory(appDataDir);
+            dbPath = Path.Combine(appDataDir, dbPath);
+        }
 
         services.AddSqlitePersistence(dbPath);
 

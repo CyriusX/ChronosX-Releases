@@ -137,7 +137,7 @@ public sealed class RecordActiveWindowUseCase
     private static AppIdentity CreateAppIdentity(RecordActiveWindowRequest request)
     {
         var exePathHash = ComputeHash(request.ExecutablePath);
-        var category = AppCategory.Unknown;
+        var category = AppCategorizer.Classify(request.ExecutablePath, request.ApplicationName);
 
         return new AppIdentity(exePathHash, request.ApplicationName, category);
     }

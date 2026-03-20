@@ -65,6 +65,11 @@ public sealed class TrackingWorker : BackgroundService
         // Subscribe to user authentication changes
         _userContext.UserChanged += OnUserChanged;
 
+        // Ensure user context is initialized before we check tracking state.
+        // The JwtCurrentUserContext constructor fires RefreshAsync as fire-and-forget;
+        // awaiting it explicitly here prevents a race where UserId is still null.
+        await _userContext.RefreshAsync(stoppingToken);
+
         // Try auto-resume on startup (if user is already authenticated)
         await EnsureTrackingActiveAsync(stoppingToken);
 
@@ -138,6 +143,19 @@ public sealed class TrackingWorker : BackgroundService
 
                 _logger.LogInformation("Tracking retomado automaticamente com sucesso.");
             }
+            else if (!state.IsActive)
+            {
+                _logger.LogInformation(
+                    "Tracking estava desabilitado ({Status}). Reiniciando automaticamente...",
+                    state.Status);
+
+                await _trackingControl.StartAsync(new StartTrackingRequest
+                {
+                    StartedBy = "AutoRestart"
+                }, cancellationToken);
+
+                _logger.LogInformation("Tracking reiniciado automaticamente com sucesso.");
+            }
         }
         catch (Exception ex)
         {
@@ -207,7 +225,7 @@ public sealed class TrackingWorker : BackgroundService
             if (!_isIdle)
             {
                 _isIdle = true;
-                _idleStartedAt = DateTime.UtcNow.Subtract(idleThreshold);
+                _idleStartedAt = DateTime.UtcNow.Subtract(idleTime.Value);
                 _logger.LogInformation(
                     "Usuário entrou em idle. Tempo de inatividade: {IdleTime}",
                     idleTime.Value);

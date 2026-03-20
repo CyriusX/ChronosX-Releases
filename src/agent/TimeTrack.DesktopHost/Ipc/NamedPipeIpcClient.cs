@@ -22,6 +22,7 @@ public sealed class NamedPipeIpcClient : IIpcClient, IpcClientHostedService, IDi
     private StreamWriter? _writer;
     private CancellationTokenSource? _listenCts;
     private Task? _listenTask;
+    private CancellationToken _hostCancellationToken;
     private int _requestId;
     private readonly Dictionary<int, TaskCompletionSource<IpcResponse>> _pendingRequests = new();
     private readonly object _lock = new();
@@ -154,12 +155,12 @@ public sealed class NamedPipeIpcClient : IIpcClient, IpcClientHostedService, IDi
             _logger.LogInformation("Sending IPC message: {Message}", json);
 
             _logger.LogInformation("Waiting for write lock...");
-            await _writeLock.WaitAsync(cancellationToken);
+            await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("Write lock acquired");
             try
             {
-                await _writer!.WriteLineAsync(json);
-                await _writer.FlushAsync(cancellationToken);
+                await _writer!.WriteLineAsync(json).ConfigureAwait(false);
+                await _writer.FlushAsync(cancellationToken).ConfigureAwait(false);
                 _logger.LogInformation("Message sent and flushed");
             }
             finally
@@ -233,6 +234,50 @@ public sealed class NamedPipeIpcClient : IIpcClient, IpcClientHostedService, IDi
             _logger.LogError(ex, "Error in listen loop");
             SetConnected(false);
         }
+
+        // If the loop exited due to a broken pipe (not intentional shutdown), reconnect
+        if (!cancellationToken.IsCancellationRequested && !_hostCancellationToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("ListenAsync: pipe closed unexpectedly, scheduling reconnect");
+            _ = ReconnectAsync();
+        }
+    }
+
+    private async Task ReconnectAsync()
+    {
+        while (!_hostCancellationToken.IsCancellationRequested && !_isConnected)
+        {
+            try
+            {
+                _logger.LogInformation("ReconnectAsync: waiting {Delay}ms before reconnect attempt", _settings.ReconnectionDelayMs);
+                await Task.Delay(_settings.ReconnectionDelayMs, _hostCancellationToken);
+
+                // Dispose stale resources before reconnecting
+                _writer?.Dispose(); _writer = null;
+                _reader?.Dispose(); _reader = null;
+                _pipeClient?.Dispose(); _pipeClient = null;
+
+                _pipeClient = new NamedPipeClientStream(".", _settings.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+                await _pipeClient.ConnectAsync(_settings.ConnectionTimeoutMs, _hostCancellationToken);
+
+                _reader = new StreamReader(_pipeClient, Encoding.UTF8);
+                _writer = new StreamWriter(_pipeClient, Encoding.UTF8) { AutoFlush = true };
+
+                SetConnected(true);
+                StartListening();
+
+                _logger.LogInformation("ReconnectAsync: reconnected to AgentService");
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ReconnectAsync: attempt failed, will retry");
+            }
+        }
     }
 
     private void ProcessIncomingMessage(string json)
@@ -297,13 +342,15 @@ public sealed class NamedPipeIpcClient : IIpcClient, IpcClientHostedService, IDi
     // IHostedService implementation
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        _hostCancellationToken = cancellationToken;
         try
         {
             await ConnectAsync(cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to connect during startup");
+            _logger.LogError(ex, "Failed to connect during startup, will retry in background");
+            _ = ReconnectAsync();
         }
     }
 

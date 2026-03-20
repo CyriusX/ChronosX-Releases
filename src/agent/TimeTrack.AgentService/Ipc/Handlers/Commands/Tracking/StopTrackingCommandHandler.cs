@@ -30,7 +30,8 @@ public sealed class StopTrackingCommandHandler : IpcHandlerBase, IIpcCommandHand
             string? reason = null;
             if (request.Payload.HasValue && request.Payload.Value.ValueKind == JsonValueKind.Object)
             {
-                reason = request.Payload.Value.GetProperty("reason").GetString();
+                if (request.Payload.Value.TryGetProperty("reason", out var reasonEl))
+                    reason = reasonEl.GetString();
             }
 
             var result = await _trackingControl.StopAsync(new StopTrackingRequest

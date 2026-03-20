@@ -47,8 +47,12 @@ public sealed class StoreTokensCommandHandler : IpcHandlerBase, IIpcCommandHandl
 
             if (!activationResult.IsSuccess)
             {
-                _logger.LogError("Device activation failed: {Error}", activationResult.ErrorMessage);
-                return ErrorResponse(request.RequestId, $"Device activation failed: {activationResult.ErrorMessage}");
+                _logger.LogWarning(
+                    "Device activation failed ({Error}), falling back to storing original tokens so local tracking can start",
+                    activationResult.ErrorMessage);
+
+                // Fallback: store original JWT so UserId is available and tracking can start locally
+                await _tokenStore.StoreTokensAsync(jwt, refreshToken ?? string.Empty, ct);
             }
 
             // Refresh user context with new tokens
@@ -61,7 +65,7 @@ public sealed class StoreTokensCommandHandler : IpcHandlerBase, IIpcCommandHandl
             }
 
             _logger.LogInformation(
-                "Device activated and tokens stored successfully for user {UserId}, device {DeviceId}",
+                "Tokens stored successfully for user {UserId}, device {DeviceId}",
                 _userContext.UserId,
                 activationResult.DeviceId);
 
@@ -70,7 +74,7 @@ public sealed class StoreTokensCommandHandler : IpcHandlerBase, IIpcCommandHandl
                 stored = true,
                 userId = _userContext.UserId,
                 deviceId = activationResult.DeviceId,
-                activationStatus = activationResult.Status
+                activationStatus = activationResult.IsSuccess ? activationResult.Status : "fallback"
             });
         }
         catch (Exception ex)

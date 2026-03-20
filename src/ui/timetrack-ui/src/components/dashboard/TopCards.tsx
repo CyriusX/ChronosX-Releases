@@ -46,6 +46,7 @@ export function TopCards({
 
   // All durations are in seconds (agent sends seconds for sub-minute precision)
   const totalSeconds = summary?.totalDuration ?? 0;
+  const idleSeconds = summary?.idleTime ?? 0;
   const focusTime = summary?.focusTime ?? 0;
   const sessionsCount = summary?.sessionsCount ?? 0;
   const productiveTime = summary?.productiveTime ?? 0;
@@ -107,6 +108,7 @@ export function TopCards({
                 <span className="text-[10px] text-[rgba(245,247,251,0.4)] tracking-[0.25px] uppercase">vs ontem</span>
               </div>
               <p className="text-[10px] text-[rgba(245,247,251,0.3)] mt-2">Meta de hoje</p>
+              <p className="text-[10px] text-[rgba(245,247,251,0.4)] mt-1">tempo Idle: <span className="text-[rgba(245,247,251,0.6)] font-medium">{formatDuration(idleSeconds)}</span></p>
             </div>
           </div>
         </CardContent>

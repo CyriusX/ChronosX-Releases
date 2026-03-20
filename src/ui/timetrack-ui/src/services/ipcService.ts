@@ -107,13 +107,12 @@ export class IpcService implements IIpcClient {
     try {
       const payloadJson = payload !== undefined ? JSON.stringify(payload) : undefined;
 
-      // WebView2 host objects: access method directly via bridge proxy
-      // The bridge is chrome.webview.hostObjects.timeTrackBridge injected by MainForm.cs
-      const bridgeProxy = bridge as unknown as {
+      // Bridge is either a postMessage-based bridge (returns native Promises)
+      // or a COM proxy. Both expose SendCommand returning Promise<string>.
+      const responseJson = await (bridge as unknown as {
         SendCommand: (command: string, payloadJson?: string) => Promise<string>;
-      };
+      }).SendCommand(command, payloadJson);
 
-      const responseJson = await bridgeProxy.SendCommand(command, payloadJson);
       const response = JSON.parse(responseJson);
       return response as IpcResponse<void>;
     } catch (error) {
@@ -137,13 +136,12 @@ export class IpcService implements IIpcClient {
     }
 
     try {
-      // WebView2 host objects require awaiting the method reference first
-      // chrome.webview.hostObjects.proxy.method is a Promise<Function>
-      const sendQueryMethod = await (bridge as unknown as {
-        SendQuery: Promise<(query: string, payloadJson?: string) => Promise<string>>;
-      }).SendQuery;
+      // Bridge is either a postMessage-based bridge (returns native Promises)
+      // or a COM proxy. Both expose SendQuery returning Promise<string>.
+      const responseJson = await (bridge as unknown as {
+        SendQuery: (query: string, payloadJson?: string) => Promise<string>;
+      }).SendQuery(query as string);
 
-      const responseJson = await sendQueryMethod(query, undefined);
       const response = JSON.parse(responseJson);
       return response as IpcResponse<QueryResponseMap[K]>;
     } catch (error) {
@@ -213,8 +211,20 @@ export class IpcService implements IIpcClient {
       this.setupBridgeHandlers();
       console.log('[IpcService] Bridge available, assuming connected (no polling)');
     } else {
-      console.warn('[IpcService] Bridge not available, running in standalone mode');
+      console.warn('[IpcService] Bridge not available, starting connection check interval');
       this._connectionState = 'disconnected';
+
+      // Poll until the bridge becomes available (injected by WebView2 after document load)
+      this.connectionCheckInterval = setInterval(() => {
+        if (this.getBridge()) {
+          this.clearConnectionCheckInterval();
+          this._connectionState = 'connected';
+          this._isReady = true;
+          this.setupBridgeHandlers();
+          console.log('[IpcService] Bridge became available, now connected');
+          this.notifyConnectionChange();
+        }
+      }, this.config.checkConnectionIntervalMs);
     }
 
     this.notifyConnectionChange();

@@ -42,8 +42,9 @@ public sealed class GetTrackingStateQueryHandler : IpcHandlerBase, IIpcQueryHand
 
             return SuccessResponse(request.RequestId, new
             {
-                isTracking = dashboard.TrackingStatus == "Active",
-                isPaused = dashboard.TrackingStatus == "Paused",
+                isTracking = dashboard.TrackingStatus == nameof(TrackingStatus.Active),
+                isPaused = dashboard.TrackingStatus == nameof(TrackingStatus.PausedByUser) ||
+                           dashboard.TrackingStatus == nameof(TrackingStatus.PausedByPolicy),
                 isFocusMode = focusSnapshot.State != FocusModeState.Off,
                 focusModeState = focusSnapshot.State.ToString(),
                 focusModeMode = focusSnapshot.Mode.ToString(),

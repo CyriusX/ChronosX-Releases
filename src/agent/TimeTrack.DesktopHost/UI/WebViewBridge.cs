@@ -56,7 +56,7 @@ public sealed class WebViewBridge
             }
 
             _logger.LogInformation("Calling _ipcClient.SendCommandAsync, IsConnected: {IsConnected}", _ipcClient.IsConnected);
-            var response = await _ipcClient.SendCommandAsync(command, payload);
+            var response = await _ipcClient.SendCommandAsync(command, payload).ConfigureAwait(false);
             _logger.LogInformation("SendCommandAsync returned: {Success}", response.Success);
 
             var result = new
@@ -98,7 +98,7 @@ public sealed class WebViewBridge
                 payload = JsonSerializer.Deserialize<object>(payloadJson);
             }
 
-            var response = await _ipcClient.SendQueryAsync(query, payload);
+            var response = await _ipcClient.SendQueryAsync(query, payload).ConfigureAwait(false);
 
             var result = new
             {
@@ -132,7 +132,7 @@ public sealed class WebViewBridge
         try
         {
             _logger.LogDebug("Reconnect called");
-            await _ipcClient.ConnectAsync();
+            await _ipcClient.ConnectAsync().ConfigureAwait(false);
 
             var result = new
             {

@@ -78,22 +78,33 @@ public sealed class GetLocalDashboardUseCase
         var sessions = await sessionsTask;
         var idlePeriods = await idlePeriodsTask;
 
-        // Calcula totais
+        // Internal app names to exclude from dashboard (our own UI processes)
+        var internalApps = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "TimeTrack.DesktopHost",
+            "Microsoft Edge WebView2",
+            "Microsoft® Windows® Operating System"
+        };
+
+        // Calcula totais (excluding our own app processes)
         var totalWorkTime = TimeSpan.Zero;
-        var appUsage = new Dictionary<string, (TimeSpan Time, string Category)>();
+        var appUsage = new Dictionary<string, (TimeSpan Time, string Category, string Subcategory)>();
 
         foreach (var session in sessions)
         {
+            var appName = session.App.DisplayName;
+            if (internalApps.Contains(appName))
+                continue;
+
             totalWorkTime += session.Duration;
 
-            var appName = session.App.DisplayName;
             if (appUsage.TryGetValue(appName, out var existing))
             {
-                appUsage[appName] = (existing.Time + session.Duration, session.App.Category.Productivity);
+                appUsage[appName] = (existing.Time + session.Duration, session.App.Category.Productivity, session.App.Category.Subcategory);
             }
             else
             {
-                appUsage[appName] = (session.Duration, session.App.Category.Productivity);
+                appUsage[appName] = (session.Duration, session.App.Category.Productivity, session.App.Category.Subcategory);
             }
         }
 
@@ -112,12 +123,16 @@ public sealed class GetLocalDashboardUseCase
                 Percentage = totalWorkTime.TotalSeconds > 0
                     ? (x.Value.Time.TotalSeconds / totalWorkTime.TotalSeconds) * 100
                     : 0,
-                ProductivityCategory = x.Value.Category
+                ProductivityCategory = x.Value.Category,
+                Subcategory = x.Value.Subcategory
             })
             .ToList();
 
-        // Última sessão
-        var lastSession = sessions.OrderByDescending(s => s.Period.EndUtc).FirstOrDefault();
+        // Última sessão (excluding internal apps)
+        var lastSession = sessions
+            .Where(s => !internalApps.Contains(s.App.DisplayName))
+            .OrderByDescending(s => s.Period.EndUtc)
+            .FirstOrDefault();
 
         // Calcular métricas de foco
         var focusMetrics = CalculateFocusMetrics(sessions, idlePeriods, appUsage, totalWorkTime);
@@ -157,57 +172,54 @@ public sealed class GetLocalDashboardUseCase
     private FocusScoreMetrics CalculateFocusMetrics(
         IEnumerable<ActivitySession> sessions,
         IEnumerable<IdlePeriod> idlePeriods,
-        Dictionary<string, (TimeSpan Time, string Category)> appUsage,
+        Dictionary<string, (TimeSpan Time, string Category, string Subcategory)> appUsage,
         TimeSpan totalWorkTime)
     {
         long focusTimeMs = 0;
         long distractionMs = 0;
         int distractionCount = 0;
-        int longFocusBlockCount = 0;
-        var previousCategory = "Neutral";
-        long currentFocusBlockMs = 0;
 
-        // Calcular tempo por categoria e contar distrações
+        // Aggregate focus/distraction totals from per-app data (order-independent)
         foreach (var kvp in appUsage)
         {
             var timeMs = (long)kvp.Value.Time.TotalMilliseconds;
             var category = kvp.Value.Category;
 
             if (category == "Productive" || category == "Focus")
-            {
                 focusTimeMs += timeMs;
-                currentFocusBlockMs += timeMs;
-            }
             else if (category == "Distraction")
             {
                 distractionMs += timeMs;
                 distractionCount++;
+            }
+        }
 
-                // Check if we completed a long focus block
-                if (currentFocusBlockMs >= LongFocusBlockThresholdMs)
-                {
-                    longFocusBlockCount++;
-                }
-                currentFocusBlockMs = 0;
+        // Count long focus blocks from chronological session order.
+        // A "block" is a consecutive run of productive sessions >= 25 minutes;
+        // it resets whenever a distraction or neutral session interrupts it.
+        int longFocusBlockCount = 0;
+        long currentFocusBlockMs = 0;
+
+        foreach (var session in sessions.OrderBy(s => s.Period.StartUtc))
+        {
+            var category = session.App.Category.Productivity;
+            var sessionMs = (long)session.Duration.TotalMilliseconds;
+
+            if (category == "Productive" || category == "Focus")
+            {
+                currentFocusBlockMs += sessionMs;
             }
             else
             {
-                // Neutral - check if we completed a long focus block
                 if (currentFocusBlockMs >= LongFocusBlockThresholdMs)
-                {
                     longFocusBlockCount++;
-                }
                 currentFocusBlockMs = 0;
             }
-
-            previousCategory = category;
         }
 
-        // Check final block
+        // Flush final block
         if (currentFocusBlockMs >= LongFocusBlockThresholdMs)
-        {
             longFocusBlockCount++;
-        }
 
         var pauseCount = 0; // TODO: Implement pause tracking
         var idleCount = idlePeriods.Count();

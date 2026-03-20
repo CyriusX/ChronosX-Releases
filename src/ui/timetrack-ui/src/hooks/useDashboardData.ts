@@ -24,7 +24,7 @@ const POLLING_INTERVAL_MS = 5000; // 5 seconds — keeps dashboard live without 
  * - Automatic refresh on connection restore
  */
 export function useDashboardData() {
-  const { isConnected, sendQuery, subscribeToEvent } = useIpc();
+  const { isConnected, sendQuery, subscribeToEvent, sendCommand } = useIpc();
 
   const {
     setTrackingState,
@@ -88,7 +88,7 @@ export function useDashboardData() {
 
       // Toggle pause state
       const command = paused ? 'resumeTracking' : 'pauseTracking';
-      const result = await useIpc().sendCommand(command as 'pauseTracking' | 'resumeTracking');
+      const result = await sendCommand(command as 'pauseTracking' | 'resumeTracking');
 
       if (result.success) {
         setPaused(!paused);
@@ -96,23 +96,23 @@ export function useDashboardData() {
     } catch (error) {
       console.error('[Dashboard] Error toggling pause:', error);
     }
-  }, [sendQuery, setPaused]);
+  }, [sendQuery, sendCommand, setPaused]);
 
   const handleStopTracking = useCallback(async () => {
     try {
-      await useIpc().sendCommand('stopTracking');
+      await sendCommand('stopTracking');
     } catch (error) {
       console.error('[Dashboard] Error stopping tracking:', error);
     }
-  }, []);
+  }, [sendCommand]);
 
   const handleSyncNow = useCallback(async () => {
     try {
-      await useIpc().sendCommand('syncNow');
+      await sendCommand('syncNow');
     } catch (error) {
       console.error('[Dashboard] Error triggering sync:', error);
     }
-  }, []);
+  }, [sendCommand]);
 
   // ============================================================================
   // LIFECYCLE - Initial fetch
@@ -248,6 +248,16 @@ export function useDashboardData() {
 
     return unsubscribe;
   }, [isConnected, subscribeToEvent]);
+
+  // Refresh when window becomes visible (restored from tray)
+  useEffect(() => {
+    const handleAppVisible = () => {
+      console.log('[Dashboard] App became visible, refreshing data');
+      fetchDashboardData();
+    };
+    window.addEventListener('app-visible', handleAppVisible);
+    return () => window.removeEventListener('app-visible', handleAppVisible);
+  }, [fetchDashboardData]);
 
   // ============================================================================
   // RETURN

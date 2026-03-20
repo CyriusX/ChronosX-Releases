@@ -139,14 +139,79 @@ public sealed class MainForm : Form
             // Add bridge object to JavaScript
             coreWebView.AddHostObjectToScript("timeTrackBridge", _bridge);
 
-            // Inject script to map WebView2 host object to window.timeTrackBridge
+            // Handle all WebMessages from JavaScript (console capture + IPC bridge)
+            coreWebView.WebMessageReceived += async (s, args) =>
+            {
+                var msg = args.TryGetWebMessageAsString();
+                if (msg == null) return;
+
+                // IPC bridge via postMessage (avoids COM proxy deadlocks)
+                if (msg.StartsWith("{\"_ipc\":"))
+                {
+                    await HandleIpcPostMessageAsync(coreWebView, msg);
+                    return;
+                }
+
+                // Console log capture
+                _logger.LogInformation("[JS] {Message}", msg);
+            };
+
+            // Inject script to set up IPC bridge via postMessage (avoids COM proxy issues)
             // This MUST run BEFORE React loads, so we use AddScriptToExecuteOnDocumentCreatedAsync
             _ = coreWebView.AddScriptToExecuteOnDocumentCreatedAsync(@"
                 (function() {
-                    if (chrome.webview && chrome.webview.hostObjects && chrome.webview.hostObjects.timeTrackBridge) {
-                        window.timeTrackBridge = chrome.webview.hostObjects.timeTrackBridge;
-                        console.log('[DesktopHost] Bridge injected to window.timeTrackBridge');
+                    // Override console.log to send messages to C# for diagnostics
+                    var origLog = console.log;
+                    var origError = console.error;
+                    var origWarn = console.warn;
+                    function post(level, args) {
+                        try {
+                            chrome.webview.postMessage('[' + level + '] ' + Array.from(args).map(function(a) {
+                                try { return typeof a === 'object' ? JSON.stringify(a) : String(a); }
+                                catch(e) { return String(a); }
+                            }).join(' '));
+                        } catch(e) {}
                     }
+                    console.log = function() { post('LOG', arguments); origLog.apply(console, arguments); };
+                    console.error = function() { post('ERR', arguments); origError.apply(console, arguments); };
+                    console.warn = function() { post('WARN', arguments); origWarn.apply(console, arguments); };
+
+                    // IPC bridge via postMessage — avoids COM async proxy deadlocks.
+                    // Pending requests are tracked by requestId.
+                    var _nextId = 1;
+                    var _pending = {};
+
+                    // Called from C# via ExecuteScriptAsync when a response arrives
+                    window._timeTrackIpcResponse = function(requestId, responseJson) {
+                        var p = _pending[requestId];
+                        if (p) {
+                            delete _pending[requestId];
+                            p(responseJson);
+                        }
+                    };
+
+                    function ipcCall(type, name, payloadJson) {
+                        return new Promise(function(resolve) {
+                            var id = _nextId++;
+                            _pending[id] = resolve;
+                            chrome.webview.postMessage(JSON.stringify({
+                                _ipc: true,
+                                requestId: id,
+                                type: type,
+                                name: name,
+                                payloadJson: payloadJson || null
+                            }));
+                        });
+                    }
+
+                    // Expose the bridge object that the React IpcService expects
+                    window.timeTrackBridge = {
+                        isConnected: true,
+                        SendCommand: function(command, payloadJson) { return ipcCall('command', command, payloadJson); },
+                        SendQuery: function(query, payloadJson) { return ipcCall('query', query, payloadJson); }
+                    };
+
+                    console.log('[DesktopHost] Bridge injected successfully (postMessage mode)');
                 })();
             ");
 
@@ -185,6 +250,57 @@ public sealed class MainForm : Form
                 e.Cancel = true;
             }
 #endif
+        }
+    }
+
+    /// <summary>
+    /// Handles IPC requests sent via chrome.webview.postMessage from JavaScript.
+    /// Avoids the COM async proxy deadlock by using postMessage + ExecuteScriptAsync.
+    /// </summary>
+    private async Task HandleIpcPostMessageAsync(CoreWebView2 coreWebView, string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var requestId = root.GetProperty("requestId").GetInt32();
+            var type = root.GetProperty("type").GetString() ?? "";
+            var name = root.GetProperty("name").GetString() ?? "";
+            var payloadJson = root.TryGetProperty("payloadJson", out var pj) && pj.ValueKind == JsonValueKind.String
+                ? pj.GetString() : null;
+
+            _logger.LogInformation("IPC via postMessage: type={Type}, name={Name}, requestId={RequestId}", type, name, requestId);
+
+            string responseJson;
+            if (type == "command")
+            {
+                responseJson = await _bridge.SendCommand(name, payloadJson).ConfigureAwait(false);
+            }
+            else
+            {
+                responseJson = await _bridge.SendQuery(name, payloadJson).ConfigureAwait(false);
+            }
+
+            // Send response back to JavaScript via ExecuteScriptAsync (must be on UI thread)
+            var escapedResponse = responseJson.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
+            var script = $"window._timeTrackIpcResponse?.({requestId}, '{escapedResponse}')";
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(async () =>
+                {
+                    try { await coreWebView.ExecuteScriptAsync(script); }
+                    catch (Exception ex) { _logger.LogError(ex, "Error sending IPC response to JS"); }
+                }));
+            }
+            else
+            {
+                await coreWebView.ExecuteScriptAsync(script);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling IPC postMessage");
         }
     }
 
@@ -309,6 +425,24 @@ public sealed class MainForm : Form
         Show();
         BringToFront();
         Activate();
+
+        // Tell the React app to refresh all dashboard data immediately.
+        // This ensures data shown after a tray-restore is never stale.
+        NotifyAppVisible();
+    }
+
+    private void NotifyAppVisible()
+    {
+        if (_webView?.CoreWebView2 == null) return;
+        try
+        {
+            _ = _webView.CoreWebView2.ExecuteScriptAsync(
+                "window.dispatchEvent(new CustomEvent('app-visible'))");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to dispatch app-visible event to WebView2");
+        }
     }
 
     public void CloseApplication()
@@ -317,18 +451,28 @@ public sealed class MainForm : Form
         Close();
     }
 
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+
+        // Minimize to tray instead of taskbar
+        if (WindowState == FormWindowState.Minimized)
+        {
+            Hide();
+        }
+    }
+
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
         if (!_isClosing && e.CloseReason == CloseReason.UserClosing)
         {
-            // Minimize to tray instead of closing
+            // Hide to tray instead of closing
             e.Cancel = true;
-            WindowState = FormWindowState.Minimized;
             Hide();
             return;
         }
 
-        // Cleanup
+        // Cleanup on real exit
         if (_webView?.CoreWebView2 != null)
         {
             _ipcClient.EventReceived -= OnIpcEventReceived;
