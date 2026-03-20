@@ -9,7 +9,7 @@ interface CategoryItemProps {
 export function CategoryItem({ percentage, icon, label, time, color }: CategoryItemProps) {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-[12px] text-[rgba(245,247,251,0.4)] w-7 text-right">{percentage}%</span>
+      <span className="text-[12px] text-[rgba(245,247,251,0.4)] w-7 text-right">{Math.round(percentage)}%</span>
       <div
         className="w-5 h-5 rounded-full flex items-center justify-center"
         style={{ backgroundColor: `${color}20`, border: `1px solid ${color}50` }}

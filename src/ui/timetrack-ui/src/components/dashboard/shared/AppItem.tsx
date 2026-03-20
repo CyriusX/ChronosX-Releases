@@ -10,7 +10,7 @@ interface AppItemProps {
 export function AppItem({ percentage, icon, label, time, color, borderColor }: AppItemProps) {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-[12px] text-[rgba(245,247,251,0.4)] w-7 text-right">{percentage}%</span>
+      <span className="text-[12px] text-[rgba(245,247,251,0.4)] w-7 text-right">{Math.round(percentage)}%</span>
       <div
         className="w-6 h-6 rounded-lg flex items-center justify-center"
         style={{ backgroundColor: color, border: borderColor ? `1px solid ${borderColor}` : 'none' }}
