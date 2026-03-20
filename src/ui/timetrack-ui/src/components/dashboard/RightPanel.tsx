@@ -1,9 +1,10 @@
 import { useEffect, useMemo } from 'react';
-import { MoreVertical, ChevronDown, Code2, Layers, Globe } from 'lucide-react';
+import { MoreVertical, ChevronDown, Globe } from 'lucide-react';
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { TeamMember, AppUsageItem } from './shared';
 import { useTeamStatus } from '../../hooks/useTeamStatus';
+import { formatDuration } from '../../lib/utils';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../../types/ipc';
 import type { TeamMemberStatus } from '../../types/member';
 
@@ -41,14 +42,14 @@ function mapMemberToProps(member: TeamMemberStatus) {
   };
 }
 
-// Apps most used mock data
-const appsMostUsed = [
-  { icon: <Code2 className="w-4 h-4" />, label: 'VS Code', subtext: '3,5m', time: '22m', color: '#4a9fff' },
-  { icon: <Layers className="w-4 h-4" />, label: 'Figma', subtext: '16,3m', time: '18m', color: '#a855f7' },
-  { icon: <Globe className="w-4 h-4" />, label: 'Chrome', subtext: '8,8m', time: '22m', color: '#ff8c6b' },
-];
+// Productivity level to color mapping for app usage items
+const productivityColors: Record<string, string> = {
+  productive: '#4ade80',
+  neutral: '#fbbf24',
+  distraction: '#f87171',
+};
 
-export function RightPanel({ weeklyHistory, showTeamCard = false }: RightPanelProps) {
+export function RightPanel({ summary, weeklyHistory, showTeamCard = false }: RightPanelProps) {
   const { members, isLoading, loadTeamStatus } = useTeamStatus();
 
   // Load team status when team card is visible
@@ -64,6 +65,21 @@ export function RightPanel({ weeklyHistory, showTeamCard = false }: RightPanelPr
       .filter((member) => member.status === 'Active')
       .map(mapMemberToProps);
   }, [members]);
+
+  // Build top apps from real data (sorted by duration, top 5)
+  const topApps = useMemo(() => {
+    const apps = summary?.topApplications ?? [];
+    return [...apps]
+      .sort((a, b) => b.duration - a.duration)
+      .slice(0, 5)
+      .map((app) => ({
+        icon: <Globe className="w-4 h-4" />,
+        label: app.name,
+        subtext: `${Math.round(app.percentage)}%`,
+        time: formatDuration(app.duration),
+        color: productivityColors[app.productivity] ?? '#94a3b8',
+      }));
+  }, [summary]);
 
   // Calculate weekly total
   const weeklyTotal = weeklyHistory.reduce((sum, item) => sum + item.hours, 0);
@@ -168,9 +184,15 @@ export function RightPanel({ weeklyHistory, showTeamCard = false }: RightPanelPr
               </button>
             </div>
             <div className="space-y-3">
-              {appsMostUsed.map((app) => (
-                <AppUsageItem key={app.label} {...app} />
-              ))}
+              {topApps.length > 0 ? (
+                topApps.map((app) => (
+                  <AppUsageItem key={app.label} {...app} />
+                ))
+              ) : (
+                <p className="text-[12px] text-[rgba(245,247,251,0.4)] text-center py-2">
+                  Nenhum app registrado
+                </p>
+              )}
             </div>
           </div>
         </CardContent>
