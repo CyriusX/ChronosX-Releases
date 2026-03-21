@@ -1,6 +1,9 @@
-import { MoreVertical, TrendingUp, Globe, Briefcase, Code2, Users, MessageSquare, Search as SearchIcon, Music } from 'lucide-react';
+import {
+  TrendingUp, Globe, Briefcase, Code2, Users, MessageSquare,
+  Music, Play, Paintbrush, Video
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { CategoryItem, AppItem, ProjectItem } from './shared';
+import { CategoryItem, AppItem, ProjectItem, AppIcon } from './shared';
 import { formatDuration } from '../../lib/utils';
 import type { TodaySummaryResponse, AppProductivityCategory } from '../../types/ipc';
 
@@ -26,16 +29,15 @@ const getProductivityBadgeStyle = (productivity?: AppProductivityCategory): stri
 
 const categoryIcons: Record<string, React.ReactNode> = {
   'development': <Code2 className="w-3 h-3" />,
-  'meetings': <Users className="w-3 h-3" />,
+  'meetings': <Video className="w-3 h-3" />,
   'communication': <MessageSquare className="w-3 h-3" />,
-  'design': <Briefcase className="w-3 h-3" />,
+  'design': <Paintbrush className="w-3 h-3" />,
   'productivity_tools': <TrendingUp className="w-3 h-3" />,
   'browser_general': <Globe className="w-3 h-3" />,
   'social_media': <Users className="w-3 h-3" />,
-  'entertainment': <Music className="w-3 h-3" />,
+  'entertainment': <Play className="w-3 h-3" />,
 };
 
-const defaultAppIcon = <Globe className="w-[13px] h-[13px]" />;
 
 const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden";
 
@@ -114,7 +116,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
                     <div className="flex-1 min-w-0">
                       <AppItem
                         percentage={percentage}
-                        icon={defaultAppIcon}
+                        icon={<AppIcon name={app.name} size={13} />}
                         label={app.name}
                         time={formatDuration(app.duration)}
                         color={productivityColor}

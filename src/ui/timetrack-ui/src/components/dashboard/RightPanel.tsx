@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { MoreVertical, ChevronDown, Globe } from 'lucide-react';
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { TeamMember, AppUsageItem } from './shared';
+import { TeamMember, AppUsageItem, AppIcon } from './shared';
 import { useTeamStatus } from '../../hooks/useTeamStatus';
 import { formatDuration } from '../../lib/utils';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../../types/ipc';
@@ -42,6 +42,7 @@ const productivityColors: Record<string, string> = {
   distraction: '#f87171',
 };
 
+
 const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden";
 
 export function RightPanel({ summary, weeklyHistory, showTeamCard = false }: RightPanelProps) {
@@ -62,7 +63,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false }: Rig
       .sort((a, b) => b.duration - a.duration)
       .slice(0, 5)
       .map((app) => ({
-        icon: <Globe className="w-3.5 h-3.5" />,
+        icon: <AppIcon name={app.name} size={14} />,
         label: app.name,
         subtext: `${Math.round(app.percentage)}%`,
         time: formatDuration(app.duration),
@@ -101,32 +102,36 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false }: Rig
         </Card>
       )}
 
-      {/* Tempo por Projeto */}
+      {/* Atividade semanal */}
       <Card className={cardBase}>
         <CardHeader className="pb-0 pt-3 px-4">
           <CardTitle className="flex items-center justify-between">
-            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Tempo por projeto</span>
-            <span className="text-[11px] text-[rgba(245,247,251,0.4)]">{weeklyTotal.toFixed(1)}h</span>
+            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Atividade semanal</span>
+            <span className="text-[11px] text-[rgba(245,247,251,0.4)]">{weeklyTotal.toFixed(1)}h total</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-2 pb-3 px-4">
-          <div className="h-[120px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyHistory} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                <XAxis
-                  dataKey="dayName"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 9, fill: 'rgba(245,247,251,0.3)' }}
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1d2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
-                  formatter={(value) => [`${Number(value).toFixed(1)}h`, 'Horas']}
-                />
-                <Bar dataKey="hours" fill="#4ad9ff" radius={[3, 3, 0, 0]} maxBarSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {weeklyTotal > 0 ? (
+            <div className="h-[120px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyHistory} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                  <XAxis
+                    dataKey="dayName"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 9, fill: 'rgba(245,247,251,0.3)' }}
+                  />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1a1d2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
+                    formatter={(value) => [`${Number(value).toFixed(1)}h`, 'Horas']}
+                  />
+                  <Bar dataKey="hours" fill="#4ad9ff" radius={[3, 3, 0, 0]} maxBarSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-6">No data yet</p>
+          )}
 
           {/* Apps mais usados */}
           <div className="border-t border-[rgba(255,255,255,0.04)] pt-2.5 mt-3">
@@ -139,7 +144,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false }: Rig
                   <AppUsageItem key={app.label} {...app} />
                 ))
               ) : (
-                <p className="text-[10px] text-[rgba(245,247,251,0.4)] text-center py-1">Nenhum app</p>
+                <p className="text-[10px] text-[rgba(245,247,251,0.4)] text-center py-1">No data yet</p>
               )}
             </div>
           </div>

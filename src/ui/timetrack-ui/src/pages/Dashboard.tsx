@@ -60,6 +60,8 @@ export default function Dashboard() {
               onStopTracking={onStopTracking}
             />
 
+            <ActivitySection />
+
             <BottomCards summary={todaySummary} />
           </div>
 

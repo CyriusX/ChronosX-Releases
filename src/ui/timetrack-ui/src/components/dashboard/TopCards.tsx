@@ -11,18 +11,16 @@ import { MoreVertical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { formatDuration } from '../../lib/utils';
 import type { TodaySummaryResponse } from '../../types/ipc';
-import type { FocusModePolicy } from '../../types/settings';
 import { TimerFocusCard } from './TimerFocusCard';
-import { useFocusMode } from '../../hooks/useFocusMode';
 
 interface TopCardsProps {
   summary: TodaySummaryResponse | null;
-  isPaused: boolean;
-  isTracking: boolean;
-  focusModePolicy: FocusModePolicy | null;
-  onStartTracking: () => void;
-  onPauseTracking: () => void;
-  onStopTracking: () => void;
+  isPaused?: boolean;
+  isTracking?: boolean;
+  focusModePolicy?: unknown;
+  onStartTracking?: () => void;
+  onPauseTracking?: () => void;
+  onStopTracking?: () => void;
 }
 
 const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl";
@@ -36,8 +34,6 @@ export function TopCards({
   onPauseTracking,
   onStopTracking,
 }: TopCardsProps) {
-  const focusMode = useFocusMode();
-
   const totalSeconds = summary?.totalDuration ?? 0;
   const idleSeconds = summary?.idleTime ?? 0;
   const focusTime = summary?.focusTime ?? 0;
@@ -91,7 +87,6 @@ export function TopCards({
   });
 
   const progressPercentage = Math.min((totalSeconds / 28800) * 100, 100);
-  const currentProject = summary?.topProjects?.[0]?.name ?? 'Sem projeto';
 
   return (
     <div className="grid grid-cols-3 gap-4 flex-shrink-0">
@@ -205,25 +200,8 @@ export function TopCards({
         </CardContent>
       </Card>
 
-      {/* Timer Card */}
-      <TimerFocusCard
-        focusModePolicy={focusModePolicy}
-        focusState={focusMode.focusState}
-        displayRemainingMs={focusMode.displayRemainingMs}
-        displayProgress={focusMode.displayProgress}
-        isLoading={focusMode.isLoading}
-        onStartFocus={focusMode.startFocus}
-        onStopFocus={focusMode.stopFocus}
-        onPauseFocus={focusMode.pauseFocus}
-        onResumeFocus={focusMode.resumeFocus}
-        onSkipBreak={focusMode.skipBreak}
-        isPaused={isPaused}
-        isTracking={isTracking}
-        currentProject={currentProject}
-        onStartTracking={onStartTracking}
-        onPauseTracking={onPauseTracking}
-        onStopTracking={onStopTracking}
-      />
+      {/* Pomodoro / Ultradian Timer Card */}
+      <TimerFocusCard summary={summary} />
     </div>
   );
 }

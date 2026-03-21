@@ -141,6 +141,7 @@ public sealed class MainForm : Form
             coreWebView.Settings.IsScriptEnabled = true;
             coreWebView.Settings.AreDefaultScriptDialogsEnabled = true;
             coreWebView.Settings.IsWebMessageEnabled = true;
+            coreWebView.Settings.AreDefaultContextMenusEnabled = false;
 
             // Add bridge object to JavaScript
             coreWebView.AddHostObjectToScript("timeTrackBridge", _bridge);

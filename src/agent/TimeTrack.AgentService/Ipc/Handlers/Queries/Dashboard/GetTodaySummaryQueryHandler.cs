@@ -86,7 +86,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                     subcategory = a.Subcategory
                 }).ToArray(),
 
-                weeklyHistory = WeeklyHistoryGenerator.Generate()
+                weeklyHistory = await BuildWeeklyHistoryAsync(ct)
             };
 
             return SuccessResponse(request.RequestId, summary);
@@ -96,6 +96,42 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
             _logger.LogError(ex, "Error getting today summary");
             return UnknownErrorResponse(request.RequestId, ex);
         }
+    }
+
+    /// <summary>
+    /// Builds real weekly history by querying each of the past 7 days.
+    /// </summary>
+    private async Task<object[]> BuildWeeklyHistoryAsync(CancellationToken ct)
+    {
+        var today = DateTime.Today;
+        var history = new List<object>();
+        var dayNames = new[] { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" };
+
+        for (int i = 6; i >= 0; i--)
+        {
+            var date = today.AddDays(-i);
+            double hours = 0;
+
+            try
+            {
+                var dayDashboard = await _getDashboard.ExecuteAsync(date, ct);
+                hours = dayDashboard.TotalWorkTime.TotalHours;
+            }
+            catch
+            {
+                // If query fails for a day, show 0
+            }
+
+            history.Add(new
+            {
+                date = date.ToString("yyyy-MM-dd"),
+                dayName = dayNames[(int)date.DayOfWeek],
+                hours = Math.Round(hours, 2),
+                isToday = i == 0
+            });
+        }
+
+        return history.ToArray();
     }
 
     /// <summary>
@@ -134,18 +170,18 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     private static string GetCategoryColor(string key) =>
         key?.ToLowerInvariant() switch
         {
-            "development"        => "#4ad9ff",
-            "design"             => "#8b7aff",
-            "productivity_tools" => "#05df72",
-            "productivity"       => "#05df72",
-            "communication"      => "#ff9c5b",
-            "meetings"           => "#4ad9ff",
-            "entertainment"      => "#f87171",
-            "social_media"       => "#fb923c",
-            "other"              => "#94a3b8",
-            "productive"         => "#4ade80",
-            "neutral"            => "#fbbf24",
-            "distraction"        => "#f87171",
+            "development"        => "#38bdf8",   // sky blue
+            "design"             => "#a78bfa",   // violet
+            "productivity_tools" => "#34d399",   // emerald
+            "productivity"       => "#34d399",
+            "communication"      => "#fb923c",   // orange
+            "meetings"           => "#22d3ee",   // cyan
+            "entertainment"      => "#f87171",   // red
+            "social_media"       => "#f472b6",   // pink
+            "other"              => "#94a3b8",   // slate
+            "productive"         => "#4ade80",   // green
+            "neutral"            => "#fbbf24",   // amber
+            "distraction"        => "#ef4444",   // red-600
             _                    => "#94a3b8"
         };
 }
