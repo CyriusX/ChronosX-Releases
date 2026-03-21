@@ -10,6 +10,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Projects from "./pages/Projects";
 import Reports from "./pages/Reports";
+import TimerPage from "./pages/Timer";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Toaster } from "./components/Toaster";
 
@@ -59,6 +60,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/timer"
+            element={
+              <ProtectedRoute>
+                <TimerPage />
               </ProtectedRoute>
             }
           />

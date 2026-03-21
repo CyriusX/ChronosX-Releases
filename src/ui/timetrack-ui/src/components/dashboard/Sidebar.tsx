@@ -28,7 +28,7 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-3 flex flex-col gap-[2px] overflow-y-auto">
         <NavItem icon={<BarChart3 className="w-[16px] h-[16px]" />} label="Dashboard" active={location.pathname === '/'} onClick={() => navigate('/')} />
-        <NavItem icon={<TimerIcon className="w-[16px] h-[16px]" />} label="Timer" onClick={() => navigate('/')} />
+        <NavItem icon={<TimerIcon className="w-[16px] h-[16px]" />} label="Timer" active={location.pathname === '/timer'} onClick={() => navigate('/timer')} />
         <NavItem icon={<FolderOpen className="w-[16px] h-[16px]" />} label="Projetos" active={location.pathname === '/projects'} onClick={() => navigate('/projects')} />
         <NavItem icon={<Activity className="w-[16px] h-[16px]" />} label="Atividade" onClick={() => navigate('/')} />
         <NavItem icon={<CalendarDays className="w-[16px] h-[16px]" />} label="Relatórios" active={location.pathname === '/reports'} onClick={() => navigate('/reports')} />
