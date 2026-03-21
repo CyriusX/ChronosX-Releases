@@ -43,7 +43,7 @@ public sealed class DesktopHostSettings
     /// <summary>
     /// Application title
     /// </summary>
-    public string AppTitle { get; set; } = "TimeTrack";
+    public string AppTitle { get; set; } = "XChronus";
 
     /// <summary>
     /// Whether to start minimized to tray

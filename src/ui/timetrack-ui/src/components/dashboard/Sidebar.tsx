@@ -21,7 +21,7 @@ export function Sidebar() {
           <div className="w-7 h-7 rounded-lg bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] flex items-center justify-center shadow-[0px_6px_10px_0px_rgba(0,184,219,0.2)]">
             <TimerIcon className="w-4 h-4 text-white" />
           </div>
-          <span className="text-[15px] font-semibold text-[#f5f7fb] tracking-[-0.3px]">TimeTrack</span>
+          <span className="text-[15px] font-semibold text-[#f5f7fb] tracking-[-0.3px]">XChronus</span>
         </div>
       </div>
 
