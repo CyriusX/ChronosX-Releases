@@ -37,8 +37,16 @@ internal sealed class ActivitySessionConfiguration : IEntityTypeConfiguration<Ac
             .HasColumnName("window_title")
             .HasMaxLength(500);
 
+        builder.Property(a => a.FilePath)
+            .HasColumnName("file_path")
+            .HasMaxLength(1000);
+
         builder.Property(a => a.AppCategory)
             .HasColumnName("app_category")
+            .HasMaxLength(100);
+
+        builder.Property(a => a.AppSubcategory)
+            .HasColumnName("app_subcategory")
             .HasMaxLength(100);
 
         builder.Property(a => a.StartedAt)

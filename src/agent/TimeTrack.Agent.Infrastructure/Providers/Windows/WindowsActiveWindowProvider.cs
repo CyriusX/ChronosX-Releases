@@ -16,6 +16,7 @@ public sealed class WindowsActiveWindowProvider : IActiveWindowProvider, IDispos
     private readonly ILogger<WindowsActiveWindowProvider> _logger;
     private readonly ActiveWindowProviderOptions _options;
     private readonly WinEventHook _winEventHook;
+    private readonly IFilePathExtractor _filePathExtractor;
     private readonly int _currentProcessId;
 
     private ActiveWindowInfo? _cachedWindow;
@@ -32,9 +33,11 @@ public sealed class WindowsActiveWindowProvider : IActiveWindowProvider, IDispos
 
     public WindowsActiveWindowProvider(
         ILogger<WindowsActiveWindowProvider> logger,
+        IFilePathExtractor filePathExtractor,
         IOptions<ActiveWindowProviderOptions>? options = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _filePathExtractor = filePathExtractor ?? throw new ArgumentNullException(nameof(filePathExtractor));
         _options = options?.Value ?? new ActiveWindowProviderOptions();
         _currentProcessId = Environment.ProcessId;
 
@@ -160,13 +163,18 @@ public sealed class WindowsActiveWindowProvider : IActiveWindowProvider, IDispos
                 ? ComputeSha256Hash(windowTitle)
                 : null;
 
+            // Extract file path from the active window
+            var processName = Path.GetFileNameWithoutExtension(exePath) ?? "";
+            var filePath = _filePathExtractor.ExtractFilePath(hWnd, processName, windowTitle);
+
             return new ActiveWindowInfo
             {
                 ExePathHash = exePathHash,
                 DisplayName = displayName ?? Path.GetFileNameWithoutExtension(exePath) ?? "Unknown",
                 ExePath = exePath,
                 WindowTitle = windowTitle,
-                WindowHash = windowHash
+                WindowHash = windowHash,
+                FilePath = filePath
             };
         }
         catch (Exception ex)

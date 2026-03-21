@@ -70,6 +70,9 @@ public static class InfrastructureServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddWindowsProviders(this IServiceCollection services)
     {
+        // FilePathExtractor - Singleton para extrair caminhos de arquivos
+        services.AddSingleton<IFilePathExtractor, WindowsFilePathExtractor>();
+
         // ActiveWindowProvider - Singleton para manter o hook ativo
         services.AddSingleton<IActiveWindowProvider, WindowsActiveWindowProvider>();
 
