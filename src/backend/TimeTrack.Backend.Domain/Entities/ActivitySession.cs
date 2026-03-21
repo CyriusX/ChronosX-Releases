@@ -11,6 +11,7 @@ public sealed class ActivitySession
     public Guid UserId { get; private set; }
     public string ProcessName { get; private set; } = string.Empty;
     public string? WindowTitle { get; private set; }
+    public string? FilePath { get; private set; }
     public string? AppCategory { get; private set; }
     public DateTime StartedAt { get; private set; }
     public DateTime EndedAt { get; private set; }
@@ -34,7 +35,8 @@ public sealed class ActivitySession
         string? appCategory,
         DateTime startedAt,
         DateTime endedAt,
-        string idempotencyKey)
+        string idempotencyKey,
+        string? filePath = null)
     {
         if (string.IsNullOrWhiteSpace(processName))
             throw new ArgumentException("Process name is required", nameof(processName));
@@ -53,6 +55,7 @@ public sealed class ActivitySession
             UserId = userId,
             ProcessName = processName,
             WindowTitle = windowTitle,
+            FilePath = filePath,
             AppCategory = appCategory,
             StartedAt = startedAt,
             EndedAt = endedAt,

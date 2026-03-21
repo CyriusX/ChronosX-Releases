@@ -7,18 +7,18 @@ using TimeTrack.Backend.Domain.Interfaces.Repositories;
 namespace TimeTrack.Backend.Application.Reports.Queries;
 
 /// <summary>
-/// Handler para obter top apps por período
+/// Handler para obter distribuição por categoria de produtividade
 ///
-/// SRP: Apenas orquestra a busca de top apps
+/// SRP: Apenas orquestra a busca de distribuição por categoria
 /// DIP: Depende de IReportRepository (abstração)
 /// </summary>
-public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsResponse>
+public sealed class CategoryDistributionQueryHandler : IRequestHandler<CategoryDistributionQuery, CategoryDistributionResponse>
 {
     private readonly IReportRepository _reportRepository;
     private readonly IUserAuthorizationService _authorizationService;
     private readonly ICurrentUserContext _currentUser;
 
-    public TopAppsQueryHandler(
+    public CategoryDistributionQueryHandler(
         IReportRepository reportRepository,
         IUserAuthorizationService authorizationService,
         ICurrentUserContext currentUser)
@@ -28,8 +28,8 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
         _currentUser = currentUser;
     }
 
-    public async Task<TopAppsResponse> Handle(
-        TopAppsQuery request,
+    public async Task<CategoryDistributionResponse> Handle(
+        CategoryDistributionQuery request,
         CancellationToken cancellationToken)
     {
         // Validar período
@@ -38,34 +38,33 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
             throw new ArgumentException("Start date must be before or equal to end date");
         }
 
-        // Validar limite
-        var limit = Math.Clamp(request.Limit, 1, 100);
-
         // Determinar userId alvo
         var targetUserId = request.UserId ?? _currentUser.UserId!.Value;
 
         // Validar autorização
         _authorizationService.EnsureCanAccessUserData(targetUserId);
 
-        // Buscar dados com filtro de produtividade (se fornecido)
-        var apps = await _reportRepository.GetTopAppsAsync(
+        // Buscar dados
+        var categories = await _reportRepository.GetCategoryDistributionAsync(
             targetUserId,
             request.StartDate,
             request.EndDate,
-            limit,
-            null, // productivityFilter - pode ser adicionado ao DTO depois
             cancellationToken);
 
         // Mapear para response
-        return new TopAppsResponse
+        return new CategoryDistributionResponse
         {
-            Apps = apps.Select(a => new TopAppItem
+            Categories = categories.Select(c => new CategoryDistributionResponseItem
             {
-                DisplayName = a.DisplayName ?? a.ProcessName,
-                TotalSeconds = a.TotalSeconds,
-                SessionCount = a.SessionCount,
-                Productivity = a.Productivity,
-                Subcategory = a.Subcategory
+                Category = c.Category,
+                TotalSeconds = c.TotalSeconds,
+                Percentage = Math.Round(c.Percentage, 1),
+                Subcategories = c.Subcategories.Select(s => new SubcategoryResponseItem
+                {
+                    Name = s.Name,
+                    TotalSeconds = s.TotalSeconds,
+                    Percentage = Math.Round(s.Percentage, 1)
+                }).ToList()
             }).ToList()
         };
     }

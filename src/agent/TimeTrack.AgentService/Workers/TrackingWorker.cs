@@ -282,7 +282,8 @@ public sealed class TrackingWorker : BackgroundService
         {
             ExecutablePath = activeWindow.ExePath ?? activeWindow.ExePathHash,
             ApplicationName = activeWindow.DisplayName,
-            WindowTitle = activeWindow.WindowTitle
+            WindowTitle = activeWindow.WindowTitle,
+            FilePath = activeWindow.FilePath
         };
 
         await _recordActiveWindowUseCase.ExecuteAsync(request, cancellationToken);

@@ -7,18 +7,18 @@ using TimeTrack.Backend.Domain.Interfaces.Repositories;
 namespace TimeTrack.Backend.Application.Reports.Queries;
 
 /// <summary>
-/// Handler para obter top apps por período
+/// Handler para obter resumo diário de um período (heatmap estilo GitHub)
 ///
-/// SRP: Apenas orquestra a busca de top apps
+/// SRP: Apenas orquestra a busca de dados de resumo diário
 /// DIP: Depende de IReportRepository (abstração)
 /// </summary>
-public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsResponse>
+public sealed class DailySummaryRangeQueryHandler : IRequestHandler<DailySummaryRangeQuery, DailySummaryRangeResponse>
 {
     private readonly IReportRepository _reportRepository;
     private readonly IUserAuthorizationService _authorizationService;
     private readonly ICurrentUserContext _currentUser;
 
-    public TopAppsQueryHandler(
+    public DailySummaryRangeQueryHandler(
         IReportRepository reportRepository,
         IUserAuthorizationService authorizationService,
         ICurrentUserContext currentUser)
@@ -28,8 +28,8 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
         _currentUser = currentUser;
     }
 
-    public async Task<TopAppsResponse> Handle(
-        TopAppsQuery request,
+    public async Task<DailySummaryRangeResponse> Handle(
+        DailySummaryRangeQuery request,
         CancellationToken cancellationToken)
     {
         // Validar período
@@ -38,34 +38,28 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
             throw new ArgumentException("Start date must be before or equal to end date");
         }
 
-        // Validar limite
-        var limit = Math.Clamp(request.Limit, 1, 100);
-
         // Determinar userId alvo
         var targetUserId = request.UserId ?? _currentUser.UserId!.Value;
 
         // Validar autorização
         _authorizationService.EnsureCanAccessUserData(targetUserId);
 
-        // Buscar dados com filtro de produtividade (se fornecido)
-        var apps = await _reportRepository.GetTopAppsAsync(
+        // Buscar dados
+        var dailySummaries = await _reportRepository.GetDailySummaryRangeAsync(
             targetUserId,
             request.StartDate,
             request.EndDate,
-            limit,
-            null, // productivityFilter - pode ser adicionado ao DTO depois
             cancellationToken);
 
         // Mapear para response
-        return new TopAppsResponse
+        return new DailySummaryRangeResponse
         {
-            Apps = apps.Select(a => new TopAppItem
+            Days = dailySummaries.Select(d => new DailySummaryDayItem
             {
-                DisplayName = a.DisplayName ?? a.ProcessName,
-                TotalSeconds = a.TotalSeconds,
-                SessionCount = a.SessionCount,
-                Productivity = a.Productivity,
-                Subcategory = a.Subcategory
+                Date = d.Date.ToString("yyyy-MM-dd"),
+                TotalActiveSeconds = d.TotalActiveSeconds,
+                TotalIdleSeconds = d.TotalIdleSeconds,
+                ProductivityRatio = Math.Round(d.ProductivityRatio, 2)
             }).ToList()
         };
     }

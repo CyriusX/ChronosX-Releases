@@ -7,18 +7,18 @@ using TimeTrack.Backend.Domain.Interfaces.Repositories;
 namespace TimeTrack.Backend.Application.Reports.Queries;
 
 /// <summary>
-/// Handler para obter top apps por período
+/// Handler para obter tendência de produtividade (gráfico de barras empilhadas)
 ///
-/// SRP: Apenas orquestra a busca de top apps
+/// SRP: Apenas orquestra a busca de tendência de produtividade
 /// DIP: Depende de IReportRepository (abstração)
 /// </summary>
-public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsResponse>
+public sealed class ProductivityTrendQueryHandler : IRequestHandler<ProductivityTrendQuery, ProductivityTrendResponse>
 {
     private readonly IReportRepository _reportRepository;
     private readonly IUserAuthorizationService _authorizationService;
     private readonly ICurrentUserContext _currentUser;
 
-    public TopAppsQueryHandler(
+    public ProductivityTrendQueryHandler(
         IReportRepository reportRepository,
         IUserAuthorizationService authorizationService,
         ICurrentUserContext currentUser)
@@ -28,8 +28,8 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
         _currentUser = currentUser;
     }
 
-    public async Task<TopAppsResponse> Handle(
-        TopAppsQuery request,
+    public async Task<ProductivityTrendResponse> Handle(
+        ProductivityTrendQuery request,
         CancellationToken cancellationToken)
     {
         // Validar período
@@ -38,8 +38,12 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
             throw new ArgumentException("Start date must be before or equal to end date");
         }
 
-        // Validar limite
-        var limit = Math.Clamp(request.Limit, 1, 100);
+        // Validar groupBy
+        var groupBy = request.GroupBy.ToLowerInvariant();
+        if (groupBy != "day" && groupBy != "week" && groupBy != "month")
+        {
+            throw new ArgumentException("GroupBy must be 'day', 'week', or 'month'");
+        }
 
         // Determinar userId alvo
         var targetUserId = request.UserId ?? _currentUser.UserId!.Value;
@@ -47,25 +51,24 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
         // Validar autorização
         _authorizationService.EnsureCanAccessUserData(targetUserId);
 
-        // Buscar dados com filtro de produtividade (se fornecido)
-        var apps = await _reportRepository.GetTopAppsAsync(
+        // Buscar dados
+        var trendItems = await _reportRepository.GetProductivityTrendAsync(
             targetUserId,
             request.StartDate,
             request.EndDate,
-            limit,
-            null, // productivityFilter - pode ser adicionado ao DTO depois
+            groupBy,
             cancellationToken);
 
         // Mapear para response
-        return new TopAppsResponse
+        return new ProductivityTrendResponse
         {
-            Apps = apps.Select(a => new TopAppItem
+            Periods = trendItems.Select(t => new ProductivityTrendPeriodItem
             {
-                DisplayName = a.DisplayName ?? a.ProcessName,
-                TotalSeconds = a.TotalSeconds,
-                SessionCount = a.SessionCount,
-                Productivity = a.Productivity,
-                Subcategory = a.Subcategory
+                Period = t.Period,
+                ProductiveSeconds = t.ProductiveSeconds,
+                NeutralSeconds = t.NeutralSeconds,
+                DistractionSeconds = t.DistractionSeconds,
+                IdleSeconds = t.IdleSeconds
             }).ToList()
         };
     }

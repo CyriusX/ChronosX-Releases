@@ -18,6 +18,7 @@ public sealed class ActivitySessionItem
     public required Guid Id { get; init; }
     public required string ProcessName { get; init; }
     public string? WindowTitle { get; init; }
+    public string? FilePath { get; init; }
     public string? AppCategory { get; init; }
     public required DateTime StartedAt { get; init; }
     public required DateTime EndedAt { get; init; }

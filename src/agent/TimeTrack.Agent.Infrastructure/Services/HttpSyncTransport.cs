@@ -350,6 +350,7 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
                     Id = item.EntityId,
                     ProcessName = payload.DisplayName,
                     payload.WindowTitle,
+                    payload.FilePath,
                     AppCategory = payload.CategoryProductivity,
                     StartedAt = payload.StartUtc,
                     EndedAt = payload.EndUtc,
@@ -483,6 +484,7 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
         public DateTime EndUtc { get; set; }
         public string? WindowHash { get; set; }
         public string? WindowTitle { get; set; }
+        public string? FilePath { get; set; }
     }
 
     private sealed class IdlePeriodPayload

@@ -26,7 +26,7 @@ services:
     container_name: timetrack-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Host=postgres;Database=timetrack;Username=postgres;Password=postgres
+      - ConnectionStrings__DefaultConnection=Host=ep-billowing-snow-adnjkioj-pooler.c-2.us-east-1.aws.neon.tech;Database=neondb;Username=neondb_owner;Password=npg_y6PlhoBZJ9QS;sslmode=require
     ports:
       - "5000:8080"
     depends_on:

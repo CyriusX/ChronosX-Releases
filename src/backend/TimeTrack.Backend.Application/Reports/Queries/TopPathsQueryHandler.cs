@@ -7,18 +7,18 @@ using TimeTrack.Backend.Domain.Interfaces.Repositories;
 namespace TimeTrack.Backend.Application.Reports.Queries;
 
 /// <summary>
-/// Handler para obter top apps por período
+/// Handler para obter top URLs e caminhos extraídos de window_title
 ///
-/// SRP: Apenas orquestra a busca de top apps
+/// SRP: Apenas orquestra a busca de top paths
 /// DIP: Depende de IReportRepository (abstração)
 /// </summary>
-public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsResponse>
+public sealed class TopPathsQueryHandler : IRequestHandler<TopPathsQuery, TopPathsResponse>
 {
     private readonly IReportRepository _reportRepository;
     private readonly IUserAuthorizationService _authorizationService;
     private readonly ICurrentUserContext _currentUser;
 
-    public TopAppsQueryHandler(
+    public TopPathsQueryHandler(
         IReportRepository reportRepository,
         IUserAuthorizationService authorizationService,
         ICurrentUserContext currentUser)
@@ -28,8 +28,8 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
         _currentUser = currentUser;
     }
 
-    public async Task<TopAppsResponse> Handle(
-        TopAppsQuery request,
+    public async Task<TopPathsResponse> Handle(
+        TopPathsQuery request,
         CancellationToken cancellationToken)
     {
         // Validar período
@@ -47,25 +47,25 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
         // Validar autorização
         _authorizationService.EnsureCanAccessUserData(targetUserId);
 
-        // Buscar dados com filtro de produtividade (se fornecido)
-        var apps = await _reportRepository.GetTopAppsAsync(
+        // Buscar dados
+        var paths = await _reportRepository.GetTopPathsAsync(
             targetUserId,
             request.StartDate,
             request.EndDate,
             limit,
-            null, // productivityFilter - pode ser adicionado ao DTO depois
             cancellationToken);
 
         // Mapear para response
-        return new TopAppsResponse
+        return new TopPathsResponse
         {
-            Apps = apps.Select(a => new TopAppItem
+            Paths = paths.Select(p => new TopPathResponseItem
             {
-                DisplayName = a.DisplayName ?? a.ProcessName,
-                TotalSeconds = a.TotalSeconds,
-                SessionCount = a.SessionCount,
-                Productivity = a.Productivity,
-                Subcategory = a.Subcategory
+                Title = p.Title,
+                FilePath = p.FilePath,
+                Path = p.Path,
+                SourceApp = p.SourceApp,
+                TotalSeconds = p.TotalSeconds,
+                VisitCount = p.VisitCount
             }).ToList()
         };
     }

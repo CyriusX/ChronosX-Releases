@@ -7,18 +7,18 @@ using TimeTrack.Backend.Domain.Interfaces.Repositories;
 namespace TimeTrack.Backend.Application.Reports.Queries;
 
 /// <summary>
-/// Handler para obter top apps por período
+/// Handler para obter estatísticas de distração
 ///
-/// SRP: Apenas orquestra a busca de top apps
+/// SRP: Apenas orquestra a busca de estatísticas de distração
 /// DIP: Depende de IReportRepository (abstração)
 /// </summary>
-public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsResponse>
+public sealed class DistractionStatsQueryHandler : IRequestHandler<DistractionStatsQuery, DistractionStatsResponse>
 {
     private readonly IReportRepository _reportRepository;
     private readonly IUserAuthorizationService _authorizationService;
     private readonly ICurrentUserContext _currentUser;
 
-    public TopAppsQueryHandler(
+    public DistractionStatsQueryHandler(
         IReportRepository reportRepository,
         IUserAuthorizationService authorizationService,
         ICurrentUserContext currentUser)
@@ -28,8 +28,8 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
         _currentUser = currentUser;
     }
 
-    public async Task<TopAppsResponse> Handle(
-        TopAppsQuery request,
+    public async Task<DistractionStatsResponse> Handle(
+        DistractionStatsQuery request,
         CancellationToken cancellationToken)
     {
         // Validar período
@@ -38,34 +38,34 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
             throw new ArgumentException("Start date must be before or equal to end date");
         }
 
-        // Validar limite
-        var limit = Math.Clamp(request.Limit, 1, 100);
-
         // Determinar userId alvo
         var targetUserId = request.UserId ?? _currentUser.UserId!.Value;
 
         // Validar autorização
         _authorizationService.EnsureCanAccessUserData(targetUserId);
 
-        // Buscar dados com filtro de produtividade (se fornecido)
-        var apps = await _reportRepository.GetTopAppsAsync(
+        // Buscar dados
+        var stats = await _reportRepository.GetDistractionStatsAsync(
             targetUserId,
             request.StartDate,
             request.EndDate,
-            limit,
-            null, // productivityFilter - pode ser adicionado ao DTO depois
             cancellationToken);
 
         // Mapear para response
-        return new TopAppsResponse
+        return new DistractionStatsResponse
         {
-            Apps = apps.Select(a => new TopAppItem
+            DailyDistractions = stats.DailyDistractions.Select(d => new DailyDistractionItem
             {
-                DisplayName = a.DisplayName ?? a.ProcessName,
-                TotalSeconds = a.TotalSeconds,
-                SessionCount = a.SessionCount,
-                Productivity = a.Productivity,
-                Subcategory = a.Subcategory
+                Date = d.Date.ToString("yyyy-MM-dd"),
+                DistractionSeconds = d.DistractionSeconds
+            }).ToList(),
+            TopDistractions = stats.TopDistractions.Select(d => new TopDistractionItem
+            {
+                DisplayName = d.DisplayName ?? d.ProcessName,
+                ProcessName = d.ProcessName,
+                TotalSeconds = d.TotalSeconds,
+                SessionCount = d.SessionCount,
+                Subcategory = d.Subcategory
             }).ToList()
         };
     }
