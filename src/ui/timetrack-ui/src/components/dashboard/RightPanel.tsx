@@ -1,8 +1,8 @@
 import { useEffect, useMemo } from 'react';
-import { MoreVertical, ChevronDown, Globe } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { TeamMember, AppUsageItem, AppIcon } from './shared';
+import { TeamMember, AppIcon } from './shared';
 import { useTeamStatus } from '../../hooks/useTeamStatus';
 import { formatDuration } from '../../lib/utils';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../../types/ipc';
@@ -67,7 +67,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false }: Rig
         label: app.name,
         subtext: `${Math.round(app.percentage)}%`,
         time: formatDuration(app.duration),
-        color: productivityColors[app.productivity] ?? '#94a3b8',
+        color: productivityColors[app.productivity ?? ''] ?? '#94a3b8',
       }));
   }, [summary]);
 
@@ -141,7 +141,20 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false }: Rig
             <div className="space-y-2">
               {topApps.length > 0 ? (
                 topApps.map((app) => (
-                  <AppUsageItem key={app.label} {...app} />
+                  <div key={app.label} className="flex items-center gap-2 min-w-0">
+                    <AppIcon name={app.label} size={14} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-[rgba(245,247,251,0.9)] truncate">{app.label}</p>
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          className="w-[5px] h-[5px] rounded-full flex-shrink-0"
+                          style={{ backgroundColor: app.color, boxShadow: `0px 0px 3px 0px ${app.color}` }}
+                        />
+                        <span className="text-[9px] text-[rgba(245,247,251,0.4)]">{app.subtext}</span>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.4)] flex-shrink-0">{app.time}</span>
+                  </div>
                 ))
               ) : (
                 <p className="text-[10px] text-[rgba(245,247,251,0.4)] text-center py-1">No data yet</p>

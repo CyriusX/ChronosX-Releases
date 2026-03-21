@@ -192,7 +192,8 @@ export type AgentCommand =
   | 'assignTask'
   | 'syncNow'
   | 'updateSettings'
-  | 'setWorkHours';
+  | 'setWorkHours'
+  | 'recordFocusSession';
 
 // Command Payloads
 export interface StoreTokensPayload {
@@ -234,6 +235,17 @@ export interface SetWorkHoursPayload {
   timezone?: string;
 }
 
+export interface RecordFocusSessionPayload {
+  id: string;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  mode: string;
+  cycle: number;
+  name?: string;
+  productivity: number;
+}
+
 // Command payload map for type-safe commands
 export interface CommandPayloadMap {
   storeTokens: StoreTokensPayload;
@@ -252,6 +264,7 @@ export interface CommandPayloadMap {
   syncNow: undefined;
   updateSettings: UpdateSettingsPayload;
   setWorkHours: SetWorkHoursPayload;
+  recordFocusSession: RecordFocusSessionPayload;
 }
 
 // ============================================================================
@@ -528,7 +541,8 @@ export interface ICommandSender {
  */
 export interface IQuerySender {
   sendQuery<K extends keyof QueryResponseMap>(
-    query: K
+    query: K,
+    payloadJson?: string
   ): Promise<IpcResponse<QueryResponseMap[K]>>;
 }
 

@@ -44,7 +44,8 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
         try
         {
-            var sessions = await _sessionRepository.GetByDateAsync(userId.Value, DateTime.Today, ct);
+            var targetDate = ExtractDateOrToday(request);
+            var sessions = await _sessionRepository.GetByDateAsync(userId.Value, targetDate, ct);
 
             var filtered = sessions
                 .Where(s => !InternalApps.Contains(s.App.DisplayName))

@@ -30,4 +30,19 @@ public abstract class IpcHandlerBase
             Success = false,
             Error = ex.Message
         };
+
+    /// <summary>
+    /// Extracts an optional "date" property from the request payload.
+    /// Returns DateTime.Today if no date is provided.
+    /// </summary>
+    protected static DateTime ExtractDateOrToday(IpcRequest request)
+    {
+        if (request.Payload.HasValue && request.Payload.Value.TryGetProperty("date", out var dateProp))
+        {
+            var dateStr = dateProp.GetString();
+            if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var parsed))
+                return parsed.Date;
+        }
+        return DateTime.Today;
+    }
 }

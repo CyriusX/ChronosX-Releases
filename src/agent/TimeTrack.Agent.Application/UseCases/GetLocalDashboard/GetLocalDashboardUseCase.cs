@@ -221,9 +221,10 @@ public sealed class GetLocalDashboardUseCase
             var timeMs = (long)kvp.Value.Time.TotalMilliseconds;
             var category = kvp.Value.Category;
 
-            if (category == "Productive" || category == "Focus")
+            if (string.Equals(category, "productive", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(category, "focus", StringComparison.OrdinalIgnoreCase))
                 focusTimeMs += timeMs;
-            else if (category == "Distraction")
+            else if (string.Equals(category, "distraction", StringComparison.OrdinalIgnoreCase))
             {
                 distractionMs += timeMs;
                 distractionCount++;
@@ -241,7 +242,8 @@ public sealed class GetLocalDashboardUseCase
             var category = session.App.Category.Productivity;
             var sessionMs = (long)session.Duration.TotalMilliseconds;
 
-            if (category == "Productive" || category == "Focus")
+            if (string.Equals(category, "productive", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(category, "focus", StringComparison.OrdinalIgnoreCase))
             {
                 currentFocusBlockMs += sessionMs;
             }

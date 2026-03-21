@@ -27,7 +27,8 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     {
         try
         {
-            var dashboard = await _getDashboard.ExecuteAsync(DateTime.Today, ct);
+            var targetDate = ExtractDateOrToday(request);
+            var dashboard = await _getDashboard.ExecuteAsync(targetDate, ct);
 
             // All durations are in seconds for sub-minute precision.
             // The UI formats them via formatDuration(seconds).
@@ -86,7 +87,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                     subcategory = a.Subcategory
                 }).ToArray(),
 
-                weeklyHistory = await BuildWeeklyHistoryAsync(ct)
+                weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, ct)
             };
 
             return SuccessResponse(request.RequestId, summary);
@@ -101,9 +102,9 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     /// <summary>
     /// Builds real weekly history by querying each of the past 7 days.
     /// </summary>
-    private async Task<object[]> BuildWeeklyHistoryAsync(CancellationToken ct)
+    private async Task<object[]> BuildWeeklyHistoryAsync(DateTime centerDate, CancellationToken ct)
     {
-        var today = DateTime.Today;
+        var today = centerDate;
         var history = new List<object>();
         var dayNames = new[] { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" };
 

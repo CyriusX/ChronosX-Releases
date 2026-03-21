@@ -35,6 +35,12 @@ interface ActivityBlock {
 const POLL_INTERVAL = 10000;
 const TOTAL_HOURS = 24;
 
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
+}
+
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
@@ -49,32 +55,45 @@ function fmtDuration(sec: number) {
   return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
 }
 
-export function ActivitySection() {
+interface ActivitySectionProps {
+  /** When provided, skip internal fetch and use these activities */
+  activities?: ActivityBlock[];
+  /** When provided, use this date for dayStart instead of today */
+  selectedDate?: Date;
+}
+
+export function ActivitySection({ activities: controlledActivities, selectedDate }: ActivitySectionProps = {}) {
   const { sendQuery, isConnected } = useIpc();
-  const [activities, setActivities] = useState<ActivityBlock[]>([]);
+  const [internalActivities, setInternalActivities] = useState<ActivityBlock[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [hovered, setHovered] = useState<{ block: ActivityBlock; rect: DOMRect } | null>(null);
 
+  const isControlled = controlledActivities !== undefined;
+  const activities = isControlled ? controlledActivities : internalActivities;
+
   const fetchActivities = useCallback(async () => {
+    if (isControlled) return;
     try {
       const res = await sendQuery('getRecentActivities');
       if (res.success && res.data) {
-        const data = res.data as { activities: ActivityBlock[] };
-        setActivities(data.activities ?? []);
+        const data = res.data as unknown as { activities: ActivityBlock[] };
+        setInternalActivities(data.activities ?? []);
       }
     } catch { /* ignore */ }
-  }, [sendQuery]);
+  }, [sendQuery, isControlled]);
 
   useEffect(() => {
-    if (!isConnected) return;
+    if (isControlled || !isConnected) return;
     fetchActivities();
     const interval = setInterval(fetchActivities, POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [isConnected, fetchActivities]);
+  }, [isConnected, fetchActivities, isControlled]);
 
   const dayStart = useMemo(() => {
-    const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime();
-  }, []);
+    const d = selectedDate ? new Date(selectedDate) : new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, [selectedDate]);
   const dayMs = TOTAL_HOURS * 3600000;
 
   const blocks = useMemo(() => {
@@ -97,9 +116,11 @@ export function ActivitySection() {
 
   const hourLabels = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
+  const isViewingToday = !selectedDate || isSameDay(selectedDate, new Date());
   const nowPct = useMemo(() => {
+    if (!isViewingToday) return -1;
     return Math.min(100, Math.max(0, ((Date.now() - dayStart) / dayMs) * 100));
-  }, [dayStart, dayMs]);
+  }, [dayStart, dayMs, isViewingToday]);
 
   const handleMouseEnter = useCallback((block: ActivityBlock, e: React.MouseEvent) => {
     setHovered({ block, rect: e.currentTarget.getBoundingClientRect() });
@@ -125,7 +146,7 @@ export function ActivitySection() {
               <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Atividade</span>
             </button>
             <span className="text-[10px] text-[rgba(245,247,251,0.3)] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
-              Hoje
+              {!selectedDate || isSameDay(selectedDate, new Date()) ? 'Hoje' : selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
             </span>
           </CardTitle>
         </CardHeader>
@@ -175,10 +196,12 @@ export function ActivitySection() {
                     />
                   ))}
 
-                  {/* Now marker */}
-                  <div className="absolute top-0 bottom-0 w-px bg-[rgba(245,247,251,0.4)]" style={{ left: `${nowPct}%` }}>
-                    <div className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-[5px] h-[5px] rounded-full bg-[rgba(245,247,251,0.6)]" />
-                  </div>
+                  {/* Now marker (only when viewing today) */}
+                  {nowPct >= 0 && (
+                    <div className="absolute top-0 bottom-0 w-px bg-[rgba(245,247,251,0.4)]" style={{ left: `${nowPct}%` }}>
+                      <div className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-[5px] h-[5px] rounded-full bg-[rgba(245,247,251,0.6)]" />
+                    </div>
+                  )}
                 </div>
 
                 {/* Legend */}

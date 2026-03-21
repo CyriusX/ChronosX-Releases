@@ -1,23 +1,15 @@
 import {
   TrendingUp, Globe, Briefcase, Code2, Users, MessageSquare,
-  Music, Play, Paintbrush, Video
+  Play, Paintbrush, Video
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { CategoryItem, AppItem, ProjectItem, AppIcon } from './shared';
+import { CategoryItem, ProjectItem, AppIcon } from './shared';
 import { formatDuration } from '../../lib/utils';
 import type { TodaySummaryResponse, AppProductivityCategory } from '../../types/ipc';
 
 interface BottomCardsProps {
   summary: TodaySummaryResponse | null;
 }
-
-const getProductivityColor = (productivity?: AppProductivityCategory): string => {
-  switch (productivity) {
-    case 'productive': return '#4ade80';
-    case 'distraction': return '#f87171';
-    default: return '#fbbf24';
-  }
-};
 
 const getProductivityBadgeStyle = (productivity?: AppProductivityCategory): string => {
   switch (productivity) {
@@ -108,20 +100,14 @@ export function BottomCards({ summary }: BottomCardsProps) {
                 const percentage = totalAppTime > 0
                   ? Math.round((app.duration / totalAppTime) * 100)
                   : Math.round(app.percentage);
-                const productivityColor = getProductivityColor(app.productivity);
                 const badgeStyle = getProductivityBadgeStyle(app.productivity);
 
                 return (
-                  <div key={index} className="flex items-center gap-1.5">
-                    <div className="flex-1 min-w-0">
-                      <AppItem
-                        percentage={percentage}
-                        icon={<AppIcon name={app.name} size={13} />}
-                        label={app.name}
-                        time={formatDuration(app.duration)}
-                        color={productivityColor}
-                      />
-                    </div>
+                  <div key={index} className="flex items-center gap-2 min-w-0">
+                    <span className="text-[11px] text-[rgba(245,247,251,0.4)] w-7 text-right flex-shrink-0">{percentage}%</span>
+                    <AppIcon name={app.name} size={14} />
+                    <span className="text-[11px] text-[rgba(245,247,251,0.8)] flex-1 truncate min-w-0">{app.name}</span>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.4)] flex-shrink-0">{formatDuration(app.duration)}</span>
                     {app.productivity && (
                       <span className={`px-1.5 py-0.5 text-[8px] rounded-full border flex-shrink-0 ${badgeStyle}`}>
                         {app.productivity === 'productive' ? 'P' : app.productivity === 'distraction' ? 'D' : 'N'}

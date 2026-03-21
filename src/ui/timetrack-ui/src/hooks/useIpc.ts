@@ -38,7 +38,8 @@ interface UseIpcReturn {
 
   // Queries (request-response)
   sendQuery: <K extends keyof QueryResponseMap>(
-    query: K
+    query: K,
+    payload?: Record<string, unknown>
   ) => Promise<IpcResponse<QueryResponseMap[K]>>;
 
   // Events (subscription)
@@ -186,7 +187,8 @@ class MockIpcClient implements IIpcClient {
   }
 
   async sendQuery<K extends keyof QueryResponseMap>(
-    query: K
+    query: K,
+    _payloadJson?: string
   ): Promise<IpcResponse<QueryResponseMap[K]>> {
     await this.delay(50);
 
@@ -306,12 +308,14 @@ export function useIpc(): UseIpcReturn {
   // Query sender with stable reference
   const sendQuery = useCallback(
     async <K extends keyof QueryResponseMap>(
-      query: K
+      query: K,
+      payload?: Record<string, unknown>
     ): Promise<IpcResponse<QueryResponseMap[K]>> => {
       if (!clientRef.current) {
         return { success: false, error: 'IPC client not initialized' };
       }
-      return clientRef.current.sendQuery(query);
+      const payloadJson = payload ? JSON.stringify(payload) : undefined;
+      return clientRef.current.sendQuery(query, payloadJson);
     },
     []
   );

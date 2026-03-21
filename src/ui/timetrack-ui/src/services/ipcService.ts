@@ -126,7 +126,8 @@ export class IpcService implements IIpcClient {
   // ============================================================================
 
   async sendQuery<K extends keyof QueryResponseMap>(
-    query: K
+    query: K,
+    payloadJson?: string
   ): Promise<IpcResponse<QueryResponseMap[K]>> {
     const bridge = this.getBridge();
 
@@ -140,7 +141,7 @@ export class IpcService implements IIpcClient {
       // or a COM proxy. Both expose SendQuery returning Promise<string>.
       const responseJson = await (bridge as unknown as {
         SendQuery: (query: string, payloadJson?: string) => Promise<string>;
-      }).SendQuery(query as string);
+      }).SendQuery(query as string, payloadJson);
 
       const response = JSON.parse(responseJson);
       return response as IpcResponse<QueryResponseMap[K]>;
