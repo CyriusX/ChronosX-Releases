@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useIpc } from '../hooks/useIpc';
 import { usePermissions } from '../hooks/usePermissions';
 import { useFocusModePolicy } from '../hooks/useFocusModePolicy';
+import { useAuthStore } from '../stores/authStore';
+import { getMemberSummary } from '../services/memberApi';
+import type { MemberSummaryResponse } from '../types/member';
 import {
   Sidebar,
   DashboardHeader,
@@ -11,13 +14,121 @@ import {
   BottomCards,
   RightPanel,
 } from '../components/dashboard';
+import type { TodaySummaryResponse } from '../types/ipc';
+
+const MEMBER_POLL_INTERVAL_MS = 30_000; // Refresh member data every 30s
+
+function formatSyncTime(isoString: string): string {
+  const syncDate = new Date(isoString);
+  const now = new Date();
+  const diffMs = now.getTime() - syncDate.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+
+  if (diffMin < 1) return 'agora';
+  if (diffMin < 60) return `há ${diffMin}min`;
+
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `há ${diffHours}h ${diffMin % 60}min`;
+
+  return syncDate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'meu-dia' | 'equipe'>('meu-dia');
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [memberSummary, setMemberSummary] = useState<TodaySummaryResponse | null>(null);
+  const [memberLastSyncAt, setMemberLastSyncAt] = useState<string | null>(null);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const memberPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { sendCommand } = useIpc();
   const { todaySummary, weeklyHistory, isPaused, isTracking, refreshData } = useDashboardData();
   const { canManageTeam } = usePermissions();
   const { focusModePolicy } = useFocusModePolicy();
+  const { tokens } = useAuthStore();
+
+  // Fetch selected member's summary
+  const fetchMemberSummary = useCallback(async (userId: string, isInitial = false) => {
+    const accessToken = tokens?.accessToken;
+    if (!accessToken) {
+      console.warn('[Dashboard] No access token available for member summary fetch');
+      if (isInitial) setMemberError('Sessão expirada. Faça login novamente.');
+      return;
+    }
+
+    // Check token expiry
+    if (tokens?.expiresAt && tokens.expiresAt < Date.now()) {
+      console.warn('[Dashboard] Access token expired, attempting refresh...');
+      const refreshed = await useAuthStore.getState().refreshTokens();
+      if (!refreshed) {
+        if (isInitial) setMemberError('Sessão expirada. Faça login novamente.');
+        return;
+      }
+    }
+
+    // Re-read token after potential refresh
+    const currentToken = useAuthStore.getState().tokens?.accessToken ?? accessToken;
+
+    if (isInitial) {
+      setMemberLoading(true);
+      setMemberError(null);
+    }
+    try {
+      console.log('[Dashboard] Fetching member summary for:', userId);
+      const data = await getMemberSummary(currentToken, userId);
+      const raw = data as MemberSummaryResponse;
+      setMemberSummary(raw as unknown as TodaySummaryResponse);
+      setMemberLastSyncAt(raw.lastSyncAt ?? null);
+      setMemberError(null);
+    } catch (err) {
+      console.error('[Dashboard] Error fetching member summary:', err);
+      if (isInitial) {
+        setMemberSummary(null);
+        setMemberError(err instanceof Error ? err.message : 'Erro ao carregar dados do membro');
+      }
+    } finally {
+      if (isInitial) setMemberLoading(false);
+    }
+  }, [tokens?.accessToken, tokens?.expiresAt]);
+
+  // Fetch on member selection + start polling
+  useEffect(() => {
+    if (selectedMemberId && activeTab === 'equipe') {
+      fetchMemberSummary(selectedMemberId, true);
+
+      // Poll for fresh data
+      memberPollRef.current = setInterval(() => {
+        fetchMemberSummary(selectedMemberId);
+      }, MEMBER_POLL_INTERVAL_MS);
+    }
+
+    return () => {
+      if (memberPollRef.current) {
+        clearInterval(memberPollRef.current);
+        memberPollRef.current = null;
+      }
+    };
+  }, [selectedMemberId, activeTab, fetchMemberSummary]);
+
+  // Clear member selection when switching back to "Meu dia"
+  useEffect(() => {
+    if (activeTab === 'meu-dia') {
+      setSelectedMemberId(null);
+      setMemberSummary(null);
+      setMemberLastSyncAt(null);
+      setMemberError(null);
+      setMemberLoading(false);
+    }
+  }, [activeTab]);
+
+  const isTeamTab = activeTab === 'equipe';
+  const isViewingMember = isTeamTab && !!selectedMemberId;
+
+  // When viewing a member, show their data; otherwise show own data
+  const displaySummary = isViewingMember ? memberSummary : todaySummary;
+  const displayWeeklyHistory = isViewingMember && memberSummary
+    ? memberSummary.weeklyHistory
+    : weeklyHistory;
 
   const onStartTracking = async () => {
     const result = await sendCommand('startTracking');
@@ -50,27 +161,96 @@ export default function Dashboard() {
         <div className="flex-1 flex gap-5 px-5 pb-4 min-h-0">
           {/* Left Content Area — scrollable */}
           <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-0 pr-1">
-            <TopCards
-              summary={todaySummary}
-              isPaused={isPaused}
-              isTracking={isTracking}
-              focusModePolicy={focusModePolicy}
-              onStartTracking={onStartTracking}
-              onPauseTracking={onPauseTracking}
-              onStopTracking={onStopTracking}
-            />
+            {/* Loading overlay for member data */}
+            {isViewingMember && memberLoading && (
+              <div className="flex items-center justify-center py-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-4 h-4 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[13px] text-[rgba(245,247,251,0.5)]">Carregando dados do membro...</span>
+                </div>
+              </div>
+            )}
 
-            <ActivitySection />
+            {/* Error state for member data */}
+            {isViewingMember && memberError && !memberLoading && (
+              <div className="flex items-center justify-center py-6">
+                <div className="text-center">
+                  <p className="text-[13px] text-[rgba(248,113,113,0.9)]">Erro ao carregar dados</p>
+                  <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-1">{memberError}</p>
+                  <button
+                    onClick={() => selectedMemberId && fetchMemberSummary(selectedMemberId, true)}
+                    className="mt-2 px-3 py-1 text-[11px] text-[#4ad9ff] border border-[rgba(74,217,255,0.3)] rounded-md hover:bg-[rgba(74,217,255,0.1)] transition-colors"
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              </div>
+            )}
 
-            <BottomCards summary={todaySummary} />
+            {/* Prompt to select a member when on team tab with no selection */}
+            {isTeamTab && !selectedMemberId && (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <p className="text-[14px] text-[rgba(245,247,251,0.6)]">Selecione um membro da equipe</p>
+                  <p className="text-[11px] text-[rgba(245,247,251,0.3)] mt-1">
+                    Use o seletor no painel lateral para visualizar os dados de um membro
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* "Meu dia" tab — always show own data + activity timeline */}
+            {!isTeamTab && (
+              <>
+                <TopCards
+                  summary={displaySummary}
+                  isPaused={isPaused}
+                  isTracking={isTracking}
+                  focusModePolicy={focusModePolicy}
+                  onStartTracking={onStartTracking}
+                  onPauseTracking={onPauseTracking}
+                  onStopTracking={onStopTracking}
+                  isTeamTab={false}
+                />
+                <ActivitySection />
+                <BottomCards summary={displaySummary} />
+              </>
+            )}
+
+            {/* Team tab — show member data when selected and loaded */}
+            {isViewingMember && !memberLoading && !memberError && displaySummary && (
+              <>
+                {/* Last sync indicator */}
+                {memberLastSyncAt && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.05)]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#4ad9ff] animate-pulse" />
+                    <span className="text-[10px] text-[rgba(245,247,251,0.4)]">
+                      Última sincronização: {formatSyncTime(memberLastSyncAt)}
+                    </span>
+                    <span className="text-[10px] text-[rgba(245,247,251,0.25)]">
+                      · Sincroniza a cada 60s
+                    </span>
+                  </div>
+                )}
+                <TopCards
+                  summary={displaySummary}
+                  isPaused={false}
+                  isTracking={false}
+                  isTeamTab={true}
+                />
+                <BottomCards summary={displaySummary} />
+              </>
+            )}
           </div>
 
           {/* Right Panel — fixed width, scrollable */}
           <div className="w-[280px] flex-shrink-0 overflow-y-auto">
             <RightPanel
-              summary={todaySummary}
-              weeklyHistory={weeklyHistory}
-              showTeamCard={canManageTeam}
+              summary={displaySummary}
+              weeklyHistory={displayWeeklyHistory}
+              showTeamCard={isTeamTab}
+              selectedMemberId={selectedMemberId}
+              onMemberSelect={setSelectedMemberId}
             />
           </div>
         </div>

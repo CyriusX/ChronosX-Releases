@@ -211,7 +211,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                     EndUtc = session.Period.EndUtc
                 });
 
-                // 2. Update outbox payload for any pending (not yet sent) outbox items for this session
+                // 2. Update outbox payload — try pending item first, create new if already sent
                 var newPayloadJson = JsonSerializer.Serialize(new
                 {
                     id = session.Id,
@@ -226,17 +226,47 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                     windowTitle = session.WindowTitle
                 }, _jsonOptions);
 
-                const string outboxSql = @"
+                const string updateOutboxSql = @"
                 UPDATE sync_outbox
                 SET payload_json = @PayloadJson
                 WHERE entity_id = @EntityId AND sent_at IS NULL
                 ";
 
-                await connection.ExecuteAsync(outboxSql, new
+                var rowsUpdated = await connection.ExecuteAsync(updateOutboxSql, new
                 {
                     PayloadJson = newPayloadJson,
                     EntityId = session.Id.ToString()
                 });
+
+                // If no pending outbox item was updated, the previous one was already sent.
+                // Create a new outbox item so the backend receives the extended end_utc.
+                if (rowsUpdated == 0)
+                {
+                    var idempotencyKey = $"activity_session:{session.Id}:{session.Period.EndUtc:yyyyMMddHHmmss}";
+
+                    const string insertOutboxSql = @"
+                    INSERT OR IGNORE INTO sync_outbox
+                        (id, user_id, entity_type, entity_id, payload_json, idempotency_key,
+                         attempt_count, next_attempt_utc, sent_at, last_error, created_at)
+                    VALUES
+                        (@Id, @UserId, 'activity_session', @EntityId, @PayloadJson, @IdempotencyKey,
+                         0, NULL, NULL, NULL, @CreatedAt)
+                    ";
+
+                    await connection.ExecuteAsync(insertOutboxSql, new
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        UserId = session.UserId.ToString(),
+                        EntityId = session.Id.ToString(),
+                        PayloadJson = newPayloadJson,
+                        IdempotencyKey = idempotencyKey,
+                        CreatedAt = DateTime.UtcNow.ToString("o")
+                    });
+
+                    _logger.LogDebug(
+                        "Created new outbox item for already-synced session {SessionId} (extended to {EndUtc})",
+                        session.Id, session.Period.EndUtc);
+                }
 
                 await transaction.CommitAsync();
 

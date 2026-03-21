@@ -5,6 +5,7 @@
 import type {
   ListMembersResponse,
   TeamStatusResponse,
+  MemberSummaryResponse,
   InviteMemberRequest,
   InviteMemberResponse,
   UpdateMemberStatusRequest,
@@ -23,7 +24,7 @@ async function getAuthHeaders(accessToken: string): Promise<HeadersInit> {
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Request failed' }));
-    throw new Error(error.message || error.title || `HTTP ${response.status}`);
+    throw new Error(error.message || error.title || `HTTP ${response.status}: ${response.statusText}`);
   }
   return response.json();
 }
@@ -48,6 +49,17 @@ export async function getTeamStatus(accessToken: string): Promise<TeamStatusResp
     headers: await getAuthHeaders(accessToken),
   });
   return handleResponse<TeamStatusResponse>(response);
+}
+
+/**
+ * Get a specific member's today summary (admin/manager view)
+ */
+export async function getMemberSummary(accessToken: string, userId: string): Promise<MemberSummaryResponse> {
+  const response = await fetch(`${API_BASE}/auth/team/members/${encodeURIComponent(userId)}/summary`, {
+    method: 'GET',
+    headers: await getAuthHeaders(accessToken),
+  });
+  return handleResponse<MemberSummaryResponse>(response);
 }
 
 /**

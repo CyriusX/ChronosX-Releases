@@ -57,3 +57,22 @@ export interface UpdateMemberRoleRequest {
   userId: string;
   role: UserRole;
 }
+
+/**
+ * Response from GET /api/v1/auth/team/members/:userId/summary
+ * Same shape as TodaySummaryResponse so it can be used interchangeably on the dashboard
+ */
+export interface MemberSummaryResponse {
+  totalDuration: number;
+  productiveTime: number;
+  idleTime: number;
+  focusTime: number;
+  focusScore: number;
+  sessionsCount: number;
+  topProjects: { name: string; duration: number; percentage: number }[];
+  topApplications: { name: string; duration: number; percentage: number; iconPath?: string; productivity?: 'productive' | 'neutral' | 'distraction'; subcategory?: string; source?: 'global' | 'org_override' | 'default' }[];
+  topAppsByExe?: { name: string; duration: number; percentage: number; iconPath?: string; productivity?: 'productive' | 'neutral' | 'distraction'; subcategory?: string; source?: 'global' | 'org_override' | 'default' }[];
+  categories: { name: string; duration: number; percentage: number; color: string; subcategory?: string; productivity?: 'productive' | 'neutral' | 'distraction'; source?: 'global' | 'org_override' | 'default' }[];
+  weeklyHistory: { date: string; dayName: string; hours: number; isToday: boolean }[];
+  lastSyncAt?: string | null;
+}

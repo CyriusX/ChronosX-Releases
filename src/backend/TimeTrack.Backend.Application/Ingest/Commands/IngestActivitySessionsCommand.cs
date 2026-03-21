@@ -82,7 +82,33 @@ public sealed class IngestActivitySessionsCommandHandler : IRequestHandler<Inges
                     continue;
                 }
 
-                // Create entity
+                // Check if session already exists (sent earlier with shorter end time, now extended)
+                var existingSession = await _activitySessionRepository.GetByIdAsync(item.Id, cancellationToken);
+                if (existingSession != null)
+                {
+                    // Update the existing session if the new end time is later
+                    if (item.EndedAt > existingSession.EndedAt)
+                    {
+                        existingSession.Extend(item.EndedAt);
+                        await _activitySessionRepository.UpdateAsync(existingSession, cancellationToken);
+
+                        _logger.LogDebug(
+                            "Extended existing session {SessionId} to {EndedAt} (+{ExtendedBy}s)",
+                            item.Id, item.EndedAt,
+                            (int)(item.EndedAt - existingSession.EndedAt).TotalSeconds);
+                    }
+
+                    // Record idempotency key to prevent re-processing
+                    var updateIdempotencyKey = IdempotencyKey.Create(
+                        orgId, item.IdempotencyKey, EntityType, item.Id);
+                    await _idempotencyKeyRepository.AddAsync(updateIdempotencyKey, cancellationToken);
+                    existingKeys.Add(item.IdempotencyKey);
+
+                    processed++;
+                    continue;
+                }
+
+                // Create new entity
                 var session = ActivitySession.Create(
                     item.Id,
                     orgId,

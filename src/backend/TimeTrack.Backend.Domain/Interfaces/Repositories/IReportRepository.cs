@@ -51,4 +51,5 @@ public sealed class AppAggregate
     public string ProcessName { get; init; } = string.Empty;
     public long TotalSeconds { get; init; }
     public int SessionCount { get; init; }
+    public string? AppCategory { get; init; }
 }

@@ -21,6 +21,7 @@ interface TopCardsProps {
   onStartTracking?: () => void;
   onPauseTracking?: () => void;
   onStopTracking?: () => void;
+  isTeamTab?: boolean;
 }
 
 const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl";
@@ -33,6 +34,7 @@ export function TopCards({
   onStartTracking,
   onPauseTracking,
   onStopTracking,
+  isTeamTab = false,
 }: TopCardsProps) {
   const totalSeconds = summary?.totalDuration ?? 0;
   const idleSeconds = summary?.idleTime ?? 0;
@@ -89,7 +91,7 @@ export function TopCards({
   const progressPercentage = Math.min((totalSeconds / 28800) * 100, 100);
 
   return (
-    <div className="grid grid-cols-3 gap-4 flex-shrink-0">
+    <div className={`grid ${isTeamTab ? 'grid-cols-2' : 'grid-cols-3'} gap-4 flex-shrink-0`}>
       {/* Tempo Rastreado Card */}
       <Card className={cardBase}>
         <CardHeader className="pb-0 pt-3 px-4">
@@ -200,8 +202,8 @@ export function TopCards({
         </CardContent>
       </Card>
 
-      {/* Pomodoro / Ultradian Timer Card */}
-      <TimerFocusCard summary={summary} />
+      {/* Pomodoro / Ultradian Timer Card — hidden on Team tab */}
+      {!isTeamTab && <TimerFocusCard summary={summary} />}
     </div>
   );
 }

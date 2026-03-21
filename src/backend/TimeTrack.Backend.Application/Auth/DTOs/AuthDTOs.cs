@@ -333,3 +333,59 @@ public sealed class TeamStatusResponse
     public int ActiveCount { get; init; }
     public int TrackingCount { get; init; }
 }
+
+/// <summary>
+/// Response do resumo de um membro da equipe (mesma shape que TodaySummaryResponse do frontend)
+/// </summary>
+public sealed class TeamMemberSummaryResponse
+{
+    public long TotalDuration { get; init; }
+    public long ProductiveTime { get; init; }
+    public long IdleTime { get; init; }
+    public long FocusTime { get; init; }
+    public int FocusScore { get; init; }
+    public int SessionsCount { get; init; }
+    public List<MemberProjectSummary> TopProjects { get; init; } = [];
+    public List<MemberAppSummary> TopApplications { get; init; } = [];
+    public List<MemberAppSummary>? TopAppsByExe { get; init; }
+    public List<MemberCategorySummary> Categories { get; init; } = [];
+    public List<MemberWeeklyHistoryItem> WeeklyHistory { get; init; } = [];
+    /// <summary>
+    /// Timestamp of the most recent synced activity session (UTC ISO 8601)
+    /// </summary>
+    public string? LastSyncAt { get; init; }
+}
+
+public sealed class MemberProjectSummary
+{
+    public string Name { get; init; } = string.Empty;
+    public long Duration { get; init; }
+    public double Percentage { get; init; }
+}
+
+public sealed class MemberAppSummary
+{
+    public string Name { get; init; } = string.Empty;
+    public long Duration { get; init; }
+    public double Percentage { get; init; }
+    public string? Productivity { get; init; }
+    public string? Subcategory { get; init; }
+    public string? Source { get; init; }
+}
+
+public sealed class MemberCategorySummary
+{
+    public string Name { get; init; } = string.Empty;
+    public long Duration { get; init; }
+    public double Percentage { get; init; }
+    public string Color { get; init; } = "#94a3b8";
+    public string? Productivity { get; init; }
+}
+
+public sealed class MemberWeeklyHistoryItem
+{
+    public string Date { get; init; } = string.Empty;
+    public string DayName { get; init; } = string.Empty;
+    public double Hours { get; init; }
+    public bool IsToday { get; init; }
+}

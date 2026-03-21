@@ -25,14 +25,15 @@ public sealed class ReportRepository : IReportRepository
         var startOfDay = date.Date;
         var endOfDay = startOfDay.AddDays(1).AddTicks(-1);
 
-        // Query otimizada com GROUP BY no banco - apps agregados
+        // Query otimizada com GROUP BY no banco - apps agregados (include AppCategory)
         var appAggregates = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= startOfDay && a.StartedAt <= endOfDay)
-            .GroupBy(a => a.ProcessName)
+            .GroupBy(a => new { a.ProcessName, a.AppCategory })
             .Select(g => new AppAggregate
             {
-                ProcessName = g.Key,
+                ProcessName = g.Key.ProcessName,
+                AppCategory = g.Key.AppCategory,
                 TotalSeconds = (long)g.Sum(a => a.DurationSeconds),
                 SessionCount = g.Count()
             })
