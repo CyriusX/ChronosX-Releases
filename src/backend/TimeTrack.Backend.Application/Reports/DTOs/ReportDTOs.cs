@@ -27,6 +27,20 @@ public sealed class DailySummaryRangeResponse
     /// </summary>
     [JsonPropertyName("days")]
     public List<DailySummaryDayItem> Days { get; init; } = [];
+
+    /// <summary>
+    /// Focus Score agregado do período (0-100)
+    /// Calculado com base no tempo produtivo total, penalidades por distração e bônus por blocos de foco
+    /// </summary>
+    [JsonPropertyName("periodFocusScore")]
+    public short PeriodFocusScore { get; init; }
+
+    /// <summary>
+    /// Proporção base de produtividade do período (0.0 a 1.0)
+    /// Simples: tempo_produtivo / tempo_total
+    /// </summary>
+    [JsonPropertyName("periodBaseProductivity")]
+    public double PeriodBaseProductivity { get; init; }
 }
 
 /// <summary>
@@ -57,6 +71,13 @@ public sealed class DailySummaryDayItem
     /// </summary>
     [JsonPropertyName("productivityRatio")]
     public double ProductivityRatio { get; init; }
+
+    /// <summary>
+    /// Focus Score do dia (0-100)
+    /// Inclui penalidades por distração e bônus por blocos de foco longo
+    /// </summary>
+    [JsonPropertyName("focusScore")]
+    public short FocusScore { get; init; }
 }
 
 // ============================================================================

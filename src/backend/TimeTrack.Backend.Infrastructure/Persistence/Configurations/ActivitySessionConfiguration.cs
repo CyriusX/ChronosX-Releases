@@ -45,6 +45,10 @@ internal sealed class ActivitySessionConfiguration : IEntityTypeConfiguration<Ac
             .HasColumnName("app_category")
             .HasMaxLength(100);
 
+        builder.Property(a => a.AppSubcategory)
+            .HasColumnName("app_subcategory")
+            .HasMaxLength(100);
+
         builder.Property(a => a.StartedAt)
             .HasColumnName("started_at")
             .IsRequired();

@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using TimeTrack.Backend.Application.FocusScore;
 using TimeTrack.Backend.Domain.Entities;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using TimeTrack.Backend.Domain.ValueObjects;
 using TimeTrack.Backend.Infrastructure.Persistence;
 
 namespace TimeTrack.Backend.Infrastructure.Repositories;
@@ -14,14 +17,16 @@ namespace TimeTrack.Backend.Infrastructure.Repositories;
 public sealed class ReportRepository : IReportRepository
 {
     private readonly TimeTrackDbContext _context;
+    private readonly ILogger<ReportRepository>? _logger;
 
     // Cache em memória das categorias globais (carregado uma vez por instância)
     private Dictionary<string, AppCategoryGlobal>? _categoryCache;
     private readonly object _cacheLock = new();
 
-    public ReportRepository(TimeTrackDbContext context)
+    public ReportRepository(TimeTrackDbContext context, ILogger<ReportRepository>? logger = null)
     {
         _context = context;
+        _logger = logger;
     }
 
     /// <summary>
@@ -181,6 +186,9 @@ public sealed class ReportRepository : IReportRepository
     // NOVOS MÉTODOS - CX-155
     // ========================================================================
 
+    // Threshold for long focus block: 25 minutes in seconds
+    private const long LongFocusBlockThresholdSeconds = 25 * 60;
+
     public async Task<IEnumerable<DailySummaryItem>> GetDailySummaryRangeAsync(
         Guid userId,
         DateTime startDate,
@@ -198,6 +206,17 @@ public sealed class ReportRepository : IReportRepository
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
             .Select(a => new { a.StartedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
+
+        // DEBUG: Log raw session data
+        _logger?.LogInformation(
+            "GetDailySummaryRangeAsync: UserId={UserId}, Start={Start}, End={End}, SessionsCount={Count}",
+            userId, start, end, sessions.Count);
+
+        // DEBUG: Log unique categories found
+        var uniqueCategories = sessions.Select(s => s.AppCategory).Distinct().ToList();
+        _logger?.LogInformation(
+            "GetDailySummaryRangeAsync: Unique AppCategories: [{Categories}]",
+            string.Join(", ", uniqueCategories.Select(c => $"'{c}'")));
 
         var idlePeriods = await _context.IdlePeriods
             .AsNoTracking()
@@ -223,16 +242,81 @@ public sealed class ReportRepository : IReportRepository
                 .Where(s => ResolveProductivity(s.AppCategory) == "productive")
                 .Sum(s => s.DurationSeconds);
 
+            // DEBUG: Log productivity calculation
+            var productiveCount = daySessions.Count(s => ResolveProductivity(s.AppCategory) == "productive");
+            var neutralCount = daySessions.Count(s => ResolveProductivity(s.AppCategory) == "neutral");
+            var distractionCountDebug = daySessions.Count(s => ResolveProductivity(s.AppCategory) == "distraction");
+            _logger?.LogInformation(
+                "GetDailySummaryRangeAsync Day={Date}: TotalActive={TotalActive}s, Productive={Productive}s ({ProductiveCount} sessions), Neutral={NeutralCount} sessions, Distraction={DistractionCount} sessions",
+                date, totalActive, productiveSeconds, productiveCount, neutralCount, distractionCountDebug);
+
             var productivityRatio = totalActive > 0
                 ? (double)productiveSeconds / totalActive
                 : 0;
+
+            // Calcular Focus Score inline
+            short focusScore = 0;
+            var distractionCount = 0;
+            var longFocusBlockCount = 0;
+
+            if (totalActive > 0)
+            {
+                // Contar distrações (apps únicos de distração)
+                distractionCount = daySessions
+                    .Where(s => ResolveProductivity(s.AppCategory) == "distraction")
+                    .Select(s => s.ProcessName)
+                    .Distinct()
+                    .Count();
+
+                // Contar blocos de foco longo (>25min consecutivos em apps produtivos)
+                var currentFocusBlockSeconds = 0L;
+                foreach (var session in daySessions.OrderBy(s => s.StartedAt))
+                {
+                    var category = ResolveProductivity(session.AppCategory);
+                    var durationSeconds = (long)session.DurationSeconds;
+
+                    if (category == "productive")
+                    {
+                        currentFocusBlockSeconds += durationSeconds;
+                    }
+                    else
+                    {
+                        if (currentFocusBlockSeconds >= LongFocusBlockThresholdSeconds)
+                            longFocusBlockCount++;
+                        currentFocusBlockSeconds = 0;
+                    }
+                }
+                // Flush final block
+                if (currentFocusBlockSeconds >= LongFocusBlockThresholdSeconds)
+                    longFocusBlockCount++;
+
+                // Calcular Focus Score
+                var distractionMs = daySessions
+                    .Where(s => ResolveProductivity(s.AppCategory) == "distraction")
+                    .Sum(s => (long)s.DurationSeconds * 1000);
+
+                var input = FocusScoreInput.Create(
+                    totalTrackedMs: totalActive * 1000,
+                    focusTimeMs: productiveSeconds * 1000,
+                    distractionMs: distractionMs,
+                    distractionCount: distractionCount,
+                    pauseCount: 0,
+                    idleCount: 0,
+                    longFocusBlockCount: longFocusBlockCount);
+
+                focusScore = FocusScoreCalculator.Calculate(input);
+            }
 
             result.Add(new DailySummaryItem
             {
                 Date = date,
                 TotalActiveSeconds = totalActive,
                 TotalIdleSeconds = totalIdle,
-                ProductivityRatio = productivityRatio
+                ProductivityRatio = productivityRatio,
+                FocusScore = focusScore,
+                ProductiveSeconds = productiveSeconds,
+                DistractionCount = distractionCount,
+                LongFocusBlockCount = longFocusBlockCount
             });
         }
 
@@ -469,14 +553,26 @@ public sealed class ReportRepository : IReportRepository
     /// Resolve produtividade usando APENAS a categoria salva pelo Agent.
     /// Sem heurísticas - alinhado 100% com o Dashboard.
     /// </summary>
-    private static string? ResolveProductivity(string? appCategory)
+    private string? ResolveProductivity(string? appCategory)
     {
         if (string.IsNullOrEmpty(appCategory))
+        {
+            _logger?.LogWarning("ResolveProductivity: AppCategory is null or empty, returning 'neutral'");
             return "neutral"; // Default para dados antigos sem categoria
+        }
 
         var cat = appCategory.ToLowerInvariant();
-        if (cat.Contains("productive")) return "productive";
-        if (cat.Contains("distraction") || cat.Contains("distração")) return "distraction";
+        if (cat.Contains("productive"))
+        {
+            _logger?.LogDebug("ResolveProductivity: '{AppCategory}' -> 'productive'", appCategory);
+            return "productive";
+        }
+        if (cat.Contains("distraction") || cat.Contains("distração"))
+        {
+            _logger?.LogDebug("ResolveProductivity: '{AppCategory}' -> 'distraction'", appCategory);
+            return "distraction";
+        }
+        _logger?.LogDebug("ResolveProductivity: '{AppCategory}' -> 'neutral' (no match)", appCategory);
         return "neutral";
     }
 

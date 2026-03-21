@@ -136,6 +136,22 @@ public sealed class DailySummaryItem
     /// Razão de produtividade (0.0 a 1.0)
     /// </summary>
     public double ProductivityRatio { get; init; }
+    /// <summary>
+    /// Focus Score do dia (0-100)
+    /// </summary>
+    public short FocusScore { get; init; }
+    /// <summary>
+    /// Tempo em apps produtivos (segundos)
+    /// </summary>
+    public long ProductiveSeconds { get; init; }
+    /// <summary>
+    /// Número de distrações no dia
+    /// </summary>
+    public int DistractionCount { get; init; }
+    /// <summary>
+    /// Número de blocos de foco longo (>25min)
+    /// </summary>
+    public int LongFocusBlockCount { get; init; }
 }
 
 /// <summary>

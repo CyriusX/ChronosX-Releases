@@ -1,8 +1,11 @@
 using MediatR;
+using Microsoft.Extensions.Logging;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.Common.Security;
+using TimeTrack.Backend.Application.FocusScore;
 using TimeTrack.Backend.Application.Reports.DTOs;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using TimeTrack.Backend.Domain.ValueObjects;
 
 namespace TimeTrack.Backend.Application.Reports.Queries;
 
@@ -17,15 +20,18 @@ public sealed class DailySummaryRangeQueryHandler : IRequestHandler<DailySummary
     private readonly IReportRepository _reportRepository;
     private readonly IUserAuthorizationService _authorizationService;
     private readonly ICurrentUserContext _currentUser;
+    private readonly ILogger<DailySummaryRangeQueryHandler> _logger;
 
     public DailySummaryRangeQueryHandler(
         IReportRepository reportRepository,
         IUserAuthorizationService authorizationService,
-        ICurrentUserContext currentUser)
+        ICurrentUserContext currentUser,
+        ILogger<DailySummaryRangeQueryHandler> logger)
     {
         _reportRepository = reportRepository;
         _authorizationService = authorizationService;
         _currentUser = currentUser;
+        _logger = logger;
     }
 
     public async Task<DailySummaryRangeResponse> Handle(
@@ -51,16 +57,60 @@ public sealed class DailySummaryRangeQueryHandler : IRequestHandler<DailySummary
             request.EndDate,
             cancellationToken);
 
+        var dailyList = dailySummaries.ToList();
+
+        // Calcular agregados do período
+        var totalActiveSeconds = dailyList.Sum(d => d.TotalActiveSeconds);
+        var totalProductiveSeconds = dailyList.Sum(d => d.ProductiveSeconds);
+        var totalDistractionCount = dailyList.Sum(d => d.DistractionCount);
+        var totalLongFocusBlockCount = dailyList.Sum(d => d.LongFocusBlockCount);
+
+        _logger.LogInformation(
+            "DailySummaryRange: {DaysCount} days, TotalActive={TotalActive}s, Productive={Productive}s, Distractions={Distractions}, FocusBlocks={FocusBlocks}",
+            dailyList.Count, totalActiveSeconds, totalProductiveSeconds, totalDistractionCount, totalLongFocusBlockCount);
+
+        // Proporção base de produtividade (simples: tempo_produtivo / tempo_total)
+        var periodBaseProductivity = totalActiveSeconds > 0
+            ? (double)totalProductiveSeconds / totalActiveSeconds
+            : 0;
+
+        // Calcular Focus Score agregado do período
+        short periodFocusScore = 0;
+        if (totalActiveSeconds > 0)
+        {
+            var input = FocusScoreInput.Create(
+                totalTrackedMs: totalActiveSeconds * 1000,
+                focusTimeMs: totalProductiveSeconds * 1000,
+                distractionMs: dailyList.Sum(d => d.TotalActiveSeconds - d.ProductiveSeconds) * 1000,
+                distractionCount: totalDistractionCount,
+                pauseCount: 0,
+                idleCount: 0,
+                longFocusBlockCount: totalLongFocusBlockCount);
+
+            periodFocusScore = FocusScoreCalculator.Calculate(input);
+
+            _logger.LogInformation(
+                "FocusScore calculated: BaseProductivity={BaseProductivity:P}, FocusScore={FocusScore}",
+                periodBaseProductivity, periodFocusScore);
+        }
+        else
+        {
+            _logger.LogWarning("FocusScore not calculated: TotalActiveSeconds is 0");
+        }
+
         // Mapear para response
         return new DailySummaryRangeResponse
         {
-            Days = dailySummaries.Select(d => new DailySummaryDayItem
+            Days = dailyList.Select(d => new DailySummaryDayItem
             {
                 Date = d.Date.ToString("yyyy-MM-dd"),
                 TotalActiveSeconds = d.TotalActiveSeconds,
                 TotalIdleSeconds = d.TotalIdleSeconds,
-                ProductivityRatio = Math.Round(d.ProductivityRatio, 2)
-            }).ToList()
+                ProductivityRatio = Math.Round(d.ProductivityRatio, 2),
+                FocusScore = d.FocusScore
+            }).ToList(),
+            PeriodFocusScore = periodFocusScore,
+            PeriodBaseProductivity = Math.Round(periodBaseProductivity, 4)
         };
     }
 }

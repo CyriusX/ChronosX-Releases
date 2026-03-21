@@ -22,7 +22,11 @@
       "Read(//c/Users/Usuario/**)",
       "Read(//c/ProgramData/**)",
       "Bash(rm -rf src/agent/DbQuery/CheckOutbox.cs src/agent/DbQuery/CheckOutbox.csproj scripts/BackfillCategories.cs scripts/BackfillCategories.csproj scripts/backfill_categories.sql check_recent_data.sql)",
-      "Bash(mv src/agent/DbQuery/Program.cs.bak src/agent/DbQuery/Program.cs)"
+      "Bash(mv src/agent/DbQuery/Program.cs.bak src/agent/DbQuery/Program.cs)",
+      "Bash(findstr /i \"dotnet TimeTrack Backend\")",
+      "Bash(PGPASSWORD='npg_y6PlhoBZJ9QS' psql -h ep-billowing-snow-adnjkioj-pooler.c-2.us-east-1.aws.neon.tech -U neondb_owner -d neondb -c \":*)",
+      "Bash(findstr ':5000 :5001 :5174 :8080 :3000')",
+      "Bash(timeout 10)"
     ]
   }
 }

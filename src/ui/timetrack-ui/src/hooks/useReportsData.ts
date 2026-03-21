@@ -440,19 +440,27 @@ export function useReportsSummary(data: ReportsDataState) {
         totalIdleSeconds: 0,
         averageProductivityRatio: 0,
         daysWithData: 0,
+        focusScore: 0,
+        baseProductivity: 0,
       };
     }
 
     const totalActiveSeconds = dailyRange.days.reduce((sum, d) => sum + d.totalActiveSeconds, 0);
     const totalIdleSeconds = dailyRange.days.reduce((sum, d) => sum + d.totalIdleSeconds, 0);
-    const averageProductivityRatio = dailyRange.days.reduce((sum, d) => sum + d.productivityRatio, 0) / dailyRange.days.length;
     const daysWithData = dailyRange.days.filter(d => d.totalActiveSeconds > 0).length;
+
+    // Usar FocusScore agregado do período (vem do backend)
+    const focusScore = dailyRange.periodFocusScore ?? 0;
+    const baseProductivity = dailyRange.periodBaseProductivity ?? 0;
 
     return {
       totalActiveSeconds,
       totalIdleSeconds,
-      averageProductivityRatio,
+      // Manter para compatibilidade, mas usar focusScore como principal
+      averageProductivityRatio: baseProductivity,
       daysWithData,
+      focusScore,
+      baseProductivity,
     };
   }, [data.dailySummaryRange]);
 }

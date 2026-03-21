@@ -329,13 +329,13 @@ export default function Reports() {
                 isLoading={isLoading}
               />
               <SummaryCard
-                title="Produtividade"
-                value={`${Math.round(summary.averageProductivityRatio * 100)}%`}
-                subtitle="Média do período"
+                title="Score de Foco"
+                value={`${summary.focusScore}%`}
+                subtitle="Baseado em tempo produtivo, distrações e blocos de foco"
                 icon={Target}
                 iconBgColor="rgba(5,223,114,0.15)"
                 iconColor="#05df72"
-                progress={summary.averageProductivityRatio * 100}
+                progress={summary.focusScore}
                 progressColor="#05df72"
                 isLoading={isLoading}
               />

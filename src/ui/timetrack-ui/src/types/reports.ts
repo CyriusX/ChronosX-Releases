@@ -50,6 +50,10 @@ export interface TopAppItem {
 
 export interface DailySummaryRangeResponse {
   days: DailySummaryDayItem[];
+  /** Focus Score agregado do período (0-100) */
+  periodFocusScore: number;
+  /** Proporção base de produtividade do período (0.0 a 1.0) */
+  periodBaseProductivity: number;
 }
 
 export interface DailySummaryDayItem {
@@ -58,6 +62,8 @@ export interface DailySummaryDayItem {
   totalIdleSeconds: number;
   /** Razão de produtividade (0.0 a 1.0) */
   productivityRatio: number;
+  /** Focus Score do dia (0-100) */
+  focusScore: number;
 }
 
 // ============================================================================
