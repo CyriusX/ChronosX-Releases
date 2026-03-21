@@ -55,67 +55,6 @@ public sealed class ReportRepository : IReportRepository
     }
 
     /// <summary>
-    /// Resolve categoria usando cache global (mesma fonte que o Dashboard)
-    /// </summary>
-    private async Task<(string? Productivity, string? Subcategory)> ResolveCategoryFromCacheAsync(
-        string processName,
-        string? appCategory,
-        CancellationToken cancellationToken)
-    {
-        // Se já tem categoria definida, usar
-        if (!string.IsNullOrEmpty(appCategory))
-        {
-            var cat = appCategory.ToLowerInvariant();
-            if (cat.Contains("productive")) return ("productive", ExtractSubcategory(appCategory));
-            if (cat.Contains("distraction") || cat.Contains("distração")) return ("distraction", ExtractSubcategory(appCategory));
-            if (cat.Contains("neutral")) return ("neutral", ExtractSubcategory(appCategory));
-        }
-
-        // Consultar cache global (mesma fonte que o Dashboard usa)
-        var cache = await GetCategoryCacheAsync(cancellationToken);
-        var normalizedProcess = NormalizeProcessName(processName);
-
-        if (cache.TryGetValue(normalizedProcess, out var global))
-        {
-            return (
-                global.Productivity.ToString().ToLowerInvariant(),
-                MapSubcategoryToString(global.Subcategory)
-            );
-        }
-
-        // Fallback: heurística simples
-        var process = processName.ToLowerInvariant();
-        if (IsProductiveProcess(process)) return ("productive", "development");
-        if (IsDistractionProcess(process)) return ("distraction", "entertainment");
-        return ("neutral", "unknown");
-    }
-
-    private static string NormalizeProcessName(string processName)
-    {
-        var normalized = processName.Trim().ToLowerInvariant();
-        if (!normalized.Contains('.') && !normalized.Contains('/') && !normalized.Contains('\\'))
-        {
-            normalized += ".exe";
-        }
-        return normalized;
-    }
-
-    private static string? ExtractSubcategory(string appCategory)
-    {
-        var parts = appCategory.Split('/', '\\', ':');
-        return parts.Length > 1 ? parts[1].ToLowerInvariant() : null;
-    }
-
-    private static string MapSubcategoryToString(AppSubcategory subcategory)
-    {
-        var name = subcategory.ToString();
-        return string.Concat(
-            name.Select((c, i) =>
-                i > 0 && char.IsUpper(c) ? "_" + char.ToLower(c) : char.ToLower(c).ToString())
-        );
-    }
-
-    /// <summary>
     /// Ensures DateTime is UTC for PostgreSQL compatibility
     /// </summary>
     private static DateTime EnsureUtc(DateTime dt)
@@ -147,7 +86,8 @@ public sealed class ReportRepository : IReportRepository
                 a.DurationSeconds,
                 a.StartedAt,
                 a.EndedAt,
-                a.AppCategory
+                a.AppCategory,
+                a.AppSubcategory
             })
             .ToListAsync(cancellationToken);
 
@@ -159,8 +99,8 @@ public sealed class ReportRepository : IReportRepository
                 ProcessName = g.Key,
                 TotalSeconds = g.Sum(a => a.DurationSeconds),
                 SessionCount = g.Count(),
-                Productivity = ResolveProductivity(g.Key, g.First().AppCategory),
-                Subcategory = ResolveSubcategory(g.Key, g.First().AppCategory),
+                Productivity = ResolveProductivity(g.First().AppCategory),
+                Subcategory = ResolveSubcategory(g.First().AppCategory, g.First().AppSubcategory),
                 DisplayName = FormatDisplayName(g.Key)
             })
             .OrderByDescending(a => a.TotalSeconds)
@@ -210,21 +150,21 @@ public sealed class ReportRepository : IReportRepository
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory })
+            .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
         var appGroups = sessions
             .GroupBy(a => a.ProcessName)
             .Select(g =>
             {
-                var productivity = ResolveProductivity(g.Key, g.First().AppCategory);
+                var productivity = ResolveProductivity(g.First().AppCategory);
                 return new AppAggregate
                 {
                     ProcessName = g.Key,
                     TotalSeconds = g.Sum(a => a.DurationSeconds),
                     SessionCount = g.Count(),
                     Productivity = productivity,
-                    Subcategory = ResolveSubcategory(g.Key, g.First().AppCategory),
+                    Subcategory = ResolveSubcategory(g.First().AppCategory, g.First().AppSubcategory),
                     DisplayName = FormatDisplayName(g.Key)
                 };
             })
@@ -256,7 +196,7 @@ public sealed class ReportRepository : IReportRepository
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.StartedAt, a.DurationSeconds, a.ProcessName, a.AppCategory })
+            .Select(a => new { a.StartedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
         var idlePeriods = await _context.IdlePeriods
@@ -280,7 +220,7 @@ public sealed class ReportRepository : IReportRepository
 
             // Calcular produtividade
             var productiveSeconds = daySessions
-                .Where(s => ResolveProductivity(s.ProcessName, s.AppCategory) == "productive")
+                .Where(s => ResolveProductivity(s.AppCategory) == "productive")
                 .Sum(s => s.DurationSeconds);
 
             var productivityRatio = totalActive > 0
@@ -314,7 +254,7 @@ public sealed class ReportRepository : IReportRepository
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.StartedAt, a.DurationSeconds, a.ProcessName, a.AppCategory })
+            .Select(a => new { a.StartedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
         var idlePeriods = await _context.IdlePeriods
@@ -344,13 +284,13 @@ public sealed class ReportRepository : IReportRepository
         {
             var items = g.ToList();
             var productive = items
-                .Where(s => ResolveProductivity(s.ProcessName, s.AppCategory) == "productive")
+                .Where(s => ResolveProductivity(s.AppCategory) == "productive")
                 .Sum(s => s.DurationSeconds);
             var distraction = items
-                .Where(s => ResolveProductivity(s.ProcessName, s.AppCategory) == "distraction")
+                .Where(s => ResolveProductivity(s.AppCategory) == "distraction")
                 .Sum(s => s.DurationSeconds);
             var neutral = items
-                .Where(s => ResolveProductivity(s.ProcessName, s.AppCategory) == "neutral")
+                .Where(s => ResolveProductivity(s.AppCategory) == "neutral")
                 .Sum(s => s.DurationSeconds);
 
             idleDict.TryGetValue(g.Key, out var idleSeconds);
@@ -428,12 +368,12 @@ public sealed class ReportRepository : IReportRepository
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.StartedAt, a.ProcessName, a.DurationSeconds, a.AppCategory })
+            .Select(a => new { a.StartedAt, a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
         // Filtrar distrações
         var distractions = sessions
-            .Where(s => ResolveProductivity(s.ProcessName, s.AppCategory) == "distraction")
+            .Where(s => ResolveProductivity(s.AppCategory) == "distraction")
             .ToList();
 
         // Agrupar por dia
@@ -456,7 +396,7 @@ public sealed class ReportRepository : IReportRepository
                 TotalSeconds = g.Sum(s => s.DurationSeconds),
                 SessionCount = g.Count(),
                 Productivity = "distraction",
-                Subcategory = ResolveSubcategory(g.Key, g.First().AppCategory),
+                Subcategory = ResolveSubcategory(g.First().AppCategory, g.First().AppSubcategory),
                 DisplayName = FormatDisplayName(g.Key)
             })
             .OrderByDescending(a => a.TotalSeconds)
@@ -484,7 +424,7 @@ public sealed class ReportRepository : IReportRepository
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory })
+            .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
         var totalSeconds = sessions.Sum(s => s.DurationSeconds);
@@ -492,12 +432,12 @@ public sealed class ReportRepository : IReportRepository
 
         // Agrupar por categoria principal
         var categories = sessions
-            .GroupBy(s => ResolveProductivity(s.ProcessName, s.AppCategory) ?? "neutral")
+            .GroupBy(s => ResolveProductivity(s.AppCategory) ?? "neutral")
             .Select(g =>
             {
                 var categoryTotal = g.Sum(s => s.DurationSeconds);
                 var subcategories = g
-                    .GroupBy(s => ResolveSubcategory(s.ProcessName, s.AppCategory) ?? "unknown")
+                    .GroupBy(s => ResolveSubcategory(s.AppCategory, s.AppSubcategory) ?? "unknown")
                     .Select(sg => new SubcategoryItem
                     {
                         Name = sg.Key,
@@ -525,73 +465,40 @@ public sealed class ReportRepository : IReportRepository
     // HELPER METHODS
     // ========================================================================
 
-    private static string? ResolveProductivity(string processName, string? appCategory)
+    /// <summary>
+    /// Resolve produtividade usando APENAS a categoria salva pelo Agent.
+    /// Sem heurísticas - alinhado 100% com o Dashboard.
+    /// </summary>
+    private static string? ResolveProductivity(string? appCategory)
     {
-        // Se já tem categoria definida, usar
-        if (!string.IsNullOrEmpty(appCategory))
-        {
-            var cat = appCategory.ToLowerInvariant();
-            if (cat.Contains("productive")) return "productive";
-            if (cat.Contains("distraction") || cat.Contains("distração")) return "distraction";
-            if (cat.Contains("neutral")) return "neutral";
-        }
+        if (string.IsNullOrEmpty(appCategory))
+            return "neutral"; // Default para dados antigos sem categoria
 
-        // Fallback: heurística simples por nome de processo
-        var process = processName.ToLowerInvariant();
-        if (IsProductiveProcess(process)) return "productive";
-        if (IsDistractionProcess(process)) return "distraction";
+        var cat = appCategory.ToLowerInvariant();
+        if (cat.Contains("productive")) return "productive";
+        if (cat.Contains("distraction") || cat.Contains("distração")) return "distraction";
         return "neutral";
     }
 
-    private static string? ResolveSubcategory(string processName, string? appCategory)
+    /// <summary>
+    /// Resolve subcategoria usando APENAS os dados salvos pelo Agent.
+    /// Sem heurísticas - alinhado 100% com o Dashboard.
+    /// </summary>
+    private static string? ResolveSubcategory(string? appCategory, string? appSubcategory)
     {
+        // Prioridade 1: Subcategoria explícita do Agent
+        if (!string.IsNullOrEmpty(appSubcategory))
+            return appSubcategory.ToLowerInvariant();
+
+        // Prioridade 2: Extrair do appCategory se vier no formato "productive:development"
         if (!string.IsNullOrEmpty(appCategory))
         {
-            // Tentar extrair subcategoria
             var parts = appCategory.Split('/', '\\', ':');
             if (parts.Length > 1) return parts[1].ToLowerInvariant();
         }
 
-        // Fallback por processo
-        var process = processName.ToLowerInvariant();
-        return process switch
-        {
-            var p when p.Contains("code") || p.Contains("idea") || p.Contains("visual studio") => "development",
-            var p when p.Contains("figma") || p.Contains("photoshop") || p.Contains("illustrator") => "design",
-            var p when p.Contains("slack") || p.Contains("teams") || p.Contains("discord") => "communication",
-            var p when p.Contains("chrome") || p.Contains("firefox") || p.Contains("edge") => "browser_general",
-            var p when p.Contains("youtube") || p.Contains("netflix") || p.Contains("spotify") => "entertainment",
-            var p when p.Contains("twitter") || p.Contains("instagram") || p.Contains("facebook") => "social_media",
-            _ => "unknown"
-        };
-    }
-
-    private static bool IsProductiveProcess(string process)
-    {
-        return process.Contains("code") ||
-               process.Contains("idea") ||
-               process.Contains("visual studio") ||
-               process.Contains("figma") ||
-               process.Contains("notion") ||
-               process.Contains("excel") ||
-               process.Contains("word") ||
-               process.Contains("powerpoint") ||
-               process.Contains("terminal") ||
-               process.Contains("cmd") ||
-               process.Contains("git");
-    }
-
-    private static bool IsDistractionProcess(string process)
-    {
-        return process.Contains("spotify") ||
-               process.Contains("youtube") ||
-               process.Contains("netflix") ||
-               process.Contains("steam") ||
-               process.Contains("twitter") ||
-               process.Contains("instagram") ||
-               process.Contains("facebook") ||
-               process.Contains("tiktok") ||
-               process.Contains("discord") && !process.Contains("canary");
+        // Fallback: unknown para dados antigos
+        return "unknown";
     }
 
     private static string FormatDisplayName(string processName)

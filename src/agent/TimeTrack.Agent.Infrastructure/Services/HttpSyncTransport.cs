@@ -344,7 +344,7 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
             if (payload != null)
             {
                 // Use displayName as processName (required by backend)
-                // Use categoryProductivity as appCategory
+                // Send both productivity and subcategory for alignment with Dashboard
                 activityItems.Add(new
                 {
                     Id = item.EntityId,
@@ -352,6 +352,7 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
                     payload.WindowTitle,
                     payload.FilePath,
                     AppCategory = payload.CategoryProductivity,
+                    AppSubcategory = payload.CategorySubcategory,
                     StartedAt = payload.StartUtc,
                     EndedAt = payload.EndUtc,
                     item.IdempotencyKey

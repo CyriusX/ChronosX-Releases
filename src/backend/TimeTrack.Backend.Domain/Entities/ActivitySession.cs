@@ -13,6 +13,7 @@ public sealed class ActivitySession
     public string? WindowTitle { get; private set; }
     public string? FilePath { get; private set; }
     public string? AppCategory { get; private set; }
+    public string? AppSubcategory { get; private set; }
     public DateTime StartedAt { get; private set; }
     public DateTime EndedAt { get; private set; }
     public int DurationSeconds { get; private set; }
@@ -36,7 +37,8 @@ public sealed class ActivitySession
         DateTime startedAt,
         DateTime endedAt,
         string idempotencyKey,
-        string? filePath = null)
+        string? filePath = null,
+        string? appSubcategory = null)
     {
         if (string.IsNullOrWhiteSpace(processName))
             throw new ArgumentException("Process name is required", nameof(processName));
@@ -57,6 +59,7 @@ public sealed class ActivitySession
             WindowTitle = windowTitle,
             FilePath = filePath,
             AppCategory = appCategory,
+            AppSubcategory = appSubcategory,
             StartedAt = startedAt,
             EndedAt = endedAt,
             DurationSeconds = (int)(endedAt - startedAt).TotalSeconds,

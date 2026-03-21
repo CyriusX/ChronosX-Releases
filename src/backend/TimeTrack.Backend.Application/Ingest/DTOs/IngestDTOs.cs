@@ -20,6 +20,7 @@ public sealed class ActivitySessionItem
     public string? WindowTitle { get; init; }
     public string? FilePath { get; init; }
     public string? AppCategory { get; init; }
+    public string? AppSubcategory { get; init; }
     public required DateTime StartedAt { get; init; }
     public required DateTime EndedAt { get; init; }
     public required string IdempotencyKey { get; init; }

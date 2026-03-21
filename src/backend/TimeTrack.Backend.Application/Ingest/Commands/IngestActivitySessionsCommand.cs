@@ -94,7 +94,8 @@ public sealed class IngestActivitySessionsCommandHandler : IRequestHandler<Inges
                     item.StartedAt,
                     item.EndedAt,
                     item.IdempotencyKey,
-                    item.FilePath);
+                    item.FilePath,
+                    item.AppSubcategory);
 
                 // Create idempotency key record
                 var idempotencyKey = IdempotencyKey.Create(

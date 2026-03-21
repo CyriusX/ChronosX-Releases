@@ -11,7 +11,18 @@
       "Bash(powershell -Command \"Get-WinEvent -LogName Application -MaxEvents 50 | Where-Object { $_imeCreated -gt \\(Get-Date\\).AddMinutes\\(-1\\) } | Where-Object { $_essage -like ''''*Sync*'''' -or $_essage -like ''''*Device*'''' } | Format-List TimeCreated, Message\")",
       "Bash(powershell -Command \"Get-WinEvent -LogName Application -MaxEvents 30 | Where-Object { $_imeCreated -gt \\(Get-Date\\).AddMinutes\\(-2\\) } | Format-List TimeCreated, ProviderName, Message\")",
       "Bash(powershell -Command \"Stop-Process -Name ''TimeTrack.AgentService'' -Force -ErrorAction SilentlyContinue\")",
-      "Bash(start TimeTrack.DesktopHost.exe)"
+      "Bash(start TimeTrack.DesktopHost.exe)",
+      "Bash(PGPASSWORD=postgres psql -h localhost -U postgres -d timetrack -c \"SELECT column_name FROM information_schema.columns WHERE table_name = ''activity_sessions'' AND column_name = ''app_subcategory'';\")",
+      "Bash(docker restart:*)",
+      "Bash(powershell -Command \"Get-Process | Where-Object { $_ProcessName -like ''*TimeTrack*'' -or $_ProcessName -like ''*Agent*'' } | Select-Object ProcessName, Id\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec timetrack-api ls -la /app/)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec timetrack-api cat /app/appsettings.json)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec timetrack-api cat /app/appsettings.Development.json)",
+      "Bash(PGPASSWORD='npg_y6PlhoBZJ9QS' psql -h ep-billowing-snow-adnjkioj-pooler.c-2.us-east-1.aws.neon.tech -U neondb_owner -d neondb -c \"SELECT process_name, app_category, app_subcategory, COUNT\\(*\\) as count, MAX\\(started_at\\) as latest FROM activity_sessions WHERE started_at > NOW\\(\\) - INTERVAL ''7 days'' GROUP BY process_name, app_category, app_subcategory ORDER BY latest DESC LIMIT 20;\")",
+      "Read(//c/Users/Usuario/**)",
+      "Read(//c/ProgramData/**)",
+      "Bash(rm -rf src/agent/DbQuery/CheckOutbox.cs src/agent/DbQuery/CheckOutbox.csproj scripts/BackfillCategories.cs scripts/BackfillCategories.csproj scripts/backfill_categories.sql check_recent_data.sql)",
+      "Bash(mv src/agent/DbQuery/Program.cs.bak src/agent/DbQuery/Program.cs)"
     ]
   }
 }
