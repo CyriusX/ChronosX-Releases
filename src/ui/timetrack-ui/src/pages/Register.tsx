@@ -58,7 +58,7 @@ export default function Register() {
       <div className="w-full max-w-md">
         {/* Logo/Title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">XChronus</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">CronusX</h1>
           <p className="text-zinc-400">Crie sua conta gratuitamente</p>
         </div>
 

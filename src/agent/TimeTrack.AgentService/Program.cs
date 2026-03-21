@@ -10,7 +10,7 @@ ServiceCollectionExtensions.ConfigureProcessPriority(priority);
 IHost host = Host.CreateDefaultBuilder(args)
     .UseWindowsService(options =>
     {
-        options.ServiceName = "XChronus Agent";
+        options.ServiceName = "CronusX Agent";
     })
     .ConfigureServices((context, services) =>
     {
