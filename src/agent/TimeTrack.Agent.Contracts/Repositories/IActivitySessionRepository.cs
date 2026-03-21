@@ -49,4 +49,10 @@ public interface IActivitySessionRepository
     /// Salva a sessão com outbox items em uma única transação
     /// </summary>
     Task SaveWithOutboxAsync(ActivitySession session, IEnumerable<OutboxItem> outboxItems, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes all activity sessions older than the given cutoff date.
+    /// Used to keep SQLite lean — past data is in the cloud.
+    /// </summary>
+    Task<int> DeleteOlderThanAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default);
 }

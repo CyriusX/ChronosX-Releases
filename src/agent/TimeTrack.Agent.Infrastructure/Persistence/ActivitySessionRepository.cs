@@ -354,6 +354,21 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             _logger.LogDebug("Batch of {Count} activity sessions saved", parameters.Count());
         }
 
+        public async Task<int> DeleteOlderThanAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default)
+        {
+            var connection = await _context.GetConnectionAsync(cancellationToken);
+
+            // Use date() function for reliable comparison — SQLite stores dates with space separator
+            // which breaks string comparison against ISO 8601 'T' separator
+            const string sql = "DELETE FROM activity_sessions WHERE date(start_utc) < date(@Cutoff)";
+            var deleted = await connection.ExecuteAsync(sql, new { Cutoff = cutoffUtc.ToString("yyyy-MM-dd") });
+
+            if (deleted > 0)
+                _logger.LogInformation("Cleaned up {Count} old activity sessions (before {Cutoff:yyyy-MM-dd})", deleted, cutoffUtc);
+
+            return deleted;
+        }
+
         private static ActivitySession MapToDomain(ActivitySessionDto dto)
         {
             var category = new AppCategory(

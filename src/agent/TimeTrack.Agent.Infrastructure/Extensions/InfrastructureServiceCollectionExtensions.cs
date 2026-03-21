@@ -139,6 +139,13 @@ public static class InfrastructureServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
         });
 
+        // Registra BackendReportsClient (fetch past days' data from cloud)
+        services.AddHttpClient<IBackendReportsClient, BackendReportsClient>(client =>
+        {
+            client.BaseAddress = new Uri(settings.BackendUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
+        });
+
         return services;
     }
 

@@ -17,4 +17,10 @@ public interface IIdlePeriodRepository
     /// Salva o período de inatividade junto com os itens do outbox em uma única transação
     /// </summary>
     Task SaveWithOutboxAsync(IdlePeriod period, IEnumerable<OutboxItem> outboxItems, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes all idle periods older than the given cutoff date.
+    /// Used to keep SQLite lean — past data is in the cloud.
+    /// </summary>
+    Task<int> DeleteOlderThanAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default);
 }

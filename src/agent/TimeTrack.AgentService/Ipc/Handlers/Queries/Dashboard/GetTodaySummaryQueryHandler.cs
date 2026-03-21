@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Application.UseCases.GetLocalDashboard;
+using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.AgentService.Ipc.Handlers;
 
 namespace TimeTrack.AgentService.Ipc.Handlers.Queries.Dashboard;
@@ -13,13 +14,25 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     public string QueryName => "GetTodaySummary";
 
     private readonly GetLocalDashboardUseCase _getDashboard;
+    private readonly IBackendReportsClient _reportsClient;
     private readonly ILogger<GetTodaySummaryQueryHandler> _logger;
+
+    // Internal apps excluded from dashboard totals (same as GetLocalDashboardUseCase)
+    private static readonly HashSet<string> InternalApps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "TimeTrack.DesktopHost",
+        "Microsoft Edge WebView2",
+        "Microsoft® Windows® Operating System",
+        "Sistema operacional Microsoft® Windows®"
+    };
 
     public GetTodaySummaryQueryHandler(
         GetLocalDashboardUseCase getDashboard,
+        IBackendReportsClient reportsClient,
         ILogger<GetTodaySummaryQueryHandler> logger)
     {
         _getDashboard = getDashboard;
+        _reportsClient = reportsClient;
         _logger = logger;
     }
 
@@ -100,7 +113,8 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     }
 
     /// <summary>
-    /// Builds real weekly history by querying each of the past 7 days.
+    /// Builds weekly history: today from local SQLite (real-time), past days from backend API (cloud).
+    /// Falls back to local SQLite if the backend is unreachable.
     /// </summary>
     private async Task<object[]> BuildWeeklyHistoryAsync(DateTime centerDate, CancellationToken ct)
     {
@@ -113,14 +127,44 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
             var date = today.AddDays(-i);
             double hours = 0;
 
-            try
+            if (i == 0)
             {
-                var dayDashboard = await _getDashboard.ExecuteAsync(date, ct);
-                hours = dayDashboard.TotalWorkTime.TotalHours;
+                // TODAY: use local SQLite (fast, real-time, includes in-memory session)
+                try
+                {
+                    var dayDashboard = await _getDashboard.ExecuteAsync(date, ct);
+                    hours = dayDashboard.TotalWorkTime.TotalHours;
+                }
+                catch { /* show 0 */ }
             }
-            catch
+            else
             {
-                // If query fails for a day, show 0
+                // PAST DAYS: fetch from backend API (authoritative cloud data)
+                try
+                {
+                    // Small delay between API calls to avoid rate limiting (429)
+                    if (i < 6) await Task.Delay(200, ct);
+
+                    var report = await _reportsClient.GetDailySummaryAsync(date, ct);
+                    if (report != null)
+                    {
+                        // Filter out internal apps (same filter as local dashboard)
+                        var filteredSeconds = report.Apps
+                            .Where(a => !InternalApps.Contains(a.DisplayName))
+                            .Sum(a => a.TotalSeconds);
+                        hours = filteredSeconds / 3600.0;
+                    }
+                    else
+                    {
+                        // Backend unavailable — fall back to local SQLite
+                        var dayDashboard = await _getDashboard.ExecuteAsync(date, ct);
+                        hours = dayDashboard.TotalWorkTime.TotalHours;
+                    }
+                }
+                catch
+                {
+                    // Both sources failed — show 0
+                }
             }
 
             history.Add(new

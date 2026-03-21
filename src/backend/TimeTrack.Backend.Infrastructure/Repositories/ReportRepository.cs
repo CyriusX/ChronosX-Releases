@@ -21,9 +21,9 @@ public sealed class ReportRepository : IReportRepository
         DateTime date,
         CancellationToken cancellationToken = default)
     {
-        // Normalizar data para o início e fim do dia em UTC
-        var startOfDay = date.Date;
-        var endOfDay = startOfDay.AddDays(1).AddTicks(-1);
+        // Normalizar data para o início e fim do dia em UTC (Npgsql requires Kind=Utc)
+        var startOfDay = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+        var endOfDay = DateTime.SpecifyKind(startOfDay.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
 
         // Query otimizada com GROUP BY no banco - apps agregados (include AppCategory)
         var appAggregates = await _context.ActivitySessions
@@ -66,8 +66,8 @@ public sealed class ReportRepository : IReportRepository
         DateTime date,
         CancellationToken cancellationToken = default)
     {
-        var startOfDay = date.Date;
-        var endOfDay = startOfDay.AddDays(1).AddTicks(-1);
+        var startOfDay = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+        var endOfDay = DateTime.SpecifyKind(startOfDay.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
 
         return await _context.IdlePeriods
             .AsNoTracking()
@@ -82,9 +82,9 @@ public sealed class ReportRepository : IReportRepository
         int limit,
         CancellationToken cancellationToken = default)
     {
-        // Normalizar datas
-        var start = startDate.Date;
-        var end = endDate.Date.AddDays(1).AddTicks(-1);
+        // Normalizar datas (Npgsql requires Kind=Utc)
+        var start = DateTime.SpecifyKind(startDate.Date, DateTimeKind.Utc);
+        var end = DateTime.SpecifyKind(endDate.Date.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
 
         return await _context.ActivitySessions
             .AsNoTracking()

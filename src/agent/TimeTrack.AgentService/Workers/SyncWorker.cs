@@ -16,6 +16,8 @@ public sealed class SyncWorker : BackgroundService
     private readonly ILogger<SyncWorker> _logger;
     private readonly AgentSettings _settings;
     private readonly IOutboxRepository _outboxRepository;
+    private readonly IActivitySessionRepository _sessionRepository;
+    private readonly IIdlePeriodRepository _idlePeriodRepository;
     private readonly ISyncTransport _syncTransport;
     private readonly ICurrentUserContext _userContext;
     private readonly IDeviceActivationService _deviceActivationService;
@@ -23,11 +25,14 @@ public sealed class SyncWorker : BackgroundService
 
     private int _consecutiveFailures;
     private DateTime? _lastSuccessfulSync;
+    private DateTime _lastCleanup = DateTime.MinValue;
 
     public SyncWorker(
         ILogger<SyncWorker> logger,
         AgentSettings settings,
         IOutboxRepository outboxRepository,
+        IActivitySessionRepository sessionRepository,
+        IIdlePeriodRepository idlePeriodRepository,
         ISyncTransport syncTransport,
         ICurrentUserContext userContext,
         IDeviceActivationService deviceActivationService,
@@ -36,6 +41,8 @@ public sealed class SyncWorker : BackgroundService
         _logger = logger;
         _settings = settings;
         _outboxRepository = outboxRepository;
+        _sessionRepository = sessionRepository;
+        _idlePeriodRepository = idlePeriodRepository;
         _syncTransport = syncTransport;
         _userContext = userContext;
         _deviceActivationService = deviceActivationService;
@@ -260,6 +267,9 @@ public sealed class SyncWorker : BackgroundService
                 _logger.LogInformation(
                     "Sync concluído com sucesso. {Count} itens sincronizados",
                     allProcessedIds.Count);
+
+                // Cleanup old synced data (run at most once per hour)
+                await CleanupOldDataAsync(cancellationToken);
             }
             else if (hasFailures)
             {
@@ -406,5 +416,45 @@ public sealed class SyncWorker : BackgroundService
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Cleans up old synced data from SQLite to keep the database lean.
+    /// Past data is in the cloud — local SQLite only needs today's data.
+    /// Runs at most once per hour.
+    /// </summary>
+    private async Task CleanupOldDataAsync(CancellationToken cancellationToken)
+    {
+        // Run at most once per hour
+        if ((DateTime.UtcNow - _lastCleanup).TotalHours < 1)
+            return;
+
+        try
+        {
+            var todayStart = DateTime.UtcNow.Date;
+
+            // 1. Remove sent outbox items older than 24h
+            var outboxRemoved = await _outboxRepository.RemoveSentOlderThanAsync(
+                TimeSpan.FromHours(24), cancellationToken);
+
+            // 2. Remove activity sessions from before today (already synced to cloud)
+            var sessionsRemoved = await _sessionRepository.DeleteOlderThanAsync(todayStart, cancellationToken);
+
+            // 3. Remove idle periods from before today
+            var idleRemoved = await _idlePeriodRepository.DeleteOlderThanAsync(todayStart, cancellationToken);
+
+            _lastCleanup = DateTime.UtcNow;
+
+            if (outboxRemoved + sessionsRemoved + idleRemoved > 0)
+            {
+                _logger.LogInformation(
+                    "SQLite cleanup: {Outbox} outbox, {Sessions} sessions, {Idle} idle periods removed",
+                    outboxRemoved, sessionsRemoved, idleRemoved);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "SQLite cleanup failed (non-critical)");
+        }
     }
 }

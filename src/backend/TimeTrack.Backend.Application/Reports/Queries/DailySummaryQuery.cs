@@ -35,16 +35,11 @@ public sealed class DailySummaryQueryHandler : IRequestHandler<DailySummaryQuery
         // Validar autorização
         _authorizationService.EnsureCanAccessUserData(targetUserId);
 
-        // Buscar dados em paralelo
-        var activityTask = _reportRepository.GetDailyActivityAggregateAsync(
+        // Buscar dados sequencialmente — EF Core DbContext is not thread-safe
+        var activity = await _reportRepository.GetDailyActivityAggregateAsync(
             targetUserId, request.Date, cancellationToken);
-        var idleTask = _reportRepository.GetDailyIdleSecondsAsync(
+        var totalIdleSeconds = await _reportRepository.GetDailyIdleSecondsAsync(
             targetUserId, request.Date, cancellationToken);
-
-        await Task.WhenAll(activityTask, idleTask);
-
-        var activity = await activityTask;
-        var totalIdleSeconds = await idleTask;
 
         // Mapear para response
         return new DailySummaryResponse

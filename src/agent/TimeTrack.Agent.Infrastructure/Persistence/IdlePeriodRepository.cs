@@ -182,6 +182,20 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         }
     }
 
+    public async Task<int> DeleteOlderThanAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default)
+    {
+        var connection = await _context.GetConnectionAsync(cancellationToken);
+
+        // Use date() function for reliable comparison — SQLite stores dates with space separator
+        const string sql = "DELETE FROM idle_periods WHERE date(start_utc) < date(@Cutoff)";
+        var deleted = await connection.ExecuteAsync(sql, new { Cutoff = cutoffUtc.ToString("yyyy-MM-dd") });
+
+        if (deleted > 0)
+            _logger.LogInformation("Cleaned up {Count} old idle periods (before {Cutoff:yyyy-MM-dd})", deleted, cutoffUtc);
+
+        return deleted;
+    }
+
     private static IdlePeriod MapToDomain(IdlePeriodDto dto)
     {
         var period = new TimeRange(dto.Start_Utc, dto.End_Utc);
