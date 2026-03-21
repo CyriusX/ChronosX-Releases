@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Users } from 'lucide-react';
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { AppIcon } from './shared';
 import { useTeamStatus } from '../../hooks/useTeamStatus';
 import { formatDuration } from '../../lib/utils';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../../types/ipc';
+import { fadeUp, staggerContainer, STAGGER, SPRING } from '../../lib/animation';
 
 interface RightPanelProps {
   summary: TodaySummaryResponse | null;
@@ -40,7 +42,6 @@ const productivityColors: Record<string, string> = {
   distraction: '#f87171',
 };
 
-
 const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden";
 
 export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selectedMemberId, onMemberSelect }: RightPanelProps) {
@@ -60,7 +61,6 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
     return activeMembers.find((m) => m.userId === selectedMemberId) ?? null;
   }, [activeMembers, selectedMemberId]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -73,7 +73,6 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
     }
   }, [dropdownOpen]);
 
-  // Use topAppsByExe for "Apps mais usados" — aggregates browser tabs into parent app
   const topApps = useMemo(() => {
     const apps = summary?.topAppsByExe ?? summary?.topApplications ?? [];
     return [...apps]
@@ -91,8 +90,13 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
   const weeklyTotal = weeklyHistory.reduce((sum, item) => sum + item.hours, 0);
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Equipe Agora — only visible on Team tab */}
+    <motion.div
+      initial={{ opacity: 0, x: 16 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ type: 'spring', ...SPRING.gentle, delay: 0.2 }}
+      className="flex flex-col gap-4"
+    >
+      {/* Equipe Agora */}
       {showTeamCard && (
         <Card className={cardBase}>
           <CardHeader className="pb-0 pt-3 px-4">
@@ -104,7 +108,6 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-2.5 pb-3 px-4">
-            {/* Member selector — toggle button */}
             <div ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -112,9 +115,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
               >
                 {selectedMember ? (
                   <>
-                    <div
-                      className={`w-6 h-6 rounded-full bg-gradient-to-br ${getMemberGradient(selectedMember.displayName)} flex items-center justify-center flex-shrink-0`}
-                    >
+                    <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${getMemberGradient(selectedMember.displayName)} flex items-center justify-center flex-shrink-0`}>
                       <span className="text-[10px] font-semibold text-white">
                         {selectedMember.displayName.charAt(0).toUpperCase()}
                       </span>
@@ -136,65 +137,82 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                     </span>
                   </>
                 )}
-                <ChevronDown className={`w-3.5 h-3.5 text-[rgba(245,247,251,0.4)] flex-shrink-0 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+                <motion.div animate={{ rotate: dropdownOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevronDown className="w-3.5 h-3.5 text-[rgba(245,247,251,0.4)] flex-shrink-0" />
+                </motion.div>
               </button>
 
-              {/* Inline member list — expands the card, no overflow clipping */}
-              {dropdownOpen && (
-                <div className="mt-2 rounded-lg bg-[rgba(0,0,0,0.25)] border border-[rgba(255,255,255,0.06)] max-h-[240px] overflow-y-auto">
-                  {isLoading ? (
-                    <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">Carregando...</p>
-                  ) : activeMembers.length > 0 ? (
-                    activeMembers.map((member) => {
-                      const gradient = getMemberGradient(member.displayName);
-                      const [fromColor] = getGradientColors(gradient);
-                      const isSelected = member.userId === selectedMemberId;
-                      return (
-                        <button
-                          key={member.userId}
-                          onClick={() => {
-                            onMemberSelect?.(member.userId);
-                            setDropdownOpen(false);
-                          }}
-                          className={`w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[rgba(255,255,255,0.06)] transition-colors first:rounded-t-lg last:rounded-b-lg ${isSelected ? 'bg-[rgba(74,217,255,0.08)] border-l-2 border-l-[#4ad9ff]' : ''}`}
+              <AnimatePresence>
+                {dropdownOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                    style={{ overflow: 'hidden' }}
+                    className="mt-2"
+                  >
+                    <div className="rounded-lg bg-[rgba(0,0,0,0.25)] border border-[rgba(255,255,255,0.06)] max-h-[240px] overflow-y-auto">
+                      {isLoading ? (
+                        <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">Carregando...</p>
+                      ) : activeMembers.length > 0 ? (
+                        <motion.div
+                          variants={staggerContainer(STAGGER.fast)}
+                          initial="hidden"
+                          animate="visible"
                         >
-                          <div
-                            className={`w-6 h-6 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0`}
-                          >
-                            <span className="text-[10px] font-semibold text-white">
-                              {member.displayName.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0 text-left">
-                            <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.9)]'}`}>
-                              {member.displayName}
-                            </p>
-                            <p className="text-[9px] text-[rgba(245,247,251,0.4)]">
-                              {member.todayDurationFormatted} hoje
-                            </p>
-                          </div>
-                          {member.isTracking && (
-                            <div
-                              className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse"
-                              style={{ backgroundColor: fromColor, boxShadow: `0 0 4px ${fromColor}` }}
-                            />
-                          )}
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">
-                      Nenhum membro ativo
-                    </p>
-                  )}
-                </div>
-              )}
+                          {activeMembers.map((member) => {
+                            const gradient = getMemberGradient(member.displayName);
+                            const [fromColor] = getGradientColors(gradient);
+                            const isSelected = member.userId === selectedMemberId;
+                            return (
+                              <motion.button
+                                key={member.userId}
+                                variants={fadeUp}
+                                onClick={() => {
+                                  onMemberSelect?.(member.userId);
+                                  setDropdownOpen(false);
+                                }}
+                                className={`w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[rgba(255,255,255,0.06)] transition-colors first:rounded-t-lg last:rounded-b-lg ${isSelected ? 'bg-[rgba(74,217,255,0.08)] border-l-2 border-l-[#4ad9ff]' : ''}`}
+                              >
+                                <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0`}>
+                                  <span className="text-[10px] font-semibold text-white">
+                                    {member.displayName.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <div className="flex-1 min-w-0 text-left">
+                                  <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.9)]'}`}>
+                                    {member.displayName}
+                                  </p>
+                                  <p className="text-[9px] text-[rgba(245,247,251,0.4)]">
+                                    {member.todayDurationFormatted} hoje
+                                  </p>
+                                </div>
+                                {member.isTracking && (
+                                  <div
+                                    className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse"
+                                    style={{ backgroundColor: fromColor, boxShadow: `0 0 4px ${fromColor}` }}
+                                  />
+                                )}
+                              </motion.button>
+                            );
+                          })}
+                        </motion.div>
+                      ) : (
+                        <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">
+                          Nenhum membro ativo
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Atividade semanal — hidden on Team tab when no member selected */}
+      {/* Atividade semanal */}
       {(!showTeamCard || selectedMemberId) && <Card className={cardBase}>
         <CardHeader className="pb-0 pt-3 px-4">
           <CardTitle className="flex items-center justify-between">
@@ -222,7 +240,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                       return [h > 0 ? `${h}h ${m}m` : `${m}m`, 'Tempo'];
                     }}
                   />
-                  <Bar dataKey="hours" fill="#4ad9ff" radius={[3, 3, 0, 0]} maxBarSize={20} />
+                  <Bar dataKey="hours" fill="#4ad9ff" radius={[3, 3, 0, 0]} maxBarSize={20} animationDuration={800} animationEasing="ease-out" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -235,10 +253,15 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
             <div className="flex items-center justify-between mb-2">
               <span className="text-[12px] font-medium text-[rgba(245,247,251,0.9)]">Apps mais usados</span>
             </div>
-            <div className="space-y-2">
+            <motion.div
+              variants={staggerContainer(STAGGER.listItems)}
+              initial="hidden"
+              animate="visible"
+              className="space-y-2"
+            >
               {topApps.length > 0 ? (
                 topApps.map((app) => (
-                  <div key={app.label} className="flex items-center gap-2 min-w-0">
+                  <motion.div key={app.label} variants={fadeUp} className="flex items-center gap-2 min-w-0">
                     <AppIcon name={app.label} size={14} />
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-medium text-[rgba(245,247,251,0.9)] truncate">{app.label}</p>
@@ -251,15 +274,15 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                       </div>
                     </div>
                     <span className="text-[11px] text-[rgba(245,247,251,0.4)] flex-shrink-0">{app.time}</span>
-                  </div>
+                  </motion.div>
                 ))
               ) : (
                 <p className="text-[10px] text-[rgba(245,247,251,0.4)] text-center py-1">No data yet</p>
               )}
-            </div>
+            </motion.div>
           </div>
         </CardContent>
       </Card>}
-    </div>
+    </motion.div>
   );
 }

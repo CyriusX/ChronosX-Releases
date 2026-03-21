@@ -1,17 +1,14 @@
 /**
  * ActivitySection - Full-day timeline (ManicTime-style)
- *
- * Shows 0h → 23h axis with colored blocks for each app usage period.
- * Blocks are grouped by executable (browser tabs merged into "Chrome").
- * Hover shows app name, time range, duration, and list of tabs/windows used.
- * Tooltip renders via portal to avoid z-index/overflow issues.
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { useIpc } from '../../hooks/useIpc';
+import { SPRING } from '../../lib/animation';
 
 interface TabDetail {
   title: string;
@@ -56,9 +53,7 @@ function fmtDuration(sec: number) {
 }
 
 interface ActivitySectionProps {
-  /** When provided, skip internal fetch and use these activities */
   activities?: ActivityBlock[];
-  /** When provided, use this date for dayStart instead of today */
   selectedDate?: Date;
 }
 
@@ -132,98 +127,119 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
 
   return (
     <>
-      <Card className={cardBase}>
-        <CardHeader className="pb-0 pt-3 px-4">
-          <CardTitle className="flex items-center justify-between">
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
-            >
-              {isCollapsed
-                ? <ChevronRight className="w-3.5 h-3.5 text-[rgba(245,247,251,0.5)]" />
-                : <ChevronDown className="w-3.5 h-3.5 text-[rgba(245,247,251,0.5)]" />
-              }
-              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Atividade</span>
-            </button>
-            <span className="text-[10px] text-[rgba(245,247,251,0.3)] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
-              {!selectedDate || isSameDay(selectedDate, new Date()) ? 'Hoje' : selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-            </span>
-          </CardTitle>
-        </CardHeader>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', ...SPRING.gentle, delay: 0.2 }}
+      >
+        <Card className={cardBase}>
+          <CardHeader className="pb-0 pt-3 px-4">
+            <CardTitle className="flex items-center justify-between">
+              <button
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+              >
+                <motion.div
+                  animate={{ rotate: isCollapsed ? -90 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChevronDown className="w-3.5 h-3.5 text-[rgba(245,247,251,0.5)]" />
+                </motion.div>
+                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Atividade</span>
+              </button>
+              <span className="text-[10px] text-[rgba(245,247,251,0.3)] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
+                {!selectedDate || isSameDay(selectedDate, new Date()) ? 'Hoje' : selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+              </span>
+            </CardTitle>
+          </CardHeader>
 
-        {!isCollapsed && (
-          <CardContent className="pt-3 pb-3 px-4">
-            {activities.length === 0 ? (
-              <div className="text-center py-6">
-                <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Nenhuma atividade registrada hoje</p>
-              </div>
-            ) : (
-              <div>
-                {/* Hour labels */}
-                <div className="relative h-4 mb-1">
-                  {hourLabels.map((h) => (
-                    <span
-                      key={h}
-                      className="absolute text-[8px] text-[rgba(245,247,251,0.25)] -translate-x-1/2"
-                      style={{ left: `${(h / TOTAL_HOURS) * 100}%` }}
-                    >
-                      {h}h
-                    </span>
-                  ))}
-                </div>
+          <AnimatePresence>
+            {!isCollapsed && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                style={{ overflow: 'hidden' }}
+              >
+                <CardContent className="pt-3 pb-3 px-4">
+                  {activities.length === 0 ? (
+                    <div className="text-center py-6">
+                      <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Nenhuma atividade registrada hoje</p>
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Hour labels */}
+                      <div className="relative h-4 mb-1">
+                        {hourLabels.map((h) => (
+                          <span
+                            key={h}
+                            className="absolute text-[8px] text-[rgba(245,247,251,0.25)] -translate-x-1/2"
+                            style={{ left: `${(h / TOTAL_HOURS) * 100}%` }}
+                          >
+                            {h}h
+                          </span>
+                        ))}
+                      </div>
 
-                {/* Timeline bar */}
-                <div className="relative h-[28px] rounded-md bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]">
-                  {/* Hour grid */}
-                  {hourLabels.slice(1, -1).map((h) => (
-                    <div key={h} className="absolute top-0 bottom-0 w-px bg-[rgba(255,255,255,0.03)]" style={{ left: `${(h / TOTAL_HOURS) * 100}%` }} />
-                  ))}
+                      {/* Timeline bar */}
+                      <div className="relative h-[28px] rounded-md bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]">
+                        {hourLabels.slice(1, -1).map((h) => (
+                          <div key={h} className="absolute top-0 bottom-0 w-px bg-[rgba(255,255,255,0.03)]" style={{ left: `${(h / TOTAL_HOURS) * 100}%` }} />
+                        ))}
 
-                  {/* Blocks */}
-                  {blocks.map((block, i) => (
-                    <div
-                      key={block.id || i}
-                      className="absolute top-[2px] bottom-[2px] rounded-[3px] cursor-pointer transition-all hover:brightness-125"
-                      style={{
-                        left: `${block.left}%`,
-                        width: `${block.width}%`,
-                        backgroundColor: block.color,
-                        boxShadow: `0 0 6px ${block.color}25`,
-                        minWidth: '1px',
-                      }}
-                      onMouseEnter={(e) => handleMouseEnter(block, e)}
-                      onMouseLeave={handleMouseLeave}
-                    />
-                  ))}
+                        {/* Animated activity blocks */}
+                        {blocks.map((block, i) => (
+                          <motion.div
+                            key={block.id || i}
+                            initial={{ scaleX: 0 }}
+                            animate={{ scaleX: 1 }}
+                            transition={{ duration: 0.4, delay: i * 0.02, ease: [0, 0, 0.2, 1] }}
+                            style={{
+                              left: `${block.left}%`,
+                              width: `${block.width}%`,
+                              backgroundColor: block.color,
+                              boxShadow: `0 0 6px ${block.color}25`,
+                              minWidth: '1px',
+                              transformOrigin: 'left',
+                            }}
+                            className="absolute top-[2px] bottom-[2px] rounded-[3px] cursor-pointer transition-all hover:brightness-125"
+                            onMouseEnter={(e) => handleMouseEnter(block, e)}
+                            onMouseLeave={handleMouseLeave}
+                          />
+                        ))}
 
-                  {/* Now marker (only when viewing today) */}
-                  {nowPct >= 0 && (
-                    <div className="absolute top-0 bottom-0 w-px bg-[rgba(245,247,251,0.4)]" style={{ left: `${nowPct}%` }}>
-                      <div className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-[5px] h-[5px] rounded-full bg-[rgba(245,247,251,0.6)]" />
+                        {/* Now marker */}
+                        {nowPct >= 0 && (
+                          <div className="absolute top-0 bottom-0 w-px bg-[rgba(245,247,251,0.4)]" style={{ left: `${nowPct}%` }}>
+                            <div className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-[5px] h-[5px] rounded-full bg-[rgba(245,247,251,0.6)]" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Legend */}
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                        {legendItems.map((item) => (
+                          <div key={item.name} className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: item.color }} />
+                            <span className="text-[8px] text-[rgba(245,247,251,0.35)]">{item.name}</span>
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-sm bg-[rgba(255,255,255,0.06)]" />
+                          <span className="text-[8px] text-[rgba(245,247,251,0.35)]">Inativo</span>
+                        </div>
+                      </div>
                     </div>
                   )}
-                </div>
-
-                {/* Legend */}
-                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                  {legendItems.map((item) => (
-                    <div key={item.name} className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: item.color }} />
-                      <span className="text-[8px] text-[rgba(245,247,251,0.35)]">{item.name}</span>
-                    </div>
-                  ))}
-                  <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-sm bg-[rgba(255,255,255,0.06)]" />
-                    <span className="text-[8px] text-[rgba(245,247,251,0.35)]">Inativo</span>
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </motion.div>
             )}
-          </CardContent>
-        )}
-      </Card>
+          </AnimatePresence>
+        </Card>
+      </motion.div>
 
-      {/* Tooltip rendered via portal — always on top, never clipped */}
+      {/* Tooltip rendered via portal */}
       {hovered && createPortal(
         <ActivityTooltip block={hovered.block} anchorRect={hovered.rect} />,
         document.body
@@ -231,10 +247,6 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     </>
   );
 }
-
-// ============================================================================
-// TOOLTIP (rendered at document root via portal)
-// ============================================================================
 
 function ActivityTooltip({ block, anchorRect }: { block: ActivityBlock; anchorRect: DOMRect }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -248,34 +260,31 @@ function ActivityTooltip({ block, anchorRect }: { block: ActivityBlock; anchorRe
     let left = anchorRect.left + anchorRect.width / 2 - tw / 2;
     let top = anchorRect.top - th - 10;
 
-    // Clamp to viewport
     if (left < 8) left = 8;
     if (left + tw > window.innerWidth - 8) left = window.innerWidth - 8 - tw;
-    if (top < 8) top = anchorRect.bottom + 8; // flip below if no room above
+    if (top < 8) top = anchorRect.bottom + 8;
 
     setPos({ left, top });
   }, [anchorRect]);
 
   return (
-    <div
+    <motion.div
       ref={ref}
+      initial={{ opacity: 0, y: 4, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.15, ease: [0, 0, 0.2, 1] }}
       className="pointer-events-none"
       style={{ position: 'fixed', zIndex: 99999, left: pos.left, top: pos.top }}
     >
       <div className="px-3 py-2.5 rounded-lg bg-[#13151f] border border-[rgba(255,255,255,0.12)] shadow-[0_8px_30px_rgba(0,0,0,0.5)] max-w-[260px]">
-        {/* App name + color */}
         <div className="flex items-center gap-2 mb-1.5">
           <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: block.color }} />
           <p className="text-[11px] font-semibold text-[#f5f7fb] truncate">{block.name}</p>
         </div>
-
-        {/* Time range + duration */}
         <p className="text-[10px] text-[rgba(245,247,251,0.5)] mb-2">
           {fmtTime(block.startUtc)} – {fmtTime(block.endUtc)}
           <span className="text-[rgba(245,247,251,0.7)] font-medium ml-1.5">{fmtDuration(block.duration)}</span>
         </p>
-
-        {/* Tabs / windows */}
         {block.tabs && block.tabs.length > 0 && (
           <div className="border-t border-[rgba(255,255,255,0.08)] pt-1.5 space-y-[5px]">
             <p className="text-[8px] uppercase tracking-wider text-[rgba(245,247,251,0.25)] mb-1">Atividades</p>
@@ -289,6 +298,6 @@ function ActivityTooltip({ block, anchorRect }: { block: ActivityBlock; anchorRe
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }

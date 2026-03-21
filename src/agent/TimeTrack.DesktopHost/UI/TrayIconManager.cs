@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Extensions.Logging;
@@ -43,8 +44,8 @@ public sealed class TrayIconManager : IDisposable
     {
         var icon = new NotifyIcon
         {
-            Text = "TimeTrack",
-            Icon = CreateDefaultIcon(),
+            Text = "ChronosX",
+            Icon = LoadAppIcon(),
             ContextMenuStrip = _contextMenu,
             Visible = true
         };
@@ -52,6 +53,53 @@ public sealed class TrayIconManager : IDisposable
         icon.DoubleClick += OnNotifyIconDoubleClick;
 
         return icon;
+    }
+
+    /// <summary>
+    /// Loads the app icon from Resources/app-icon.ico next to the executable.
+    /// Falls back to a generated icon if the file is not found.
+    /// </summary>
+    private Icon LoadAppIcon()
+    {
+        try
+        {
+            var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
+            var iconPath = Path.Combine(exeDir, "Resources", "app-icon.ico");
+
+            if (File.Exists(iconPath))
+            {
+                _logger.LogDebug("Loading tray icon from {Path}", iconPath);
+                return new Icon(iconPath, 32, 32);
+            }
+
+            _logger.LogWarning("Icon file not found at {Path}, using fallback", iconPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load icon file, using fallback");
+        }
+
+        return CreateFallbackIcon(Color.FromArgb(74, 217, 255)); // Cyan (brand color)
+    }
+
+    private Icon CreateFallbackIcon(Color circleColor)
+    {
+        if (_currentIconHandle != IntPtr.Zero)
+        {
+            DestroyIcon(_currentIconHandle);
+            _currentIconHandle = IntPtr.Zero;
+        }
+
+        using var bitmap = new Bitmap(32, 32);
+        using var graphics = Graphics.FromImage(bitmap);
+
+        graphics.Clear(Color.FromArgb(15, 15, 15));
+        using var brush = new SolidBrush(circleColor);
+        graphics.FillEllipse(brush, 2, 2, 28, 28);
+        graphics.DrawString("C", new Font("Arial", 14, FontStyle.Bold), Brushes.White, 7, 6);
+
+        _currentIconHandle = bitmap.GetHicon();
+        return Icon.FromHandle(_currentIconHandle);
     }
 
     private ContextMenuStrip CreateContextMenu()
@@ -64,7 +112,7 @@ public sealed class TrayIconManager : IDisposable
         };
 
         // Open/Show window
-        var showItem = menu.Items.Add("Abrir TimeTrack", null, OnShowClick);
+        var showItem = menu.Items.Add("Abrir ChronosX", null, OnShowClick);
         showItem.Font = new Font(showItem.Font, FontStyle.Bold);
 
         menu.Items.Add(new ToolStripSeparator());
@@ -86,31 +134,6 @@ public sealed class TrayIconManager : IDisposable
         return menu;
     }
 
-    private Icon CreateDefaultIcon() =>
-        CreateTrackedIcon(Color.FromArgb(99, 102, 241)); // Purple
-
-    private Icon CreateTrackedIcon(Color circleColor)
-    {
-        // Destroy the previous GDI HICON to prevent handle leak.
-        // Icon.FromHandle wraps but does NOT own the HICON, so it must be released manually.
-        if (_currentIconHandle != IntPtr.Zero)
-        {
-            DestroyIcon(_currentIconHandle);
-            _currentIconHandle = IntPtr.Zero;
-        }
-
-        using var bitmap = new Bitmap(32, 32);
-        using var graphics = Graphics.FromImage(bitmap);
-
-        graphics.Clear(Color.FromArgb(15, 15, 15));
-        using var brush = new SolidBrush(circleColor);
-        graphics.FillEllipse(brush, 2, 2, 28, 28);
-        graphics.DrawString("T", new Font("Arial", 14, FontStyle.Bold), Brushes.White, 8, 6);
-
-        _currentIconHandle = bitmap.GetHicon();
-        return Icon.FromHandle(_currentIconHandle);
-    }
-
     private void OnShowClick(object? sender, EventArgs e)
     {
         _mainForm.ShowWindow();
@@ -121,7 +144,6 @@ public sealed class TrayIconManager : IDisposable
         _isTrackingPaused = !_isTrackingPaused;
         UpdatePauseMenuItem();
 
-        // Notify via IPC to pause/resume tracking
         SendTrackingStateChangeAsync();
     }
 
@@ -133,14 +155,11 @@ public sealed class TrayIconManager : IDisposable
             pauseItems[0].Text = _isTrackingPaused ? "Retomar Tracking" : "Pausar Tracking";
         }
 
-        // Update icon color based on state
+        // Update icon: paused shows orange fallback, active shows the real icon
         _notifyIcon.Icon = _isTrackingPaused
-            ? CreatePausedIcon()
-            : CreateDefaultIcon();
+            ? CreateFallbackIcon(Color.FromArgb(245, 158, 11)) // Orange
+            : LoadAppIcon();
     }
-
-    private Icon CreatePausedIcon() =>
-        CreateTrackedIcon(Color.FromArgb(245, 158, 11)); // Orange
 
     private async void SendTrackingStateChangeAsync()
     {
@@ -159,8 +178,8 @@ public sealed class TrayIconManager : IDisposable
     private void OnAboutClick(object? sender, EventArgs e)
     {
         MessageBox.Show(
-            "TimeTrack Desktop v1.0.0\n\nSistema de rastreamento de tempo\n\n© 2026 CyriusX",
-            "Sobre o TimeTrack",
+            "ChronosX Desktop v1.0.0\n\nSistema de rastreamento de tempo e produtividade\n\n© 2026 ChronosX",
+            "Sobre o ChronosX",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
     }
@@ -187,13 +206,7 @@ public sealed class TrayIconManager : IDisposable
 
     public void UpdateStatus(string status, Color? color = null)
     {
-        _notifyIcon.Text = $"TimeTrack - {status}";
-
-        if (color != null)
-        {
-            // Update icon based on status
-            // This could be expanded to show different icons for different states
-        }
+        _notifyIcon.Text = $"ChronosX - {status}";
     }
 
     public void ShowNotification(string title, string message, ToolTipIcon icon = ToolTipIcon.Info)

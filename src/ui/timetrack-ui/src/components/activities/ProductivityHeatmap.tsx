@@ -6,7 +6,9 @@
 
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { motion } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { SPRING } from '../../lib/animation';
 import type { ActivityBlock } from '../../hooks/useActivitiesData';
 
 interface ProductivityHeatmapProps {
@@ -123,15 +125,20 @@ export function ProductivityHeatmap({ activities, selectedDate }: ProductivityHe
           {/* Heatmap cells */}
           <div className="flex gap-[2px]">
             {hourData.map((h, i) => (
-              <div
+              <motion.div
                 key={i}
-                className="flex-1 h-[28px] rounded-[3px] cursor-pointer transition-all hover:brightness-125"
+                className="flex-1 h-[28px] rounded-[3px] cursor-pointer"
                 style={{
                   backgroundColor: h.total > 0 ? `${h.color}40` : 'rgba(255,255,255,0.03)',
                   borderBottom: h.total > 0 ? `2px solid ${h.color}` : '2px solid transparent',
+                  transformOrigin: 'bottom',
                 }}
+                initial={{ scaleY: 0 }}
+                animate={{ scaleY: 1 }}
+                transition={{ delay: i * 0.03, ...SPRING.snappy }}
+                whileHover={{ scale: 1.15, y: -2 }}
                 onMouseEnter={(e) =>
-                  setHovered({ hour: i, data: h, rect: e.currentTarget.getBoundingClientRect() })
+                  setHovered({ hour: i, data: h, rect: (e.currentTarget as HTMLElement).getBoundingClientRect() })
                 }
                 onMouseLeave={() => setHovered(null)}
               />
@@ -160,7 +167,7 @@ export function ProductivityHeatmap({ activities, selectedDate }: ProductivityHe
                   style={{ backgroundColor: PRODUCTIVITY_COLORS[key] }}
                 />
                 <span className="text-[8px] text-[rgba(245,247,251,0.3)]">
-                  {key === 'productive' ? 'Produtivo' : key === 'neutral' ? 'Neutro' : 'Distração'}
+                  {key === 'productive' ? 'Produtivo' : key === 'neutral' ? 'Neutro' : 'Distracao'}
                 </span>
               </div>
             ))}
@@ -194,9 +201,12 @@ function HeatmapTooltip({
   };
 
   return (
-    <div
+    <motion.div
       className="pointer-events-none fixed z-[99999] -translate-x-1/2 -translate-y-full"
       style={{ left, top }}
+      initial={{ opacity: 0, y: 4, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.15 }}
     >
       <div className="px-2.5 py-2 rounded-lg bg-[#13151f] border border-[rgba(255,255,255,0.12)] shadow-[0_8px_30px_rgba(0,0,0,0.5)] text-center min-w-[100px]">
         <p className="text-[10px] font-medium text-[rgba(245,247,251,0.8)] mb-1">
@@ -210,10 +220,10 @@ function HeatmapTooltip({
             <p className="text-[9px] text-[#fbbf24]">Neutro: {fmtSec(data.neutral)}</p>
           )}
           {data.distraction > 0 && (
-            <p className="text-[9px] text-[#f87171]">Distração: {fmtSec(data.distraction)}</p>
+            <p className="text-[9px] text-[#f87171]">Distracao: {fmtSec(data.distraction)}</p>
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

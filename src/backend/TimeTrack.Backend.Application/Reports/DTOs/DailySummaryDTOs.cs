@@ -79,4 +79,10 @@ public sealed class DailyAppSummary
     /// </summary>
     [JsonPropertyName("sessionCount")]
     public int SessionCount { get; init; }
+
+    /// <summary>
+    /// Categoria do app (ex: "development", "productivity_tools", "entertainment")
+    /// </summary>
+    [JsonPropertyName("appCategory")]
+    public string? AppCategory { get; init; }
 }

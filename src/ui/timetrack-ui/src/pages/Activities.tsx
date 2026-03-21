@@ -7,6 +7,7 @@
  * session list, and a mini calendar in the right panel.
  */
 
+import { motion } from 'motion/react';
 import { Sidebar } from '../components/dashboard';
 import { BottomCards, ActivitySection } from '../components/dashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -21,6 +22,7 @@ import {
 } from '../components/activities';
 import { AppIcon } from '../components/dashboard/shared';
 import { useTimerStore } from '../stores/timerStore';
+import { fadeUp, staggerContainer, STAGGER } from '../lib/animation';
 
 // ============================================================================
 // CONSTANTS
@@ -163,118 +165,129 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
   const progressPercentage = Math.min((totalSeconds / 28800) * 100, 100);
 
   return (
-    <div className="grid grid-cols-3 gap-4 flex-shrink-0">
+    <motion.div
+      className="grid grid-cols-3 gap-4 flex-shrink-0"
+      variants={staggerContainer(STAGGER.cards)}
+      initial="hidden"
+      animate="visible"
+    >
       {/* Tempo Rastreado */}
-      <Card className={cardBase}>
-        <CardHeader className="pb-0 pt-3 px-4">
-          <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-            Tempo rastreado
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-3 pb-3 px-4">
-          <div className="flex flex-col items-center">
-            <div className="relative w-[100px] h-[100px]">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
-                <circle cx="50" cy="50" r="42" fill="none" stroke="url(#actGrad1)" strokeWidth="8" strokeDasharray={`${progressPercentage * 2.64} 264`} strokeLinecap="round" />
-                <defs>
-                  <linearGradient id="actGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#4ad9ff" />
-                    <stop offset="100%" stopColor="#3c7bff" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[20px] font-semibold text-[#f5f7fb]">{formatDuration(totalSeconds)}</span>
+      <motion.div variants={fadeUp} className="h-full">
+        <Card className={`${cardBase} h-full`}>
+          <CardHeader className="pb-0 pt-3 px-4">
+            <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
+              Tempo rastreado
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-3 pb-3 px-4">
+            <div className="flex flex-col items-center">
+              <div className="relative w-[100px] h-[100px]">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="url(#actGrad1)" strokeWidth="8" strokeDasharray={`${progressPercentage * 2.64} 264`} strokeLinecap="round" />
+                  <defs>
+                    <linearGradient id="actGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#4ad9ff" />
+                      <stop offset="100%" stopColor="#3c7bff" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-[20px] font-semibold text-[#f5f7fb]">{formatDuration(totalSeconds)}</span>
+                </div>
+              </div>
+              <div className="mt-3 text-center">
+                <p className="text-[18px] font-semibold text-[rgba(245,247,251,0.9)]">{Math.round(progressPercentage)}%</p>
+                <p className="text-[10px] text-[rgba(245,247,251,0.3)] mt-0.5">Meta de 8h</p>
+                <p className="text-[10px] text-[rgba(245,247,251,0.4)] mt-1">
+                  Idle: <span className="text-[rgba(245,247,251,0.6)] font-medium">{formatDuration(idleSeconds)}</span>
+                </p>
               </div>
             </div>
-            <div className="mt-3 text-center">
-              <p className="text-[18px] font-semibold text-[rgba(245,247,251,0.9)]">{Math.round(progressPercentage)}%</p>
-              <p className="text-[10px] text-[rgba(245,247,251,0.3)] mt-0.5">Meta de 8h</p>
-              <p className="text-[10px] text-[rgba(245,247,251,0.4)] mt-1">
-                Idle: <span className="text-[rgba(245,247,251,0.6)] font-medium">{formatDuration(idleSeconds)}</span>
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Produtividade */}
-      <Card className={cardBase}>
-        <CardHeader className="pb-0 pt-3 px-4">
-          <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-            Produtividade
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-2 pb-3 px-4">
-          <div className="flex flex-col items-center">
-            <div className="relative w-[100px] h-[100px]">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r={ringRadius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
-                {ringSegments.map((seg, i) => (
-                  <circle key={i} cx="50" cy="50" r={ringRadius} fill="none" stroke={seg.color} strokeWidth="9"
-                    strokeDasharray={seg.dasharray} strokeDashoffset={seg.offset} strokeLinecap="butt" />
-                ))}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-[26px] font-bold" style={{ color: scoreColor }}>{productivityScore}</span>
-                <span className="text-[8px] text-[rgba(245,247,251,0.4)] -mt-0.5">SCORE</span>
+      <motion.div variants={fadeUp} className="h-full">
+        <Card className={`${cardBase} h-full`}>
+          <CardHeader className="pb-0 pt-3 px-4">
+            <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
+              Produtividade
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-2 pb-3 px-4">
+            <div className="flex flex-col items-center">
+              <div className="relative w-[100px] h-[100px]">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r={ringRadius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
+                  {ringSegments.map((seg, i) => (
+                    <circle key={i} cx="50" cy="50" r={ringRadius} fill="none" stroke={seg.color} strokeWidth="9"
+                      strokeDasharray={seg.dasharray} strokeDashoffset={seg.offset} strokeLinecap="butt" />
+                  ))}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-[26px] font-bold" style={{ color: scoreColor }}>{productivityScore}</span>
+                  <span className="text-[8px] text-[rgba(245,247,251,0.4)] -mt-0.5">SCORE</span>
+                </div>
+              </div>
+              <div className="mt-2.5 w-full space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#4ade80]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">Produtivo</span></div>
+                  <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(productiveSecs)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#fbbf24]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">Neutro</span></div>
+                  <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(neutralSecs)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#f87171]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">Distração</span></div>
+                  <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(distractionSecs)}</span>
+                </div>
               </div>
             </div>
-            <div className="mt-2.5 w-full space-y-1">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#4ade80]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">Produtivo</span></div>
-                <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(productiveSecs)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#fbbf24]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">Neutro</span></div>
-                <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(neutralSecs)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#f87171]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">Distração</span></div>
-                <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(distractionSecs)}</span>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Resumo do dia */}
-      <Card className={cardBase}>
-        <CardHeader className="pb-0 pt-3 px-4">
-          <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-            Resumo do dia
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-4 pb-3 px-4">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Sessões</span>
-              <span className="text-[16px] font-bold text-[#f5f7fb]">{sessionsCount}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo produtivo</span>
-              <span className="text-[16px] font-bold text-[#4ade80]">{formatDuration(productiveSecs)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo ocioso</span>
-              <span className="text-[16px] font-bold text-[rgba(245,247,251,0.5)]">{formatDuration(idleSeconds)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Focus Score</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[16px] font-bold" style={{
-                  color: focusSessionScore >= 80 ? '#4ade80' : focusSessionScore >= 50 ? '#fbbf24' : '#f87171'
-                }}>{focusSessionScore}</span>
-                <span className="text-[9px] text-[rgba(245,247,251,0.3)]">
-                  ({focusSessionCount} {focusSessionCount === 1 ? 'sessão' : 'sessões'})
-                </span>
+      <motion.div variants={fadeUp} className="h-full">
+        <Card className={`${cardBase} h-full`}>
+          <CardHeader className="pb-0 pt-3 px-4">
+            <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
+              Resumo do dia
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Sessoes</span>
+                <span className="text-[16px] font-bold text-[#f5f7fb]">{sessionsCount}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo produtivo</span>
+                <span className="text-[16px] font-bold text-[#4ade80]">{formatDuration(productiveSecs)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo ocioso</span>
+                <span className="text-[16px] font-bold text-[rgba(245,247,251,0.5)]">{formatDuration(idleSeconds)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Focus Score</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[16px] font-bold" style={{
+                    color: focusSessionScore >= 80 ? '#4ade80' : focusSessionScore >= 50 ? '#fbbf24' : '#f87171'
+                  }}>{focusSessionScore}</span>
+                  <span className="text-[9px] text-[rgba(245,247,251,0.3)]">
+                    ({focusSessionCount} {focusSessionCount === 1 ? 'sessao' : 'sessoes'})
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -300,19 +313,24 @@ function TopAppsPanel({ summary }: { summary: ReturnType<typeof useActivitiesDat
         {apps.length === 0 ? (
           <p className="text-[11px] text-[rgba(245,247,251,0.3)] text-center py-3">Nenhum app</p>
         ) : (
-          <div className="space-y-2">
+          <motion.div
+            className="space-y-2"
+            variants={staggerContainer(STAGGER.listItems)}
+            initial="hidden"
+            animate="visible"
+          >
             {apps.map((app, i) => {
               const pct = totalTime > 0 ? Math.round((app.duration / totalTime) * 100) : 0;
               return (
-                <div key={i} className="flex items-center gap-2">
+                <motion.div key={i} className="flex items-center gap-2" variants={fadeUp}>
                   <AppIcon name={app.name} size={14} />
                   <span className="text-[10px] text-[rgba(245,247,251,0.7)] flex-1 truncate">{app.name}</span>
                   <span className="text-[9px] text-[rgba(245,247,251,0.4)] tabular-nums">{formatDuration(app.duration)}</span>
                   <span className="text-[8px] text-[rgba(245,247,251,0.3)] w-[28px] text-right tabular-nums">{pct}%</span>
-                </div>
+                </motion.div>
               );
             })}
-          </div>
+          </motion.div>
         )}
       </CardContent>
     </Card>

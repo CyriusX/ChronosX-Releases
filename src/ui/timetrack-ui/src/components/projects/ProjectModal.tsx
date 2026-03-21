@@ -3,8 +3,10 @@
  */
 
 import { useState } from 'react';
+import { motion } from 'motion/react';
 import { Project } from '../../stores/projectStore';
 import { PROJECT_COLORS } from './projectConstants';
+import { modalOverlayVariants, modalContentVariants, SPRING, TIMING } from '../../lib/animation';
 
 interface ProjectModalProps {
   project: Project | null;
@@ -25,8 +27,24 @@ export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectM
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[#0b0d14] border border-[rgba(255,255,255,0.1)] rounded-xl w-full max-w-md p-6">
+    <motion.div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      variants={modalOverlayVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      transition={{ duration: TIMING.fast }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="bg-[#0b0d14] border border-[rgba(255,255,255,0.1)] rounded-xl w-full max-w-md p-6"
+        variants={modalContentVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        transition={SPRING.gentle}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-xl font-semibold text-[#f5f7fb] mb-4">
           {project ? 'Editar Projeto' : 'Novo Projeto'}
         </h2>
@@ -92,16 +110,18 @@ export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectM
             >
               Cancelar
             </button>
-            <button
+            <motion.button
               type="submit"
               disabled={isLoading || !name.trim()}
               className="px-4 py-2 bg-gradient-to-r from-[#4A9FFF] to-[#3C7BFF] text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
               {isLoading ? 'Salvando...' : project ? 'Salvar' : 'Criar Projeto'}
-            </button>
+            </motion.button>
           </div>
         </form>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

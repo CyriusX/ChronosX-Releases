@@ -124,6 +124,34 @@ body {
   animation-name: fade-in;
 }
 
+/* Shimmer animation for skeleton loading */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+/* Float animation for empty states */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
 /* Focus styles */
 *:focus-visible {
   outline: 2px solid rgb(99 102 241);

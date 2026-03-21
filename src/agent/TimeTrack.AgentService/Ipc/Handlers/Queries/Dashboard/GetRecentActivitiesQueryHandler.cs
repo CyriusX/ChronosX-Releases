@@ -7,7 +7,9 @@ using TimeTrack.AgentService.Ipc.Handlers;
 namespace TimeTrack.AgentService.Ipc.Handlers.Queries.Dashboard;
 
 /// <summary>
-/// Returns today's activity sessions grouped by executable (app).
+/// Returns activity sessions grouped by executable (app).
+/// Today: uses local SQLite (real-time, fast).
+/// Past days: fetches from backend cloud API (authoritative source).
 /// Consecutive sessions for the same exe are merged into a single block.
 /// Each block includes the list of window titles (tabs) used during that period.
 /// </summary>
@@ -16,6 +18,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
     public string QueryName => "GetRecentActivities";
 
     private readonly IActivitySessionRepository _sessionRepository;
+    private readonly IBackendReportsClient _reportsClient;
     private readonly ICurrentUserContext _userContext;
     private readonly ILogger<GetRecentActivitiesQueryHandler> _logger;
 
@@ -28,10 +31,12 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     public GetRecentActivitiesQueryHandler(
         IActivitySessionRepository sessionRepository,
+        IBackendReportsClient reportsClient,
         ICurrentUserContext userContext,
         ILogger<GetRecentActivitiesQueryHandler> logger)
     {
         _sessionRepository = sessionRepository;
+        _reportsClient = reportsClient;
         _userContext = userContext;
         _logger = logger;
     }
@@ -45,20 +50,18 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         try
         {
             var targetDate = ExtractDateOrToday(request);
-            var sessions = await _sessionRepository.GetByDateAsync(userId.Value, targetDate, ct);
+            var isToday = targetDate.Date == DateTime.Today;
 
-            var filtered = sessions
-                .Where(s => !InternalApps.Contains(s.App.DisplayName))
-                .OrderBy(s => s.Period.StartUtc)
-                .ToList();
-
-            // Assign a unique color per app (by ExePathHash)
-            var appColors = AssignAppColors(filtered);
-
-            // Group consecutive sessions by ExePathHash into app-level blocks.
-            var blocks = MergeConsecutiveByExe(filtered, appColors);
-
-            return SuccessResponse(request.RequestId, new { activities = blocks });
+            if (isToday)
+            {
+                // TODAY: use local SQLite (fast, real-time, includes in-memory session)
+                return await BuildFromLocalSqlite(request.RequestId, userId.Value, targetDate, ct);
+            }
+            else
+            {
+                // PAST DAYS: fetch from backend cloud API (authoritative data)
+                return await BuildFromBackendApi(request.RequestId, targetDate, userId.Value, ct);
+            }
         }
         catch (Exception ex)
         {
@@ -67,25 +70,211 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         }
     }
 
-    // Distinct color palette for per-app coloring
+    /// <summary>
+    /// Builds activity blocks from local SQLite sessions (today's data).
+    /// </summary>
+    private async Task<IpcResponse> BuildFromLocalSqlite(int requestId, Guid userId, DateTime targetDate, CancellationToken ct)
+    {
+        var sessions = await _sessionRepository.GetByDateAsync(userId, targetDate, ct);
+
+        var filtered = sessions
+            .Where(s => !InternalApps.Contains(s.App.DisplayName))
+            .OrderBy(s => s.Period.StartUtc)
+            .ToList();
+
+        var appColors = AssignAppColors(filtered);
+        var blocks = MergeConsecutiveByExe(filtered, appColors);
+
+        return SuccessResponse(requestId, new { activities = blocks });
+    }
+
+    /// <summary>
+    /// Builds activity blocks from backend cloud API sessions (past days).
+    /// Falls back to local SQLite if the backend is unreachable.
+    /// </summary>
+    private async Task<IpcResponse> BuildFromBackendApi(int requestId, DateTime targetDate, Guid userId, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _reportsClient.GetDailyActivitiesAsync(targetDate, ct);
+            if (result != null && result.Sessions.Count > 0)
+            {
+                _logger.LogInformation("[GetRecentActivities] Got {Count} sessions from backend for {Date}",
+                    result.Sessions.Count, targetDate.ToString("yyyy-MM-dd"));
+
+                var filtered = result.Sessions
+                    .Where(s => !InternalApps.Contains(s.ProcessName))
+                    .OrderBy(s => s.StartedAt)
+                    .ToList();
+
+                var appColors = AssignCloudAppColors(filtered);
+                var blocks = MergeConsecutiveCloudSessions(filtered, appColors);
+
+                return SuccessResponse(requestId, new { activities = blocks });
+            }
+
+            _logger.LogWarning("[GetRecentActivities] No data from backend for {Date}, falling back to local",
+                targetDate.ToString("yyyy-MM-dd"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[GetRecentActivities] Backend fetch failed for {Date}, falling back to local",
+                targetDate.ToString("yyyy-MM-dd"));
+        }
+
+        // Fallback: try local SQLite (may have data if cleanup hasn't run)
+        return await BuildFromLocalSqlite(requestId, userId, targetDate, ct);
+    }
+
+    // ============================================================================
+    // CLOUD SESSION MERGING (same logic as local, adapted for cloud DTOs)
+    // ============================================================================
+
+    private static Dictionary<string, string> AssignCloudAppColors(List<DailyActivitySession> sessions)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var idx = 0;
+        foreach (var s in sessions)
+        {
+            if (!map.ContainsKey(s.ProcessName))
+            {
+                map[s.ProcessName] = AppPalette[idx % AppPalette.Length];
+                idx++;
+            }
+        }
+        return map;
+    }
+
+    private static object[] MergeConsecutiveCloudSessions(List<DailyActivitySession> sessions, Dictionary<string, string> appColors)
+    {
+        if (sessions.Count == 0) return Array.Empty<object>();
+
+        var result = new List<object>();
+        var currentApp = sessions[0].ProcessName;
+        var currentStart = sessions[0].StartedAt;
+        var currentEnd = sessions[0].EndedAt;
+        var currentColor = appColors.GetValueOrDefault(currentApp, "#94a3b8");
+        var currentCategory = sessions[0].AppCategory ?? "unknown";
+        var tabs = new List<CloudTabInfo>();
+        var currentAppName = ExtractCloudAppName(sessions[0]);
+
+        void FlushBlock()
+        {
+            var uniqueTabs = tabs
+                .GroupBy(t => t.Title)
+                .Select(g => new
+                {
+                    title = g.Key,
+                    duration = g.Sum(t => t.DurationSec),
+                    subcategory = g.First().Subcategory,
+                    color = g.First().Color
+                })
+                .OrderByDescending(t => t.duration)
+                .Take(8)
+                .ToArray();
+
+            result.Add(new
+            {
+                id = Guid.NewGuid().ToString(),
+                name = currentAppName,
+                startUtc = currentStart.ToString("o"),
+                endUtc = currentEnd.ToString("o"),
+                duration = (long)(currentEnd - currentStart).TotalSeconds,
+                productivity = MapCategoryToProductivity(currentCategory),
+                subcategory = currentCategory,
+                color = currentColor,
+                tabs = uniqueTabs
+            });
+        }
+
+        AddCloudTab(tabs, sessions[0]);
+
+        for (int i = 1; i < sessions.Count; i++)
+        {
+            var s = sessions[i];
+            var gap = (s.StartedAt - currentEnd).TotalSeconds;
+
+            if (string.Equals(s.ProcessName, currentApp, StringComparison.OrdinalIgnoreCase) && gap < 120)
+            {
+                currentEnd = s.EndedAt > currentEnd ? s.EndedAt : currentEnd;
+                AddCloudTab(tabs, s);
+            }
+            else
+            {
+                FlushBlock();
+
+                currentApp = s.ProcessName;
+                currentStart = s.StartedAt;
+                currentEnd = s.EndedAt;
+                currentColor = appColors.GetValueOrDefault(s.ProcessName, "#94a3b8");
+                currentCategory = s.AppCategory ?? "unknown";
+                currentAppName = ExtractCloudAppName(s);
+                tabs = new List<CloudTabInfo>();
+                AddCloudTab(tabs, s);
+            }
+        }
+
+        FlushBlock();
+        return result.ToArray();
+    }
+
+    private static void AddCloudTab(List<CloudTabInfo> tabs, DailyActivitySession session)
+    {
+        var title = !string.IsNullOrWhiteSpace(session.WindowTitle) ? session.WindowTitle : session.ProcessName;
+        tabs.Add(new CloudTabInfo
+        {
+            Title = title,
+            DurationSec = session.DurationSeconds,
+            Subcategory = session.AppCategory ?? "unknown",
+            Color = GetColor(session.AppCategory ?? "unknown")
+        });
+    }
+
+    private static string ExtractCloudAppName(DailyActivitySession session)
+    {
+        var windowTitle = session.WindowTitle;
+        if (!string.IsNullOrWhiteSpace(windowTitle))
+        {
+            var separators = new[] { " - ", " — ", " – " };
+            foreach (var sep in separators)
+            {
+                var lastIdx = windowTitle.LastIndexOf(sep, StringComparison.Ordinal);
+                if (lastIdx > 0)
+                {
+                    var suffix = windowTitle[(lastIdx + sep.Length)..].Trim();
+                    if (suffix.Length > 2 && suffix != session.ProcessName)
+                        return suffix;
+                }
+            }
+        }
+        return session.ProcessName;
+    }
+
+    private static string MapCategoryToProductivity(string category) => category?.ToLowerInvariant() switch
+    {
+        "development" or "design" or "productivity_tools" => "productive",
+        "entertainment" or "social_media" => "distraction",
+        _ => "neutral"
+    };
+
+    private sealed class CloudTabInfo
+    {
+        public string Title { get; init; } = "";
+        public int DurationSec { get; init; }
+        public string Subcategory { get; init; } = "";
+        public string Color { get; init; } = "";
+    }
+
+    // ============================================================================
+    // LOCAL SESSION MERGING (original logic, unchanged)
+    // ============================================================================
+
     private static readonly string[] AppPalette =
     {
-        "#38bdf8", // sky
-        "#f472b6", // pink
-        "#34d399", // emerald
-        "#fb923c", // orange
-        "#a78bfa", // violet
-        "#fbbf24", // amber
-        "#22d3ee", // cyan
-        "#f87171", // red
-        "#4ade80", // green
-        "#e879f9", // fuchsia
-        "#60a5fa", // blue
-        "#facc15", // yellow
-        "#2dd4bf", // teal
-        "#f97316", // orange-500
-        "#c084fc", // purple
-        "#38bdf8", // sky (wraps)
+        "#38bdf8", "#f472b6", "#34d399", "#fb923c", "#a78bfa",
+        "#fbbf24", "#22d3ee", "#f87171", "#4ade80", "#e879f9",
+        "#60a5fa", "#facc15", "#2dd4bf", "#f97316", "#c084fc",
+        "#38bdf8",
     };
 
     private static Dictionary<string, string> AssignAppColors(List<ActivitySession> sessions)
@@ -147,7 +336,6 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
             });
         }
 
-        // Add first session's tab
         AddTab(tabs, sessions[0]);
 
         for (int i = 1; i < sessions.Count; i++)
@@ -155,7 +343,6 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
             var s = sessions[i];
             var gap = (s.Period.StartUtc - currentEnd).TotalSeconds;
 
-            // Same exe and gap < 2 minutes → merge
             if (s.App.ExePathHash == currentExe && gap < 120)
             {
                 currentEnd = s.Period.EndUtc > currentEnd ? s.Period.EndUtc : currentEnd;
@@ -163,7 +350,6 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
             }
             else
             {
-                // Different app or big gap → flush and start new block
                 FlushBlock();
 
                 currentExe = s.App.ExePathHash;
@@ -184,8 +370,6 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     private static void AddTab(List<TabInfo> tabs, ActivitySession session)
     {
-        // For browser tabs, DisplayName is the tab title.
-        // For regular apps, DisplayName is the app name — use WindowTitle if available for more detail.
         var title = session.App.DisplayName;
 
         tabs.Add(new TabInfo
@@ -197,9 +381,6 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         });
     }
 
-    /// <summary>
-    /// Gets the exe-level app name. For browsers, extracts from WindowTitle suffix.
-    /// </summary>
     private static string ExtractAppName(ActivitySession session)
     {
         var windowTitle = session.WindowTitle;
@@ -222,16 +403,16 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     private static string GetColor(string key) => key?.ToLowerInvariant() switch
     {
-        "development"        => "#38bdf8",   // sky blue
-        "design"             => "#a78bfa",   // violet
-        "productivity_tools" => "#34d399",   // emerald
-        "communication"      => "#fb923c",   // orange
-        "meetings"           => "#22d3ee",   // cyan
-        "entertainment"      => "#f87171",   // red
-        "social_media"       => "#f472b6",   // pink
-        "productive"         => "#4ade80",   // green
-        "neutral"            => "#fbbf24",   // amber
-        "distraction"        => "#ef4444",   // red-600
+        "development"        => "#38bdf8",
+        "design"             => "#a78bfa",
+        "productivity_tools" => "#34d399",
+        "communication"      => "#fb923c",
+        "meetings"           => "#22d3ee",
+        "entertainment"      => "#f87171",
+        "social_media"       => "#f472b6",
+        "productive"         => "#4ade80",
+        "neutral"            => "#fbbf24",
+        "distraction"        => "#ef4444",
         _                    => "#94a3b8"
     };
 

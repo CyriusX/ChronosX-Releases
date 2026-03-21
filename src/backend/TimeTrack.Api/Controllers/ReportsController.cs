@@ -212,6 +212,68 @@ public sealed class ReportsController : ControllerBase
     }
 
     /// <summary>
+    /// Obtém sessões de atividade detalhadas para um dia específico.
+    /// Retorna sessões individuais (não agregadas) para exibição de timeline.
+    /// </summary>
+    /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
+    /// <param name="date">Data das atividades (formato YYYY-MM-DD)</param>
+    /// <param name="cancellationToken">Token de cancelamento</param>
+    /// <returns>Lista de sessões de atividade individuais</returns>
+    [HttpGet("activities")]
+    [ProducesResponseType(typeof(DailyActivitiesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetDailyActivities(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime date,
+        CancellationToken cancellationToken = default)
+    {
+        var targetUserId = userId ?? _currentUser.UserId!.Value;
+        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+
+        if (isAccessingOtherUserData)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new { reportType = "activities", date = date.ToString("yyyy-MM-dd") },
+                cancellationToken);
+        }
+
+        var query = new DailyActivitiesQuery(
+            UserId: targetUserId,
+            Date: date
+        );
+
+        try
+        {
+            var response = await _mediator.Send(query, cancellationToken);
+
+            var etag = ETagGenerator.Generate(response);
+            Response.Headers.ETag = $"\"{etag}\"";
+
+            if (ETagGenerator.Matches(Request.Headers.IfNoneMatch, etag))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+
+            return Ok(response);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
     /// Obtém top apps de um usuário por período
     /// </summary>
     /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>

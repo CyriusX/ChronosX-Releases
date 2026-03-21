@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../stores/authStore';
+import { shakeX, SPRING, TIMING } from '../lib/animation';
+import logoImg from '../assets/logo-128.png';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -23,21 +26,62 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo/Title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">CronusX</h1>
-          <p className="text-zinc-400">Faça login para continuar</p>
+          <motion.img
+            src={logoImg}
+            alt="ChronosX"
+            className="w-20 h-20 mx-auto mb-4 drop-shadow-[0_0_20px_rgba(74,217,255,0.3)]"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', stiffness: SPRING.gentle.stiffness, damping: SPRING.gentle.damping, delay: 0.1 }}
+          />
+          <motion.h1
+            className="text-3xl font-bold text-white mb-2"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            ChronosX
+          </motion.h1>
+          <motion.p
+            className="text-zinc-400"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            Faca login para continuar
+          </motion.p>
         </div>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} className="bg-[#12141c] rounded-xl p-6 shadow-xl">
+        <motion.form
+          onSubmit={handleSubmit}
+          className="bg-[#12141c] rounded-xl p-6 shadow-xl"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...SPRING.gentle, delay: 0.3 }}
+        >
           {/* Error Message */}
-          {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <p className="text-red-400 text-sm">{error}</p>
-            </div>
-          )}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg overflow-hidden"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto', ...shakeX }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: TIMING.normal }}
+              >
+                <p className="text-red-400 text-sm">{error}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Email Field */}
-          <div className="mb-4">
+          <motion.div
+            className="mb-4"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: TIMING.normal, delay: 0.38 }}
+          >
             <label htmlFor="email" className="block text-sm font-medium text-zinc-300 mb-2">
               Email
             </label>
@@ -51,10 +95,15 @@ export default function Login() {
               className="w-full px-4 py-3 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               placeholder="seu@email.com"
             />
-          </div>
+          </motion.div>
 
           {/* Password Field */}
-          <div className="mb-6">
+          <motion.div
+            className="mb-6"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: TIMING.normal, delay: 0.46 }}
+          >
             <label htmlFor="password" className="block text-sm font-medium text-zinc-300 mb-2">
               Senha
             </label>
@@ -67,13 +116,15 @@ export default function Login() {
               className="w-full px-4 py-3 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               placeholder="••••••••"
             />
-          </div>
+          </motion.div>
 
           {/* Submit Button */}
-          <button
+          <motion.button
             type="submit"
             disabled={isLoading}
             className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
             {isLoading ? (
               <>
@@ -98,7 +149,7 @@ export default function Login() {
             ) : (
               'Entrar'
             )}
-          </button>
+          </motion.button>
 
           {/* Forgot Password Link */}
           <div className="mt-4 text-center">
@@ -109,15 +160,20 @@ export default function Login() {
               Esqueceu sua senha?
             </button>
           </div>
-        </form>
+        </motion.form>
 
         {/* Footer */}
-        <p className="text-center text-zinc-500 text-sm mt-6">
-          Não tem uma conta?{' '}
+        <motion.p
+          className="text-center text-zinc-500 text-sm mt-6"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: TIMING.normal, delay: 0.6 }}
+        >
+          Nao tem uma conta?{' '}
           <Link to="/register" className="text-blue-400 hover:text-blue-300 transition-colors">
             Criar conta
           </Link>
-        </p>
+        </motion.p>
       </div>
     </div>
   );

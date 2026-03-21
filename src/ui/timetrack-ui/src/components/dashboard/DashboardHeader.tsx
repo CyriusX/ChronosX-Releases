@@ -1,4 +1,6 @@
 import { Calendar, Search, MoreVertical } from 'lucide-react';
+import { motion } from 'motion/react';
+import { SPRING } from '../../lib/animation';
 
 interface DashboardHeaderProps {
   activeTab: 'meu-dia' | 'equipe';
@@ -21,7 +23,11 @@ export function DashboardHeader({ activeTab, onTabChange, showTeamTab = false }:
         >
           Meu dia
           {activeTab === 'meu-dia' && (
-            <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] rounded-full shadow-[0px_10px_15px_0px_rgba(0,184,219,0.3),0px_4px_6px_0px_rgba(0,184,219,0.3)]" />
+            <motion.div
+              layoutId="dashboard-tab-indicator"
+              className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] rounded-full shadow-[0px_10px_15px_0px_rgba(0,184,219,0.3),0px_4px_6px_0px_rgba(0,184,219,0.3)]"
+              transition={{ type: 'spring', stiffness: SPRING.snappy.stiffness, damping: SPRING.snappy.damping }}
+            />
           )}
         </button>
         {showTeamTab && (
@@ -35,7 +41,11 @@ export function DashboardHeader({ activeTab, onTabChange, showTeamTab = false }:
           >
             Equipe
             {activeTab === 'equipe' && (
-              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] rounded-full shadow-[0px_10px_15px_0px_rgba(0,184,219,0.3),0px_4px_6px_0px_rgba(0,184,219,0.3)]" />
+              <motion.div
+                layoutId="dashboard-tab-indicator"
+                className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] rounded-full shadow-[0px_10px_15px_0px_rgba(0,184,219,0.3),0px_4px_6px_0px_rgba(0,184,219,0.3)]"
+                transition={{ type: 'spring', stiffness: SPRING.snappy.stiffness, damping: SPRING.snappy.damping }}
+              />
             )}
           </button>
         )}
@@ -43,15 +53,16 @@ export function DashboardHeader({ activeTab, onTabChange, showTeamTab = false }:
 
       {/* Action Buttons */}
       <div className="flex items-center gap-3">
-        <button className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors">
-          <Calendar className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
-        </button>
-        <button className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors">
-          <Search className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
-        </button>
-        <button className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors">
-          <MoreVertical className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
-        </button>
+        {[Calendar, Search, MoreVertical].map((Icon, i) => (
+          <motion.button
+            key={i}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.95 }}
+            className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+          >
+            <Icon className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
+          </motion.button>
+        ))}
       </div>
     </header>
   );

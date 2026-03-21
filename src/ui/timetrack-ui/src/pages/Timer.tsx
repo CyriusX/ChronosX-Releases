@@ -12,11 +12,13 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Play, Pause, Square, SkipForward, ChevronDown, Focus, Activity, Coffee } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar } from '../components/dashboard';
 import { Card, CardContent } from '../components/ui/card';
 import { useIpc } from '../hooks/useIpc';
 import { FocusDayTimeline, type TimelineActivityBlock } from '../components/timer/FocusDayTimeline';
 import { useTimerStore, CONFIGS, type TimerPhase } from '../stores/timerStore';
+import { fadeUp, fadeIn, scaleIn, slideLeft, staggerContainer, STAGGER, SPRING, TIMING } from '../lib/animation';
 
 // ============================================================================
 // HELPERS
@@ -123,32 +125,61 @@ export default function Timer() {
 
       <main className="flex-1 flex min-w-0 min-h-0">
         {/* Center — Timer */}
-        <div className="flex-1 flex flex-col items-center justify-center p-8 min-w-0">
+        <motion.div
+          className="flex-1 flex flex-col items-center justify-center p-8 min-w-0"
+          variants={fadeIn}
+          initial="hidden"
+          animate="visible"
+          transition={{ duration: TIMING.normal }}
+        >
           {/* Mode toggle */}
           <div className="flex bg-[rgba(255,255,255,0.04)] rounded-full p-1 border border-[rgba(255,255,255,0.06)] mb-6">
             <button
               onClick={() => setMode('pomodoro')}
-              className={`px-5 py-1.5 rounded-full text-[12px] font-medium transition-all ${mode === 'pomodoro' ? 'bg-[#4ad9ff] text-[#0b0d14]' : 'text-[rgba(245,247,251,0.4)]'}`}
+              className={`relative px-5 py-1.5 rounded-full text-[12px] font-medium transition-all ${mode === 'pomodoro' ? 'text-[#0b0d14]' : 'text-[rgba(245,247,251,0.4)]'}`}
             >
-              <Focus className="w-3.5 h-3.5 inline -mt-0.5 mr-1.5" />Pomodoro
+              {mode === 'pomodoro' && (
+                <motion.div
+                  layoutId="timer-mode"
+                  className="absolute inset-0 rounded-full bg-[#4ad9ff]"
+                  transition={SPRING.snappy}
+                />
+              )}
+              <span className="relative z-10"><Focus className="w-3.5 h-3.5 inline -mt-0.5 mr-1.5" />Pomodoro</span>
             </button>
             <button
               onClick={() => setMode('ultradian')}
-              className={`px-5 py-1.5 rounded-full text-[12px] font-medium transition-all ${mode === 'ultradian' ? 'bg-[#c27aff] text-[#0b0d14]' : 'text-[rgba(245,247,251,0.4)]'}`}
+              className={`relative px-5 py-1.5 rounded-full text-[12px] font-medium transition-all ${mode === 'ultradian' ? 'text-[#0b0d14]' : 'text-[rgba(245,247,251,0.4)]'}`}
             >
-              <Activity className="w-3.5 h-3.5 inline -mt-0.5 mr-1.5" />Ultradian
+              {mode === 'ultradian' && (
+                <motion.div
+                  layoutId="timer-mode"
+                  className="absolute inset-0 rounded-full bg-[#c27aff]"
+                  transition={SPRING.snappy}
+                />
+              )}
+              <span className="relative z-10"><Activity className="w-3.5 h-3.5 inline -mt-0.5 mr-1.5" />Ultradian</span>
             </button>
           </div>
 
           {/* Phase label */}
-          <div className="flex items-center gap-2 mb-4">
-            {phase === 'break' && <Coffee className="w-4 h-4" style={{ color: phaseColor }} />}
-            <span className="text-[14px] font-medium text-[rgba(245,247,251,0.7)]">
-              {phase === 'idle' ? (mode === 'pomodoro' ? 'Pronto para focar' : `${ultradianWaves} ${ultradianWaves === 1 ? 'onda' : 'ondas'} · ${ultradianWaves * 110}min`)
-                : phase === 'focus' ? (mode === 'pomodoro' ? `Foco · Ciclo ${cycle + 1} de ${config.cyclesBeforeLong}` : `Peak · Onda ${cycle + 1} de ${ultradianWaves}`)
-                : 'Pausa · Descanse'}
-            </span>
-          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={phase}
+              className="flex items-center gap-2 mb-4"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: TIMING.fast }}
+            >
+              {phase === 'break' && <Coffee className="w-4 h-4" style={{ color: phaseColor }} />}
+              <span className="text-[14px] font-medium text-[rgba(245,247,251,0.7)]">
+                {phase === 'idle' ? (mode === 'pomodoro' ? 'Pronto para focar' : `${ultradianWaves} ${ultradianWaves === 1 ? 'onda' : 'ondas'} · ${ultradianWaves * 110}min`)
+                  : phase === 'focus' ? (mode === 'pomodoro' ? `Foco · Ciclo ${cycle + 1} de ${config.cyclesBeforeLong}` : `Peak · Onda ${cycle + 1} de ${ultradianWaves}`)
+                  : 'Pausa · Descanse'}
+              </span>
+            </motion.div>
+          </AnimatePresence>
 
           {/* Timer visualization */}
           {mode === 'pomodoro' ? (
@@ -161,11 +192,20 @@ export default function Timer() {
           {mode === 'pomodoro' && (
             <div className="flex items-center gap-2.5 mt-6">
               {Array.from({ length: config.cyclesBeforeLong }).map((_, i) => (
-                <div key={i} className="w-3 h-3 rounded-full transition-all duration-300" style={{
-                  backgroundColor: i < cycle ? phaseColor : i === cycle && phase === 'focus' ? phaseColor : 'rgba(255,255,255,0.08)',
-                  boxShadow: i <= cycle ? `0 0 6px ${phaseGlow}` : 'none',
-                  opacity: i < cycle ? 1 : i === cycle && phase === 'focus' ? 0.6 : 0.3,
-                }} />
+                <motion.div
+                  key={i}
+                  className="w-3 h-3 rounded-full transition-all duration-300"
+                  initial={{ scale: 0.6, opacity: 0.3 }}
+                  animate={{
+                    scale: i < cycle ? 1 : i === cycle && phase === 'focus' ? 0.85 : 0.6,
+                    opacity: i < cycle ? 1 : i === cycle && phase === 'focus' ? 0.6 : 0.3,
+                  }}
+                  transition={SPRING.snappy}
+                  style={{
+                    backgroundColor: i < cycle ? phaseColor : i === cycle && phase === 'focus' ? phaseColor : 'rgba(255,255,255,0.08)',
+                    boxShadow: i <= cycle ? `0 0 6px ${phaseGlow}` : 'none',
+                  }}
+                />
               ))}
             </div>
           )}
@@ -198,46 +238,88 @@ export default function Timer() {
           {/* Controls */}
           <div className="flex gap-3 mt-6">
             {phase === 'idle' ? (
-              <button onClick={start} className="flex items-center gap-2 px-8 py-3 rounded-full bg-gradient-to-b from-[#05df72] to-[#00b359] text-[14px] font-medium text-white hover:opacity-90 transition-opacity shadow-[0_4px_15px_rgba(5,223,114,0.25)]">
+              <motion.button
+                onClick={start}
+                className="flex items-center gap-2 px-8 py-3 rounded-full bg-gradient-to-b from-[#05df72] to-[#00b359] text-[14px] font-medium text-white hover:opacity-90 transition-opacity shadow-[0_4px_15px_rgba(5,223,114,0.25)]"
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.97 }}
+              >
                 <Play className="w-5 h-5" /> Iniciar Foco
-              </button>
+              </motion.button>
             ) : (
-              <>
-                <button onClick={togglePause} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] text-[13px] font-medium text-white hover:opacity-90 transition-opacity">
+              <motion.div
+                className="flex gap-3"
+                initial="hidden"
+                animate="visible"
+                variants={{
+                  hidden: { opacity: 1 },
+                  visible: {
+                    opacity: 1,
+                    transition: { staggerChildren: 0.05 },
+                  },
+                }}
+              >
+                <motion.button
+                  onClick={togglePause}
+                  className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] text-[13px] font-medium text-white hover:opacity-90 transition-opacity"
+                  variants={scaleIn}
+                  transition={{ duration: TIMING.fast }}
+                >
                   {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />} {isPaused ? 'Retomar' : 'Pausar'}
-                </button>
-                <button onClick={skip} className="flex items-center gap-1.5 px-4 py-3 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[13px] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.08)] transition-colors">
+                </motion.button>
+                <motion.button
+                  onClick={skip}
+                  className="flex items-center gap-1.5 px-4 py-3 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[13px] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                  variants={scaleIn}
+                  transition={{ duration: TIMING.fast }}
+                >
                   <SkipForward className="w-4 h-4" /> Pular
-                </button>
-                <button onClick={stop} className="flex items-center gap-1.5 px-4 py-3 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[13px] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.08)] transition-colors">
+                </motion.button>
+                <motion.button
+                  onClick={stop}
+                  className="flex items-center gap-1.5 px-4 py-3 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[13px] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                  variants={scaleIn}
+                  transition={{ duration: TIMING.fast }}
+                >
                   <Square className="w-4 h-4" /> Parar
-                </button>
-              </>
+                </motion.button>
+              </motion.div>
             )}
           </div>
-        </div>
+        </motion.div>
 
         {/* Right — Session History */}
-        <div className="w-[300px] flex-shrink-0 flex flex-col border-l border-[rgba(255,255,255,0.04)]">
+        <motion.div
+          className="w-[300px] flex-shrink-0 flex flex-col border-l border-[rgba(255,255,255,0.04)]"
+          variants={slideLeft}
+          initial="hidden"
+          animate="visible"
+          transition={{ duration: TIMING.normal, delay: 0.3 }}
+        >
           {/* Stats summary — fixed, never scrolls */}
           <div className="flex-shrink-0 p-4 pb-0">
             <Card className={cardBase}>
               <CardContent className="p-4">
                 <p className="text-[12px] text-[rgba(245,247,251,0.4)] mb-3 uppercase tracking-wider">Resumo da sessão</p>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center">
+                <motion.div
+                  className="grid grid-cols-3 gap-3"
+                  variants={staggerContainer(STAGGER.cards)}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
                     <p className="text-[20px] font-bold text-[#f5f7fb]">{sessions.filter(s => s.phase === 'focus').length}</p>
                     <p className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase">Ciclos</p>
-                  </div>
-                  <div className="text-center">
+                  </motion.div>
+                  <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
                     <p className="text-[20px] font-bold text-[#f5f7fb]">{fmtShort(totalFocusMs)}</p>
                     <p className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase">Foco</p>
-                  </div>
-                  <div className="text-center">
+                  </motion.div>
+                  <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
                     <p className="text-[20px] font-bold" style={{ color: avgScore >= 80 ? '#4ade80' : avgScore >= 50 ? '#fbbf24' : '#f87171' }}>{avgScore || '—'}</p>
                     <p className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase">Score</p>
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
               </CardContent>
             </Card>
           </div>
@@ -254,7 +336,7 @@ export default function Timer() {
               currentSessionName={sessionName}
             />
           </div>
-        </div>
+        </motion.div>
       </main>
     </div>
   );

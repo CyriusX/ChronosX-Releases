@@ -3,10 +3,12 @@
  */
 
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { AppIcon } from '../dashboard/shared';
 import { formatDuration } from '../../lib/utils';
+import { fadeUp, staggerContainer, STAGGER } from '../../lib/animation';
 import type { ActivityBlock } from '../../hooks/useActivitiesData';
 
 interface SessionListProps {
@@ -83,7 +85,7 @@ export function SessionList({ activities }: SessionListProps) {
       <CardHeader className="pb-0 pt-3 px-4">
         <CardTitle className="flex items-center justify-between">
           <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-            Sessões detalhadas
+            Sessoes detalhadas
           </span>
           <span className="text-[10px] text-[rgba(245,247,251,0.3)] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
             {sorted.length}
@@ -93,15 +95,21 @@ export function SessionList({ activities }: SessionListProps) {
       <CardContent className="pt-3 pb-3 px-4">
         {sorted.length === 0 ? (
           <p className="text-[11px] text-[rgba(245,247,251,0.3)] text-center py-4">
-            Nenhuma sessão registrada
+            Nenhuma sessao registrada
           </p>
         ) : (
           <>
-            <div className="space-y-1">
+            <motion.div
+              className="space-y-1"
+              variants={staggerContainer(STAGGER.listItems)}
+              initial="hidden"
+              animate="visible"
+            >
               {visible.map((a, i) => (
-                <div
+                <motion.div
                   key={a.id || i}
                   className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+                  variants={fadeUp}
                 >
                   {/* Time range */}
                   <span className="text-[10px] text-[rgba(245,247,251,0.4)] tabular-nums w-[80px] flex-shrink-0">
@@ -134,26 +142,33 @@ export function SessionList({ activities }: SessionListProps) {
                       {productivityLabel(a.productivity)}
                     </span>
                   )}
-                </div>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
 
             {/* Show more/less toggle */}
             {hasMore && (
-              <button
-                onClick={() => setExpanded(!expanded)}
-                className="flex items-center justify-center gap-1 w-full mt-2 py-1.5 rounded-lg text-[10px] text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.03)] transition-colors"
-              >
-                {expanded ? (
-                  <>
-                    <ChevronUp className="w-3 h-3" /> Mostrar menos
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="w-3 h-3" /> Mostrar mais ({sorted.length - DEFAULT_VISIBLE})
-                  </>
-                )}
-              </button>
+              <AnimatePresence mode="wait">
+                <motion.button
+                  key={expanded ? 'less' : 'more'}
+                  onClick={() => setExpanded(!expanded)}
+                  className="flex items-center justify-center gap-1 w-full mt-2 py-1.5 rounded-lg text-[10px] text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.03)] transition-colors"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {expanded ? (
+                    <>
+                      <ChevronUp className="w-3 h-3" /> Mostrar menos
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3 h-3" /> Mostrar mais ({sorted.length - DEFAULT_VISIBLE})
+                    </>
+                  )}
+                </motion.button>
+              </AnimatePresence>
             )}
           </>
         )}

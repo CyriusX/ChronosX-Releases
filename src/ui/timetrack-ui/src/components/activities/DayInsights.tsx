@@ -2,7 +2,9 @@
  * DayInsights — Row of insight pills comparing the selected day to averages
  */
 
+import { motion } from 'motion/react';
 import { TrendingUp, TrendingDown, Clock, Zap } from 'lucide-react';
+import { scaleIn, staggerContainer, STAGGER } from '../../lib/animation';
 import type { TodaySummaryResponse } from '../../types/ipc';
 
 interface DayInsightsProps {
@@ -24,10 +26,18 @@ export function DayInsights({
   const sessionsCount = summary.sessionsCount;
 
   return (
-    <div className="flex gap-3 flex-wrap">
+    <motion.div
+      className="flex gap-3 flex-wrap"
+      variants={staggerContainer(STAGGER.pills)}
+      initial="hidden"
+      animate="visible"
+    >
       {/* Tracked time vs average */}
       {comparisonText && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]">
+        <motion.div
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]"
+          variants={scaleIn}
+        >
           {isAboveAverage ? (
             <TrendingUp className="w-3.5 h-3.5 text-[#4ade80]" />
           ) : (
@@ -36,29 +46,35 @@ export function DayInsights({
           <span className="text-[11px] text-[rgba(245,247,251,0.7)]">
             {comparisonText}
           </span>
-        </div>
+        </motion.div>
       )}
 
       {/* Productivity percentage */}
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]">
+      <motion.div
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]"
+        variants={scaleIn}
+      >
         <Zap className="w-3.5 h-3.5 text-[#fbbf24]" />
         <span className="text-[11px] text-[rgba(245,247,251,0.7)]">
           Produtividade: <span className="text-[rgba(245,247,251,0.9)] font-medium">{productivityComparison}</span>
         </span>
-      </div>
+      </motion.div>
 
       {/* Sessions count */}
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]">
+      <motion.div
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]"
+        variants={scaleIn}
+      >
         <Clock className="w-3.5 h-3.5 text-[#4ad9ff]" />
         <span className="text-[11px] text-[rgba(245,247,251,0.7)]">
-          {sessionsCount} {sessionsCount === 1 ? 'sessão' : 'sessões'}
+          {sessionsCount} {sessionsCount === 1 ? 'sessao' : 'sessoes'}
           {isToday && (
             <span className="ml-1.5 text-[9px] text-[#05df72] bg-[rgba(5,223,114,0.15)] px-1.5 py-0.5 rounded-full">
               ao vivo
             </span>
           )}
         </span>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

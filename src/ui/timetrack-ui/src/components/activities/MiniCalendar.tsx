@@ -4,9 +4,11 @@
  * Days are color-coded by tracked hours. Click any day to navigate.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { SPRING } from '../../lib/animation';
 import type { WeeklyHistoryItem } from '../../types/ipc';
 
 interface MiniCalendarProps {
@@ -19,7 +21,7 @@ const cardBase =
   'bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl';
 
 const MONTH_NAMES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
@@ -36,6 +38,7 @@ function getHoursColor(hours: number): string {
 export function MiniCalendar({ selectedDate, onDateSelect, weeklyHistory }: MiniCalendarProps) {
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(selectedDate.getMonth());
+  const directionRef = useRef(1); // 1 = forward, -1 = backward
 
   const today = new Date();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -48,6 +51,7 @@ export function MiniCalendar({ selectedDate, onDateSelect, weeklyHistory }: Mini
   }
 
   const prevMonth = useCallback(() => {
+    directionRef.current = -1;
     if (viewMonth === 0) {
       setViewMonth(11);
       setViewYear((y) => y - 1);
@@ -58,6 +62,7 @@ export function MiniCalendar({ selectedDate, onDateSelect, weeklyHistory }: Mini
 
   const nextMonth = useCallback(() => {
     if (viewYear === today.getFullYear() && viewMonth >= today.getMonth()) return;
+    directionRef.current = 1;
     if (viewMonth === 11) {
       setViewMonth(0);
       setViewYear((y) => y + 1);
@@ -73,6 +78,8 @@ export function MiniCalendar({ selectedDate, onDateSelect, weeklyHistory }: Mini
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstDayOfWeek; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const slideOffset = 40;
 
   return (
     <Card className={cardBase}>
@@ -90,9 +97,18 @@ export function MiniCalendar({ selectedDate, onDateSelect, weeklyHistory }: Mini
           >
             <ChevronLeft className="w-3.5 h-3.5" />
           </button>
-          <span className="text-[11px] font-medium text-[rgba(245,247,251,0.7)]">
-            {MONTH_NAMES[viewMonth]} {viewYear}
-          </span>
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={`${viewYear}-${viewMonth}`}
+              className="text-[11px] font-medium text-[rgba(245,247,251,0.7)]"
+              initial={{ opacity: 0, x: directionRef.current * slideOffset }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: directionRef.current * -slideOffset }}
+              transition={{ duration: 0.2 }}
+            >
+              {MONTH_NAMES[viewMonth]} {viewYear}
+            </motion.span>
+          </AnimatePresence>
           <button
             onClick={nextMonth}
             disabled={isFutureMonth}
@@ -116,47 +132,65 @@ export function MiniCalendar({ selectedDate, onDateSelect, weeklyHistory }: Mini
         </div>
 
         {/* Day cells */}
-        <div className="grid grid-cols-7 gap-1">
-          {cells.map((day, i) => {
-            if (day === null) return <div key={i} />;
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={`${viewYear}-${viewMonth}`}
+            className="grid grid-cols-7 gap-1"
+            initial={{ opacity: 0, x: directionRef.current * slideOffset }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: directionRef.current * -slideOffset }}
+            transition={{ duration: 0.2 }}
+          >
+            {cells.map((day, i) => {
+              if (day === null) return <div key={i} />;
 
-            const cellDate = new Date(viewYear, viewMonth, day);
-            const dateKey = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const hours = hoursMap.get(dateKey) ?? 0;
-            const isFuture = cellDate > today;
-            const isSelected =
-              selectedDate.getFullYear() === viewYear &&
-              selectedDate.getMonth() === viewMonth &&
-              selectedDate.getDate() === day;
-            const isCurrentDay =
-              today.getFullYear() === viewYear &&
-              today.getMonth() === viewMonth &&
-              today.getDate() === day;
+              const cellDate = new Date(viewYear, viewMonth, day);
+              const dateKey = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const hours = hoursMap.get(dateKey) ?? 0;
+              const isFuture = cellDate > today;
+              const isSelected =
+                selectedDate.getFullYear() === viewYear &&
+                selectedDate.getMonth() === viewMonth &&
+                selectedDate.getDate() === day;
+              const isCurrentDay =
+                today.getFullYear() === viewYear &&
+                today.getMonth() === viewMonth &&
+                today.getDate() === day;
 
-            return (
-              <button
-                key={i}
-                disabled={isFuture}
-                onClick={() => onDateSelect(cellDate)}
-                className={`w-full aspect-square flex items-center justify-center rounded-md text-[9px] transition-all relative ${
-                  isSelected
-                    ? 'ring-1 ring-[#4ad9ff] font-bold text-[#f5f7fb]'
-                    : isFuture
-                      ? 'text-[rgba(245,247,251,0.08)] cursor-not-allowed'
-                      : 'text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)]'
-                }`}
-                style={{
-                  backgroundColor: isFuture ? 'transparent' : getHoursColor(hours),
-                }}
-              >
-                {day}
-                {isCurrentDay && !isSelected && (
-                  <span className="absolute bottom-[2px] left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#4ad9ff]" />
-                )}
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <motion.button
+                  key={i}
+                  disabled={isFuture}
+                  onClick={() => onDateSelect(cellDate)}
+                  className={`w-full aspect-square flex items-center justify-center rounded-md text-[9px] transition-colors relative ${
+                    isSelected
+                      ? 'font-bold text-[#f5f7fb]'
+                      : isFuture
+                        ? 'text-[rgba(245,247,251,0.08)] cursor-not-allowed'
+                        : 'text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)]'
+                  }`}
+                  style={{
+                    backgroundColor: isFuture ? 'transparent' : getHoursColor(hours),
+                  }}
+                  whileHover={!isFuture ? { scale: 1.2 } : undefined}
+                  transition={SPRING.snappy}
+                >
+                  {day}
+                  {isSelected && (
+                    <motion.div
+                      layoutId="calendar-selected"
+                      className="absolute inset-0 rounded-md ring-1 ring-[#4ad9ff]"
+                      transition={SPRING.snappy}
+                    />
+                  )}
+                  {isCurrentDay && !isSelected && (
+                    <span className="absolute bottom-[2px] left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#4ad9ff]" />
+                  )}
+                </motion.button>
+              );
+            })}
+          </motion.div>
+        </AnimatePresence>
 
         {/* Legend */}
         <div className="flex items-center justify-center gap-3 mt-3">

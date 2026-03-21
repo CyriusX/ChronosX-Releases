@@ -12,6 +12,12 @@ public interface IBackendReportsClient
     /// Returns per-app breakdown so the caller can filter internal apps.
     /// </summary>
     Task<DailyReportResult?> GetDailySummaryAsync(DateTime date, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches individual activity sessions from backend GET /api/v1/reports/activities?date={date}.
+    /// Returns session-level data (processName, windowTitle, startedAt, endedAt) for timeline display.
+    /// </summary>
+    Task<DailyActivitiesResult?> GetDailyActivitiesAsync(DateTime date, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -32,4 +38,26 @@ public sealed class DailyReportApp
     public string DisplayName { get; init; } = string.Empty;
     public long TotalSeconds { get; init; }
     public int SessionCount { get; init; }
+    public string? AppCategory { get; init; }
+}
+
+/// <summary>
+/// Result from the backend daily activities endpoint (session-level data)
+/// </summary>
+public sealed class DailyActivitiesResult
+{
+    public List<DailyActivitySession> Sessions { get; init; } = [];
+}
+
+/// <summary>
+/// Individual activity session from the cloud
+/// </summary>
+public sealed class DailyActivitySession
+{
+    public string ProcessName { get; init; } = string.Empty;
+    public string? WindowTitle { get; init; }
+    public string? AppCategory { get; init; }
+    public DateTime StartedAt { get; init; }
+    public DateTime EndedAt { get; init; }
+    public int DurationSeconds { get; init; }
 }

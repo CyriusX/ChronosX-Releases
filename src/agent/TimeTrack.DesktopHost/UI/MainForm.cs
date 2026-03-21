@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows.Forms;
@@ -64,6 +65,7 @@ public sealed class MainForm : Form
 
         // Form settings — fixed size at 80% of screen, centered, non-resizable
         Text = _settings.AppTitle;
+        LoadWindowIcon();
         var screen = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
         var w = (int)(screen.Width * 0.80);
         var h = (int)(screen.Height * 0.80);
@@ -77,6 +79,23 @@ public sealed class MainForm : Form
 
         // Dark title bar matching the app UI (#0b0d14)
         ApplyDarkTitleBar();
+    }
+
+    private void LoadWindowIcon()
+    {
+        try
+        {
+            var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
+            var iconPath = Path.Combine(exeDir, "Resources", "app-icon.ico");
+            if (File.Exists(iconPath))
+            {
+                Icon = new Icon(iconPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load window icon");
+        }
     }
 
     private void ApplyDarkTitleBar()

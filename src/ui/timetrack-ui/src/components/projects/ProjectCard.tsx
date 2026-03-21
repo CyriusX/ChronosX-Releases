@@ -3,7 +3,9 @@
  */
 
 import { Archive, Edit2, MoreVertical, RotateCcw, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Project } from '../../stores/projectStore';
+import { scaleIn, TIMING } from '../../lib/animation';
 
 interface ProjectCardProps {
   project: Project;
@@ -27,7 +29,11 @@ export function ProjectCard({
   isArchived,
 }: ProjectCardProps) {
   return (
-    <div className="bg-[rgba(26,29,46,0.6)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4 hover:border-[rgba(255,255,255,0.1)] transition-colors relative">
+    <motion.div
+      className="bg-[rgba(26,29,46,0.6)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4 hover:border-[rgba(255,255,255,0.1)] transition-[border-color,box-shadow] relative"
+      whileHover={{ y: -4, boxShadow: '0 8px 30px rgba(0,0,0,0.3)' }}
+      transition={{ duration: TIMING.fast }}
+    >
       <div
         className="absolute top-0 left-4 w-12 h-1 rounded-b-full"
         style={{ backgroundColor: project.color }}
@@ -54,45 +60,54 @@ export function ProjectCard({
             <MoreVertical className="w-4 h-4 text-[rgba(245,247,251,0.5)]" />
           </button>
 
-          {isMenuOpen && (
-            <div className="absolute right-0 top-full mt-1 w-40 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-lg shadow-lg z-10">
-              {!isArchived ? (
-                <>
-                  <button
-                    onClick={onEdit}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                    Editar
-                  </button>
-                  <button
-                    onClick={onArchive}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
-                  >
-                    <Archive className="w-4 h-4" />
-                    Arquivar
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={onReactivate}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Reativar
-                </button>
-              )}
-              <button
-                onClick={onDelete}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#FF6B7A] hover:bg-[rgba(255,107,122,0.1)] transition-colors"
+          <AnimatePresence>
+            {isMenuOpen && (
+              <motion.div
+                className="absolute right-0 top-full mt-1 w-40 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-lg shadow-lg z-10"
+                variants={scaleIn}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                transition={{ duration: TIMING.fast }}
               >
-                <Trash2 className="w-4 h-4" />
-                Excluir
-              </button>
-            </div>
-          )}
+                {!isArchived ? (
+                  <>
+                    <button
+                      onClick={onEdit}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      Editar
+                    </button>
+                    <button
+                      onClick={onArchive}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+                    >
+                      <Archive className="w-4 h-4" />
+                      Arquivar
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={onReactivate}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reativar
+                  </button>
+                )}
+                <button
+                  onClick={onDelete}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#FF6B7A] hover:bg-[rgba(255,107,122,0.1)] transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Excluir
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

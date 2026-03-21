@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
+// animation constants
+import { SkeletonShimmer } from '../ui/SkeletonShimmer';
 import { SettingsTabs, type SettingsTab } from './SettingsTabs';
 import { PreferencesSection } from './PreferencesSection';
 import { AboutSection } from './AboutSection';
@@ -136,10 +139,13 @@ export function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
-          <span className="text-[13px] text-[rgba(245,247,251,0.5)]">Carregando...</span>
+      <div className="flex-1 p-6 space-y-6">
+        <SkeletonShimmer width={200} height={24} />
+        <SkeletonShimmer width={400} height={40} rounded="rounded-xl" />
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonShimmer key={i} height={80} rounded="rounded-xl" />
+          ))}
         </div>
       </div>
     );
@@ -148,14 +154,21 @@ export function SettingsPage() {
   return (
     <main className="flex-1 overflow-auto p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex items-center justify-between mb-6"
+      >
         <div className="flex items-center gap-4">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.95 }}
             onClick={handleGoBack}
             className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
           >
             <ArrowLeft className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
-          </button>
+          </motion.button>
           <div>
             <h1 className="text-[20px] font-semibold text-[#f5f7fb]">Configurações</h1>
             <p className="text-[12px] text-[rgba(245,247,251,0.4)]">
@@ -163,7 +176,7 @@ export function SettingsPage() {
             </p>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Tabs */}
       <div className="mb-6">
@@ -178,14 +191,24 @@ export function SettingsPage() {
       {/* Content Area */}
       <div className="space-y-8">
         {/* Tab Content */}
-        {activeTab === 'preferences' && settings && (
-          <PreferencesSection settings={settings} onUpdate={handleUpdateSettings} />
-        )}
-        {activeTab === 'members' && canManageTeam && <MembersSection />}
-        {activeTab === 'apps' && canViewOrgPolicies && user && user.orgId && (
-          <AppCategoriesSection accessToken={accessToken} orgId={user.orgId as string} />
-        )}
-        {activeTab === 'about' && <AboutSection />}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            {activeTab === 'preferences' && settings && (
+              <PreferencesSection settings={settings} onUpdate={handleUpdateSettings} />
+            )}
+            {activeTab === 'members' && canManageTeam && <MembersSection />}
+            {activeTab === 'apps' && canViewOrgPolicies && user && user.orgId && (
+              <AppCategoriesSection accessToken={accessToken} orgId={user.orgId as string} />
+            )}
+            {activeTab === 'about' && <AboutSection />}
+          </motion.div>
+        </AnimatePresence>
 
         {/* Policy Cards - Apenas Admin/Gestor */}
         {canViewOrgPolicies && (

@@ -7,7 +7,9 @@ using TimeTrack.AgentService.Ipc.Handlers;
 namespace TimeTrack.AgentService.Ipc.Handlers.Queries.Dashboard;
 
 /// <summary>
-/// Handles getting today's summary
+/// Handles getting summary data for a given date.
+/// Today: uses local SQLite (fast, real-time).
+/// Past days: fetches from backend cloud API (authoritative source), falls back to local SQLite.
 /// </summary>
 public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandler
 {
@@ -41,69 +43,16 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         try
         {
             var targetDate = ExtractDateOrToday(request);
-            var dashboard = await _getDashboard.ExecuteAsync(targetDate, ct);
+            var isToday = targetDate.Date == DateTime.Today;
 
-            // All durations are in seconds for sub-minute precision.
-            // The UI formats them via formatDuration(seconds).
-            var summary = new
+            if (isToday)
             {
-                totalDuration  = (long)dashboard.TotalWorkTime.TotalSeconds,
-                // productiveTime = only time spent in apps classified as "productive"
-                productiveTime = (long)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalSeconds,
-                idleTime       = (long)dashboard.TotalIdleTime.TotalSeconds,
-                focusTime      = (long)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalSeconds,
-                focusScore     = dashboard.FocusScore,
-                sessionsCount  = dashboard.SessionCount,
-                topProjects    = Array.Empty<object>(),
-
-                // "productivity" matches ApplicationSummary.productivity in TypeScript
-                topApplications = dashboard.TopApplications.Select(a => new
-                {
-                    name        = a.DisplayName,
-                    duration    = (long)a.TotalTime.TotalSeconds,
-                    percentage  = a.Percentage,
-                    productivity = a.ProductivityCategory,
-                    subcategory = a.Subcategory
-                }).ToArray(),
-
-                // Group by subcategory for category cards.
-                // "browser_general" is too broad — merge it into "Outros" (Other).
-                // "unknown" falls back to productivity level.
-                categories = dashboard.TopApplications
-                    .GroupBy(a =>
-                    {
-                        var sub = a.Subcategory;
-                        if (string.IsNullOrEmpty(sub) || sub == "unknown")
-                            return a.ProductivityCategory;
-                        if (sub == "browser_general")
-                            return "other";
-                        return sub;
-                    })
-                    .Select(g => new
-                    {
-                        name        = FormatCategoryName(g.Key),
-                        duration    = (long)g.Sum(a => a.TotalTime.TotalSeconds),
-                        percentage  = g.Sum(a => a.Percentage),
-                        color       = GetCategoryColor(g.Key),
-                        productivity = g.First().ProductivityCategory
-                    })
-                    .OrderByDescending(c => c.duration)
-                    .ToArray(),
-
-                // Top apps grouped by executable (browser tabs merged into parent app name)
-                topAppsByExe = dashboard.TopAppsByExe.Select(a => new
-                {
-                    name        = a.DisplayName,
-                    duration    = (long)a.TotalTime.TotalSeconds,
-                    percentage  = a.Percentage,
-                    productivity = a.ProductivityCategory,
-                    subcategory = a.Subcategory
-                }).ToArray(),
-
-                weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, ct)
-            };
-
-            return SuccessResponse(request.RequestId, summary);
+                return await BuildFromLocalDashboard(request.RequestId, targetDate, ct);
+            }
+            else
+            {
+                return await BuildFromBackendApi(request.RequestId, targetDate, ct);
+            }
         }
         catch (Exception ex)
         {
@@ -111,6 +60,188 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
             return UnknownErrorResponse(request.RequestId, ex);
         }
     }
+
+    /// <summary>
+    /// Builds summary from local SQLite (today's data, real-time).
+    /// </summary>
+    private async Task<IpcResponse> BuildFromLocalDashboard(int requestId, DateTime targetDate, CancellationToken ct)
+    {
+        var dashboard = await _getDashboard.ExecuteAsync(targetDate, ct);
+
+        var summary = new
+        {
+            totalDuration  = (long)dashboard.TotalWorkTime.TotalSeconds,
+            productiveTime = (long)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalSeconds,
+            idleTime       = (long)dashboard.TotalIdleTime.TotalSeconds,
+            focusTime      = (long)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalSeconds,
+            focusScore     = dashboard.FocusScore,
+            sessionsCount  = dashboard.SessionCount,
+            topProjects    = Array.Empty<object>(),
+
+            topApplications = dashboard.TopApplications.Select(a => new
+            {
+                name        = a.DisplayName,
+                duration    = (long)a.TotalTime.TotalSeconds,
+                percentage  = a.Percentage,
+                productivity = a.ProductivityCategory,
+                subcategory = a.Subcategory
+            }).ToArray(),
+
+            categories = dashboard.TopApplications
+                .GroupBy(a =>
+                {
+                    var sub = a.Subcategory;
+                    if (string.IsNullOrEmpty(sub) || sub == "unknown")
+                        return a.ProductivityCategory;
+                    if (sub == "browser_general")
+                        return "other";
+                    return sub;
+                })
+                .Select(g => new
+                {
+                    name        = FormatCategoryName(g.Key),
+                    duration    = (long)g.Sum(a => a.TotalTime.TotalSeconds),
+                    percentage  = g.Sum(a => a.Percentage),
+                    color       = GetCategoryColor(g.Key),
+                    productivity = g.First().ProductivityCategory
+                })
+                .OrderByDescending(c => c.duration)
+                .ToArray(),
+
+            topAppsByExe = dashboard.TopAppsByExe.Select(a => new
+            {
+                name        = a.DisplayName,
+                duration    = (long)a.TotalTime.TotalSeconds,
+                percentage  = a.Percentage,
+                productivity = a.ProductivityCategory,
+                subcategory = a.Subcategory
+            }).ToArray(),
+
+            weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, ct)
+        };
+
+        return SuccessResponse(requestId, summary);
+    }
+
+    /// <summary>
+    /// Builds summary from backend cloud API (past days' authoritative data).
+    /// Falls back to local SQLite if the backend is unreachable.
+    /// </summary>
+    private async Task<IpcResponse> BuildFromBackendApi(int requestId, DateTime targetDate, CancellationToken ct)
+    {
+        try
+        {
+            var report = await _reportsClient.GetDailySummaryAsync(targetDate, ct);
+            if (report != null)
+            {
+                _logger.LogInformation("[GetTodaySummary] Got summary from backend for {Date}",
+                    targetDate.ToString("yyyy-MM-dd"));
+
+                // Filter out internal apps
+                var filteredApps = report.Apps
+                    .Where(a => !InternalApps.Contains(a.DisplayName))
+                    .ToList();
+
+                var totalActiveSeconds = filteredApps.Sum(a => a.TotalSeconds);
+
+                // Classify productivity from AppCategory
+                var productiveSeconds = filteredApps
+                    .Where(a => MapCategoryToProductivity(a.AppCategory) == "productive")
+                    .Sum(a => a.TotalSeconds);
+
+                var summary = new
+                {
+                    totalDuration  = totalActiveSeconds,
+                    productiveTime = productiveSeconds,
+                    idleTime       = report.TotalIdleSeconds,
+                    focusTime      = productiveSeconds,
+                    focusScore     = totalActiveSeconds > 0
+                        ? (int)Math.Round((double)productiveSeconds / totalActiveSeconds * 100)
+                        : 0,
+                    sessionsCount  = filteredApps.Sum(a => a.SessionCount),
+                    topProjects    = Array.Empty<object>(),
+
+                    topApplications = filteredApps.Select(a =>
+                    {
+                        var pct = totalActiveSeconds > 0
+                            ? Math.Round((double)a.TotalSeconds / totalActiveSeconds * 100, 1)
+                            : 0.0;
+                        return new
+                        {
+                            name        = a.DisplayName,
+                            duration    = a.TotalSeconds,
+                            percentage  = pct,
+                            productivity = MapCategoryToProductivity(a.AppCategory),
+                            subcategory = a.AppCategory ?? "unknown"
+                        };
+                    }).OrderByDescending(a => a.duration).Take(10).ToArray(),
+
+                    categories = filteredApps
+                        .GroupBy(a =>
+                        {
+                            var cat = a.AppCategory;
+                            if (string.IsNullOrEmpty(cat) || cat == "unknown")
+                                return MapCategoryToProductivity(cat);
+                            if (cat == "browser_general")
+                                return "other";
+                            return cat;
+                        })
+                        .Select(g => new
+                        {
+                            name        = FormatCategoryName(g.Key),
+                            duration    = g.Sum(a => a.TotalSeconds),
+                            percentage  = totalActiveSeconds > 0
+                                ? Math.Round(g.Sum(a => (double)a.TotalSeconds) / totalActiveSeconds * 100, 1)
+                                : 0.0,
+                            color       = GetCategoryColor(g.Key),
+                            productivity = MapCategoryToProductivity(g.First().AppCategory)
+                        })
+                        .OrderByDescending(c => c.duration)
+                        .ToArray(),
+
+                    topAppsByExe = filteredApps.Select(a =>
+                    {
+                        var pct = totalActiveSeconds > 0
+                            ? Math.Round((double)a.TotalSeconds / totalActiveSeconds * 100, 1)
+                            : 0.0;
+                        return new
+                        {
+                            name        = a.DisplayName,
+                            duration    = a.TotalSeconds,
+                            percentage  = pct,
+                            productivity = MapCategoryToProductivity(a.AppCategory),
+                            subcategory = a.AppCategory ?? "unknown"
+                        };
+                    }).OrderByDescending(a => a.duration).Take(10).ToArray(),
+
+                    weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, ct)
+                };
+
+                return SuccessResponse(requestId, summary);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[GetTodaySummary] Backend fetch failed for {Date}, falling back to local",
+                targetDate.ToString("yyyy-MM-dd"));
+        }
+
+        // Fallback: try local SQLite
+        _logger.LogWarning("[GetTodaySummary] No data from backend for {Date}, falling back to local",
+            targetDate.ToString("yyyy-MM-dd"));
+        return await BuildFromLocalDashboard(requestId, targetDate, ct);
+    }
+
+    /// <summary>
+    /// Maps an AppCategory to a productivity classification.
+    /// Same logic as GetRecentActivitiesQueryHandler.MapCategoryToProductivity.
+    /// </summary>
+    private static string MapCategoryToProductivity(string? category) => category?.ToLowerInvariant() switch
+    {
+        "development" or "design" or "productivity_tools" or "productive" => "productive",
+        "entertainment" or "social_media" or "distraction" => "distraction",
+        _ => "neutral"
+    };
 
     /// <summary>
     /// Builds weekly history: today from local SQLite (real-time), past days from backend API (cloud).
@@ -179,15 +310,10 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         return history.ToArray();
     }
 
-    /// <summary>
-    /// Formats a raw subcategory key into a user-friendly name.
-    /// "productivity_tools" → "Productivity Tools", "social_media" → "Social Media"
-    /// </summary>
     private static string FormatCategoryName(string key)
     {
         if (string.IsNullOrEmpty(key)) return "Outros";
 
-        // Known friendly names
         var friendlyNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["development"]        = "Development",
@@ -207,7 +333,6 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         if (friendlyNames.TryGetValue(key, out var friendly))
             return friendly;
 
-        // Fallback: replace underscores, capitalize each word
         return string.Join(' ', key.Split('_').Select(w =>
             w.Length > 0 ? char.ToUpper(w[0]) + w[1..] : w));
     }
@@ -215,18 +340,18 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     private static string GetCategoryColor(string key) =>
         key?.ToLowerInvariant() switch
         {
-            "development"        => "#38bdf8",   // sky blue
-            "design"             => "#a78bfa",   // violet
-            "productivity_tools" => "#34d399",   // emerald
+            "development"        => "#38bdf8",
+            "design"             => "#a78bfa",
+            "productivity_tools" => "#34d399",
             "productivity"       => "#34d399",
-            "communication"      => "#fb923c",   // orange
-            "meetings"           => "#22d3ee",   // cyan
-            "entertainment"      => "#f87171",   // red
-            "social_media"       => "#f472b6",   // pink
-            "other"              => "#94a3b8",   // slate
-            "productive"         => "#4ade80",   // green
-            "neutral"            => "#fbbf24",   // amber
-            "distraction"        => "#ef4444",   // red-600
+            "communication"      => "#fb923c",
+            "meetings"           => "#22d3ee",
+            "entertainment"      => "#f87171",
+            "social_media"       => "#f472b6",
+            "other"              => "#94a3b8",
+            "productive"         => "#4ade80",
+            "neutral"            => "#fbbf24",
+            "distraction"        => "#ef4444",
             _                    => "#94a3b8"
         };
 }

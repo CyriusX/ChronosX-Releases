@@ -1,3 +1,6 @@
+import { motion } from 'motion/react';
+import { SPRING } from '../../../lib/animation';
+
 interface NavItemProps {
   icon: React.ReactNode;
   label: string;
@@ -7,16 +10,25 @@ interface NavItemProps {
 
 export function NavItem({ icon, label, active = false, onClick }: NavItemProps) {
   return (
-    <button
+    <motion.button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-[10px] rounded-[10px] transition-colors ${
+      whileHover={{ x: active ? 0 : 3 }}
+      transition={{ type: 'spring', stiffness: SPRING.snappy.stiffness, damping: SPRING.snappy.damping }}
+      className={`w-full flex items-center gap-3 px-3 py-[10px] rounded-[10px] transition-colors relative ${
         active
-          ? 'bg-[#1c1f2e] text-[#f5f7fb]'
-          : 'text-[rgba(245,247,251,0.4)] hover:bg-[rgba(28,31,46,0.5)] hover:text-[rgba(245,247,251,0.7)]'
+          ? 'text-[#f5f7fb]'
+          : 'text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.7)]'
       }`}
     >
-      {icon}
-      <span className="text-[13px] font-medium">{label}</span>
-    </button>
+      {active && (
+        <motion.div
+          layoutId="sidebar-active"
+          className="absolute inset-0 bg-[#1c1f2e] rounded-[10px]"
+          transition={{ type: 'spring', stiffness: SPRING.snappy.stiffness, damping: SPRING.snappy.damping }}
+        />
+      )}
+      <span className="relative z-10">{icon}</span>
+      <span className="relative z-10 text-[13px] font-medium">{label}</span>
+    </motion.button>
   );
 }

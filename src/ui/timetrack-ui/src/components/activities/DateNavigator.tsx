@@ -1,10 +1,11 @@
 /**
  * DateNavigator — Arrow-based date navigation with calendar dropdown
  *
- * ◀  Sábado, 22 Mar 2025  ▶  [Hoje]  📅
+ * <  Sabado, 22 Mar 2025  >  [Hoje]
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 
 interface DateNavigatorProps {
@@ -26,6 +27,7 @@ export function DateNavigator({
 }: DateNavigatorProps) {
   const [showCalendar, setShowCalendar] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
+  const directionRef = useRef(1); // 1 = forward, -1 = backward
 
   // Close calendar on outside click
   useEffect(() => {
@@ -48,33 +50,58 @@ export function DateNavigator({
   // Capitalize first letter
   const formattedDate = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1);
 
+  const handlePrev = () => {
+    directionRef.current = -1;
+    onPrevDay();
+  };
+
+  const handleNext = () => {
+    directionRef.current = 1;
+    onNextDay();
+  };
+
+  const slideOffset = 30;
+
   return (
     <div className="flex items-center gap-2">
       {/* Prev */}
-      <button
-        onClick={onPrevDay}
+      <motion.button
+        onClick={handlePrev}
         className="p-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)] transition-colors"
+        whileTap={{ scale: 0.9 }}
       >
         <ChevronLeft className="w-4 h-4" />
-      </button>
+      </motion.button>
 
       {/* Date label */}
-      <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)] min-w-[200px] text-center">
-        {formattedDate}
-      </span>
+      <div className="min-w-[200px] text-center overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={selectedDate.toISOString()}
+            className="text-[13px] font-medium text-[rgba(245,247,251,0.9)] block"
+            initial={{ opacity: 0, x: directionRef.current * slideOffset }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: directionRef.current * -slideOffset }}
+            transition={{ duration: 0.2 }}
+          >
+            {formattedDate}
+          </motion.span>
+        </AnimatePresence>
+      </div>
 
       {/* Next */}
-      <button
-        onClick={onNextDay}
+      <motion.button
+        onClick={handleNext}
         disabled={isToday}
         className={`p-1.5 rounded-lg transition-colors ${
           isToday
             ? 'text-[rgba(245,247,251,0.15)] cursor-not-allowed'
             : 'hover:bg-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)]'
         }`}
+        whileTap={isToday ? undefined : { scale: 0.9 }}
       >
         <ChevronRight className="w-4 h-4" />
-      </button>
+      </motion.button>
 
       {/* Hoje button */}
       {!isToday && (
@@ -132,7 +159,7 @@ function CalendarDropdown({
   const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sunday
   const dayNames = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
   const monthNames = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
   ];
 

@@ -1,5 +1,6 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
+import { AnimatePresence } from "motion/react";
 import { useIpc } from "./hooks/useIpc";
 import { useTrackingStore } from "./stores/trackingStore";
 import { useAuthStore } from "./stores/authStore";
@@ -14,6 +15,7 @@ import TimerPage from "./pages/Timer";
 import Activities from "./pages/Activities";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Toaster } from "./components/Toaster";
+import { AnimatedPage } from "./components/ui/AnimatedPage";
 
 function App() {
   const { isConnected, isReady } = useIpc();
@@ -50,7 +52,20 @@ function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-zinc-950 text-zinc-50">
-        <Routes>
+        <AnimatedRoutes />
+        <Toaster />
+      </div>
+    </BrowserRouter>
+  );
+}
+
+function AnimatedRoutes() {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait">
+      <AnimatedPage key={location.pathname} className="h-full">
+        <Routes location={location}>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -105,9 +120,8 @@ function App() {
             }
           />
         </Routes>
-        <Toaster />
-      </div>
-    </BrowserRouter>
+      </AnimatedPage>
+    </AnimatePresence>
   );
 }
 

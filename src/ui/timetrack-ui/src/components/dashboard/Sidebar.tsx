@@ -1,7 +1,10 @@
-import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Layers, Cog, LogOut } from 'lucide-react';
+import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Cog, LogOut } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { NavItem } from './shared';
 import { useAuthStore } from '../../stores/authStore';
+import { SPRING } from '../../lib/animation';
+import logoImg from '../../assets/logo-64.png';
 
 export function Sidebar() {
   const navigate = useNavigate();
@@ -18,10 +21,22 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-4 py-5 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] flex items-center justify-center shadow-[0px_6px_10px_0px_rgba(0,184,219,0.2)]">
-            <TimerIcon className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-[15px] font-semibold text-[#f5f7fb] tracking-[-0.3px]">CronusX</span>
+          <motion.img
+            src={logoImg}
+            alt="ChronosX"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', stiffness: SPRING.gentle.stiffness, damping: SPRING.gentle.damping, delay: 0.2 }}
+            className="w-8 h-8 rounded-lg shadow-[0px_6px_10px_0px_rgba(0,184,219,0.2)]"
+          />
+          <motion.span
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3, duration: 0.3 }}
+            className="text-[15px] font-semibold text-[#f5f7fb] tracking-[-0.3px]"
+          >
+            ChronosX
+          </motion.span>
         </div>
       </div>
 
@@ -36,7 +51,12 @@ export function Sidebar() {
       </nav>
 
       {/* User & Logout */}
-      <div className="px-3 py-3 border-t border-[rgba(255,255,255,0.04)] flex-shrink-0">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.3 }}
+        className="px-3 py-3 border-t border-[rgba(255,255,255,0.04)] flex-shrink-0"
+      >
         <div className="flex items-center gap-2 px-2 mb-2">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#4ad9ff] to-[#3c7bff] flex items-center justify-center text-white text-[11px] font-medium flex-shrink-0">
             {user?.displayName?.charAt(0)?.toUpperCase() || '?'}
@@ -53,7 +73,7 @@ export function Sidebar() {
           <LogOut className="w-[14px] h-[14px]" />
           Sair
         </button>
-      </div>
+      </motion.div>
     </aside>
   );
 }
