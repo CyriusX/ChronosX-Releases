@@ -33,6 +33,11 @@ public sealed class ActivitySession : EntityBase
     /// </summary>
     public string? WindowTitle { get; }
 
+    /// <summary>
+    /// Caminho do arquivo ou pasta ativo (quando disponível)
+    /// </summary>
+    public string? FilePath { get; }
+
     private ActivitySession() { }
 
     public ActivitySession(
@@ -41,7 +46,8 @@ public sealed class ActivitySession : EntityBase
         AppIdentity app,
         TimeRange period,
         string? windowHash = null,
-        string? windowTitle = null)
+        string? windowTitle = null,
+        string? filePath = null)
         : base(id)
     {
         if (userId == Guid.Empty)
@@ -52,6 +58,7 @@ public sealed class ActivitySession : EntityBase
         Period = period ?? throw new ArgumentNullException(nameof(period));
         WindowHash = windowHash;
         WindowTitle = windowTitle;
+        FilePath = filePath;
     }
 
     /// <summary>
@@ -62,9 +69,10 @@ public sealed class ActivitySession : EntityBase
         AppIdentity app,
         TimeRange period,
         string? windowHash = null,
-        string? windowTitle = null)
+        string? windowTitle = null,
+        string? filePath = null)
     {
-        return new ActivitySession(Guid.NewGuid(), userId, app, period, windowHash, windowTitle);
+        return new ActivitySession(Guid.NewGuid(), userId, app, period, windowHash, windowTitle, filePath);
     }
 
     /// <summary>

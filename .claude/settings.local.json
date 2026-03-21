@@ -381,7 +381,15 @@
       "Read(//c/Program Files \\(x86\\)/nodejs/**)",
       "Bash(xargs cat:*)",
       "Bash(grep -rn \"startTracking\\\\|StartTracking\\\\|start.*track\\\\|track.*start\" /c/Users/jr_ju/Repo/TimeTracking/src/ui/timetrack-ui/src --include=*.ts --include=*.tsx -l)",
-      "Bash(head -50 /c/Users/jr_ju/Repo/TimeTracking/.github/workflows/*.yml)"
+      "Bash(head -50 /c/Users/jr_ju/Repo/TimeTracking/.github/workflows/*.yml)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :5000)",
+      "Bash(docker ps:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(findstr \"LISTENING\")",
+      "Bash(powershell -Command \"Stop-Process -Id 34784 -Force\" 2>&1)",
+      "Bash(docker compose:*)",
+      "Bash(timeout 5 docker logs timetrack-api --tail 30 -f)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",

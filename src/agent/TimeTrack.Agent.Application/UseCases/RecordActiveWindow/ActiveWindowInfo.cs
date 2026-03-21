@@ -21,6 +21,11 @@ public sealed record RecordActiveWindowRequest
     public string? WindowTitle { get; init; }
 
     /// <summary>
+    /// Caminho do arquivo ou pasta ativo (quando disponível)
+    /// </summary>
+    public string? FilePath { get; init; }
+
+    /// <summary>
     /// Momento da captura (UTC)
     /// </summary>
     public DateTime CapturedAt { get; init; } = DateTime.UtcNow;

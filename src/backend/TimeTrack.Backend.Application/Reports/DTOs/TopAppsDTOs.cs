@@ -54,4 +54,22 @@ public sealed class TopAppItem
     /// </summary>
     [JsonPropertyName("sessionCount")]
     public int SessionCount { get; init; }
+
+    /// <summary>
+    /// Categoria de produtividade: productive, neutral, distraction
+    /// </summary>
+    [JsonPropertyName("productivity")]
+    public string? Productivity { get; init; }
+
+    /// <summary>
+    /// Subcategoria: development, social_media, etc.
+    /// </summary>
+    [JsonPropertyName("subcategory")]
+    public string? Subcategory { get; init; }
+
+    /// <summary>
+    /// Percentual do tempo total
+    /// </summary>
+    [JsonPropertyName("percentage")]
+    public double Percentage { get; init; }
 }
