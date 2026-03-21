@@ -17,6 +17,14 @@ namespace TimeTrack.DesktopHost.UI;
 /// </summary>
 public sealed class MainForm : Form
 {
+    // DWM API for dark title bar (Windows 10 1809+ / Windows 11)
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    private const int DWMWA_CAPTION_COLOR = 35;
+    private const int DWMWA_BORDER_COLOR = 34;
+
     private readonly DesktopHostSettings _settings;
     private readonly IIpcClient _ipcClient;
     private readonly WebViewBridge _bridge;
@@ -66,6 +74,33 @@ public sealed class MainForm : Form
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         FormClosing += OnFormClosing;
+
+        // Dark title bar matching the app UI (#0b0d14)
+        ApplyDarkTitleBar();
+    }
+
+    private void ApplyDarkTitleBar()
+    {
+        try
+        {
+            var hwnd = Handle;
+
+            // Enable dark mode for the title bar
+            int darkMode = 1;
+            DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkMode, sizeof(int));
+
+            // Set caption color to match app background (#0b0d14 = RGB 11,13,20)
+            int captionColor = 11 | (13 << 8) | (20 << 16); // COLORREF: 0x00140D0B
+            DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref captionColor, sizeof(int));
+
+            // Set border color to subtle dark border
+            int borderColor = 30 | (33 << 8) | (46 << 16); // rgba(30,33,46) ≈ card border
+            DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref borderColor, sizeof(int));
+        }
+        catch
+        {
+            // DWM APIs may not be available on older Windows versions — ignore
+        }
     }
 
     protected override async void OnLoad(EventArgs e)
