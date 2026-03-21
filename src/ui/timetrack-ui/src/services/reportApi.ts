@@ -23,6 +23,9 @@ async function getAuthHeaders(accessToken: string): Promise<HeadersInit> {
   return {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${accessToken}`,
+    // Disable cache to always get fresh data
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
   };
 }
 

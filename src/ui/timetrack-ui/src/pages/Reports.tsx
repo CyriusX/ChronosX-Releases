@@ -23,6 +23,7 @@ import {
   Activity,
   Target,
   AlertCircle,
+  Download,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/dashboard/Sidebar';
@@ -30,6 +31,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuthStore, selectAccessToken } from '../stores/authStore';
 import { useReportsData, useReportsSummary } from '../hooks/useReportsData';
 import { listMembers } from '../services/memberApi';
+import { exportReportsToCSV } from '../lib/exportReports';
 import type { Member } from '../types/member';
 
 // Components (Composition Pattern)
@@ -154,13 +156,23 @@ export default function Reports() {
     return option?.label || 'Período customizado';
   };
 
+  // Handle export
+  const handleExport = () => {
+    exportReportsToCSV(data, {
+      periodLabel: getPeriodLabel(),
+      startDate: filters.dateRange.startDate,
+      endDate: filters.dateRange.endDate,
+      userName: getSelectedUserName(),
+    });
+  };
+
   return (
     <div className="flex h-screen bg-[#0b0d14]">
       <Sidebar />
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto bg-[#0b0d14] p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0">
+        <div className="px-5 pt-4 pb-2 flex-shrink-0">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -212,6 +224,16 @@ export default function Reports() {
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[rgba(245,247,251,0.4)] pointer-events-none" />
               </div>
 
+              {/* Export Button */}
+              <button
+                onClick={handleExport}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-3 py-2 bg-[rgba(74,217,255,0.15)] border border-[rgba(74,217,255,0.3)] rounded-lg text-[12px] text-[#4ad9ff] hover:bg-[rgba(74,217,255,0.2)] transition-colors disabled:opacity-50"
+              >
+                <Download className="w-4 h-4" />
+                Exportar CSV
+              </button>
+
               {/* Refresh Button */}
               <button
                 onClick={refresh}
@@ -222,153 +244,158 @@ export default function Reports() {
               </button>
             </div>
           </div>
+        </div>
 
-          {/* User Filter (Admin/Manager only) - RBAC */}
-          {canManageTeam && (
-            <div className="relative">
-              <div
-                className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[rgba(26,29,46,0.6)] to-[rgba(17,19,28,0.6)] border border-[rgba(255,255,255,0.06)] rounded-xl cursor-pointer hover:border-[rgba(255,255,255,0.1)] transition-colors"
-                onClick={() => setShowUserDropdown(!showUserDropdown)}
-              >
-                <Users className="w-4 h-4 text-[#4ad9ff]" />
-                <span className="text-[13px] text-[rgba(245,247,251,0.6)]">Visualizando:</span>
-                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-                  {getSelectedUserName()}
-                </span>
-                <ChevronDown className={`w-4 h-4 text-[rgba(245,247,251,0.4)] ml-auto transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} />
-              </div>
-
-              {/* Dropdown */}
-              {showUserDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-lg z-20 max-h-[300px] overflow-y-auto">
-                  <button
-                    onClick={() => { handleUserChange(undefined); setShowUserDropdown(false); }}
-                    className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${!selectedUserId ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.8)]'}`}
-                  >
-                    Meus dados
-                  </button>
-                  <button
-                    onClick={() => { handleUserChange('all'); setShowUserDropdown(false); }}
-                    className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === 'all' ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.8)]'}`}
-                  >
-                    Toda a equipe
-                  </button>
-                  <div className="border-t border-[rgba(255,255,255,0.06)]" />
-                  {members.map((member) => (
-                    <button
-                      key={member.userId}
-                      onClick={() => { handleUserChange(member.userId); setShowUserDropdown(false); }}
-                      className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === member.userId ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.8)]'}`}
-                    >
-                      {member.displayName}
-                    </button>
-                  ))}
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto px-5 pb-4">
+          <div className="flex flex-col gap-4">
+            {/* User Filter (Admin/Manager only) - RBAC */}
+            {canManageTeam && (
+              <div className="relative">
+                <div
+                  className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[rgba(26,29,46,0.6)] to-[rgba(17,19,28,0.6)] border border-[rgba(255,255,255,0.06)] rounded-xl cursor-pointer hover:border-[rgba(255,255,255,0.1)] transition-colors"
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                >
+                  <Users className="w-4 h-4 text-[#4ad9ff]" />
+                  <span className="text-[13px] text-[rgba(245,247,251,0.6)]">Visualizando:</span>
+                  <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
+                    {getSelectedUserName()}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-[rgba(245,247,251,0.4)] ml-auto transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} />
                 </div>
-              )}
+
+                {/* Dropdown */}
+                {showUserDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-lg z-20 max-h-[300px] overflow-y-auto">
+                    <button
+                      onClick={() => { handleUserChange(undefined); setShowUserDropdown(false); }}
+                      className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${!selectedUserId ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.8)]'}`}
+                    >
+                      Meus dados
+                    </button>
+                    <button
+                      onClick={() => { handleUserChange('all'); setShowUserDropdown(false); }}
+                      className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === 'all' ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.8)]'}`}
+                    >
+                      Toda a equipe
+                    </button>
+                    <div className="border-t border-[rgba(255,255,255,0.06)]" />
+                    {members.map((member) => (
+                      <button
+                        key={member.userId}
+                        onClick={() => { handleUserChange(member.userId); setShowUserDropdown(false); }}
+                        className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === member.userId ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.8)]'}`}
+                      >
+                        {member.displayName}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && (
+              <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[rgba(248,113,113,0.1)] to-[rgba(248,113,113,0.05)] border border-[rgba(248,113,113,0.2)] rounded-xl">
+                <AlertCircle className="w-4 h-4 text-[#f87171]" />
+                <span className="text-[13px] text-[#f87171]">{error}</span>
+                <button
+                  onClick={refresh}
+                  className="ml-auto text-[12px] text-[#4ad9ff] hover:underline"
+                >
+                  Tentar novamente
+                </button>
+              </div>
+            )}
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <SummaryCard
+                title="Tempo Ativo"
+                value={formatDuration(summary.totalActiveSeconds)}
+                subtitle={`${summary.daysWithData} dias com dados`}
+                icon={Clock}
+                iconBgColor="rgba(74,217,255,0.15)"
+                iconColor="#4ad9ff"
+                isLoading={isLoading}
+              />
+              <SummaryCard
+                title="Tempo Idle"
+                value={formatDuration(summary.totalIdleSeconds)}
+                subtitle={summary.totalActiveSeconds > 0 ? `${Math.round((summary.totalIdleSeconds / (summary.totalActiveSeconds + summary.totalIdleSeconds)) * 100)}% do total` : '0% do total'}
+                icon={Activity}
+                iconBgColor="rgba(251,191,36,0.15)"
+                iconColor="#fbbf24"
+                isLoading={isLoading}
+              />
+              <SummaryCard
+                title="Produtividade"
+                value={`${Math.round(summary.averageProductivityRatio * 100)}%`}
+                subtitle="Média do período"
+                icon={Target}
+                iconBgColor="rgba(5,223,114,0.15)"
+                iconColor="#05df72"
+                progress={summary.averageProductivityRatio * 100}
+                progressColor="#05df72"
+                isLoading={isLoading}
+              />
+              <SummaryCard
+                title="Período"
+                value={getPeriodLabel()}
+                subtitle={`${filters.dateRange.startDate} a ${filters.dateRange.endDate}`}
+                icon={Calendar}
+                iconBgColor="rgba(138,92,246,0.15)"
+                iconColor="#8a5cf6"
+                isLoading={isLoading}
+              />
             </div>
-          )}
 
-          {/* Error State */}
-          {error && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[rgba(248,113,113,0.1)] to-[rgba(248,113,113,0.05)] border border-[rgba(248,113,113,0.2)] rounded-xl">
-              <AlertCircle className="w-4 h-4 text-[#f87171]" />
-              <span className="text-[13px] text-[#f87171]">{error}</span>
-              <button
-                onClick={refresh}
-                className="ml-auto text-[12px] text-[#4ad9ff] hover:underline"
-              >
-                Tentar novamente
-              </button>
+            {/* Activity Heatmap */}
+            <ActivityHeatmap
+              days={data.dailySummaryRange?.days ?? []}
+              isLoading={isLoading}
+              title="Mapa de Atividade"
+            />
+
+            {/* Productivity Trend */}
+            <ProductivityTrend
+              periods={data.productivityTrend?.periods ?? []}
+              isLoading={isLoading}
+              title="Tendência de Produtividade"
+            />
+
+            {/* Main Grid - Apps, Paths, Categories, Distractions */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Top Apps */}
+              <TopAppsSection
+                apps={data.topApps?.apps ?? []}
+                isLoading={isLoading}
+                title="Apps Mais Usados"
+                maxItems={15}
+              />
+
+              {/* Category Distribution */}
+              <CategoryDonut
+                categories={data.categoryDistribution?.categories ?? []}
+                isLoading={isLoading}
+                title="Distribuição por Categoria"
+              />
+
+              {/* Top Paths */}
+              <TopPathsSection
+                paths={data.topPaths?.paths ?? []}
+                isLoading={isLoading}
+                title="URLs e Caminhos Mais Acessados"
+                maxItems={10}
+              />
+
+              {/* Distraction Stats */}
+              <DistractionSection
+                data={data.distractionStats}
+                isLoading={isLoading}
+                title="Análise de Distrações"
+              />
             </div>
-          )}
-
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <SummaryCard
-              title="Tempo Ativo"
-              value={formatDuration(summary.totalActiveSeconds)}
-              subtitle={`${summary.daysWithData} dias com dados`}
-              icon={Clock}
-              iconBgColor="rgba(74,217,255,0.15)"
-              iconColor="#4ad9ff"
-              isLoading={isLoading}
-            />
-            <SummaryCard
-              title="Tempo Idle"
-              value={formatDuration(summary.totalIdleSeconds)}
-              subtitle={summary.totalActiveSeconds > 0 ? `${Math.round((summary.totalIdleSeconds / (summary.totalActiveSeconds + summary.totalIdleSeconds)) * 100)}% do total` : '0% do total'}
-              icon={Activity}
-              iconBgColor="rgba(251,191,36,0.15)"
-              iconColor="#fbbf24"
-              isLoading={isLoading}
-            />
-            <SummaryCard
-              title="Produtividade"
-              value={`${Math.round(summary.averageProductivityRatio * 100)}%`}
-              subtitle="Média do período"
-              icon={Target}
-              iconBgColor="rgba(5,223,114,0.15)"
-              iconColor="#05df72"
-              progress={summary.averageProductivityRatio * 100}
-              progressColor="#05df72"
-              isLoading={isLoading}
-            />
-            <SummaryCard
-              title="Período"
-              value={getPeriodLabel()}
-              subtitle={`${filters.dateRange.startDate} a ${filters.dateRange.endDate}`}
-              icon={Calendar}
-              iconBgColor="rgba(138,92,246,0.15)"
-              iconColor="#8a5cf6"
-              isLoading={isLoading}
-            />
-          </div>
-
-          {/* Activity Heatmap */}
-          <ActivityHeatmap
-            days={data.dailySummaryRange?.days ?? []}
-            isLoading={isLoading}
-            title="Mapa de Atividade"
-          />
-
-          {/* Productivity Trend */}
-          <ProductivityTrend
-            periods={data.productivityTrend?.periods ?? []}
-            isLoading={isLoading}
-            title="Tendência de Produtividade"
-          />
-
-          {/* Main Grid - Apps, Paths, Categories, Distractions */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Top Apps */}
-            <TopAppsSection
-              apps={data.topApps?.apps ?? []}
-              isLoading={isLoading}
-              title="Apps Mais Usados"
-              maxItems={15}
-            />
-
-            {/* Category Distribution */}
-            <CategoryDonut
-              categories={data.categoryDistribution?.categories ?? []}
-              isLoading={isLoading}
-              title="Distribuição por Categoria"
-            />
-
-            {/* Top Paths */}
-            <TopPathsSection
-              paths={data.topPaths?.paths ?? []}
-              isLoading={isLoading}
-              title="URLs e Caminhos Mais Acessados"
-              maxItems={10}
-            />
-
-            {/* Distraction Stats */}
-            <DistractionSection
-              data={data.distractionStats}
-              isLoading={isLoading}
-              title="Análise de Distrações"
-            />
           </div>
         </div>
       </main>

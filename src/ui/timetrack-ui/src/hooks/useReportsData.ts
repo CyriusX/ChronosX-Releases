@@ -8,7 +8,7 @@
  * Composition: Combina múltiplas fontes de dados em um único hook
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuthStore, selectAccessToken } from '../stores/authStore';
 import {
   getDailySummaryRange,
@@ -30,6 +30,9 @@ import type {
   GroupByOption,
 } from '../types/reports';
 import { PERIOD_PRESETS as periodPresets } from '../types/reports';
+
+// Polling interval for automatic refresh (60 seconds)
+const POLLING_INTERVAL_MS = 60000;
 
 // ============================================================================
 // TYPES
@@ -139,6 +142,10 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     topAppsLimit: 20,
     topPathsLimit: 20,
   }));
+
+  // Polling refs
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isFetchingRef = useRef(false);
 
   // ============================================================================
   // FILTER SETTERS
@@ -315,6 +322,13 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       return;
     }
 
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) {
+      console.log('[useReportsData] Skipping refresh - fetch already in progress');
+      return;
+    }
+
+    isFetchingRef.current = true;
     setIsLoading(true);
     setError(null);
 
@@ -333,6 +347,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       setError(err instanceof Error ? err.message : 'Failed to load reports');
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   }, [
     accessToken,
@@ -354,6 +369,34 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       refresh();
     }
   }, [autoFetch, accessToken, filters.dateRange, filters.userId, filters.groupBy]);
+
+  // ============================================================================
+  // POLLING - Automatic refresh every 60 seconds
+  // ============================================================================
+
+  useEffect(() => {
+    if (!autoFetch || !accessToken || !filters.dateRange.startDate) {
+      return;
+    }
+
+    pollingIntervalRef.current = setInterval(() => {
+      // Prevent concurrent fetches
+      if (isFetchingRef.current) {
+        console.log('[useReportsData] Skipping polling refresh - fetch already in progress');
+        return;
+      }
+
+      console.log('[useReportsData] Polling refresh triggered');
+      refresh();
+    }, POLLING_INTERVAL_MS);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [autoFetch, accessToken, filters.dateRange.startDate, refresh]);
 
   // ============================================================================
   // RETURN

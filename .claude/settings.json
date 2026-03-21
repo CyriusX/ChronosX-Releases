@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet msbuild:*)",
+      "Read(//c/Projetos/TimeTracking/$LOCALAPPDATA/**)",
+      "Bash(powershell -Command \"Stop-Process -Id 40700 -Force\")",
+      "Bash(start TimeTrack.AgentService.exe)",
+      "Bash(powershell -Command \"Get-WinEvent -LogName Application -MaxEvents 20 | Where-Object { $_.Message -like ''*TimeTrack*'' -or $_.Message -like ''*SyncWorker*'' -or $_.Message -like ''*device*'' } | Format-List TimeCreated, Message\")",
+      "Bash(powershell -Command \"Get-WinEvent -LogName Application -MaxEvents 50 | Where-Object { $_.ProviderName -eq ''TimeTrack.AgentService'' -or $_.Message -like ''*Sync*'' } | Select-Object TimeCreated, Message | Format-List TimeCreated, Message\")",
+      "Read(//c/Projetos/TimeTracking/src/agent/TimeTrack.AgentService/bin/Debug/net8.0/$LOCALAPPDATA/**)",
+      "Bash(powershell -Command \"Get-WinEvent -LogName Application -MaxEvents 50 | Where-Object { $_imeCreated -gt \\(Get-Date\\).AddMinutes\\(-1\\) } | Where-Object { $_essage -like ''''*Sync*'''' -or $_essage -like ''''*Device*'''' } | Format-List TimeCreated, Message\")",
+      "Bash(powershell -Command \"Get-WinEvent -LogName Application -MaxEvents 30 | Where-Object { $_imeCreated -gt \\(Get-Date\\).AddMinutes\\(-2\\) } | Format-List TimeCreated, ProviderName, Message\")",
+      "Bash(powershell -Command \"Stop-Process -Name ''TimeTrack.AgentService'' -Force -ErrorAction SilentlyContinue\")",
+      "Bash(start TimeTrack.DesktopHost.exe)"
+    ]
+  }
+}
