@@ -8,6 +8,9 @@ namespace TimeTrack.Backend.Application.Reports.Queries;
 
 /// <summary>
 /// Handler para obter top apps por período
+///
+/// SRP: Apenas orquestra a busca de top apps
+/// DIP: Depende de IReportRepository (abstração)
 /// </summary>
 public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsResponse>
 {
@@ -44,12 +47,13 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
         // Validar autorização
         _authorizationService.EnsureCanAccessUserData(targetUserId);
 
-        // Buscar dados
+        // Buscar dados com filtro de produtividade (se fornecido)
         var apps = await _reportRepository.GetTopAppsAsync(
             targetUserId,
             request.StartDate,
             request.EndDate,
             limit,
+            null, // productivityFilter - pode ser adicionado ao DTO depois
             cancellationToken);
 
         // Mapear para response
@@ -57,9 +61,11 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
         {
             Apps = apps.Select(a => new TopAppItem
             {
-                DisplayName = a.ProcessName,
+                DisplayName = a.DisplayName ?? a.ProcessName,
                 TotalSeconds = a.TotalSeconds,
-                SessionCount = a.SessionCount
+                SessionCount = a.SessionCount,
+                Productivity = a.Productivity,
+                Subcategory = a.Subcategory
             }).ToList()
         };
     }

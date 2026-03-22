@@ -25,15 +25,18 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.ActivitySession", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
+                        .HasColumnName("id");
 
                     b.Property<string>("AppCategory")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("app_category");
+
+                    b.Property<string>("AppSubcategory")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("app_subcategory");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -52,6 +55,11 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("EndedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ended_at");
+
+                    b.Property<string>("FilePath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("file_path");
 
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
@@ -527,10 +535,8 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.FocusSession", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
+                        .HasColumnName("id");
 
                     b.Property<int?>("ActualDurationMinutes")
                         .HasColumnType("integer")
@@ -647,10 +653,8 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.IdlePeriod", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
+                        .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
