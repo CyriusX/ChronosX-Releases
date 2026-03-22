@@ -101,14 +101,6 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     });
   }, [activities, dayStart, dayMs]);
 
-  const legendItems = useMemo(() => {
-    const seen = new Map<string, { color: string; name: string }>();
-    for (const a of activities) {
-      if (!seen.has(a.name)) seen.set(a.name, { color: a.color, name: a.name });
-    }
-    return Array.from(seen.values());
-  }, [activities]);
-
   const hourLabels = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
   const isViewingToday = !selectedDate || isSameDay(selectedDate, new Date());
@@ -217,19 +209,6 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                         )}
                       </div>
 
-                      {/* Legend */}
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                        {legendItems.map((item) => (
-                          <div key={item.name} className="flex items-center gap-1">
-                            <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: item.color }} />
-                            <span className="text-[8px] text-[rgba(245,247,251,0.35)]">{item.name}</span>
-                          </div>
-                        ))}
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 rounded-sm bg-[rgba(255,255,255,0.06)]" />
-                          <span className="text-[8px] text-[rgba(245,247,251,0.35)]">Inativo</span>
-                        </div>
-                      </div>
                     </div>
                   )}
                 </CardContent>
