@@ -66,7 +66,7 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
             .ToList();
         var totalSeconds = filteredApps.Sum(a => a.TotalSeconds);
 
-        // Merge aggregates that have the same ProcessName but different AppCategory rows
+        // Merge aggregates that have the same ProcessName but different category rows
         // (can happen if category changed mid-day). Take the dominant category per app.
         var appsByName = filteredApps
             .GroupBy(a => a.ProcessName)
@@ -75,13 +75,13 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
                 var totalSecs = g.Sum(a => a.TotalSeconds);
                 var totalSessions = g.Sum(a => a.SessionCount);
                 // Pick the category with the most time
-                var dominantCategory = g.OrderByDescending(a => a.TotalSeconds).First().AppCategory ?? "neutral";
+                var dominant = g.OrderByDescending(a => a.TotalSeconds).First();
                 return new MemberAppSummary
                 {
-                    Name = g.Key,
+                    Name = dominant.DisplayName ?? g.Key,
                     Duration = totalSecs,
                     Percentage = totalSeconds > 0 ? Math.Round((double)totalSecs / totalSeconds * 100, 1) : 0,
-                    Productivity = dominantCategory,
+                    Productivity = dominant.Productivity ?? "neutral",
                 };
             })
             .OrderByDescending(a => a.Duration)

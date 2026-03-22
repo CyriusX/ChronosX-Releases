@@ -91,13 +91,15 @@ public static class ServiceCollectionExtensions
                                backendUrl == "https://api.timetrack.local" ||
                                backendUrl.Contains("localhost") == false && backendUrl.Contains("127.0.0.1") == false && !Uri.TryCreate(backendUrl, UriKind.Absolute, out _);
 
+        Console.WriteLine($"[SyncServices] BackendUrl='{backendUrl}', useNullTransport={useNullTransport}");
         if (useNullTransport)
         {
-            // Use null transport for local testing
+            Console.WriteLine("[SyncServices] Using NULL sync transport (no backend)");
             services.AddNullSyncTransport();
         }
         else
         {
+            Console.WriteLine("[SyncServices] Using REAL sync transport (HttpSyncTransport + BackendReportsClient)");
             services.AddSyncServices(settings.Sync!);
         }
 
