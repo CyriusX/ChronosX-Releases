@@ -18,6 +18,8 @@ public sealed class SyncWorker : BackgroundService
     private readonly IOutboxRepository _outboxRepository;
     private readonly IActivitySessionRepository _sessionRepository;
     private readonly IIdlePeriodRepository _idlePeriodRepository;
+    private readonly IFocusCycleRepository _focusCycleRepository;
+    private readonly ISyncErrorRepository _syncErrorRepository;
     private readonly ISyncTransport _syncTransport;
     private readonly ICurrentUserContext _userContext;
     private readonly IDeviceActivationService _deviceActivationService;
@@ -33,6 +35,8 @@ public sealed class SyncWorker : BackgroundService
         IOutboxRepository outboxRepository,
         IActivitySessionRepository sessionRepository,
         IIdlePeriodRepository idlePeriodRepository,
+        IFocusCycleRepository focusCycleRepository,
+        ISyncErrorRepository syncErrorRepository,
         ISyncTransport syncTransport,
         ICurrentUserContext userContext,
         IDeviceActivationService deviceActivationService,
@@ -43,6 +47,8 @@ public sealed class SyncWorker : BackgroundService
         _outboxRepository = outboxRepository;
         _sessionRepository = sessionRepository;
         _idlePeriodRepository = idlePeriodRepository;
+        _focusCycleRepository = focusCycleRepository;
+        _syncErrorRepository = syncErrorRepository;
         _syncTransport = syncTransport;
         _userContext = userContext;
         _deviceActivationService = deviceActivationService;
@@ -84,6 +90,10 @@ public sealed class SyncWorker : BackgroundService
                     "SyncWorker: {Count} itens do outbox presos foram redefinidos na inicialização.",
                     resetCount);
             }
+
+            // Cleanup old data on startup — SQLite should only hold today's data + cache.
+            // Runs independently of authentication: stale data from previous sessions must go.
+            await CleanupOldDataAsync(stoppingToken);
 
             // Primeira execução imediata
             await ExecuteSyncCycleAsync(stoppingToken);
@@ -421,7 +431,8 @@ public sealed class SyncWorker : BackgroundService
     /// <summary>
     /// Cleans up old synced data from SQLite to keep the database lean.
     /// Past data is in the cloud — local SQLite only needs today's data.
-    /// Runs at most once per hour.
+    /// Runs at most once per hour, and also once at startup.
+    /// Does not require authentication — stale data from previous sessions must be removed regardless.
     /// </summary>
     private async Task CleanupOldDataAsync(CancellationToken cancellationToken)
     {
@@ -443,13 +454,19 @@ public sealed class SyncWorker : BackgroundService
             // 3. Remove idle periods from before today
             var idleRemoved = await _idlePeriodRepository.DeleteOlderThanAsync(todayStart, cancellationToken);
 
+            // 4. Remove completed+synced focus cycles from before today
+            var focusRemoved = await _focusCycleRepository.DeleteOlderThanAsync(todayStart, cancellationToken);
+
+            // 5. Remove sync errors older than 30 days
+            await _syncErrorRepository.CleanupOldErrorsAsync(30, cancellationToken);
+
             _lastCleanup = DateTime.UtcNow;
 
-            if (outboxRemoved + sessionsRemoved + idleRemoved > 0)
+            if (outboxRemoved + sessionsRemoved + idleRemoved + focusRemoved > 0)
             {
                 _logger.LogInformation(
-                    "SQLite cleanup: {Outbox} outbox, {Sessions} sessions, {Idle} idle periods removed",
-                    outboxRemoved, sessionsRemoved, idleRemoved);
+                    "SQLite cleanup: {Outbox} outbox, {Sessions} sessions, {Idle} idle periods, {Focus} focus cycles removed",
+                    outboxRemoved, sessionsRemoved, idleRemoved, focusRemoved);
             }
         }
         catch (Exception ex)

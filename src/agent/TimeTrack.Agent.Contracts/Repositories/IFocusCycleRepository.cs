@@ -54,4 +54,10 @@ public interface IFocusCycleRepository
     Task<IReadOnlyList<FocusCycle>> GetUnsyncedAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes completed and synced focus cycles older than the cutoff date.
+    /// Only removes cycles that have been synced to the cloud.
+    /// </summary>
+    Task<int> DeleteOlderThanAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default);
 }

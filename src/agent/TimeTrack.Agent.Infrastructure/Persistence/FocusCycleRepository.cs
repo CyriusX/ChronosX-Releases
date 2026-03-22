@@ -176,6 +176,20 @@ public sealed class FocusCycleRepository : IFocusCycleRepository
         return dtos.Select(MapToDomain).ToList();
     }
 
+    public async Task<int> DeleteOlderThanAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default)
+    {
+        var connection = await _context.GetConnectionAsync(cancellationToken);
+
+        // Only delete cycles that are completed and synced — unsynced cycles must survive until sync
+        const string sql = "DELETE FROM focus_cycles WHERE date(started_at) < date(@Cutoff) AND completed = 1 AND synced = 1";
+        var deleted = await connection.ExecuteAsync(sql, new { Cutoff = cutoffUtc.ToString("yyyy-MM-dd") });
+
+        if (deleted > 0)
+            _logger.LogInformation("Cleaned up {Count} old focus cycles (before {Cutoff:yyyy-MM-dd})", deleted, cutoffUtc);
+
+        return deleted;
+    }
+
     private static FocusCycle MapToDomain(FocusCycleDto dto)
     {
         var cycle = new FocusCycle(
