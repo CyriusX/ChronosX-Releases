@@ -297,7 +297,7 @@ export default function Timer() {
           transition={{ duration: TIMING.normal, delay: 0.3 }}
         >
           {/* Stats summary — fixed, never scrolls */}
-          <div className="flex-shrink-0 p-4 pb-0">
+          <div className="flex-shrink-0 p-4 pb-4 relative z-10 bg-[#0b0d14]">
             <Card className={cardBase}>
               <CardContent className="p-4">
                 <p className="text-[12px] text-[rgba(245,247,251,0.4)] mb-3 uppercase tracking-wider">Resumo da sessão</p>
