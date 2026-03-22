@@ -33,12 +33,12 @@ const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,
 
 export function TopCards({
   summary,
-  isPaused,
-  isTracking,
-  focusModePolicy,
-  onStartTracking,
-  onPauseTracking,
-  onStopTracking,
+  isPaused: _isPaused,
+  isTracking: _isTracking,
+  focusModePolicy: _focusModePolicy,
+  onStartTracking: _onStartTracking,
+  onPauseTracking: _onPauseTracking,
+  onStopTracking: _onStopTracking,
   isTeamTab = false,
 }: TopCardsProps) {
   const totalSeconds = summary?.totalDuration ?? 0;

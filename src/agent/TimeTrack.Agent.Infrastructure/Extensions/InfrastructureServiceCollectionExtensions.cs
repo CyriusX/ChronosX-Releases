@@ -112,11 +112,18 @@ public static class InfrastructureServiceCollectionExtensions
         // Registra SyncSettings para injeção
         services.AddSingleton(settings);
 
-        // Registra TokenStore com DPAPI
-        services.AddHttpClient<ITokenStore, DpapiTokenStore>(client =>
+        // Registra TokenStore com DPAPI (singleton — must share in-memory cache across all consumers)
+        services.AddHttpClient("TokenStore", client =>
         {
             client.BaseAddress = new Uri(settings.BackendUrl);
             client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
+        });
+        services.AddSingleton<ITokenStore>(sp =>
+        {
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = httpClientFactory.CreateClient("TokenStore");
+            var logger = sp.GetRequiredService<ILogger<DpapiTokenStore>>();
+            return new DpapiTokenStore(logger, httpClient, settings);
         });
 
         // Registra CurrentUserContext (extrai user_id do JWT)
@@ -161,6 +168,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<ITokenStore, NullTokenStore>();
         services.AddSingleton<ICurrentUserContext, JwtCurrentUserContext>();
         services.AddSingleton<IDeviceActivationService, NullDeviceActivationService>();
+        services.AddSingleton<IBackendReportsClient, NullBackendReportsClient>();
         return services;
     }
 }

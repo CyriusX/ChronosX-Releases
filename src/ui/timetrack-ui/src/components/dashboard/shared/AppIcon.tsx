@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  AppWindow, Globe, Code2, Terminal, FileCode, MessageSquare,
+  AppWindow, Globe, Code2, Terminal, MessageSquare,
   Mail, Video, Music, Play, Paintbrush, Briefcase, MonitorSmartphone
 } from 'lucide-react';
 

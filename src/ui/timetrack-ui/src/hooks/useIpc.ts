@@ -234,19 +234,29 @@ class MockIpcClient implements IIpcClient {
 // ============================================================================
 
 function createIpcClient(): IIpcClient {
-  // Check if running in browser with bridge available
+  // Check if running inside WebView2 (DesktopHost)
   console.log('[useIpc] Checking for bridge...');
   console.log('[useIpc] window.timeTrackBridge:', window.timeTrackBridge);
   const chrome = (window as unknown as Record<string, Record<string, unknown>>).chrome;
   console.log('[useIpc] chrome.webview:', chrome?.webview);
 
-  if (typeof window !== 'undefined' && window.timeTrackBridge) {
-    console.log('[useIpc] Bridge found! Using real IpcService');
-    return getIpcService();
+  if (typeof window !== 'undefined') {
+    // Bridge already injected — use real IPC immediately
+    if (window.timeTrackBridge) {
+      console.log('[useIpc] Bridge found! Using real IpcService');
+      return getIpcService();
+    }
+
+    // Inside WebView2 but bridge not yet injected — use real IpcService
+    // which will poll until the bridge becomes available
+    if (chrome?.webview) {
+      console.log('[useIpc] Inside WebView2, bridge not yet available — using IpcService (will poll)');
+      return getIpcService();
+    }
   }
 
-  // Return mock client for development
-  console.log('[useIpc] Bridge not available, using mock client');
+  // Not inside WebView2 at all — standalone browser dev mode
+  console.log('[useIpc] Not inside WebView2, using mock client');
   return new MockIpcClient();
 }
 

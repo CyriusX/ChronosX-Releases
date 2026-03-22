@@ -30,10 +30,15 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         DateTime date,
         CancellationToken cancellationToken = default)
     {
-        var startOfDay = date.Date;
-        var endOfDay = startOfDay.AddDays(1);
+        // Convert local date to UTC boundaries so that "today" in the user's
+        // timezone maps correctly to UTC-stored start_utc values.
+        var localDay = date.Date;
+        var startOfDayUtc = localDay.Kind == DateTimeKind.Utc
+            ? localDay
+            : localDay.ToUniversalTime();
+        var endOfDayUtc = startOfDayUtc.AddDays(1);
 
-        return await GetByDateRangeAsync(userId, startOfDay, endOfDay, cancellationToken);
+        return await GetByDateRangeAsync(userId, startOfDayUtc, endOfDayUtc, cancellationToken);
     }
 
     public async Task<IReadOnlyList<IdlePeriod>> GetByDateRangeAsync(
