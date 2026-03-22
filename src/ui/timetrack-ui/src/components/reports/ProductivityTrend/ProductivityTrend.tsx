@@ -9,9 +9,10 @@
  */
 
 import { useMemo } from 'react';
+import { motion } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
+import { fadeUp, staggerContainer, STAGGER } from '../../../lib/animation';
 import type { ProductivityTrendPeriodItem } from '../../../types/reports';
-
 export interface ProductivityTrendProps {
   /** Trend data */
   periods: ProductivityTrendPeriodItem[];
@@ -53,40 +54,48 @@ function TrendBar({ period, productive, neutral, distraction, idle, maxSeconds }
 
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <span className="text-[10px] text-[rgba(245,247,251,0.4)] w-[60px] text-right flex-shrink-0 truncate">
+      <span className="text-[10px] text-[rgba(245,247,251,0.4)] w-15 text-right shrink-0 truncate">
         {period}
       </span>
-      <div className="flex-1 h-[16px] bg-[rgba(255,255,255,0.03)] rounded overflow-hidden flex min-w-[100px]">
+      <div className="flex-1 h-4 bg-[rgba(255,255,255,0.03)] rounded overflow-hidden flex min-w-25">
         {productive > 0 && (
-          <div
-            className="h-full bg-[rgba(5,223,114,0.7)] transition-all"
-            style={{ width: `${productiveWidth}%` }}
+          <motion.div
+            className="h-full bg-[rgba(5,223,114,0.7)]"
+            initial={{ width: 0 }}
+            animate={{ width: `${productiveWidth}%` }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
             title={`Produtivo: ${formatHours(productive)}`}
           />
         )}
         {neutral > 0 && (
-          <div
-            className="h-full bg-[rgba(74,217,255,0.6)] transition-all"
-            style={{ width: `${neutralWidth}%` }}
+          <motion.div
+            className="h-full bg-[rgba(74,217,255,0.6)]"
+            initial={{ width: 0 }}
+            animate={{ width: `${neutralWidth}%` }}
+            transition={{ duration: 0.6, ease: 'easeOut', delay: 0.1 }}
             title={`Neutro: ${formatHours(neutral)}`}
           />
         )}
         {distraction > 0 && (
-          <div
-            className="h-full bg-[rgba(251,191,36,0.6)] transition-all"
-            style={{ width: `${distractionWidth}%` }}
+          <motion.div
+            className="h-full bg-[rgba(251,191,36,0.6)]"
+            initial={{ width: 0 }}
+            animate={{ width: `${distractionWidth}%` }}
+            transition={{ duration: 0.6, ease: 'easeOut', delay: 0.15 }}
             title={`Distração: ${formatHours(distraction)}`}
           />
         )}
         {idle > 0 && (
-          <div
-            className="h-full bg-[rgba(255,255,255,0.1)] transition-all"
-            style={{ width: `${idleWidth}%` }}
+          <motion.div
+            className="h-full bg-[rgba(255,255,255,0.1)]"
+            initial={{ width: 0 }}
+            animate={{ width: `${idleWidth}%` }}
+            transition={{ duration: 0.6, ease: 'easeOut', delay: 0.2 }}
             title={`Idle: ${formatHours(idle)}`}
           />
         )}
       </div>
-      <span className="text-[10px] text-[rgba(245,247,251,0.5)] w-[40px] text-right flex-shrink-0">
+      <span className="text-[10px] text-[rgba(245,247,251,0.5)] w-10 text-right shrink-0">
         {formatHours(total)}
       </span>
     </div>
@@ -150,8 +159,8 @@ export function ProductivityTrend({
   }
 
   return (
-    <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl">
-      <CardHeader className="pb-2 pt-3 px-4">
+    <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl h-full flex flex-col">
+      <CardHeader className="pb-2 pt-3 px-4 shrink-0">
         <CardTitle className="flex items-center justify-between">
           <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{title}</span>
           {summary && (
@@ -178,25 +187,32 @@ export function ProductivityTrend({
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-2 pb-3 px-4">
+      <CardContent className="pt-2 pb-3 px-4 flex-1 overflow-hidden">
         {periods.length === 0 ? (
           <div className="flex items-center justify-center h-[120px] text-[rgba(245,247,251,0.4)] text-[12px]">
             Sem dados para o período
           </div>
         ) : (
-          <div className="space-y-1 overflow-y-auto" style={{ maxHeight }}>
+          <motion.div
+            className="space-y-1 overflow-y-auto"
+            style={{ maxHeight }}
+            variants={staggerContainer(STAGGER.listItems)}
+            initial="hidden"
+            animate="visible"
+          >
             {periods.map((period, index) => (
-              <TrendBar
-                key={`${period.period}-${index}`}
-                period={period.period}
-                productive={period.productiveSeconds}
-                neutral={period.neutralSeconds}
-                distraction={period.distractionSeconds}
-                idle={period.idleSeconds}
-                maxSeconds={maxSeconds}
-              />
+              <motion.div key={`${period.period}-${index}`} variants={fadeUp}>
+                <TrendBar
+                  period={period.period}
+                  productive={period.productiveSeconds}
+                  neutral={period.neutralSeconds}
+                  distraction={period.distractionSeconds}
+                  idle={period.idleSeconds}
+                  maxSeconds={maxSeconds}
+                />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </CardContent>
     </Card>

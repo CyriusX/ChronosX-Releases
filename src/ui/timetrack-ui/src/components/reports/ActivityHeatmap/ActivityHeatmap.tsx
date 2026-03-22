@@ -11,6 +11,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import type { DailySummaryDayItem } from '../../../types/reports';
@@ -169,8 +170,8 @@ export function ActivityHeatmap({
   }
 
   return (
-    <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-visible">
-      <CardHeader className="pb-2 pt-3 px-4">
+    <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-visible h-full flex flex-col">
+      <CardHeader className="pb-2 pt-3 px-4 shrink-0">
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{title}</span>
@@ -200,7 +201,7 @@ export function ActivityHeatmap({
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-2 pb-3 px-4">
+      <CardContent className="pt-2 pb-3 px-4 flex-1">
         {/* Month labels */}
         <div className="relative mb-2 ml-[28px]">
           <div className="flex w-full">
@@ -255,13 +256,17 @@ export function ActivityHeatmap({
                     : 'rgba(255,255,255,0.02)';
 
                   return (
-                    <div
+                    <motion.div
                       key={dayIndex}
-                      className="w-full aspect-square rounded-[3px] cursor-pointer transition-all hover:ring-1 hover:ring-[rgba(255,255,255,0.4)] hover:scale-110"
+                      className="w-full aspect-square rounded-[3px] cursor-pointer hover:ring-1 hover:ring-[rgba(255,255,255,0.4)]"
                       style={{ backgroundColor: color }}
                       onClick={() => handleCellClick(day.date)}
                       onMouseEnter={(e) => handleCellHover(day.date, day.dayData, e)}
                       onMouseLeave={handleCellLeave}
+                      whileHover={{ scale: 1.3 }}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.15 }}
                     />
                   );
                 })}
