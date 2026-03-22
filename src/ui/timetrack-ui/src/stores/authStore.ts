@@ -224,6 +224,10 @@ export const useAuthStore = create<AuthState>()(
         const { useTrackingStore } = await import('./trackingStore');
         useTrackingStore.getState().reset();
 
+        // Reset timer store to clear focus sessions from previous user
+        const { useTimerStore } = await import('./timerStore');
+        useTimerStore.getState().resetForLogout();
+
         set({
           user: null,
           tokens: null,

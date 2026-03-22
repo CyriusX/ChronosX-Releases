@@ -62,7 +62,7 @@ const TOTAL_HOURS = 24;
 const HOUR_HEIGHT = 60; // px per hour
 const TIMELINE_HEIGHT = TOTAL_HOURS * HOUR_HEIGHT; // 1440px
 const DAY_MS = TOTAL_HOURS * 3600000;
-const MIN_BLOCK_HEIGHT = 44; // px — enough for 2 lines of text
+const MIN_BLOCK_HEIGHT = 6; // px — tiny minimum so short sessions remain visible
 
 const HOUR_LABELS = Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => i);
 
@@ -260,22 +260,20 @@ export function FocusDayTimeline({
                       style={{ backgroundColor: color }}
                     />
                   )}
-                  <div className="px-2 py-1.5 h-full flex flex-col justify-center gap-0.5">
-                    <p className="text-[10px] font-medium leading-tight" style={{ color }}>
-                      {isLive && (
-                        <span
-                          className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle animate-pulse"
-                          style={{ backgroundColor: color }}
-                        />
-                      )}
-                      {label}
-                    </p>
-                    <p className="text-[9px] text-[rgba(245,247,251,0.4)] leading-tight">
-                      {fmtTime(s.startedAt)}
-                      {!isLive ? ` – ${fmtTime(s.completedAt)}` : ''} ·{' '}
-                      {fmtDurationShort(s.durationMs)}
-                    </p>
-                  </div>
+                  {/* Only show label when block is tall enough (>= 18px) */}
+                  {heightPx >= 18 && (
+                    <div className="px-2 h-full flex items-center overflow-hidden">
+                      <p className="text-[9px] font-medium leading-none truncate" style={{ color }}>
+                        {isLive && (
+                          <span
+                            className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle animate-pulse"
+                            style={{ backgroundColor: color }}
+                          />
+                        )}
+                        {label}
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })}
