@@ -21,7 +21,7 @@ import {
   SessionList,
 } from '../components/activities';
 import { AppIcon } from '../components/dashboard/shared';
-import { useTimerStore } from '../stores/timerStore';
+import { useTimerStore, selectCurrentUserSessions } from '../stores/timerStore';
 import { fadeUp, staggerContainer, STAGGER } from '../lib/animation';
 
 // ============================================================================
@@ -117,7 +117,7 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
   const sessionsCount = summary?.sessionsCount ?? 0;
 
   // Focus Score = average from Pomodoro/Ultradian focus sessions (timer store)
-  const timerSessions = useTimerStore(s => s.sessions);
+  const timerSessions = useTimerStore(selectCurrentUserSessions);
   const scoredFocusSessions = timerSessions.filter(s => s.phase === 'focus' && s.productivity >= 0);
   const focusSessionScore = scoredFocusSessions.length > 0
     ? Math.round(scoredFocusSessions.reduce((sum, s) => sum + s.productivity, 0) / scoredFocusSessions.length)

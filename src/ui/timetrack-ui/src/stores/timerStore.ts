@@ -33,6 +33,7 @@ export interface TimerConfig {
 
 export interface SessionRecord {
   id: number;
+  userId?: string; // Owner of the session — used to filter per-user
   name?: string;
   mode: TimerMode;
   phase: 'focus' | 'break';
@@ -67,6 +68,22 @@ export function getUltradianWaves(): number {
     return parseInt(localStorage.getItem('timetrack-ultradian-waves') ?? '1', 10) || 1;
   } catch {
     return 1;
+  }
+}
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+/** Read the current user ID from the auth store's persisted localStorage */
+function getCurrentUserId(): string | null {
+  try {
+    const raw = localStorage.getItem('timetrack-auth');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.user?.id ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -127,6 +144,7 @@ interface TimerState {
   stop: () => void;
   setSessionName: (name: string) => void;
   setSelectedProject: (id: string) => void;
+  resetForLogout: () => void;
 
   // Actions — internal
   _tick: () => void;
@@ -261,6 +279,25 @@ export const useTimerStore = create<TimerState>()(
     setSessionName: (name) => set({ sessionName: name }),
     setSelectedProject: (id) => set({ selectedProject: id }),
 
+    resetForLogout: () => {
+      // Stop any running timer, but keep sessions — they are tagged by userId
+      // and filtered per-user via selectCurrentUserSessions.
+      clearTickInterval();
+      const config = CONFIGS[get().mode];
+      set({
+        phase: 'idle',
+        isPaused: false,
+        pausedAt: 0,
+        pausedElapsedMs: 0,
+        cycle: 0,
+        remainingMs: config.focusMs,
+        totalMs: config.focusMs,
+        phaseStartedAt: 0,
+        sessionName: '',
+        selectedProject: '',
+      });
+    },
+
     // ------------------------------------------------------------------
     // INTERNAL ACTIONS
     // ------------------------------------------------------------------
@@ -354,6 +391,7 @@ export const useTimerStore = create<TimerState>()(
         sessions: [
           {
             id: prev._sessionIdCounter + 1,
+            userId: getCurrentUserId() ?? undefined,
             name: sessionName,
             mode: sessionMode,
             phase: ph,
@@ -407,6 +445,13 @@ export const useTimerStore = create<TimerState>()(
 export const selectTimerPhase = (s: TimerState) => s.phase;
 export const selectTimerMode = (s: TimerState) => s.mode;
 export const selectTimerSessions = (s: TimerState) => s.sessions;
+
+/** Returns only the sessions belonging to the currently logged-in user */
+export function selectCurrentUserSessions(s: TimerState): SessionRecord[] {
+  const uid = getCurrentUserId();
+  if (!uid) return [];
+  return s.sessions.filter((sess) => sess.userId === uid);
+}
 
 // ============================================================================
 // VISIBILITY CHANGE — recalculate immediately when app regains focus

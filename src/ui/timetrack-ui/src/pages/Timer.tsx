@@ -17,7 +17,7 @@ import { Sidebar } from '../components/dashboard';
 import { Card, CardContent } from '../components/ui/card';
 import { useIpc } from '../hooks/useIpc';
 import { FocusDayTimeline, type TimelineActivityBlock } from '../components/timer/FocusDayTimeline';
-import { useTimerStore, CONFIGS, type TimerPhase } from '../stores/timerStore';
+import { useTimerStore, selectCurrentUserSessions, CONFIGS, type TimerPhase } from '../stores/timerStore';
 import { fadeUp, fadeIn, scaleIn, slideLeft, staggerContainer, STAGGER, SPRING, TIMING } from '../lib/animation';
 
 // ============================================================================
@@ -53,7 +53,7 @@ export default function Timer() {
   const cycle = useTimerStore(s => s.cycle);
   const isPaused = useTimerStore(s => s.isPaused);
   const ultradianWaves = useTimerStore(s => s.ultradianWaves);
-  const sessions = useTimerStore(s => s.sessions);
+  const sessions = useTimerStore(selectCurrentUserSessions);
   const sessionName = useTimerStore(s => s.sessionName);
   const selectedProject = useTimerStore(s => s.selectedProject);
   const phaseStartedAt = useTimerStore(s => s.phaseStartedAt);
