@@ -16,3 +16,12 @@ export {
 export type { UseFocusModeReturn } from './useFocusMode';
 export { useFocusModePolicy } from './useFocusModePolicy';
 export type { UseFocusModePolicyReturn } from './useFocusModePolicy';
+
+// Reports hooks
+export { useReportsData, useReportsSummary } from './useReportsData';
+export type {
+  ReportsDataState,
+  ReportsFilters,
+  UseReportsDataOptions,
+  UseReportsDataReturn,
+} from './useReportsData';

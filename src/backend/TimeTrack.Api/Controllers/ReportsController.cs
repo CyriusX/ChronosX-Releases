@@ -351,6 +351,322 @@ public sealed class ReportsController : ControllerBase
         }
     }
 
+    // ========================================================================
+    // NOVOS ENDPOINTS - CX-155 (Página de Relatório)
+    // ========================================================================
+
+    /// <summary>
+    /// Obtém resumo diário de um período para heatmap estilo GitHub
+    /// </summary>
+    /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
+    /// <param name="startDate">Data inicial do período</param>
+    /// <param name="endDate">Data final do período</param>
+    /// <param name="cancellationToken">Token de cancelamento</param>
+    /// <returns>Lista de resumos diários</returns>
+    [HttpGet("daily-summary-range")]
+    [ProducesResponseType(typeof(DailySummaryRangeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetDailySummaryRange(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+        {
+            return BadRequest(new { error = "Start date must be before or equal to end date" });
+        }
+
+        var targetUserId = userId ?? _currentUser.UserId!.Value;
+        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+
+        if (isAccessingOtherUserData)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new { reportType = "daily-summary-range", startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd") },
+                cancellationToken);
+        }
+
+        var query = new DailySummaryRangeQuery(
+            UserId: targetUserId,
+            StartDate: startDate,
+            EndDate: endDate
+        );
+
+        try
+        {
+            var response = await _mediator.Send(query, cancellationToken);
+            return Ok(response);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
+    /// Obtém tendência de produtividade por período (gráfico de barras empilhadas)
+    /// </summary>
+    /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
+    /// <param name="startDate">Data inicial do período</param>
+    /// <param name="endDate">Data final do período</param>
+    /// <param name="groupBy">Agrupamento: day, week, month</param>
+    /// <param name="cancellationToken">Token de cancelamento</param>
+    /// <returns>Lista de períodos com produtividade</returns>
+    [HttpGet("productivity-trend")]
+    [ProducesResponseType(typeof(ProductivityTrendResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetProductivityTrend(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        [FromQuery] string groupBy = "day",
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+        {
+            return BadRequest(new { error = "Start date must be before or equal to end date" });
+        }
+
+        var validGroupBy = new[] { "day", "week", "month" };
+        if (!validGroupBy.Contains(groupBy.ToLowerInvariant()))
+        {
+            return BadRequest(new { error = "groupBy must be one of: day, week, month" });
+        }
+
+        var targetUserId = userId ?? _currentUser.UserId!.Value;
+        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+
+        if (isAccessingOtherUserData)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new { reportType = "productivity-trend", startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd"), groupBy },
+                cancellationToken);
+        }
+
+        var query = new ProductivityTrendQuery(
+            UserId: targetUserId,
+            StartDate: startDate,
+            EndDate: endDate,
+            GroupBy: groupBy.ToLowerInvariant()
+        );
+
+        try
+        {
+            var response = await _mediator.Send(query, cancellationToken);
+            return Ok(response);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
+    /// Obtém top URLs e caminhos extraídos de window_title
+    /// </summary>
+    /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
+    /// <param name="startDate">Data inicial do período</param>
+    /// <param name="endDate">Data final do período</param>
+    /// <param name="limit">Número máximo de paths (padrão: 20)</param>
+    /// <param name="cancellationToken">Token de cancelamento</param>
+    /// <returns>Lista de URLs e caminhos mais acessados</returns>
+    [HttpGet("top-paths")]
+    [ProducesResponseType(typeof(TopPathsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetTopPaths(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        [FromQuery] int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+        {
+            return BadRequest(new { error = "Start date must be before or equal to end date" });
+        }
+
+        var targetUserId = userId ?? _currentUser.UserId!.Value;
+        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+
+        if (isAccessingOtherUserData)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new { reportType = "top-paths", startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd"), limit },
+                cancellationToken);
+        }
+
+        var query = new TopPathsQuery(
+            UserId: targetUserId,
+            StartDate: startDate,
+            EndDate: endDate,
+            Limit: Math.Clamp(limit, 1, 100)
+        );
+
+        try
+        {
+            var response = await _mediator.Send(query, cancellationToken);
+            return Ok(response);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
+    /// Obtém estatísticas de distração (top 5 apps + linha do tempo)
+    /// </summary>
+    /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
+    /// <param name="startDate">Data inicial do período</param>
+    /// <param name="endDate">Data final do período</param>
+    /// <param name="cancellationToken">Token de cancelamento</param>
+    /// <returns>Estatísticas de distração</returns>
+    [HttpGet("distraction-stats")]
+    [ProducesResponseType(typeof(DistractionStatsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetDistractionStats(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+        {
+            return BadRequest(new { error = "Start date must be before or equal to end date" });
+        }
+
+        var targetUserId = userId ?? _currentUser.UserId!.Value;
+        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+
+        if (isAccessingOtherUserData)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new { reportType = "distraction-stats", startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd") },
+                cancellationToken);
+        }
+
+        var query = new DistractionStatsQuery(
+            UserId: targetUserId,
+            StartDate: startDate,
+            EndDate: endDate
+        );
+
+        try
+        {
+            var response = await _mediator.Send(query, cancellationToken);
+            return Ok(response);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
+    /// Obtém distribuição por categoria de produtividade (donut chart)
+    /// </summary>
+    /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
+    /// <param name="startDate">Data inicial do período</param>
+    /// <param name="endDate">Data final do período</param>
+    /// <param name="cancellationToken">Token de cancelamento</param>
+    /// <returns>Distribuição por categoria</returns>
+    [HttpGet("category-distribution")]
+    [ProducesResponseType(typeof(CategoryDistributionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetCategoryDistribution(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+        {
+            return BadRequest(new { error = "Start date must be before or equal to end date" });
+        }
+
+        var targetUserId = userId ?? _currentUser.UserId!.Value;
+        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+
+        if (isAccessingOtherUserData)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new { reportType = "category-distribution", startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd") },
+                cancellationToken);
+        }
+
+        var query = new CategoryDistributionQuery(
+            UserId: targetUserId,
+            StartDate: startDate,
+            EndDate: endDate
+        );
+
+        try
+        {
+            var response = await _mediator.Send(query, cancellationToken);
+            return Ok(response);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
     /// <summary>
     /// Escapa campos CSV para evitar injection
     /// </summary>

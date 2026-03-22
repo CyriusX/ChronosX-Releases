@@ -95,10 +95,11 @@ public static class RateLimitingExtensions
                 opt.QueueLimit = 0;
             });
 
-            // Reports policy: 30 requests per 1 minute by user_id
+            // Reports policy: 60 requests per 1 minute by user_id
+            // (Reports page makes 6 parallel requests, allow for multiple page refreshes)
             options.AddFixedWindowLimiter(PolicyNames.Reports, opt =>
             {
-                opt.PermitLimit = 30;
+                opt.PermitLimit = 60;
                 opt.Window = TimeSpan.FromMinutes(1);
                 opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
                 opt.QueueLimit = 0;

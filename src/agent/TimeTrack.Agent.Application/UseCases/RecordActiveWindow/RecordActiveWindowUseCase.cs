@@ -113,7 +113,7 @@ public sealed class RecordActiveWindowUseCase
                 request.CapturedAt,
                 request.CapturedAt.AddSeconds(DefaultCaptureIntervalSeconds));
 
-            session = ActivitySession.Create(userId, appIdentity, period, windowHash, request.WindowTitle);
+            session = ActivitySession.Create(userId, appIdentity, period, windowHash, request.WindowTitle, request.FilePath);
             await SaveSessionWithOutboxAsync(session, cancellationToken);
             isNewSession = true;
 
@@ -275,7 +275,8 @@ public sealed class RecordActiveWindowUseCase
             StartUtc = session.Period.StartUtc,
             EndUtc = session.Period.EndUtc,
             WindowHash = session.WindowHash,
-            WindowTitle = session.WindowTitle
+            WindowTitle = session.WindowTitle,
+            FilePath = session.FilePath
         };
     }
 
@@ -294,5 +295,6 @@ public sealed class RecordActiveWindowUseCase
         public DateTime EndUtc { get; init; }
         public string? WindowHash { get; init; }
         public string? WindowTitle { get; init; }
+        public string? FilePath { get; init; }
     }
 }

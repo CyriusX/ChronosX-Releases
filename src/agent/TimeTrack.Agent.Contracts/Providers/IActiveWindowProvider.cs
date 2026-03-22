@@ -44,4 +44,11 @@ public sealed record ActiveWindowInfo
     /// Hash da janela para agrupamento
     /// </summary>
     public string? WindowHash { get; init; }
+
+    /// <summary>
+    /// Caminho do arquivo ou pasta ativo (quando disponível)
+    /// Ex: "c:\Projetos\TimeTracking\src\ui\src\App.tsx" para VS Code
+    /// Ex: "c:\Projetos\TimeTracking" para Windows Explorer
+    /// </summary>
+    public string? FilePath { get; init; }
 }
