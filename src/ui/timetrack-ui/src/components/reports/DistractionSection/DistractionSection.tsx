@@ -9,8 +9,10 @@
  */
 
 import { useMemo } from 'react';
+import { motion } from 'motion/react';
 import { AlertTriangle, Clock, TrendingDown, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
+import { fadeUp, staggerContainer, STAGGER } from '../../../lib/animation';
 import type { DistractionStatsResponse } from '../../../types/reports';
 
 export interface DistractionSectionProps {
@@ -47,16 +49,18 @@ function DistractionBar({ date, distractionSeconds, maxSeconds }: DistractionBar
 
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <span className="text-[10px] text-[rgba(245,247,251,0.4)] w-[50px] text-right flex-shrink-0 truncate">
+      <span className="text-[10px] text-[rgba(245,247,251,0.4)] w-12.5 text-right shrink-0 truncate">
         {dayLabel}
       </span>
-      <div className="flex-1 h-[12px] bg-[rgba(255,255,255,0.03)] rounded overflow-hidden min-w-[60px]">
-        <div
-          className="h-full bg-gradient-to-r from-[rgba(251,191,36,0.5)] to-[rgba(251,191,36,0.7)] rounded transition-all"
-          style={{ width: `${Math.min(percentage, 100)}%` }}
+      <div className="flex-1 h-3 bg-[rgba(255,255,255,0.03)] rounded overflow-hidden min-w-15">
+        <motion.div
+          className="h-full bg-linear-to-r from-[rgba(251,191,36,0.5)] to-[rgba(251,191,36,0.7)] rounded"
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.min(percentage, 100)}%` }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
         />
       </div>
-      <span className="text-[10px] text-[rgba(245,247,251,0.5)] w-[35px] text-right flex-shrink-0">
+      <span className="text-[10px] text-[rgba(245,247,251,0.5)] w-9 text-right shrink-0">
         {formatTime(distractionSeconds)}
       </span>
     </div>
@@ -80,9 +84,14 @@ function TopDistractionItem({
   const percentage = maxSeconds > 0 ? (totalSeconds / maxSeconds) * 100 : 0;
 
   return (
-    <div className="flex items-center gap-2 min-w-0 py-0.5">
+    <motion.div
+      className="flex items-center gap-2 min-w-0 py-0.5"
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       <div
-        className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+        className="w-4 h-4 rounded flex items-center justify-center shrink-0"
         style={{ backgroundColor: 'rgba(251,191,36,0.15)' }}
       >
         <AlertTriangle className="w-2.5 h-2.5 text-[rgba(251,191,36,0.8)]" />
@@ -93,16 +102,18 @@ function TopDistractionItem({
       <span className="text-[9px] text-[rgba(245,247,251,0.35)]">
         {sessionCount} sessões
       </span>
-      <div className="w-[40px] h-1 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
-        <div
+      <div className="w-10 h-1 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
+        <motion.div
           className="h-full bg-[rgba(251,191,36,0.6)] rounded-full"
-          style={{ width: `${Math.min(percentage, 100)}%` }}
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.min(percentage, 100)}%` }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
         />
       </div>
-      <span className="text-[10px] text-[rgba(245,247,251,0.4)] w-[35px] text-right flex-shrink-0">
+      <span className="text-[10px] text-[rgba(245,247,251,0.4)] w-9 text-right shrink-0">
         {formatTime(totalSeconds)}
       </span>
-    </div>
+    </motion.div>
   );
 }
 
@@ -199,8 +210,8 @@ export function DistractionSection({
   }
 
   return (
-    <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl">
-      <CardHeader className="pb-2 pt-3 px-4">
+    <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl h-full flex flex-col">
+      <CardHeader className="pb-2 pt-3 px-4 shrink-0">
         <CardTitle className="flex items-center justify-between">
           <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{title}</span>
           {stats.trend !== 0 && (
@@ -217,7 +228,7 @@ export function DistractionSection({
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-2 pb-3 px-4">
+      <CardContent className="pt-2 pb-3 px-4 flex-1 overflow-hidden flex flex-col">
         {/* Summary Stats */}
         <div className="grid grid-cols-3 gap-2 mb-3">
           <div className="text-center p-2 rounded-lg bg-[rgba(251,191,36,0.08)]">
@@ -243,38 +254,59 @@ export function DistractionSection({
 
         {/* Daily bars (last 14 days) */}
         {data.dailyDistractions.length > 0 && (
-          <div className="mb-3">
+          <motion.div
+            className="mb-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
             <p className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1">Últimos 14 dias</p>
-            <div className="space-y-0.5 max-h-[100px] overflow-y-auto">
+            <motion.div
+              className="space-y-0.5 max-h-25 overflow-y-auto"
+              variants={staggerContainer(STAGGER.fast)}
+              initial="hidden"
+              animate="visible"
+            >
               {data.dailyDistractions.slice(-14).map((day, i) => (
-                <DistractionBar
-                  key={`${day.date}-${i}`}
-                  date={day.date}
-                  distractionSeconds={day.distractionSeconds}
-                  maxSeconds={maxDaily}
-                />
+                <motion.div key={`${day.date}-${i}`} variants={fadeUp}>
+                  <DistractionBar
+                    date={day.date}
+                    distractionSeconds={day.distractionSeconds}
+                    maxSeconds={maxDaily}
+                  />
+                </motion.div>
               ))}
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         )}
 
         {/* Top distractions */}
         {data.topDistractions.length > 0 && (
-          <div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+          >
             <p className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1">Principais distrações</p>
-            <div className="space-y-0.5 max-h-[100px] overflow-y-auto">
+            <motion.div
+              className="space-y-0.5 max-h-25 overflow-y-auto"
+              variants={staggerContainer(STAGGER.listItems)}
+              initial="hidden"
+              animate="visible"
+            >
               {data.topDistractions.slice(0, 5).map((item, i) => (
-                <TopDistractionItem
-                  key={`${item.processName}-${i}`}
-                  displayName={item.displayName}
-                  processName={item.processName}
-                  totalSeconds={item.totalSeconds}
-                  sessionCount={item.sessionCount}
-                  maxSeconds={maxTop}
-                />
+                <motion.div key={`${item.processName}-${i}`} variants={fadeUp}>
+                  <TopDistractionItem
+                    displayName={item.displayName}
+                    processName={item.processName}
+                    totalSeconds={item.totalSeconds}
+                    sessionCount={item.sessionCount}
+                    maxSeconds={maxTop}
+                  />
+                </motion.div>
               ))}
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         )}
       </CardContent>
     </Card>

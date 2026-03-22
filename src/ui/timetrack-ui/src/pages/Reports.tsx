@@ -12,7 +12,8 @@
  * - DIP: Usa hook useReportsData para dados, componentes para UI
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft,
   Calendar,
@@ -32,6 +33,7 @@ import { useAuthStore, selectAccessToken } from '../stores/authStore';
 import { useReportsData, useReportsSummary } from '../hooks/useReportsData';
 import { listMembers } from '../services/memberApi';
 import { exportReportsToCSV } from '../lib/exportReports';
+import { fadeUp, staggerContainer, STAGGER } from '../lib/animation';
 import type { Member } from '../types/member';
 
 // Components (Composition Pattern)
@@ -81,6 +83,13 @@ export default function Reports() {
   // Team members for RBAC filter
   const [members, setMembers] = useState<Member[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
+  const [showGroupByDropdown, setShowGroupByDropdown] = useState(false);
+
+  // Refs for dropdown click outside
+  const periodDropdownRef = useRef<HTMLDivElement>(null);
+  const groupByDropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
 
   // Period and group state
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodPreset>('last_30_days');
@@ -193,55 +202,114 @@ export default function Reports() {
             {/* Controls */}
             <div className="flex items-center gap-3">
               {/* Period Selector */}
-              <div className="relative">
-                <select
-                  value={selectedPeriod}
-                  onChange={(e) => handlePeriodChange(e.target.value as PeriodPreset)}
-                  className="appearance-none bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg pl-3 pr-8 py-2 text-[12px] text-[#f5f7fb] focus:outline-none focus:border-[#4ad9ff] cursor-pointer"
+              <div className="relative" ref={periodDropdownRef}>
+                <button
+                  onClick={() => {
+                    setShowPeriodDropdown(!showPeriodDropdown);
+                    setShowGroupByDropdown(false);
+                    setShowUserDropdown(false);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg text-[12px] text-[#f5f7fb] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
                 >
-                  {PERIOD_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[rgba(245,247,251,0.4)] pointer-events-none" />
+                  <Calendar className="w-3.5 h-3.5 text-[rgba(245,247,251,0.5)]" />
+                  <span>{getPeriodLabel()}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-[rgba(245,247,251,0.4)] transition-transform ${showPeriodDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                <AnimatePresence>
+                  {showPeriodDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-0 mt-1 min-w-[160px] bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-lg z-30 overflow-hidden"
+                    >
+                      {PERIOD_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => {
+                            handlePeriodChange(option.value);
+                            setShowPeriodDropdown(false);
+                          }}
+                          className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${
+                            selectedPeriod === option.value
+                              ? 'text-[#4ad9ff] bg-[rgba(74,217,255,0.1)]'
+                              : 'text-[rgba(245,247,251,0.8)]'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Group By Selector */}
-              <div className="relative">
-                <select
-                  value={selectedGroupBy}
-                  onChange={(e) => handleGroupByChange(e.target.value as GroupByOption)}
-                  className="appearance-none bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg pl-3 pr-8 py-2 text-[12px] text-[#f5f7fb] focus:outline-none focus:border-[#4ad9ff] cursor-pointer"
+              <div className="relative" ref={groupByDropdownRef}>
+                <button
+                  onClick={() => {
+                    setShowGroupByDropdown(!showGroupByDropdown);
+                    setShowPeriodDropdown(false);
+                    setShowUserDropdown(false);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg text-[12px] text-[#f5f7fb] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
                 >
-                  {GROUP_BY_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      Agrupar por: {option.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[rgba(245,247,251,0.4)] pointer-events-none" />
+                  <span>Agrupar: {GROUP_BY_OPTIONS.find(o => o.value === selectedGroupBy)?.label}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-[rgba(245,247,251,0.4)] transition-transform ${showGroupByDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                <AnimatePresence>
+                  {showGroupByDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-0 mt-1 min-w-[140px] bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-lg z-30 overflow-hidden"
+                    >
+                      {GROUP_BY_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => {
+                            handleGroupByChange(option.value);
+                            setShowGroupByDropdown(false);
+                          }}
+                          className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${
+                            selectedGroupBy === option.value
+                              ? 'text-[#4ad9ff] bg-[rgba(74,217,255,0.1)]'
+                              : 'text-[rgba(245,247,251,0.8)]'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Export Button */}
-              <button
+              <motion.button
                 onClick={handleExport}
                 disabled={isLoading}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 className="flex items-center gap-2 px-3 py-2 bg-[rgba(74,217,255,0.15)] border border-[rgba(74,217,255,0.3)] rounded-lg text-[12px] text-[#4ad9ff] hover:bg-[rgba(74,217,255,0.2)] transition-colors disabled:opacity-50"
               >
                 <Download className="w-4 h-4" />
                 Exportar CSV
-              </button>
+              </motion.button>
 
               {/* Refresh Button */}
-              <button
+              <motion.button
                 onClick={refresh}
                 disabled={isLoading}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 text-[rgba(245,247,251,0.6)] ${isLoading ? 'animate-spin' : ''}`} />
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>
@@ -251,10 +319,16 @@ export default function Reports() {
           <div className="flex flex-col gap-4">
             {/* User Filter (Admin/Manager only) - RBAC */}
             {canManageTeam && (
-              <div className="relative">
-                <div
+              <div className="relative" ref={userDropdownRef}>
+                <motion.div
                   className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[rgba(26,29,46,0.6)] to-[rgba(17,19,28,0.6)] border border-[rgba(255,255,255,0.06)] rounded-xl cursor-pointer hover:border-[rgba(255,255,255,0.1)] transition-colors"
-                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  onClick={() => {
+                    setShowUserDropdown(!showUserDropdown);
+                    setShowPeriodDropdown(false);
+                    setShowGroupByDropdown(false);
+                  }}
+                  whileHover={{ scale: 1.005 }}
+                  whileTap={{ scale: 0.995 }}
                 >
                   <Users className="w-4 h-4 text-[#4ad9ff]" />
                   <span className="text-[13px] text-[rgba(245,247,251,0.6)]">Visualizando:</span>
@@ -262,35 +336,43 @@ export default function Reports() {
                     {getSelectedUserName()}
                   </span>
                   <ChevronDown className={`w-4 h-4 text-[rgba(245,247,251,0.4)] ml-auto transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} />
-                </div>
+                </motion.div>
 
                 {/* Dropdown */}
-                {showUserDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-lg z-20 max-h-[300px] overflow-y-auto">
-                    <button
-                      onClick={() => { handleUserChange(undefined); setShowUserDropdown(false); }}
-                      className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${!selectedUserId ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.8)]'}`}
+                <AnimatePresence>
+                  {showUserDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-0 right-0 mt-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-lg z-20 max-h-[300px] overflow-y-auto"
                     >
-                      Meus dados
-                    </button>
-                    <button
-                      onClick={() => { handleUserChange('all'); setShowUserDropdown(false); }}
-                      className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === 'all' ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.8)]'}`}
-                    >
-                      Toda a equipe
-                    </button>
-                    <div className="border-t border-[rgba(255,255,255,0.06)]" />
-                    {members.map((member) => (
                       <button
-                        key={member.userId}
-                        onClick={() => { handleUserChange(member.userId); setShowUserDropdown(false); }}
-                        className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === member.userId ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.8)]'}`}
+                        onClick={() => { handleUserChange(undefined); setShowUserDropdown(false); }}
+                        className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${!selectedUserId ? 'text-[#4ad9ff] bg-[rgba(74,217,255,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}
                       >
-                        {member.displayName}
+                        Meus dados
                       </button>
-                    ))}
-                  </div>
-                )}
+                      <button
+                        onClick={() => { handleUserChange('all'); setShowUserDropdown(false); }}
+                        className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === 'all' ? 'text-[#4ad9ff] bg-[rgba(74,217,255,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}
+                      >
+                        Toda a equipe
+                      </button>
+                      <div className="border-t border-[rgba(255,255,255,0.06)]" />
+                      {members.map((member) => (
+                        <button
+                          key={member.userId}
+                          onClick={() => { handleUserChange(member.userId); setShowUserDropdown(false); }}
+                          className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === member.userId ? 'text-[#4ad9ff] bg-[rgba(74,217,255,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}
+                        >
+                          {member.displayName}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
 
@@ -309,93 +391,123 @@ export default function Reports() {
             )}
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              <SummaryCard
-                title="Tempo Ativo"
-                value={formatDuration(summary.totalActiveSeconds)}
-                subtitle={`${summary.daysWithData} dias com dados`}
-                icon={Clock}
-                iconBgColor="rgba(74,217,255,0.15)"
-                iconColor="#4ad9ff"
-                isLoading={isLoading}
-              />
-              <SummaryCard
-                title="Tempo Idle"
-                value={formatDuration(summary.totalIdleSeconds)}
-                subtitle={summary.totalActiveSeconds > 0 ? `${Math.round((summary.totalIdleSeconds / (summary.totalActiveSeconds + summary.totalIdleSeconds)) * 100)}% do total` : '0% do total'}
-                icon={Activity}
-                iconBgColor="rgba(251,191,36,0.15)"
-                iconColor="#fbbf24"
-                isLoading={isLoading}
-              />
-              <SummaryCard
-                title="Score de Foco"
-                value={`${summary.focusScore}%`}
-                subtitle="Baseado em tempo produtivo, distrações e blocos de foco"
-                icon={Target}
-                iconBgColor="rgba(5,223,114,0.15)"
-                iconColor="#05df72"
-                progress={summary.focusScore}
-                progressColor="#05df72"
-                isLoading={isLoading}
-              />
-              <SummaryCard
-                title="Período"
-                value={getPeriodLabel()}
-                subtitle={`${filters.dateRange.startDate} a ${filters.dateRange.endDate}`}
-                icon={Calendar}
-                iconBgColor="rgba(138,92,246,0.15)"
-                iconColor="#8a5cf6"
-                isLoading={isLoading}
-              />
-            </div>
+            <motion.div
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4"
+              variants={staggerContainer(STAGGER.cards)}
+              initial="hidden"
+              animate="visible"
+            >
+              <motion.div variants={fadeUp}>
+                <SummaryCard
+                  title="Tempo Ativo"
+                  value={formatDuration(summary.totalActiveSeconds)}
+                  subtitle={`${summary.daysWithData} dias com dados`}
+                  icon={Clock}
+                  iconBgColor="rgba(74,217,255,0.15)"
+                  iconColor="#4ad9ff"
+                  isLoading={isLoading}
+                />
+              </motion.div>
+              <motion.div variants={fadeUp}>
+                <SummaryCard
+                  title="Tempo Idle"
+                  value={formatDuration(summary.totalIdleSeconds)}
+                  subtitle={summary.totalActiveSeconds > 0 ? `${Math.round((summary.totalIdleSeconds / (summary.totalActiveSeconds + summary.totalIdleSeconds)) * 100)}% do total` : '0% do total'}
+                  icon={Activity}
+                  iconBgColor="rgba(251,191,36,0.15)"
+                  iconColor="#fbbf24"
+                  isLoading={isLoading}
+                />
+              </motion.div>
+              <motion.div variants={fadeUp}>
+                <SummaryCard
+                  title="Score de Foco"
+                  value={`${summary.focusScore}%`}
+                  subtitle="Baseado em tempo produtivo, distrações e blocos de foco"
+                  icon={Target}
+                  iconBgColor="rgba(5,223,114,0.15)"
+                  iconColor="#05df72"
+                  progress={summary.focusScore}
+                  progressColor="#05df72"
+                  isLoading={isLoading}
+                />
+              </motion.div>
+              <motion.div variants={fadeUp}>
+                <SummaryCard
+                  title="Período"
+                  value={getPeriodLabel()}
+                  subtitle={`${filters.dateRange.startDate} a ${filters.dateRange.endDate}`}
+                  icon={Calendar}
+                  iconBgColor="rgba(138,92,246,0.15)"
+                  iconColor="#8a5cf6"
+                  isLoading={isLoading}
+                />
+              </motion.div>
+            </motion.div>
 
             {/* Activity Heatmap */}
-            <ActivityHeatmap
-              days={data.dailySummaryRange?.days ?? []}
-              isLoading={isLoading}
-              title="Mapa de Atividade"
-            />
+            <motion.div variants={fadeUp} initial="hidden" animate="visible">
+              <ActivityHeatmap
+                days={data.dailySummaryRange?.days ?? []}
+                isLoading={isLoading}
+                title="Mapa de Atividade"
+              />
+            </motion.div>
 
             {/* Productivity Trend */}
-            <ProductivityTrend
-              periods={data.productivityTrend?.periods ?? []}
-              isLoading={isLoading}
-              title="Tendência de Produtividade"
-            />
+            <motion.div variants={fadeUp} initial="hidden" animate="visible">
+              <ProductivityTrend
+                periods={data.productivityTrend?.periods ?? []}
+                isLoading={isLoading}
+                title="Tendência de Produtividade"
+              />
+            </motion.div>
 
             {/* Main Grid - Apps, Paths, Categories, Distractions */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <motion.div
+              className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch"
+              variants={staggerContainer(STAGGER.cards)}
+              initial="hidden"
+              animate="visible"
+            >
               {/* Top Apps */}
-              <TopAppsSection
-                apps={data.topApps?.apps ?? []}
-                isLoading={isLoading}
-                title="Apps Mais Usados"
-                maxItems={15}
-              />
+              <motion.div variants={fadeUp} className="h-full">
+                <TopAppsSection
+                  apps={data.topApps?.apps ?? []}
+                  isLoading={isLoading}
+                  title="Apps Mais Usados"
+                  maxItems={15}
+                />
+              </motion.div>
 
               {/* Category Distribution */}
-              <CategoryDonut
-                categories={data.categoryDistribution?.categories ?? []}
-                isLoading={isLoading}
-                title="Distribuição por Categoria"
-              />
+              <motion.div variants={fadeUp} className="h-full">
+                <CategoryDonut
+                  categories={data.categoryDistribution?.categories ?? []}
+                  isLoading={isLoading}
+                  title="Distribuição por Categoria"
+                />
+              </motion.div>
 
               {/* Top Paths */}
-              <TopPathsSection
-                paths={data.topPaths?.paths ?? []}
-                isLoading={isLoading}
-                title="URLs e Caminhos Mais Acessados"
-                maxItems={10}
-              />
+              <motion.div variants={fadeUp} className="h-full">
+                <TopPathsSection
+                  paths={data.topPaths?.paths ?? []}
+                  isLoading={isLoading}
+                  title="URLs e Caminhos Mais Acessados"
+                  maxItems={10}
+                />
+              </motion.div>
 
               {/* Distraction Stats */}
-              <DistractionSection
-                data={data.distractionStats}
-                isLoading={isLoading}
-                title="Análise de Distrações"
-              />
-            </div>
+              <motion.div variants={fadeUp} className="h-full">
+                <DistractionSection
+                  data={data.distractionStats}
+                  isLoading={isLoading}
+                  title="Análise de Distrações"
+                />
+              </motion.div>
+            </motion.div>
           </div>
         </div>
       </main>

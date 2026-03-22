@@ -8,6 +8,7 @@
  * Composition: Componente atômico para ser composto em SummaryCards
  */
 
+import { motion } from 'motion/react';
 import { LucideIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 
@@ -61,7 +62,7 @@ export function SummaryCard({
 
   if (isLoading) {
     return (
-      <Card className={cardBase}>
+      <Card className={`${cardBase} h-full`}>
         <CardHeader className="pb-0 pt-3 px-4">
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -70,69 +71,81 @@ export function SummaryCard({
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-3 pb-3 px-4">
-          <div className="flex items-center justify-center h-[80px]">
-            <div className="w-12 h-12 rounded-full border-2 border-[rgba(255,255,255,0.1)] border-t-[#4ad9ff] animate-spin" />
-          </div>
+        <CardContent className="pt-3 pb-3 px-4 flex items-center justify-center flex-1">
+          <div className="w-12 h-12 rounded-full border-2 border-[rgba(255,255,255,0.1)] border-t-[#4ad9ff] animate-spin" />
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className={cardBase}>
-      <CardHeader className="pb-0 pt-3 px-4">
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div
-              className="w-5 h-5 rounded-md flex items-center justify-center"
-              style={{ backgroundColor: iconBgColor }}
-            >
-              <Icon className="w-3 h-3" style={{ color: iconColor }} />
-            </div>
-            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{title}</span>
-          </div>
-          {badge && (
-            <span className={`px-2 py-0.5 text-[9px] rounded-full border ${badgeStyles[badgeColor]}`}>
-              {badge}
-            </span>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-3 pb-3 px-4">
-        {progress !== undefined ? (
-          <div className="flex flex-col items-center">
-            <div className="relative w-[80px] h-[80px]">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  fill="none"
-                  stroke={progressColor}
-                  strokeWidth="8"
-                  strokeDasharray={`${progress * 2.39} 239`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[18px] font-semibold text-[#f5f7fb]">{value}</span>
+    <motion.div
+      whileHover={{ y: -2, transition: { duration: 0.2 } }}
+      className="h-full"
+    >
+      <Card className={`${cardBase} h-full`}>
+        <CardHeader className="pb-0 pt-3 px-4">
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-5 h-5 rounded-md flex items-center justify-center"
+                style={{ backgroundColor: iconBgColor }}
+              >
+                <Icon className="w-3 h-3" style={{ color: iconColor }} />
               </div>
+              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{title}</span>
             </div>
-            {subtitle && (
-              <p className="mt-2 text-[11px] text-[rgba(245,247,251,0.4)] text-center">{subtitle}</p>
+            {badge && (
+              <span className={`px-2 py-0.5 text-[9px] rounded-full border ${badgeStyles[badgeColor]}`}>
+                {badge}
+              </span>
             )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center">
-            <span className="text-[24px] font-semibold text-[#f5f7fb]">{value}</span>
-            {subtitle && (
-              <p className="mt-1 text-[12px] text-[rgba(245,247,251,0.5)] text-center">{subtitle}</p>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-3 pb-3 px-4">
+          {progress !== undefined ? (
+            <div className="flex flex-col items-center">
+              <div className="relative w-20 h-20">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
+                  <motion.circle
+                    cx="50"
+                    cy="50"
+                    r="38"
+                    fill="none"
+                    stroke={progressColor}
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    initial={{ strokeDasharray: '0 239' }}
+                    animate={{ strokeDasharray: `${progress * 2.39} 239` }}
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-[18px] font-semibold text-[#f5f7fb]">{value}</span>
+                </div>
+              </div>
+              {subtitle && (
+                <p className="mt-2 text-[11px] text-[rgba(245,247,251,0.4)] text-center">{subtitle}</p>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center">
+              <motion.span
+                className="text-[24px] font-semibold text-[#f5f7fb]"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                {value}
+              </motion.span>
+              {subtitle && (
+                <p className="mt-1 text-[12px] text-[rgba(245,247,251,0.5)] text-center">{subtitle}</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }

@@ -9,7 +9,9 @@
  */
 
 import { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
+import { fadeUp, staggerContainer, STAGGER } from '../../../lib/animation';
 import type { CategoryDistributionItem, SubcategoryItem } from '../../../types/reports';
 
 export interface CategoryDonutProps {
@@ -86,13 +88,15 @@ function DonutSegment({ startAngle, endAngle, color, radius, strokeWidth }: Donu
   ].join(' ');
 
   return (
-    <path
+    <motion.path
       d={d}
       fill="none"
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"
-      className="transition-all duration-200"
+      initial={{ pathLength: 0, opacity: 0 }}
+      animate={{ pathLength: 1, opacity: 1 }}
+      transition={{ duration: 0.8, ease: 'easeOut' }}
     />
   );
 }
@@ -218,22 +222,27 @@ export function CategoryDonut({
   }
 
   return (
-    <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl">
-      <CardHeader className="pb-3 pt-4 px-5">
+    <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl h-full flex flex-col">
+      <CardHeader className="pb-3 pt-4 px-5 flex-shrink-0">
         <CardTitle className="text-[14px] font-semibold text-[rgba(245,247,251,0.95)]">
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 pb-4 px-5">
+      <CardContent className="pt-0 pb-4 px-5 flex-1 flex items-center">
         {categories.length === 0 ? (
-          <div className="flex items-center justify-center h-[180px] text-[rgba(245,247,251,0.4)] text-[13px]">
+          <div className="flex items-center justify-center h-45 text-[rgba(245,247,251,0.4)] text-[13px] w-full">
             Sem dados para exibir
           </div>
         ) : (
-          <div className="flex gap-6 items-center">
+          <div className="flex gap-6 items-center w-full">
             {/* Donut Chart */}
-            <div className="shrink-0">
-              <div className="relative w-[160px] h-[160px]">
+            <motion.div
+              className="shrink-0"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            >
+              <div className="relative w-40 h-40">
                 <svg viewBox="0 0 100 100" className="w-full h-full">
                   {/* Background circle */}
                   <circle
@@ -258,29 +267,47 @@ export function CategoryDonut({
                 </svg>
                 {/* Center text */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-[18px] font-bold text-[#f5f7fb]">
+                  <motion.span
+                    className="text-[18px] font-bold text-[#f5f7fb]"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.3, duration: 0.4 }}
+                  >
                     {formatTime(totalSeconds)}
-                  </span>
-                  <span className="text-[10px] text-[rgba(245,247,251,0.5)] mt-0.5">tempo total</span>
+                  </motion.span>
+                  <motion.span
+                    className="text-[10px] text-[rgba(245,247,251,0.5)] mt-0.5"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5, duration: 0.3 }}
+                  >
+                    tempo total
+                  </motion.span>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Legend */}
-            <div className="flex-1 space-y-2 max-h-[180px] overflow-y-auto pr-2">
+            <motion.div
+              className="flex-1 space-y-2 max-h-45 overflow-y-auto pr-2"
+              variants={staggerContainer(STAGGER.listItems)}
+              initial="hidden"
+              animate="visible"
+            >
               {categories.map((cat) => (
-                <CategoryLegendItem
-                  key={cat.category}
-                  category={cat.category}
-                  totalSeconds={cat.totalSeconds}
-                  percentage={cat.percentage}
-                  color={CATEGORY_COLORS[cat.category] || '#64748b'}
-                  subcategories={cat.subcategories}
-                  isExpanded={expandedCategory === cat.category}
-                  onToggle={() => handleToggle(cat.category)}
-                />
+                <motion.div key={cat.category} variants={fadeUp}>
+                  <CategoryLegendItem
+                    category={cat.category}
+                    totalSeconds={cat.totalSeconds}
+                    percentage={cat.percentage}
+                    color={CATEGORY_COLORS[cat.category] || '#64748b'}
+                    subcategories={cat.subcategories}
+                    isExpanded={expandedCategory === cat.category}
+                    onToggle={() => handleToggle(cat.category)}
+                  />
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           </div>
         )}
       </CardContent>
