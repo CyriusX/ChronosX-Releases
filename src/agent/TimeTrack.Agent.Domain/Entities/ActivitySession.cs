@@ -38,6 +38,12 @@ public sealed class ActivitySession : EntityBase
     /// </summary>
     public string? FilePath { get; }
 
+    /// <summary>
+    /// Domínio/URL do site quando a sessão é de um navegador.
+    /// Ex: "github.com", "web.telegram.org"
+    /// </summary>
+    public string? Domain { get; }
+
     private ActivitySession() { }
 
     public ActivitySession(
@@ -47,7 +53,8 @@ public sealed class ActivitySession : EntityBase
         TimeRange period,
         string? windowHash = null,
         string? windowTitle = null,
-        string? filePath = null)
+        string? filePath = null,
+        string? domain = null)
         : base(id)
     {
         if (userId == Guid.Empty)
@@ -59,6 +66,7 @@ public sealed class ActivitySession : EntityBase
         WindowHash = windowHash;
         WindowTitle = windowTitle;
         FilePath = filePath;
+        Domain = domain;
     }
 
     /// <summary>
@@ -70,9 +78,10 @@ public sealed class ActivitySession : EntityBase
         TimeRange period,
         string? windowHash = null,
         string? windowTitle = null,
-        string? filePath = null)
+        string? filePath = null,
+        string? domain = null)
     {
-        return new ActivitySession(Guid.NewGuid(), userId, app, period, windowHash, windowTitle, filePath);
+        return new ActivitySession(Guid.NewGuid(), userId, app, period, windowHash, windowTitle, filePath, domain);
     }
 
     /// <summary>

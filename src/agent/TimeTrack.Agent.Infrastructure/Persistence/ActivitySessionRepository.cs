@@ -41,11 +41,11 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                     INSERT OR REPLACE INTO activity_sessions
                         (id, user_id, exe_path_hash, display_name, category_productivity,
                          category_subcategory, category_source, start_utc, end_utc,
-                         window_hash, window_title)
+                         window_hash, window_title, domain)
                     VALUES
                         (@Id, @UserId, @ExePathHash, @DisplayName, @CategoryProductivity,
                          @CategorySubcategory, @CategorySource, @StartUtc, @EndUtc,
-                         @WindowHash, @WindowTitle)
+                         @WindowHash, @WindowTitle, @Domain)
                 ";
 
                 await connection.ExecuteAsync(sessionSql, new
@@ -60,7 +60,8 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                     StartUtc = session.Period.StartUtc,
                     EndUtc = session.Period.EndUtc,
                     WindowHash = session.WindowHash,
-                    WindowTitle = session.WindowTitle
+                    WindowTitle = session.WindowTitle,
+                    Domain = session.Domain
                 });
 
                 // 2. Salvar outbox items
@@ -135,7 +136,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             const string sql = @"
             SELECT id, user_id, exe_path_hash, display_name, category_productivity,
                    category_subcategory, category_source, start_utc, end_utc,
-                   window_hash, window_title
+                   window_hash, window_title, domain
             FROM activity_sessions
             WHERE user_id = @UserId AND start_utc >= @Start AND start_utc < @End
             ORDER BY start_utc";
@@ -154,7 +155,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             const string sql = @"
             SELECT id, user_id, exe_path_hash, display_name, category_productivity,
                    category_subcategory, category_source, start_utc, end_utc,
-                   window_hash, window_title
+                   window_hash, window_title, domain
             FROM activity_sessions
             WHERE user_id = @UserId
             ORDER BY end_utc DESC
@@ -178,7 +179,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             const string sql = @"
             SELECT id, user_id, exe_path_hash, display_name, category_productivity,
                    category_subcategory, category_source, start_utc, end_utc,
-                   window_hash, window_title
+                   window_hash, window_title, domain
             FROM activity_sessions
             WHERE user_id = @UserId AND end_utc >= @EndThreshold
             ORDER BY end_utc DESC
@@ -228,7 +229,8 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                     startUtc = session.Period.StartUtc,
                     endUtc = session.Period.EndUtc,
                     windowHash = session.WindowHash,
-                    windowTitle = session.WindowTitle
+                    windowTitle = session.WindowTitle,
+                    domain = session.Domain
                 }, _jsonOptions);
 
                 const string updateOutboxSql = @"
@@ -351,7 +353,8 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                 StartUtc = s.Period.StartUtc,
                 EndUtc = s.Period.EndUtc,
                 WindowHash = s.WindowHash,
-                WindowTitle = s.WindowTitle
+                WindowTitle = s.WindowTitle,
+                Domain = s.Domain
             });
 
             await connection.ExecuteAsync(sql, parameters);
@@ -390,7 +393,8 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                 app,
                 period,
                 dto.Window_Hash,
-                dto.Window_Title
+                dto.Window_Title,
+                domain: dto.Domain
             );
         }
 
@@ -410,6 +414,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             public DateTime End_Utc { get; set; }
             public string? Window_Hash { get; set; }
             public string? Window_Title { get; set; }
+            public string? Domain { get; set; }
         }
     }
 }

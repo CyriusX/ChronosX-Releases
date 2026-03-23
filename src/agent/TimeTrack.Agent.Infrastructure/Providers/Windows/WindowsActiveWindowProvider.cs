@@ -167,14 +167,23 @@ public sealed class WindowsActiveWindowProvider : IActiveWindowProvider, IDispos
             var processName = Path.GetFileNameWithoutExtension(exePath) ?? "";
             var filePath = _filePathExtractor.ExtractFilePath(hWnd, processName, windowTitle);
 
+            // Extract site name from browser window title
+            string? browserUrl = null;
+            var resolvedDisplayName = displayName ?? Path.GetFileNameWithoutExtension(exePath) ?? "Unknown";
+            if (BrowserUrlExtractor.IsBrowserExe(exePath))
+            {
+                browserUrl = BrowserUrlExtractor.ExtractSiteFromTitle(windowTitle, resolvedDisplayName);
+            }
+
             return new ActiveWindowInfo
             {
                 ExePathHash = exePathHash,
-                DisplayName = displayName ?? Path.GetFileNameWithoutExtension(exePath) ?? "Unknown",
+                DisplayName = resolvedDisplayName,
                 ExePath = exePath,
                 WindowTitle = windowTitle,
                 WindowHash = windowHash,
-                FilePath = filePath
+                FilePath = filePath,
+                BrowserUrl = browserUrl
             };
         }
         catch (Exception ex)
