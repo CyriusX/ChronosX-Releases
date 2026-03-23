@@ -60,7 +60,7 @@ const mockTrackingState = {
   isTracking: true,
   isPaused: false,
   isFocusMode: false,
-};
+} as { isTracking: boolean; isPaused: boolean; isFocusMode: boolean };
 
 const mockTodaySummary = {
   totalDuration: 11520, // 3h 12m in seconds (192 * 60)
@@ -96,6 +96,78 @@ const mockTodaySummary = {
     { date: '2024-01-14', dayName: 'Dom', hours: 3.2, isToday: true },
   ],
 };
+
+// Mock "Tracking Stopped" sessions — mirrors what the real backend does
+const mockTrackingStoppedSessions: Array<{
+  id: string;
+  startUtc: string;
+  endUtc: string;
+}> = [];
+
+// Stable mock activities — generated once so they don't change on every poll
+type MockActivity = {
+  id: string; name: string; startUtc: string; endUtc: string;
+  duration: number; productivity: string; subcategory: string; color: string;
+};
+let cachedBaseActivities: MockActivity[] | null = null;
+
+function buildMockActivities() {
+  // Generate base activities once (stable across polls)
+  if (!cachedBaseActivities) {
+    const now = new Date();
+    const h = now.getHours();
+    const baseHour = Math.max(8, h - 3);
+    const apps = [
+      { name: 'VS Code', color: '#38bdf8', prod: 'productive', sub: 'development' },
+      { name: 'Chrome', color: '#f472b6', prod: 'neutral', sub: 'browsing' },
+      { name: 'Slack', color: '#fb923c', prod: 'neutral', sub: 'communication' },
+      { name: 'Terminal', color: '#34d399', prod: 'productive', sub: 'development' },
+    ];
+    const durations = [20, 35, 15, 25, 30, 18, 22, 28];
+    cachedBaseActivities = [];
+    let currentMinute = 0;
+    for (let i = 0; i < 8 && baseHour + Math.floor(currentMinute / 60) < h; i++) {
+      const app = apps[i % apps.length];
+      const durMin = durations[i];
+      const start = new Date(now);
+      start.setHours(baseHour, currentMinute % 60, 0, 0);
+      start.setHours(start.getHours() + Math.floor(currentMinute / 60));
+      const end = new Date(start.getTime() + durMin * 60000);
+      if (end.getTime() > now.getTime()) break;
+      cachedBaseActivities.push({
+        id: `mock-${i}`,
+        name: app.name,
+        startUtc: start.toISOString(),
+        endUtc: end.toISOString(),
+        duration: durMin * 60,
+        productivity: app.prod,
+        subcategory: app.sub,
+        color: app.color,
+      });
+      currentMinute += durMin + 2;
+    }
+  }
+
+  // Combine stable activities with dynamic "Tracking Stopped" sessions
+  const activities: MockActivity[] = [...cachedBaseActivities];
+
+  for (const session of mockTrackingStoppedSessions) {
+    const s = new Date(session.startUtc).getTime();
+    const e = new Date(session.endUtc).getTime();
+    activities.push({
+      id: session.id,
+      name: 'Tracking Stopped',
+      startUtc: session.startUtc,
+      endUtc: session.endUtc,
+      duration: Math.floor((e - s) / 1000),
+      productivity: 'neutral',
+      subcategory: 'system_event',
+      color: '#f87171',
+    });
+  }
+
+  return { activities };
+}
 
 const mockCurrentStatus = {
   state: 'running' as const,
@@ -139,6 +211,49 @@ class MockIpcClient implements IIpcClient {
   ): Promise<IpcResponse<void>> {
     await this.delay(50);
     console.log('[MockIPC] Command executed:', command);
+
+    // Simulate Tracking state changes for development
+    if (command === 'startTracking') {
+      // Extend the last "Tracking Stopped" placeholder (mirrors real backend)
+      const last = mockTrackingStoppedSessions[mockTrackingStoppedSessions.length - 1];
+      if (last) {
+        last.endUtc = new Date().toISOString();
+      }
+      mockTrackingState.isTracking = true;
+      mockTrackingState.isPaused = false;
+      console.log('[MockIPC] Tracking started');
+    } else if (command === 'stopTracking') {
+      // Create a 1s placeholder session (mirrors real backend)
+      const now = Date.now();
+      mockTrackingStoppedSessions.push({
+        id: `tracking-stopped-${now}`,
+        startUtc: new Date(now).toISOString(),
+        endUtc: new Date(now + 1000).toISOString(),
+      });
+      mockTrackingState.isTracking = false;
+      mockTrackingState.isPaused = false;
+      console.log('[MockIPC] Tracking stopped');
+    } else if (command === 'pauseTracking') {
+      // Create a 1s placeholder session (mirrors real backend)
+      const now = Date.now();
+      mockTrackingStoppedSessions.push({
+        id: `tracking-stopped-${now}`,
+        startUtc: new Date(now).toISOString(),
+        endUtc: new Date(now + 1000).toISOString(),
+      });
+      mockTrackingState.isTracking = false;
+      mockTrackingState.isPaused = true;
+      console.log('[MockIPC] Tracking paused');
+    } else if (command === 'resumeTracking') {
+      // Extend the last "Tracking Stopped" placeholder (mirrors real backend)
+      const last = mockTrackingStoppedSessions[mockTrackingStoppedSessions.length - 1];
+      if (last) {
+        last.endUtc = new Date().toISOString();
+      }
+      mockTrackingState.isTracking = true;
+      mockTrackingState.isPaused = false;
+      console.log('[MockIPC] Tracking resumed');
+    }
 
     // Simulate Focus Mode state changes for development
     if (command === 'startFocusMode') {
@@ -196,6 +311,7 @@ class MockIpcClient implements IIpcClient {
     const mockData: Record<string, unknown> = {
       getTrackingState: mockTrackingState,
       getTodaySummary: mockTodaySummary,
+      getRecentActivities: buildMockActivities(),
       getCurrentStatus: mockCurrentStatus,
       getSyncState: mockSyncState,
       getFocusModeState: { ...mockFocusModeState, timestamp: new Date().toISOString() },

@@ -27,7 +27,9 @@
       "Bash(PGPASSWORD='npg_y6PlhoBZJ9QS' psql -h ep-billowing-snow-adnjkioj-pooler.c-2.us-east-1.aws.neon.tech -U neondb_owner -d neondb -c \":*)",
       "Bash(findstr ':5000 :5001 :5174 :8080 :3000')",
       "Bash(timeout 10)",
-      "Read(//c/Users/jr_ju/Repo/TimeTracking/**)"
+      "Read(//c/Users/jr_ju/Repo/TimeTracking/**)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(pkill -f \"vite\")"
     ]
   }
 }
