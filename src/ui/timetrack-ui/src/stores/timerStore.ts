@@ -48,7 +48,7 @@ export interface SessionRecord {
 // CONFIG
 // ============================================================================
 
-export const CONFIGS: Record<TimerMode, TimerConfig> = {
+export const DEFAULT_CONFIGS: Record<TimerMode, TimerConfig> = {
   pomodoro: {
     focusMs: 25 * 60000,
     shortBreakMs: 5 * 60000,
@@ -62,6 +62,43 @@ export const CONFIGS: Record<TimerMode, TimerConfig> = {
     cyclesBeforeLong: 1,
   },
 };
+
+const TIMER_CONFIG_KEY = 'timetrack-timer-config';
+
+/**
+ * Read user's timer config from localStorage, merging with defaults.
+ * Stored as JSON: { pomodoro: {...}, ultradian: {...} }
+ */
+export function getUserTimerConfig(mode: TimerMode): TimerConfig {
+  try {
+    const raw = localStorage.getItem(TIMER_CONFIG_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const modeConfig = parsed[mode];
+      if (modeConfig) {
+        return {
+          focusMs: (modeConfig.focusMs ?? DEFAULT_CONFIGS[mode].focusMs),
+          shortBreakMs: (modeConfig.shortBreakMs ?? DEFAULT_CONFIGS[mode].shortBreakMs),
+          longBreakMs: (modeConfig.longBreakMs ?? DEFAULT_CONFIGS[mode].longBreakMs),
+          cyclesBeforeLong: (modeConfig.cyclesBeforeLong ?? DEFAULT_CONFIGS[mode].cyclesBeforeLong),
+        };
+      }
+    }
+  } catch { /* fall through */ }
+  return DEFAULT_CONFIGS[mode];
+}
+
+export function saveUserTimerConfig(mode: TimerMode, config: TimerConfig): void {
+  try {
+    const raw = localStorage.getItem(TIMER_CONFIG_KEY);
+    const existing = raw ? JSON.parse(raw) : {};
+    existing[mode] = config;
+    localStorage.setItem(TIMER_CONFIG_KEY, JSON.stringify(existing));
+  } catch { /* ignore */ }
+}
+
+/** @deprecated Use getUserTimerConfig instead */
+export const CONFIGS = DEFAULT_CONFIGS;
 
 export function getUltradianWaves(): number {
   try {
@@ -182,8 +219,8 @@ export const useTimerStore = create<TimerState>()(
       (set, get) => ({
     mode: 'pomodoro' as TimerMode,
     phase: 'idle' as TimerPhase,
-    remainingMs: CONFIGS.pomodoro.focusMs,
-    totalMs: CONFIGS.pomodoro.focusMs,
+    remainingMs: getUserTimerConfig('pomodoro').focusMs,
+    totalMs: getUserTimerConfig('pomodoro').focusMs,
     cycle: 0,
     isPaused: false,
     ultradianWaves: getUltradianWaves(),
@@ -201,7 +238,7 @@ export const useTimerStore = create<TimerState>()(
 
     setMode: (mode) => {
       if (get().phase !== 'idle') return;
-      const config = CONFIGS[mode];
+      const config = getUserTimerConfig(mode);
       set({
         mode,
         remainingMs: config.focusMs,
@@ -212,7 +249,7 @@ export const useTimerStore = create<TimerState>()(
 
     start: () => {
       const { mode } = get();
-      const config = CONFIGS[mode];
+      const config = getUserTimerConfig(mode);
       const waves = getUltradianWaves();
       set({
         phase: 'focus',
@@ -262,7 +299,7 @@ export const useTimerStore = create<TimerState>()(
           get()._recordSession(state.phase as 'focus' | 'break');
         }
       }
-      const config = CONFIGS[get().mode];
+      const config = getUserTimerConfig(get().mode);
       set({
         phase: 'idle',
         isPaused: false,
@@ -283,7 +320,7 @@ export const useTimerStore = create<TimerState>()(
       // Stop any running timer, but keep sessions — they are tagged by userId
       // and filtered per-user via selectCurrentUserSessions.
       clearTickInterval();
-      const config = CONFIGS[get().mode];
+      const config = getUserTimerConfig(get().mode);
       set({
         phase: 'idle',
         isPaused: false,
@@ -319,7 +356,7 @@ export const useTimerStore = create<TimerState>()(
 
     _handlePhaseComplete: () => {
       const state = get();
-      const config = CONFIGS[state.mode];
+      const config = getUserTimerConfig(state.mode);
 
       // Record the completed phase
       get()._recordSession(state.phase as 'focus' | 'break');
@@ -368,7 +405,7 @@ export const useTimerStore = create<TimerState>()(
 
     _recordSession: (ph) => {
       const state = get();
-      const config = CONFIGS[state.mode];
+      const config = getUserTimerConfig(state.mode);
       const effectiveNow = state.isPaused ? state.pausedAt : Date.now();
       const durationMs = effectiveNow - state.phaseStartedAt - state.pausedElapsedMs;
 

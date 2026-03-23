@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Windows.Forms;
 using Microsoft.Extensions.Logging;
 using TimeTrack.DesktopHost.Ipc;
@@ -8,7 +9,9 @@ using TimeTrack.DesktopHost.Ipc;
 namespace TimeTrack.DesktopHost.UI;
 
 /// <summary>
-/// Manages the system tray icon and context menu
+/// Manages the system tray icon and context menu.
+/// Listens to trackingStateChanged events so the tray stays in sync
+/// regardless of whether pause/resume was triggered from the tray or the UI.
 /// </summary>
 public sealed class TrayIconManager : IDisposable
 {
@@ -38,6 +41,46 @@ public sealed class TrayIconManager : IDisposable
 
         _contextMenu = CreateContextMenu();
         _notifyIcon = CreateNotifyIcon();
+
+        // Subscribe to IPC events so the tray stays in sync when tracking
+        // is paused/resumed from the UI (not just from the tray menu).
+        _ipcClient.EventReceived += OnIpcEventReceived;
+    }
+
+    private void OnIpcEventReceived(object? sender, IpcEventArgs e)
+    {
+        if (e.EventType != "trackingStateChanged") return;
+
+        try
+        {
+            var isPaused = false;
+            var isTracking = true;
+
+            if (e.Payload.TryGetProperty("isPaused", out var pausedEl))
+                isPaused = pausedEl.GetBoolean();
+            if (e.Payload.TryGetProperty("isTracking", out var trackingEl))
+                isTracking = trackingEl.GetBoolean();
+
+            var shouldShowPaused = !isTracking || isPaused;
+
+            if (_isTrackingPaused != shouldShowPaused)
+            {
+                _isTrackingPaused = shouldShowPaused;
+
+                // UI updates must happen on the UI thread
+                if (_mainForm.InvokeRequired)
+                    _mainForm.BeginInvoke(new Action(UpdatePauseMenuItem));
+                else
+                    UpdatePauseMenuItem();
+
+                _logger.LogInformation("Tray synced with tracking state: {State}",
+                    _isTrackingPaused ? "Paused" : "Active");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sync tray with tracking state event");
+        }
     }
 
     private NotifyIcon CreateNotifyIcon()
@@ -165,8 +208,15 @@ public sealed class TrayIconManager : IDisposable
     {
         try
         {
-            var command = _isTrackingPaused ? "pauseTracking" : "resumeTracking";
-            await _ipcClient.SendCommandAsync(command);
+            if (_isTrackingPaused)
+            {
+                // Send pause with reason so the activity session is labeled correctly
+                await _ipcClient.SendCommandAsync("pauseTracking", new { reason = "Tracking Stopped" });
+            }
+            else
+            {
+                await _ipcClient.SendCommandAsync("startTracking");
+            }
             _logger.LogInformation("Tracking state changed to: {State}", _isTrackingPaused ? "Paused" : "Active");
         }
         catch (Exception ex)
@@ -220,6 +270,7 @@ public sealed class TrayIconManager : IDisposable
             return;
 
         _isDisposed = true;
+        _ipcClient.EventReceived -= OnIpcEventReceived;
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _contextMenu.Dispose();

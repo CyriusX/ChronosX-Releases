@@ -1,21 +1,26 @@
 /**
  * Settings Components Barrel Export
- *
- * SOLID:
- * - ISP: Cada componente exportado tem responsabilidade única
- * - OCP: Novos componentes podem ser adicionados sem modificar existentes
  */
 
+// Page & Navigation
 export { SettingsPage } from './SettingsPage';
-export { SettingsTabs } from './SettingsTabs';
-export type { SettingsTab } from './SettingsTabs';
-export { PreferencesSection } from './PreferencesSection';
+export { SettingsSidebar } from './SettingsSidebar';
+
+// Sections
+export { ProfileSection } from './ProfileSection';
+export { GeneralSection } from './GeneralSection';
+export { NotificationsSection } from './NotificationsSection';
+export { FocusTimerSection } from './FocusTimerSection';
+export { OrganizationSection } from './OrganizationSection';
 export { AboutSection } from './AboutSection';
+
+// Team / Members
 export { MembersSection } from './MembersSection';
 export { MembersList } from './MembersList';
 export { MemberCard } from './MemberCard';
 export { InviteForm } from './InviteForm';
-export { OrgPoliciesCard } from './OrgPoliciesCard';
+
+// Organization Policy Cards
 export { PolicyCards } from './PolicyCards';
 export { PolicyCardShell } from './PolicyCardShell';
 export { WorkHoursCard } from './WorkHoursCard';
@@ -25,7 +30,7 @@ export { RetentionCard } from './RetentionCard';
 export { FocusModeCard } from './FocusModeCard';
 export { usePolicyCards } from './usePolicyCards';
 
-// App Categories (CX-144)
+// App Categories
 export { AppCategoriesSection } from './AppCategoriesSection';
 export { AppCategoriesList } from './AppCategoriesList';
 export { AppCategoryOverrideModal } from './AppCategoryOverrideModal';

@@ -1,42 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-// animation constants
 import { SkeletonShimmer } from '../ui/SkeletonShimmer';
-import { SettingsTabs, type SettingsTab } from './SettingsTabs';
-import { PreferencesSection } from './PreferencesSection';
+import { SettingsSidebar } from './SettingsSidebar';
+import { ProfileSection } from './ProfileSection';
+import { GeneralSection } from './GeneralSection';
+import { NotificationsSection } from './NotificationsSection';
+import { FocusTimerSection } from './FocusTimerSection';
 import { AboutSection } from './AboutSection';
 import { MembersSection } from './MembersSection';
-import { PolicyCards } from './PolicyCards';
-import { AppCategoriesSection } from './AppCategoriesSection';
+import { OrganizationSection } from './OrganizationSection';
 import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useAuthStore, selectAccessToken } from '../../stores/authStore';
 import { getOrgPolicy, updateOrgPolicy } from '../../services/policyApi';
 import type { LocalSettings, UpdateLocalSettingsRequest, OrgPolicyResponse, UpdateOrgPolicyRequest } from '../../types/settings';
+import type { SettingsSection } from '../../types/settingsNav';
 
 /**
  * SettingsPage - Página de configurações
  *
  * Layout:
- * - Sidebar à esquerda (reutilizada do Dashboard)
- * - Área principal com:
- *   - Header com título e botão voltar
- *   - Tabs (Preferências | Membros* | Sobre)
- *   - Conteúdo da aba
- *   - Grid de PolicyCards (políticas da organização)
+ * - Settings sidebar à esquerda (navegação de seções)
+ * - Área de conteúdo scrollável à direita
  *
- * * Membros visível apenas para Admin/Gestor
- *
- * SOLID:
- * - SRP: Apenas orquestração da UI de settings
- * - DIP: Usa hooks para comunicação
- * - OCP: Extensível para novas abas
- *
- * Composition:
- * - Composição de SettingsTabs + Sections + PolicyCards
+ * Seções:
+ * - Pessoal: Perfil, Geral, Notificações, Foco & Timer
+ * - Gestão (Admin/Gestor): Equipe, Organização
+ * - Sistema: Sobre
  */
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -45,8 +38,9 @@ export function SettingsPage() {
   const { canManageTeam, canViewOrgPolicies, canEditOrgPolicies } = usePermissions();
   const accessToken = useAuthStore(selectAccessToken);
   const user = useAuthStore((state) => state.user);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('preferences');
+  const [activeSection, setActiveSection] = useState<SettingsSection>('profile');
   const [settings, setSettings] = useState<LocalSettings | null>(null);
   const [policy, setPolicy] = useState<OrgPolicyResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,7 +69,6 @@ export function SettingsPage() {
         } catch (error) {
           console.error('[Settings] Error fetching policies:', error);
           setPolicyError('Não foi possível carregar as políticas da organização');
-          // Keep policy as null to show error state
         }
       }
     } catch (error) {
@@ -102,10 +95,9 @@ export function SettingsPage() {
     try {
       const result = await sendCommand('updateSettings', updates);
       if (!result.success) {
-        // Revert on error
         console.error('[Settings] Failed to update:', result.error);
         notify.error('Erro ao salvar configurações');
-        await loadSettings(); // Reload from server
+        await loadSettings();
       } else {
         notify.success('Configurações salvas');
       }
@@ -129,7 +121,7 @@ export function SettingsPage() {
     } catch (error) {
       console.error('[Settings] Error updating policy:', error);
       notify.error('Erro ao atualizar políticas');
-      throw error; // Re-throw to let the component handle it
+      throw error;
     }
   };
 
@@ -137,99 +129,141 @@ export function SettingsPage() {
     navigate(-1);
   };
 
+  const handleSectionChange = (section: SettingsSection) => {
+    setActiveSection(section);
+    contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const renderSection = () => {
+    switch (activeSection) {
+      case 'profile':
+        return <ProfileSection />;
+      case 'general':
+        return settings ? (
+          <GeneralSection settings={settings} onUpdate={handleUpdateSettings} />
+        ) : null;
+      case 'notifications':
+        return settings ? (
+          <NotificationsSection settings={settings} onUpdate={handleUpdateSettings} />
+        ) : null;
+      case 'focus-timer':
+        return <FocusTimerSection />;
+      case 'team':
+        return canManageTeam ? <MembersSection /> : null;
+      case 'organization':
+        return canViewOrgPolicies ? (
+          policy ? (
+            <OrganizationSection
+              policy={policy}
+              onUpdate={handleUpdatePolicy}
+              canEdit={canEditOrgPolicies}
+              accessToken={accessToken}
+              orgId={user?.orgId as string}
+            />
+          ) : policyError ? (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Organização</h2>
+                <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
+                  Políticas e configurações da organização
+                </p>
+              </div>
+              <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,107,107,0.2)] rounded-2xl p-6">
+                <p className="text-[14px] text-[#ff6b6b]">{policyError}</p>
+                <button
+                  onClick={loadSettings}
+                  className="mt-3 text-[12px] text-[#4ad9ff] hover:underline"
+                >
+                  Tentar novamente
+                </button>
+              </div>
+            </div>
+          ) : null
+        ) : null;
+      case 'about':
+        return <AboutSection />;
+      default:
+        return null;
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="flex-1 p-6 space-y-6">
-        <SkeletonShimmer width={200} height={24} />
-        <SkeletonShimmer width={400} height={40} rounded="rounded-xl" />
-        <div className="space-y-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <SkeletonShimmer key={i} height={80} rounded="rounded-xl" />
+      <div className="flex-1 flex">
+        {/* Sidebar skeleton */}
+        <div className="hidden md:flex flex-col w-[220px] flex-shrink-0 border-r border-[rgba(255,255,255,0.04)] p-4 gap-3">
+          <SkeletonShimmer width={80} height={12} />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonShimmer key={i} height={36} rounded="rounded-lg" />
           ))}
+          <div className="mt-2" />
+          <SkeletonShimmer width={80} height={12} />
+          {Array.from({ length: 2 }).map((_, i) => (
+            <SkeletonShimmer key={`m${i}`} height={36} rounded="rounded-lg" />
+          ))}
+        </div>
+        {/* Content skeleton */}
+        <div className="flex-1 p-6 space-y-6">
+          <SkeletonShimmer width={200} height={24} />
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonShimmer key={i} height={80} rounded="rounded-xl" />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <main className="flex-1 overflow-auto p-6">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="flex items-center justify-between mb-6"
-      >
-        <div className="flex items-center gap-4">
-          <motion.button
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleGoBack}
-            className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
-          </motion.button>
-          <div>
-            <h1 className="text-[20px] font-semibold text-[#f5f7fb]">Configurações</h1>
-            <p className="text-[12px] text-[rgba(245,247,251,0.4)]">
-              Gerencie suas preferências pessoais
-            </p>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Tabs */}
-      <div className="mb-6">
-        <SettingsTabs
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          showMembersTab={canManageTeam}
-          showAppsTab={canViewOrgPolicies}
-        />
-      </div>
+    <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      {/* Settings Sidebar */}
+      <SettingsSidebar
+        activeSection={activeSection}
+        onSectionChange={handleSectionChange}
+        canManageTeam={canManageTeam}
+        canViewOrgPolicies={canViewOrgPolicies}
+      />
 
       {/* Content Area */}
-      <div className="space-y-8">
-        {/* Tab Content */}
+      <div ref={contentRef} className="flex-1 overflow-auto p-6">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="flex items-center justify-between mb-6"
+        >
+          <div className="flex items-center gap-4">
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleGoBack}
+              className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
+            </motion.button>
+            <div>
+              <h1 className="text-[20px] font-semibold text-[#f5f7fb]">Configurações</h1>
+              <p className="text-[12px] text-[rgba(245,247,251,0.4)]">
+                Gerencie suas preferências e configurações
+              </p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Section Content */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
+            key={activeSection}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2 }}
           >
-            {activeTab === 'preferences' && settings && (
-              <PreferencesSection settings={settings} onUpdate={handleUpdateSettings} />
-            )}
-            {activeTab === 'members' && canManageTeam && <MembersSection />}
-            {activeTab === 'apps' && canViewOrgPolicies && user && user.orgId && (
-              <AppCategoriesSection accessToken={accessToken} orgId={user.orgId as string} />
-            )}
-            {activeTab === 'about' && <AboutSection />}
+            {renderSection()}
           </motion.div>
         </AnimatePresence>
-
-        {/* Policy Cards - Apenas Admin/Gestor */}
-        {canViewOrgPolicies && (
-          policy ? (
-            <PolicyCards
-              policy={policy}
-              onUpdate={handleUpdatePolicy}
-              canEdit={canEditOrgPolicies}
-            />
-          ) : policyError ? (
-            <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,107,107,0.2)] rounded-2xl p-6">
-              <p className="text-[14px] text-[#ff6b6b]">{policyError}</p>
-              <button
-                onClick={loadSettings}
-                className="mt-3 text-[12px] text-[#4ad9ff] hover:underline"
-              >
-                Tentar novamente
-              </button>
-            </div>
-          ) : null
-        )}
       </div>
     </main>
   );
