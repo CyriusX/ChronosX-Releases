@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Play, Pause, Square, SkipForward, ChevronDown, Focus, Activity, Coffee } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { useIpc } from '../../../hooks/useIpc';
-import { useTimerStore, CONFIGS, type TimerPhase } from '../../../stores/timerStore';
+import { useTimerStore, getUserTimerConfig, type TimerPhase } from '../../../stores/timerStore';
 import type { TodaySummaryResponse } from '../../../types/ipc';
 
 interface TimerFocusCardProps {
@@ -53,7 +53,7 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
   }, [sendQuery]);
 
   // --- Computed ---
-  const config = CONFIGS[mode];
+  const config = getUserTimerConfig(mode);
   const totalSec = Math.max(0, Math.ceil(remainingMs / 1000));
   const minutes = Math.floor(totalSec / 60);
   const seconds = totalSec % 60;
