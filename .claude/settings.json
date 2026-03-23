@@ -29,7 +29,8 @@
       "Bash(timeout 10)",
       "Read(//c/Users/jr_ju/Repo/TimeTracking/**)",
       "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
-      "Bash(pkill -f \"vite\")"
+      "Bash(pkill -f \"vite\")",
+      "Bash(find /c/Users/jr_ju/Repo/TimeTracking -type f \\\\\\(-name *Settings* -o -name *settings* \\\\\\))"
     ]
   }
 }
