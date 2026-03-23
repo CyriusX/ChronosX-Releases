@@ -54,6 +54,7 @@ function App() {
       <div className="min-h-screen bg-zinc-950 text-zinc-50">
         <AnimatedRoutes />
         <Toaster />
+        <TrackingStoppedOverlay />
       </div>
     </BrowserRouter>
   );
@@ -122,6 +123,28 @@ function AnimatedRoutes() {
         </Routes>
       </AnimatedPage>
     </AnimatePresence>
+  );
+}
+
+/**
+ * Isolated component — subscribes to tracking store without re-rendering App or AnimatedRoutes.
+ */
+function TrackingStoppedOverlay() {
+  const isTracking = useTrackingStore(s => s.isTracking);
+  const isPaused = useTrackingStore(s => s.isPaused);
+  const { isAuthenticated } = useAuthStore();
+
+  const isActive = isTracking && !isPaused;
+
+  if (!isAuthenticated || isActive) return null;
+
+  return (
+    <div className="fixed inset-0 pointer-events-none flex items-center justify-center" style={{ zIndex: 1 }}>
+      <div className="absolute inset-0 bg-[rgba(140,20,20,0.06)]" />
+      <span className="relative text-[clamp(3rem,8vw,7rem)] font-black uppercase tracking-widest text-[rgba(220,38,38,0.06)] select-none whitespace-nowrap">
+        Tracking Stopped
+      </span>
+    </div>
   );
 }
 

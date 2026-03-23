@@ -17,7 +17,7 @@ import { Sidebar } from '../components/dashboard';
 import { Card, CardContent } from '../components/ui/card';
 import { useIpc } from '../hooks/useIpc';
 import { FocusDayTimeline, type TimelineActivityBlock } from '../components/timer/FocusDayTimeline';
-import { useTimerStore, selectCurrentUserSessions, CONFIGS, type TimerPhase } from '../stores/timerStore';
+import { useTimerStore, selectCurrentUserSessions, getUserTimerConfig, type TimerPhase } from '../stores/timerStore';
 import { fadeUp, fadeIn, scaleIn, slideLeft, staggerContainer, STAGGER, SPRING, TIMING } from '../lib/animation';
 
 // ============================================================================
@@ -95,7 +95,7 @@ export default function Timer() {
   }, [sendQuery]);
 
   // --- Computed values ---
-  const config = CONFIGS[mode];
+  const config = getUserTimerConfig(mode);
   const progress = totalMs > 0 ? 1 - (remainingMs / totalMs) : 0;
   const timeDisplay = fmtDuration(remainingMs);
 

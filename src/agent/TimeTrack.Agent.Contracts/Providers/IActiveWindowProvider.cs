@@ -51,4 +51,11 @@ public sealed record ActiveWindowInfo
     /// Ex: "c:\Projetos\TimeTracking" para Windows Explorer
     /// </summary>
     public string? FilePath { get; init; }
+
+    /// <summary>
+    /// URL do browser (quando a janela ativa é um navegador).
+    /// Extraído via UI Automation da barra de endereço.
+    /// Ex: "https://github.com/my-repo/issues"
+    /// </summary>
+    public string? BrowserUrl { get; init; }
 }

@@ -26,6 +26,12 @@ public sealed record RecordActiveWindowRequest
     public string? FilePath { get; init; }
 
     /// <summary>
+    /// URL do browser (quando a janela ativa é um navegador).
+    /// Ex: "https://github.com/my-repo/issues"
+    /// </summary>
+    public string? BrowserUrl { get; init; }
+
+    /// <summary>
     /// Momento da captura (UTC)
     /// </summary>
     public DateTime CapturedAt { get; init; } = DateTime.UtcNow;

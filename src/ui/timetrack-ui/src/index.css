@@ -46,6 +46,21 @@ body {
   color: rgb(250 250 250);
 }
 
+/* Native select & option dark theme */
+select {
+  background-color: #0b0d14;
+  color: #f5f7fb;
+}
+
+select option {
+  background-color: #1a1d2e;
+  color: #f5f7fb;
+}
+
+select option:checked {
+  background-color: #2a2d3e;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

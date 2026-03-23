@@ -1,8 +1,11 @@
-import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Cog, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Cog, LogOut, Play, Square, Loader2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { NavItem } from './shared';
 import { useAuthStore } from '../../stores/authStore';
+import { useTrackingStore } from '../../stores/trackingStore';
+import { useIpc } from '../../hooks/useIpc';
 import { SPRING } from '../../lib/animation';
 import logoImg from '../../assets/logo-64.png';
 
@@ -10,15 +13,40 @@ export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuthStore();
+  const isTracking = useTrackingStore(s => s.isTracking);
+  const isPaused = useTrackingStore(s => s.isPaused);
+  const { sendCommand } = useIpc();
+  const [isBusy, setIsBusy] = useState(false);
+
+  const isActive = isTracking && !isPaused;
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
+  const setTracking = useTrackingStore(s => s.setTracking);
+  const setPaused = useTrackingStore(s => s.setPaused);
+
+  const handleToggleTracking = async () => {
+    if (isBusy) return;
+    setIsBusy(true);
+    try {
+      if (isActive) {
+        const res = await sendCommand('pauseTracking', { reason: 'Tracking Stopped' });
+        if (res.success) { setTracking(false); setPaused(true); }
+      } else {
+        const res = await sendCommand('startTracking');
+        if (res.success) { setTracking(true); setPaused(false); }
+      }
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
   return (
     <aside className="w-[180px] flex-shrink-0 bg-gradient-to-b from-[rgba(11,13,20,0.5)] to-[rgba(17,19,28,0.5)] border-r border-[rgba(255,255,255,0.04)] flex flex-col overflow-hidden">
-      {/* Logo */}
+      {/* Logo + Tracking LED */}
       <div className="px-4 py-5 flex-shrink-0">
         <div className="flex items-center gap-2">
           <motion.img
@@ -37,6 +65,28 @@ export function Sidebar() {
           >
             ChronosX
           </motion.span>
+
+          {/* Tracking Status LED */}
+          <motion.div
+            className="ml-auto flex-shrink-0 relative"
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4, duration: 0.3 }}
+            title={isActive ? 'Monitoramento ativo' : 'Monitoramento inativo'}
+          >
+            {isActive && (
+              <motion.div
+                className="absolute inset-0 rounded-full bg-[#05df72]"
+                animate={{ opacity: [0.4, 0.1, 0.4], scale: [1, 1.8, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            )}
+            <div
+              className={`w-2.5 h-2.5 rounded-full relative ${
+                isActive ? 'bg-[#05df72] shadow-[0_0_6px_rgba(5,223,114,0.5)]' : 'bg-[#f87171] shadow-[0_0_6px_rgba(248,113,113,0.4)]'
+              }`}
+            />
+          </motion.div>
         </div>
       </div>
 
@@ -49,6 +99,38 @@ export function Sidebar() {
         <NavItem icon={<CalendarDays className="w-[16px] h-[16px]" />} label="Relatórios" active={location.pathname === '/reports'} onClick={() => navigate('/reports')} />
         <NavItem icon={<Cog className="w-[16px] h-[16px]" />} label="Configurações" active={location.pathname === '/settings'} onClick={() => navigate('/settings')} />
       </nav>
+
+      {/* Tracking Toggle Button — above separator & user section */}
+      <div className="px-3 pb-2 flex-shrink-0">
+        <button
+          onClick={handleToggleTracking}
+          disabled={isBusy}
+          className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all ${
+            isBusy
+              ? 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[rgba(245,247,251,0.4)] cursor-not-allowed'
+              : isActive
+                ? 'bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.2)] text-[#f87171] hover:bg-[rgba(248,113,113,0.14)]'
+                : 'bg-[rgba(5,223,114,0.08)] border border-[rgba(5,223,114,0.2)] text-[#05df72] hover:bg-[rgba(5,223,114,0.14)]'
+          }`}
+        >
+          {isBusy ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {isActive ? 'Parando...' : 'Iniciando...'}
+            </>
+          ) : isActive ? (
+            <>
+              <Square className="w-3.5 h-3.5" />
+              Parar Monitoramento
+            </>
+          ) : (
+            <>
+              <Play className="w-3.5 h-3.5" />
+              Retomar Monitoramento
+            </>
+          )}
+        </button>
+      </div>
 
       {/* User & Logout */}
       <motion.div
