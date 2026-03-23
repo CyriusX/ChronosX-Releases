@@ -82,8 +82,11 @@ public sealed class RecordActiveWindowUseCase
             };
         }
 
-        // Cria identidade da aplicação
-        var appIdentity = CreateAppIdentity(request);
+        // Extract site name from browser window title (e.g., "Telegram Web", "YouTube", "GitHub")
+        var siteName = request.BrowserUrl; // BrowserUrl carries the extracted site name from title parsing
+
+        // Cria identidade da aplicação (uses site name for browser categorization when available)
+        var appIdentity = CreateAppIdentity(request, siteName);
 
         // Cria hash da janela para agrupamento
         var windowHash = ComputeWindowHash(request.WindowTitle);
@@ -108,18 +111,18 @@ public sealed class RecordActiveWindowUseCase
         }
         else
         {
-            // Cria nova sessão (com userId)
+            // Cria nova sessão (com userId e domínio)
             var period = new TimeRange(
                 request.CapturedAt,
                 request.CapturedAt.AddSeconds(DefaultCaptureIntervalSeconds));
 
-            session = ActivitySession.Create(userId, appIdentity, period, windowHash, request.WindowTitle, request.FilePath);
+            session = ActivitySession.Create(userId, appIdentity, period, windowHash, request.WindowTitle, request.FilePath, siteName);
             await SaveSessionWithOutboxAsync(session, cancellationToken);
             isNewSession = true;
 
             _logger.LogDebug(
-                "Created new session for {App}",
-                appIdentity.DisplayName);
+                "Created new session for {App} (site: {Site})",
+                appIdentity.DisplayName, siteName ?? "N/A");
         }
 
         return new RecordActiveWindowResponse
@@ -175,17 +178,31 @@ public sealed class RecordActiveWindowUseCase
 
     /// <summary>
     /// Cria a identidade da aplicação a partir do request.
-    /// For browsers, uses the tab/site title as DisplayName and classifies by site.
+    /// For browsers, uses the browser product name (e.g. "Google Chrome") as DisplayName
+    /// and classifies productivity by the extracted site name (priority) or full tab title (fallback).
+    /// Tab/site details are tracked separately via WindowTitle/Domain on the session.
     /// </summary>
-    private static AppIdentity CreateAppIdentity(RecordActiveWindowRequest request)
+    private static AppIdentity CreateAppIdentity(RecordActiveWindowRequest request, string? siteName)
     {
         var exePathHash = ComputeHash(request.ExecutablePath);
 
         if (IsBrowser(request.ExecutablePath))
         {
-            var tabTitle = ExtractBrowserTabTitle(request.WindowTitle, request.ApplicationName);
-            var category = BrowserTabCategorizer.Classify(tabTitle);
-            return new AppIdentity(exePathHash, tabTitle, category);
+            // Classify by extracted site name first (e.g. "Telegram Web", "YouTube"),
+            // fall back to full tab title if no site name was extracted.
+            var classifyTarget = !string.IsNullOrWhiteSpace(siteName)
+                ? siteName
+                : ExtractBrowserTabTitle(request.WindowTitle, request.ApplicationName);
+
+            var tabCategory = BrowserTabCategorizer.Classify(classifyTarget);
+
+            // DisplayName = "Browser - Site" (e.g. "Google Chrome - Telegram Web")
+            // Falls back to just the browser name if no site was extracted.
+            var displayName = !string.IsNullOrWhiteSpace(siteName)
+                ? $"{request.ApplicationName} - {siteName}"
+                : request.ApplicationName;
+
+            return new AppIdentity(exePathHash, displayName, tabCategory);
         }
 
         var appCategory = AppCategorizer.Classify(request.ExecutablePath, request.ApplicationName);
@@ -194,17 +211,29 @@ public sealed class RecordActiveWindowUseCase
 
     /// <summary>
     /// Verifica se pode estender a sessão existente.
-    /// Sessions extend when both the executable AND display name match.
-    /// For browsers, DisplayName is the tab/site title, so tab changes create new sessions.
-    /// For regular apps, DisplayName is always the same product name.
+    /// Sessions extend when the executable, display name AND window hash all match.
+    /// For browsers: DisplayName is the browser name (e.g. "Google Chrome") so it always
+    /// matches for the same browser. The WindowHash detects tab/site changes — switching
+    /// from youtube.com to github.com creates a new session under the same browser name.
+    /// For regular apps: DisplayName and WindowHash both stay constant while focused.
     /// </summary>
     private static bool CanExtendSession(
         ActivitySession session,
         AppIdentity newApp,
         string? newWindowHash)
     {
-        return session.App.ExePathHash == newApp.ExePathHash
-            && session.App.DisplayName == newApp.DisplayName;
+        if (session.App.ExePathHash != newApp.ExePathHash)
+            return false;
+
+        if (session.App.DisplayName != newApp.DisplayName)
+            return false;
+
+        // Compare window hash to detect tab/page changes within the same app.
+        // If both are non-null and differ, a new session should be created.
+        if (session.WindowHash != null && newWindowHash != null)
+            return session.WindowHash == newWindowHash;
+
+        return true;
     }
 
     /// <summary>
@@ -276,7 +305,8 @@ public sealed class RecordActiveWindowUseCase
             EndUtc = session.Period.EndUtc,
             WindowHash = session.WindowHash,
             WindowTitle = session.WindowTitle,
-            FilePath = session.FilePath
+            FilePath = session.FilePath,
+            Domain = session.Domain
         };
     }
 
@@ -296,5 +326,6 @@ public sealed class RecordActiveWindowUseCase
         public string? WindowHash { get; init; }
         public string? WindowTitle { get; init; }
         public string? FilePath { get; init; }
+        public string? Domain { get; init; }
     }
 }

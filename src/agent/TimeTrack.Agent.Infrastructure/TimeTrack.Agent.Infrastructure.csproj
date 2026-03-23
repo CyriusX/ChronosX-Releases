@@ -19,6 +19,7 @@
     <PackageReference Include="System.Diagnostics.EventLog" Version="8.0.0" />
   </ItemGroup>
 
+
   <ItemGroup>
     <ProjectReference Include="..\TimeTrack.Agent.Domain\TimeTrack.Agent.Domain.csproj" />
     <ProjectReference Include="..\TimeTrack.Agent.Contracts\TimeTrack.Agent.Contracts.csproj" />

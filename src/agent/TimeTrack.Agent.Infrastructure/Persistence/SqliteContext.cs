@@ -78,6 +78,7 @@ public sealed class SqliteContext : IAsyncDisposable
                 end_utc TEXT NOT NULL,
                 window_hash TEXT,
                 window_title TEXT,
+                domain TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -206,6 +207,16 @@ public sealed class SqliteContext : IAsyncDisposable
                 _logger.LogInformation("Adding user_id column to {Table}", table);
                 await connection.ExecuteAsync($"ALTER TABLE {table} ADD COLUMN user_id TEXT");
             }
+        }
+
+        // Add domain column to activity_sessions (browser URL domain tracking)
+        var domainExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('activity_sessions') WHERE name = 'domain'");
+
+        if (domainExists == 0)
+        {
+            _logger.LogInformation("Adding domain column to activity_sessions");
+            await connection.ExecuteAsync("ALTER TABLE activity_sessions ADD COLUMN domain TEXT");
         }
     }
 

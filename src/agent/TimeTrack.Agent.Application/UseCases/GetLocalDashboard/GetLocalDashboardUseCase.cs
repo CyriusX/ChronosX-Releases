@@ -88,9 +88,10 @@ public sealed class GetLocalDashboardUseCase
 
         // Calcula totais (excluding our own app processes)
         var totalWorkTime = TimeSpan.Zero;
-        var appUsage = new Dictionary<string, (TimeSpan Time, string Category, string Subcategory)>();
+        // Per-app aggregation: tracks total time AND time per category to pick the dominant one
+        var appUsage = new Dictionary<string, (TimeSpan Time, Dictionary<string, (TimeSpan Time, string Subcategory)> CategoryBreakdown)>();
         // Aggregate by executable (ExePathHash) — groups browser tabs into their parent app
-        var exeUsage = new Dictionary<string, (TimeSpan Time, string Name, string Category, string Subcategory)>();
+        var exeUsage = new Dictionary<string, (TimeSpan Time, string Name, Dictionary<string, (TimeSpan Time, string Subcategory)> CategoryBreakdown)>();
 
         foreach (var session in sessions)
         {
@@ -104,46 +105,60 @@ public sealed class GetLocalDashboardUseCase
                 continue;
 
             totalWorkTime += session.Duration;
+            var cat = session.App.Category.Productivity;
+            var sub = session.App.Category.Subcategory;
 
-            // Per-tab/site aggregation (for detailed Apps & Sites card)
-            if (appUsage.TryGetValue(appName, out var existing))
+            // Per-app aggregation with category breakdown
+            if (!appUsage.TryGetValue(appName, out var existing))
             {
-                appUsage[appName] = (existing.Time + session.Duration, session.App.Category.Productivity, session.App.Category.Subcategory);
+                existing = (TimeSpan.Zero, new Dictionary<string, (TimeSpan, string)>());
+                appUsage[appName] = existing;
             }
+            existing.Time += session.Duration;
+            if (existing.CategoryBreakdown.TryGetValue(cat, out var catEntry))
+                existing.CategoryBreakdown[cat] = (catEntry.Time + session.Duration, sub);
             else
-            {
-                appUsage[appName] = (session.Duration, session.App.Category.Productivity, session.App.Category.Subcategory);
-            }
+                existing.CategoryBreakdown[cat] = (session.Duration, sub);
+            appUsage[appName] = existing;
 
-            // Per-executable aggregation (for "Apps mais usados")
+            // Per-executable aggregation with category breakdown
             var exeHash = session.App.ExePathHash;
-            if (exeUsage.TryGetValue(exeHash, out var exeExisting))
+            if (!exeUsage.TryGetValue(exeHash, out var exeExisting))
             {
-                exeUsage[exeHash] = (exeExisting.Time + session.Duration, exeExisting.Name, exeExisting.Category, exeExisting.Subcategory);
+                exeExisting = (TimeSpan.Zero, exeName, new Dictionary<string, (TimeSpan, string)>());
+                exeUsage[exeHash] = exeExisting;
             }
+            exeExisting.Time += session.Duration;
+            if (exeExisting.CategoryBreakdown.TryGetValue(cat, out var exeCatEntry))
+                exeExisting.CategoryBreakdown[cat] = (exeCatEntry.Time + session.Duration, sub);
             else
-            {
-                exeUsage[exeHash] = (session.Duration, exeName, session.App.Category.Productivity, session.App.Category.Subcategory);
-            }
+                exeExisting.CategoryBreakdown[cat] = (session.Duration, sub);
+            exeUsage[exeHash] = exeExisting;
         }
 
         var totalIdleTime = idlePeriods.Aggregate(
             TimeSpan.Zero,
             (acc, p) => acc + p.Duration);
 
-        // Monta top aplicações
+        // Monta top aplicações — picks the dominant category (most time spent) per app
         var topApps = appUsage
             .OrderByDescending(x => x.Value.Time)
             .Take(5)
-            .Select(x => new AppUsageSummary
+            .Select(x =>
             {
-                DisplayName = x.Key,
-                TotalTime = x.Value.Time,
-                Percentage = totalWorkTime.TotalSeconds > 0
-                    ? (x.Value.Time.TotalSeconds / totalWorkTime.TotalSeconds) * 100
-                    : 0,
-                ProductivityCategory = x.Value.Category,
-                Subcategory = x.Value.Subcategory
+                var dominant = x.Value.CategoryBreakdown
+                    .OrderByDescending(c => c.Value.Time)
+                    .First();
+                return new AppUsageSummary
+                {
+                    DisplayName = x.Key,
+                    TotalTime = x.Value.Time,
+                    Percentage = totalWorkTime.TotalSeconds > 0
+                        ? (x.Value.Time.TotalSeconds / totalWorkTime.TotalSeconds) * 100
+                        : 0,
+                    ProductivityCategory = dominant.Key,
+                    Subcategory = dominant.Value.Subcategory
+                };
             })
             .ToList();
 
@@ -157,20 +172,34 @@ public sealed class GetLocalDashboardUseCase
         var topAppsByExe = exeUsage
             .OrderByDescending(x => x.Value.Time)
             .Take(5)
-            .Select(x => new AppUsageSummary
+            .Select(x =>
             {
-                DisplayName = x.Value.Name,
-                TotalTime = x.Value.Time,
-                Percentage = totalWorkTime.TotalSeconds > 0
-                    ? (x.Value.Time.TotalSeconds / totalWorkTime.TotalSeconds) * 100
-                    : 0,
-                ProductivityCategory = x.Value.Category,
-                Subcategory = x.Value.Subcategory
+                var dominant = x.Value.CategoryBreakdown
+                    .OrderByDescending(c => c.Value.Time)
+                    .First();
+                return new AppUsageSummary
+                {
+                    DisplayName = x.Value.Name,
+                    TotalTime = x.Value.Time,
+                    Percentage = totalWorkTime.TotalSeconds > 0
+                        ? (x.Value.Time.TotalSeconds / totalWorkTime.TotalSeconds) * 100
+                        : 0,
+                    ProductivityCategory = dominant.Key,
+                    Subcategory = dominant.Value.Subcategory
+                };
             })
             .ToList();
 
-        // Calcular métricas de foco
-        var focusMetrics = CalculateFocusMetrics(sessions, idlePeriods, appUsage, totalWorkTime);
+        // Calcular métricas de foco — build flat category map from the breakdown
+        var flatAppUsage = new Dictionary<string, (TimeSpan Time, string Category, string Subcategory)>();
+        foreach (var kvp in appUsage)
+        {
+            var dominant = kvp.Value.CategoryBreakdown
+                .OrderByDescending(c => c.Value.Time)
+                .First();
+            flatAppUsage[kvp.Key] = (kvp.Value.Time, dominant.Key, dominant.Value.Subcategory);
+        }
+        var focusMetrics = CalculateFocusMetrics(sessions, idlePeriods, flatAppUsage, totalWorkTime);
         var focusScore = FocusScoreCalculator.Calculate(focusMetrics);
 
         _logger.LogDebug(
