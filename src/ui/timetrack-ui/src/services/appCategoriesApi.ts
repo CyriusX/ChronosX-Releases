@@ -1,14 +1,10 @@
 /**
  * App Categories API - HTTP client for app categorization (CX-143/CX-144)
  *
- * SOLID:
- * - SRP: Apenas comunicação HTTP com endpoints de categorização
- * - DIP: Retorna tipos definidos em contracts
- *
- * Composition:
- * - Reutiliza helper functions de policyApi
+ * Uses centralized apiClient for automatic 401 handling
  */
 
+import { api } from './apiClient';
 import type {
   GlobalCategorySearchResponse,
   AppCategoryOverrideListResponse,
@@ -17,47 +13,6 @@ import type {
   CategoryUsageStatsResponse,
   AppCategoryFilter,
 } from '../types/appCategories';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-
-/**
- * Get authorization headers
- */
-function getAuthHeaders(accessToken: string): HeadersInit {
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${accessToken}`,
-  };
-}
-
-/**
- * Handle HTTP response and extract data or throw error
- */
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    let errorMessage = `HTTP ${response.status}`;
-
-    try {
-      const errorData = await response.json();
-      errorMessage = errorData.message
-        || errorData.title
-        || errorData.error
-        || (typeof errorData === 'string' ? errorData : null)
-        || errorMessage;
-    } catch {
-      // Failed to parse error response
-    }
-
-    throw new Error(errorMessage);
-  }
-
-  // Handle 204 No Content
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json();
-}
 
 // ============================================================================
 // GLOBAL CATEGORIES
@@ -68,7 +23,6 @@ async function handleResponse<T>(response: Response): Promise<T> {
  * GET /api/v1/orgs/{orgId}/app-categories/global
  */
 export async function searchGlobalCategories(
-  accessToken: string,
   orgId: string,
   options?: {
     search?: string;
@@ -89,14 +43,9 @@ export async function searchGlobalCategories(
   }
 
   const queryString = params.toString();
-  const url = `${API_BASE}/orgs/${orgId}/app-categories/global${queryString ? `?${queryString}` : ''}`;
+  const endpoint = `/orgs/${orgId}/app-categories/global${queryString ? `?${queryString}` : ''}`;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: getAuthHeaders(accessToken),
-  });
-
-  return handleResponse<GlobalCategorySearchResponse>(response);
+  return api.get<GlobalCategorySearchResponse>(endpoint);
 }
 
 // ============================================================================
@@ -108,7 +57,6 @@ export async function searchGlobalCategories(
  * GET /api/v1/orgs/{orgId}/app-categories/overrides
  */
 export async function getOverrides(
-  accessToken: string,
   orgId: string,
   options?: {
     page?: number;
@@ -129,14 +77,9 @@ export async function getOverrides(
   }
 
   const queryString = params.toString();
-  const url = `${API_BASE}/orgs/${orgId}/app-categories/overrides${queryString ? `?${queryString}` : ''}`;
+  const endpoint = `/orgs/${orgId}/app-categories/overrides${queryString ? `?${queryString}` : ''}`;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: getAuthHeaders(accessToken),
-  });
-
-  return handleResponse<AppCategoryOverrideListResponse>(response);
+  return api.get<AppCategoryOverrideListResponse>(endpoint);
 }
 
 /**
@@ -144,17 +87,10 @@ export async function getOverrides(
  * PUT /api/v1/orgs/{orgId}/app-categories/overrides
  */
 export async function upsertOverride(
-  accessToken: string,
   orgId: string,
   request: UpsertAppCategoryOverrideRequest
 ): Promise<AppCategoryOverrideResponse> {
-  const response = await fetch(`${API_BASE}/orgs/${orgId}/app-categories/overrides`, {
-    method: 'PUT',
-    headers: getAuthHeaders(accessToken),
-    body: JSON.stringify(request),
-  });
-
-  return handleResponse<AppCategoryOverrideResponse>(response);
+  return api.put<AppCategoryOverrideResponse>(`/orgs/${orgId}/app-categories/overrides`, request);
 }
 
 /**
@@ -162,19 +98,10 @@ export async function upsertOverride(
  * DELETE /api/v1/orgs/{orgId}/app-categories/overrides/{identifier}
  */
 export async function deleteOverride(
-  accessToken: string,
   orgId: string,
   identifier: string
 ): Promise<void> {
-  const response = await fetch(
-    `${API_BASE}/orgs/${orgId}/app-categories/overrides/${encodeURIComponent(identifier)}`,
-    {
-      method: 'DELETE',
-      headers: getAuthHeaders(accessToken),
-    }
-  );
-
-  return handleResponse<void>(response);
+  return api.delete<void>(`/orgs/${orgId}/app-categories/overrides/${encodeURIComponent(identifier)}`);
 }
 
 // ============================================================================
@@ -186,7 +113,6 @@ export async function deleteOverride(
  * GET /api/v1/orgs/{orgId}/app-categories/stats
  */
 export async function getUsageStats(
-  accessToken: string,
   orgId: string,
   options?: {
     startDate?: Date;
@@ -207,12 +133,7 @@ export async function getUsageStats(
   }
 
   const queryString = params.toString();
-  const url = `${API_BASE}/orgs/${orgId}/app-categories/stats${queryString ? `?${queryString}` : ''}`;
+  const endpoint = `/orgs/${orgId}/app-categories/stats${queryString ? `?${queryString}` : ''}`;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: getAuthHeaders(accessToken),
-  });
-
-  return handleResponse<CategoryUsageStatsResponse>(response);
+  return api.get<CategoryUsageStatsResponse>(endpoint);
 }

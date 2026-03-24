@@ -3,7 +3,6 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { useIpc } from '../hooks/useIpc';
 import { usePermissions } from '../hooks/usePermissions';
 import { useFocusModePolicy } from '../hooks/useFocusModePolicy';
-import { useAuthStore } from '../stores/authStore';
 import { getMemberSummary } from '../services/memberApi';
 import type { MemberSummaryResponse } from '../types/member';
 import {
@@ -45,37 +44,16 @@ export default function Dashboard() {
   const { todaySummary, weeklyHistory, isPaused, isTracking, refreshData } = useDashboardData();
   const { canManageTeam } = usePermissions();
   const { focusModePolicy } = useFocusModePolicy();
-  const { tokens } = useAuthStore();
 
   // Fetch selected member's summary
   const fetchMemberSummary = useCallback(async (userId: string, isInitial = false) => {
-    const accessToken = tokens?.accessToken;
-    if (!accessToken) {
-      console.warn('[Dashboard] No access token available for member summary fetch');
-      if (isInitial) setMemberError('Sessão expirada. Faça login novamente.');
-      return;
-    }
-
-    // Check token expiry
-    if (tokens?.expiresAt && tokens.expiresAt < Date.now()) {
-      console.warn('[Dashboard] Access token expired, attempting refresh...');
-      const refreshed = await useAuthStore.getState().refreshTokens();
-      if (!refreshed) {
-        if (isInitial) setMemberError('Sessão expirada. Faça login novamente.');
-        return;
-      }
-    }
-
-    // Re-read token after potential refresh
-    const currentToken = useAuthStore.getState().tokens?.accessToken ?? accessToken;
-
     if (isInitial) {
       setMemberLoading(true);
       setMemberError(null);
     }
     try {
       console.log('[Dashboard] Fetching member summary for:', userId);
-      const data = await getMemberSummary(currentToken, userId);
+      const data = await getMemberSummary(userId);
       const raw = data as MemberSummaryResponse;
       setMemberSummary(raw as unknown as TodaySummaryResponse);
       setMemberLastSyncAt(raw.lastSyncAt ?? null);
@@ -89,7 +67,7 @@ export default function Dashboard() {
     } finally {
       if (isInitial) setMemberLoading(false);
     }
-  }, [tokens?.accessToken, tokens?.expiresAt]);
+  }, []);
 
   // Fetch on member selection + start polling
   useEffect(() => {

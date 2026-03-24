@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { useAuthStore } from '../stores/authStore';
 import { getTeamStatus, listMembers } from '../services/memberApi';
 import type { TeamMemberStatus, Member } from '../types/member';
 
@@ -13,9 +12,6 @@ interface UseTeamStatusReturn {
 }
 
 export function useTeamStatus(): UseTeamStatusReturn {
-  const { tokens } = useAuthStore();
-  const accessToken = tokens?.accessToken;
-
   const [members, setMembers] = useState<TeamMemberStatus[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,12 +30,11 @@ export function useTeamStatus(): UseTeamStatusReturn {
   });
 
   const loadTeamStatus = useCallback(async () => {
-    if (!accessToken) return;
     setIsLoading(true);
     setError(null);
     try {
       // Try the new team status endpoint first
-      const response = await getTeamStatus(accessToken);
+      const response = await getTeamStatus();
       setMembers(response.members);
       setActiveCount(response.activeCount);
       setTrackingCount(response.trackingCount);
@@ -47,7 +42,7 @@ export function useTeamStatus(): UseTeamStatusReturn {
       console.warn('[useTeamStatus] Team status endpoint failed, falling back to basic members:', err);
       try {
         // Fallback: use basic members list (always works)
-        const basicResponse = await listMembers(accessToken);
+        const basicResponse = await listMembers();
         const mappedMembers = basicResponse.members.map(mapMemberToStatus);
         setMembers(mappedMembers);
         setActiveCount(mappedMembers.filter(m => m.status === 'Active').length);
@@ -58,7 +53,7 @@ export function useTeamStatus(): UseTeamStatusReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken]);
+  }, []);
 
   return {
     members,

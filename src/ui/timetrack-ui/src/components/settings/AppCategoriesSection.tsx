@@ -21,14 +21,13 @@ import { useNotifications } from '../../stores/uiStore';
 import type { AppCategoryDisplayItem } from '../../types/appCategories';
 
 interface AppCategoriesSectionProps {
-  accessToken: string | null | undefined;
   orgId: string | null | undefined;
 }
 
 /**
  * Main section for managing app categories with override support
  */
-export function AppCategoriesSection({ accessToken, orgId }: AppCategoriesSectionProps) {
+export function AppCategoriesSection({ orgId }: AppCategoriesSectionProps) {
   const { notify } = useNotifications();
 
   // State for modals
@@ -48,7 +47,7 @@ export function AppCategoriesSection({ accessToken, orgId }: AppCategoriesSectio
     setActiveFilter,
     createOverride,
     removeOverride,
-  } = useAppCategories({ accessToken, orgId });
+  } = useAppCategories({ orgId });
 
   /**
    * Handle creating/updating an override

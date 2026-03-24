@@ -17,7 +17,12 @@ export {
 } from './reconnectionStrategy';
 export type { IReconnectionStrategy, ReconnectionConfig } from './reconnectionStrategy';
 
+// API Client
+export { api, apiClient, SESSION_EXPIRED_EVENT, dispatchSessionExpired } from './apiClient';
+export type { ApiError } from './apiClient';
+
 // API Services
 export * from './memberApi';
 export * from './policyApi';
 export * from './reportApi';
+export * from './appCategoriesApi';

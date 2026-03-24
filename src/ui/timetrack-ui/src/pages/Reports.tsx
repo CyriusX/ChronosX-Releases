@@ -29,7 +29,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/dashboard/Sidebar';
 import { usePermissions } from '../hooks/usePermissions';
-import { useAuthStore, selectAccessToken } from '../stores/authStore';
+import { useAuthStore } from '../stores/authStore';
 import { useReportsData, useReportsSummary } from '../hooks/useReportsData';
 import { listMembers } from '../services/memberApi';
 import { exportReportsToCSV } from '../lib/exportReports';
@@ -77,7 +77,6 @@ function formatDuration(seconds: number): string {
 export default function Reports() {
   const navigate = useNavigate();
   const { canManageTeam } = usePermissions();
-  const accessToken = useAuthStore(selectAccessToken);
   const user = useAuthStore((state) => state.user);
 
   // Team members for RBAC filter
@@ -117,16 +116,14 @@ export default function Reports() {
 
   // Load team members for Admin/Manager
   useEffect(() => {
-    if (canManageTeam && accessToken && user?.orgId) {
+    if (canManageTeam && user?.orgId) {
       loadMembers();
     }
-  }, [canManageTeam, accessToken, user?.orgId]);
+  }, [canManageTeam, user?.orgId]);
 
   const loadMembers = async () => {
-    if (!accessToken) return;
-
     try {
-      const result = await listMembers(accessToken);
+      const result = await listMembers();
       setMembers(result.members);
     } catch (err) {
       console.error('[Reports] Error loading members:', err);

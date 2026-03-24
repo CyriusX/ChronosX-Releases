@@ -1,7 +1,10 @@
 /**
  * Member API - HTTP client for member management
+ *
+ * Uses centralized apiClient for automatic 401 handling
  */
 
+import { api } from './apiClient';
 import type {
   ListMembersResponse,
   TeamStatusResponse,
@@ -12,103 +15,44 @@ import type {
   UpdateMemberRoleRequest,
 } from '../types/member';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-
-async function getAuthHeaders(accessToken: string): Promise<HeadersInit> {
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${accessToken}`,
-  };
-}
-
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }));
-    throw new Error(error.message || error.title || `HTTP ${response.status}: ${response.statusText}`);
-  }
-  return response.json();
-}
-
 /**
  * List all members of the organization
  */
-export async function listMembers(accessToken: string): Promise<ListMembersResponse> {
-  const response = await fetch(`${API_BASE}/auth/members`, {
-    method: 'GET',
-    headers: await getAuthHeaders(accessToken),
-  });
-  return handleResponse<ListMembersResponse>(response);
+export async function listMembers(): Promise<ListMembersResponse> {
+  return api.get<ListMembersResponse>('/auth/members');
 }
 
 /**
  * Get team status with today's worked time
  */
-export async function getTeamStatus(accessToken: string): Promise<TeamStatusResponse> {
-  const response = await fetch(`${API_BASE}/auth/team/status`, {
-    method: 'GET',
-    headers: await getAuthHeaders(accessToken),
-  });
-  return handleResponse<TeamStatusResponse>(response);
+export async function getTeamStatus(): Promise<TeamStatusResponse> {
+  return api.get<TeamStatusResponse>('/auth/team/status');
 }
 
 /**
  * Get a specific member's today summary (admin/manager view)
  */
-export async function getMemberSummary(accessToken: string, userId: string): Promise<MemberSummaryResponse> {
-  const response = await fetch(`${API_BASE}/auth/team/members/${encodeURIComponent(userId)}/summary`, {
-    method: 'GET',
-    headers: await getAuthHeaders(accessToken),
-  });
-  return handleResponse<MemberSummaryResponse>(response);
+export async function getMemberSummary(userId: string): Promise<MemberSummaryResponse> {
+  return api.get<MemberSummaryResponse>(`/auth/team/members/${encodeURIComponent(userId)}/summary`);
 }
 
 /**
  * Invite a new member to the organization
  */
-export async function inviteMember(
-  accessToken: string,
-  request: InviteMemberRequest
-): Promise<InviteMemberResponse> {
-  const response = await fetch(`${API_BASE}/auth/invite`, {
-    method: 'POST',
-    headers: await getAuthHeaders(accessToken),
-    body: JSON.stringify(request),
-  });
-  return handleResponse<InviteMemberResponse>(response);
+export async function inviteMember(request: InviteMemberRequest): Promise<InviteMemberResponse> {
+  return api.post<InviteMemberResponse>('/auth/invite', request);
 }
 
 /**
  * Update member status (activate/deactivate)
  */
-export async function updateMemberStatus(
-  accessToken: string,
-  request: UpdateMemberStatusRequest
-): Promise<void> {
-  const response = await fetch(`${API_BASE}/auth/members/status`, {
-    method: 'PUT',
-    headers: await getAuthHeaders(accessToken),
-    body: JSON.stringify(request),
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }));
-    throw new Error(error.message || error.title || `HTTP ${response.status}`);
-  }
+export async function updateMemberStatus(request: UpdateMemberStatusRequest): Promise<void> {
+  return api.put<void>('/auth/members/status', request);
 }
 
 /**
  * Update member role
  */
-export async function updateMemberRole(
-  accessToken: string,
-  request: UpdateMemberRoleRequest
-): Promise<void> {
-  const response = await fetch(`${API_BASE}/auth/members/role`, {
-    method: 'PUT',
-    headers: await getAuthHeaders(accessToken),
-    body: JSON.stringify(request),
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }));
-    throw new Error(error.message || error.title || `HTTP ${response.status}`);
-  }
+export async function updateMemberRole(request: UpdateMemberRoleRequest): Promise<void> {
+  return api.put<void>('/auth/members/role', request);
 }

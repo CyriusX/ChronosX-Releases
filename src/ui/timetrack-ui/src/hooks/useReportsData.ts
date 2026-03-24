@@ -9,7 +9,6 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useAuthStore, selectAccessToken } from '../stores/authStore';
 import {
   getDailySummaryRange,
   getProductivityTrend,
@@ -117,8 +116,6 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     autoFetch = true,
   } = options;
 
-  const accessToken = useAuthStore(selectAccessToken);
-
   // Data state
   const [data, setData] = useState<ReportsDataState>({
     dailySummaryRange: null,
@@ -189,11 +186,8 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
   // ============================================================================
 
   const refreshDailySummaryRange = useCallback(async () => {
-    if (!accessToken || !filters.dateRange.startDate) {
-      console.log('[useReportsData] Skipping daily summary - no token or startDate', {
-        hasToken: !!accessToken,
-        startDate: filters.dateRange.startDate
-      });
+    if (!filters.dateRange.startDate) {
+      console.log('[useReportsData] Skipping daily summary - no startDate');
       return;
     }
 
@@ -204,7 +198,6 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
         userId: filters.userId
       });
       const result = await getDailySummaryRange(
-        accessToken,
         filters.dateRange.startDate,
         filters.dateRange.endDate,
         filters.userId
@@ -215,14 +208,13 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       console.error('[useReportsData] Error fetching daily summary range:', err);
       throw err;
     }
-  }, [accessToken, filters.dateRange, filters.userId]);
+  }, [filters.dateRange, filters.userId]);
 
   const refreshProductivityTrend = useCallback(async () => {
-    if (!accessToken || !filters.dateRange.startDate) return;
+    if (!filters.dateRange.startDate) return;
 
     try {
       const result = await getProductivityTrend(
-        accessToken,
         filters.dateRange.startDate,
         filters.dateRange.endDate,
         filters.groupBy,
@@ -233,14 +225,13 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       console.error('[useReportsData] Error fetching productivity trend:', err);
       throw err;
     }
-  }, [accessToken, filters.dateRange, filters.groupBy, filters.userId]);
+  }, [filters.dateRange, filters.groupBy, filters.userId]);
 
   const refreshTopApps = useCallback(async () => {
-    if (!accessToken || !filters.dateRange.startDate) return;
+    if (!filters.dateRange.startDate) return;
 
     try {
       const result = await getTopApps(
-        accessToken,
         filters.dateRange.startDate,
         filters.dateRange.endDate,
         filters.topAppsLimit,
@@ -251,14 +242,13 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       console.error('[useReportsData] Error fetching top apps:', err);
       throw err;
     }
-  }, [accessToken, filters.dateRange, filters.topAppsLimit, filters.userId]);
+  }, [filters.dateRange, filters.topAppsLimit, filters.userId]);
 
   const refreshTopPaths = useCallback(async () => {
-    if (!accessToken || !filters.dateRange.startDate) return;
+    if (!filters.dateRange.startDate) return;
 
     try {
       const result = await getTopPaths(
-        accessToken,
         filters.dateRange.startDate,
         filters.dateRange.endDate,
         filters.topPathsLimit,
@@ -269,14 +259,13 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       console.error('[useReportsData] Error fetching top paths:', err);
       throw err;
     }
-  }, [accessToken, filters.dateRange, filters.topPathsLimit, filters.userId]);
+  }, [filters.dateRange, filters.topPathsLimit, filters.userId]);
 
   const refreshDistractionStats = useCallback(async () => {
-    if (!accessToken || !filters.dateRange.startDate) return;
+    if (!filters.dateRange.startDate) return;
 
     try {
       const result = await getDistractionStats(
-        accessToken,
         filters.dateRange.startDate,
         filters.dateRange.endDate,
         filters.userId
@@ -286,14 +275,13 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       console.error('[useReportsData] Error fetching distraction stats:', err);
       throw err;
     }
-  }, [accessToken, filters.dateRange, filters.userId]);
+  }, [filters.dateRange, filters.userId]);
 
   const refreshCategoryDistribution = useCallback(async () => {
-    if (!accessToken || !filters.dateRange.startDate) return;
+    if (!filters.dateRange.startDate) return;
 
     try {
       const result = await getCategoryDistribution(
-        accessToken,
         filters.dateRange.startDate,
         filters.dateRange.endDate,
         filters.userId
@@ -303,7 +291,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       console.error('[useReportsData] Error fetching category distribution:', err);
       throw err;
     }
-  }, [accessToken, filters.dateRange, filters.userId]);
+  }, [filters.dateRange, filters.userId]);
 
   // ============================================================================
   // REFRESH ALL
@@ -311,14 +299,13 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
 
   const refresh = useCallback(async () => {
     console.log('[useReportsData] Refresh called', {
-      hasAccessToken: !!accessToken,
       startDate: filters.dateRange.startDate,
       endDate: filters.dateRange.endDate,
       userId: filters.userId
     });
 
-    if (!accessToken || !filters.dateRange.startDate) {
-      console.warn('[useReportsData] Skipping refresh - no token or start date');
+    if (!filters.dateRange.startDate) {
+      console.warn('[useReportsData] Skipping refresh - no start date');
       return;
     }
 
@@ -350,7 +337,6 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       isFetchingRef.current = false;
     }
   }, [
-    accessToken,
     filters.dateRange.startDate,
     refreshDailySummaryRange,
     refreshProductivityTrend,
@@ -365,17 +351,17 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
   // ============================================================================
 
   useEffect(() => {
-    if (autoFetch && accessToken && filters.dateRange.startDate) {
+    if (autoFetch && filters.dateRange.startDate) {
       refresh();
     }
-  }, [autoFetch, accessToken, filters.dateRange, filters.userId, filters.groupBy]);
+  }, [autoFetch, filters.dateRange, filters.userId, filters.groupBy]);
 
   // ============================================================================
   // POLLING - Automatic refresh every 60 seconds
   // ============================================================================
 
   useEffect(() => {
-    if (!autoFetch || !accessToken || !filters.dateRange.startDate) {
+    if (!autoFetch || !filters.dateRange.startDate) {
       return;
     }
 
@@ -396,7 +382,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
         pollingIntervalRef.current = null;
       }
     };
-  }, [autoFetch, accessToken, filters.dateRange.startDate, refresh]);
+  }, [autoFetch, filters.dateRange.startDate, refresh]);
 
   // ============================================================================
   // RETURN

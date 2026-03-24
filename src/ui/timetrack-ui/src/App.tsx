@@ -16,6 +16,7 @@ import Activities from "./pages/Activities";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Toaster } from "./components/Toaster";
 import { AnimatedPage } from "./components/ui/AnimatedPage";
+import { SessionExpiredNotifier } from "./components/SessionExpiredNotifier";
 
 function App() {
   const { isConnected, isReady } = useIpc();
@@ -55,6 +56,7 @@ function App() {
         <AnimatedRoutes />
         <Toaster />
         <TrackingStoppedOverlay />
+        <SessionExpiredNotifier />
       </div>
     </BrowserRouter>
   );

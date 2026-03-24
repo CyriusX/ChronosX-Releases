@@ -14,7 +14,7 @@ import { OrganizationSection } from './OrganizationSection';
 import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
 import { usePermissions } from '../../hooks/usePermissions';
-import { useAuthStore, selectAccessToken } from '../../stores/authStore';
+import { useAuthStore } from '../../stores/authStore';
 import { getOrgPolicy, updateOrgPolicy } from '../../services/policyApi';
 import type { LocalSettings, UpdateLocalSettingsRequest, OrgPolicyResponse, UpdateOrgPolicyRequest } from '../../types/settings';
 import type { SettingsSection } from '../../types/settingsNav';
@@ -36,7 +36,6 @@ export function SettingsPage() {
   const { sendQuery, sendCommand } = useIpc();
   const { notify } = useNotifications();
   const { canManageTeam, canViewOrgPolicies, canEditOrgPolicies } = usePermissions();
-  const accessToken = useAuthStore(selectAccessToken);
   const user = useAuthStore((state) => state.user);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -61,9 +60,9 @@ export function SettingsPage() {
       }
 
       // Fetch org policies from backend API
-      if (accessToken && user?.orgId) {
+      if (user?.orgId) {
         try {
-          const policyResponse = await getOrgPolicy(accessToken, user.orgId);
+          const policyResponse = await getOrgPolicy(user.orgId);
           setPolicy(policyResponse);
           setPolicyError(null);
         } catch (error) {
@@ -109,13 +108,13 @@ export function SettingsPage() {
   };
 
   const handleUpdatePolicy = async (request: UpdateOrgPolicyRequest) => {
-    if (!accessToken || !user?.orgId) {
+    if (!user?.orgId) {
       notify.error('Erro ao atualizar políticas');
       return;
     }
 
     try {
-      const updatedPolicy = await updateOrgPolicy(accessToken, user.orgId, request);
+      const updatedPolicy = await updateOrgPolicy(user.orgId, request);
       setPolicy(updatedPolicy);
       notify.success('Políticas atualizadas');
     } catch (error) {
@@ -157,7 +156,6 @@ export function SettingsPage() {
               policy={policy}
               onUpdate={handleUpdatePolicy}
               canEdit={canEditOrgPolicies}
-              accessToken={accessToken}
               orgId={user?.orgId as string}
             />
           ) : policyError ? (
