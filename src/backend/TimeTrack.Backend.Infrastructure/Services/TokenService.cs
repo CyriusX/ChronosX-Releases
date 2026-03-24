@@ -18,6 +18,7 @@ public sealed class TokenService : ITokenService
     private readonly string _jwtIssuer;
     private readonly string _jwtAudience;
     private readonly int _accessTokenExpirationMinutes;
+    private readonly int? _accessTokenExpirationDays;
     private readonly int _refreshTokenExpirationDays;
 
     public TokenService(IConfiguration configuration)
@@ -27,6 +28,9 @@ public sealed class TokenService : ITokenService
             ?? throw new InvalidOperationException("JWT Secret not configured");
         _jwtIssuer = configuration["Jwt:Issuer"] ?? "TimeTrack";
         _jwtAudience = configuration["Jwt:Audience"] ?? "TimeTrack.Api";
+
+        // Support both days and minutes for access token (days takes precedence)
+        _accessTokenExpirationDays = configuration.GetValue<int?>("Jwt:AccessTokenExpirationDays");
         _accessTokenExpirationMinutes = configuration.GetValue("Jwt:AccessTokenExpirationMinutes", 60);
         _refreshTokenExpirationDays = configuration.GetValue("Jwt:RefreshTokenExpirationDays", 90);
     }
@@ -59,7 +63,7 @@ public sealed class TokenService : ITokenService
             issuer: _jwtIssuer,
             audience: _jwtAudience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(_accessTokenExpirationMinutes),
+            expires: DateTime.UtcNow.Add(GetAccessTokenExpiration()),
             signingCredentials: credentials
         );
 
@@ -89,6 +93,11 @@ public sealed class TokenService : ITokenService
 
     public TimeSpan GetAccessTokenExpiration()
     {
+        // Days takes precedence over minutes if configured
+        if (_accessTokenExpirationDays.HasValue && _accessTokenExpirationDays.Value > 0)
+        {
+            return TimeSpan.FromDays(_accessTokenExpirationDays.Value);
+        }
         return TimeSpan.FromMinutes(_accessTokenExpirationMinutes);
     }
 

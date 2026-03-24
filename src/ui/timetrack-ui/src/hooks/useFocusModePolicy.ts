@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect } from 'react';
-import { useAuthStore, selectAccessToken, selectUser } from '../stores/authStore';
+import { useAuthStore, selectUser } from '../stores/authStore';
 import { usePolicyStore } from '../stores/policyStore';
 import { useIpc } from './useIpc';
 import { getOrgPolicy } from '../services/policyApi';
@@ -26,13 +26,12 @@ export interface UseFocusModePolicyReturn {
  * Hook to fetch and manage Focus Mode policy
  */
 export function useFocusModePolicy(): UseFocusModePolicyReturn {
-  const accessToken = useAuthStore(selectAccessToken);
   const user = useAuthStore(selectUser);
   const { sendCommand, isConnected } = useIpc();
   const { focusModePolicy, isLoading, error, setFocusModePolicy, setLoading, setError } = usePolicyStore();
 
   const fetchPolicy = useCallback(async () => {
-    if (!accessToken || !user?.orgId) {
+    if (!user?.orgId) {
       return;
     }
 
@@ -40,7 +39,7 @@ export function useFocusModePolicy(): UseFocusModePolicyReturn {
     setError(null);
 
     try {
-      const policy = await getOrgPolicy(accessToken, user.orgId);
+      const policy = await getOrgPolicy(user.orgId);
       setFocusModePolicy(policy.focusMode);
 
       // CX-139: Send policy to AgentService so FocusModeEngine can use it
@@ -56,7 +55,7 @@ export function useFocusModePolicy(): UseFocusModePolicyReturn {
     } finally {
       setLoading(false);
     }
-  }, [accessToken, user?.orgId, setFocusModePolicy, setLoading, setError, sendCommand, isConnected]);
+  }, [user?.orgId, setFocusModePolicy, setLoading, setError, sendCommand, isConnected]);
 
   // Fetch on mount and when dependencies change
   useEffect(() => {

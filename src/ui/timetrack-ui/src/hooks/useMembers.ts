@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { useAuthStore } from '../stores/authStore';
 import {
   listMembers,
   inviteMember,
@@ -19,47 +18,41 @@ interface UseMembersReturn {
 }
 
 export function useMembers(): UseMembersReturn {
-  const { tokens } = useAuthStore();
-  const accessToken = tokens?.accessToken;
-
   const [members, setMembers] = useState<Member[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadMembers = useCallback(async () => {
-    if (!accessToken) return;
     setIsLoading(true);
     setError(null);
     try {
-      const response = await listMembers(accessToken);
+      const response = await listMembers();
       setMembers(response.members);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar membros');
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken]);
+  }, []);
 
   const invite = useCallback(
     async (email: string, displayName: string, role: UserRole): Promise<boolean> => {
-      if (!accessToken) return false;
       try {
-        await inviteMember(accessToken, { email, displayName, role });
+        await inviteMember({ email, displayName, role });
         await loadMembers();
         return true;
       } catch (err) {
         throw err;
       }
     },
-    [accessToken, loadMembers]
+    [loadMembers]
   );
 
   const toggleStatus = useCallback(
     async (member: Member): Promise<boolean> => {
-      if (!accessToken) return false;
       const newStatus = member.status === 'Active' ? 'inactive' : 'active';
       try {
-        await updateMemberStatus(accessToken, {
+        await updateMemberStatus({
           userId: member.userId,
           status: newStatus,
         });
@@ -69,14 +62,13 @@ export function useMembers(): UseMembersReturn {
         throw err;
       }
     },
-    [accessToken, loadMembers]
+    [loadMembers]
   );
 
   const changeRole = useCallback(
     async (member: Member, role: UserRole): Promise<boolean> => {
-      if (!accessToken) return false;
       try {
-        await updateMemberRole(accessToken, {
+        await updateMemberRole({
           userId: member.userId,
           role,
         });
@@ -86,7 +78,7 @@ export function useMembers(): UseMembersReturn {
         throw err;
       }
     },
-    [accessToken, loadMembers]
+    [loadMembers]
   );
 
   return {

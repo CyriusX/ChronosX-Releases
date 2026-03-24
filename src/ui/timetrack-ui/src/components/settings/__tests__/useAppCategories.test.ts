@@ -21,7 +21,6 @@ vi.mock('../../../services/appCategoriesApi', () => ({
   deleteOverride: vi.fn(),
 }));
 
-const mockAccessToken = 'test-token';
 const mockOrgId = 'test-org-id';
 
 const mockStatsResponse = {
@@ -104,7 +103,7 @@ describe('useAppCategories', () => {
   describe('initialization', () => {
     it('should start with loading state', () => {
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: mockAccessToken, orgId: mockOrgId })
+        useAppCategories({ orgId: mockOrgId })
       );
 
       expect(result.current.isLoading).toBe(true);
@@ -114,7 +113,7 @@ describe('useAppCategories', () => {
 
     it('should fetch data on mount', async () => {
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: mockAccessToken, orgId: mockOrgId })
+        useAppCategories({ orgId: mockOrgId })
       );
 
       await waitFor(() => {
@@ -122,20 +121,18 @@ describe('useAppCategories', () => {
       });
 
       expect(api.getUsageStats).toHaveBeenCalledWith(
-        mockAccessToken,
         mockOrgId,
         { limit: 100 }
       );
       expect(api.getOverrides).toHaveBeenCalledWith(
-        mockAccessToken,
         mockOrgId,
         { pageSize: 100 }
       );
     });
 
-    it('should handle null accessToken/orgId', async () => {
+    it('should handle null orgId', async () => {
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: null, orgId: null })
+        useAppCategories({ orgId: null })
       );
 
       await waitFor(() => {
@@ -149,7 +146,7 @@ describe('useAppCategories', () => {
   describe('data merging', () => {
     it('should combine apps from usage stats', async () => {
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: mockAccessToken, orgId: mockOrgId })
+        useAppCategories({ orgId: mockOrgId })
       );
 
       await waitFor(() => {
@@ -162,7 +159,7 @@ describe('useAppCategories', () => {
 
     it('should include uncategorized apps', async () => {
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: mockAccessToken, orgId: mockOrgId })
+        useAppCategories({ orgId: mockOrgId })
       );
 
       await waitFor(() => {
@@ -176,7 +173,7 @@ describe('useAppCategories', () => {
 
     it('should count overrides and uncategorized', async () => {
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: mockAccessToken, orgId: mockOrgId })
+        useAppCategories({ orgId: mockOrgId })
       );
 
       await waitFor(() => {
@@ -191,7 +188,7 @@ describe('useAppCategories', () => {
   describe('filtering', () => {
     it('should filter by search query', async () => {
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: mockAccessToken, orgId: mockOrgId })
+        useAppCategories({ orgId: mockOrgId })
       );
 
       await waitFor(() => {
@@ -208,7 +205,7 @@ describe('useAppCategories', () => {
 
     it('should filter by productivity', async () => {
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: mockAccessToken, orgId: mockOrgId })
+        useAppCategories({ orgId: mockOrgId })
       );
 
       await waitFor(() => {
@@ -224,7 +221,7 @@ describe('useAppCategories', () => {
 
     it('should filter overrides only', async () => {
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: mockAccessToken, orgId: mockOrgId })
+        useAppCategories({ orgId: mockOrgId })
       );
 
       await waitFor(() => {
@@ -245,7 +242,7 @@ describe('useAppCategories', () => {
       (api.upsertOverride as any).mockResolvedValueOnce({});
 
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: mockAccessToken, orgId: mockOrgId })
+        useAppCategories({ orgId: mockOrgId })
       );
 
       await waitFor(() => {
@@ -271,7 +268,7 @@ describe('useAppCategories', () => {
       (api.deleteOverride as any).mockResolvedValueOnce(undefined);
 
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: mockAccessToken, orgId: mockOrgId })
+        useAppCategories({ orgId: mockOrgId })
       );
 
       await waitFor(() => {
@@ -283,7 +280,6 @@ describe('useAppCategories', () => {
       });
 
       expect(api.deleteOverride).toHaveBeenCalledWith(
-        mockAccessToken,
         mockOrgId,
         'whatsapp.exe'
       );
@@ -297,7 +293,7 @@ describe('useAppCategories', () => {
       );
 
       const { result } = renderHook(() =>
-        useAppCategories({ accessToken: mockAccessToken, orgId: mockOrgId })
+        useAppCategories({ orgId: mockOrgId })
       );
 
       await waitFor(() => {

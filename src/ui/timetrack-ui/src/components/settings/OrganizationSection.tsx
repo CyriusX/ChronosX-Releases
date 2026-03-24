@@ -12,11 +12,10 @@ interface OrganizationSectionProps {
   policy: OrgPolicyResponse;
   onUpdate: (request: UpdateOrgPolicyRequest) => Promise<void>;
   canEdit: boolean;
-  accessToken: string | undefined;
   orgId: string;
 }
 
-export function OrganizationSection({ policy, onUpdate, canEdit, accessToken, orgId }: OrganizationSectionProps) {
+export function OrganizationSection({ policy, onUpdate, canEdit, orgId }: OrganizationSectionProps) {
   const {
     editingCard,
     isSaving,
@@ -56,7 +55,7 @@ export function OrganizationSection({ policy, onUpdate, canEdit, accessToken, or
           Aplicativos usados pelos colaboradores são adicionados automaticamente.
           Classifique-os como Produtivo, Neutro ou Distração para refletir em toda a equipe.
         </p>
-        <AppCategoriesSection accessToken={accessToken} orgId={orgId} />
+        <AppCategoriesSection orgId={orgId} />
       </div>
 
       {/* Work Schedule Sub-section */}

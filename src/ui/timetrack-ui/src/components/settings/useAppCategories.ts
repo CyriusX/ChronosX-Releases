@@ -30,7 +30,6 @@ import {
 } from '../../services/appCategoriesApi';
 
 interface UseAppCategoriesProps {
-  accessToken: string | null | undefined;
   orgId: string | null | undefined;
 }
 
@@ -72,7 +71,6 @@ export interface OverrideRequest {
  * 3. Global categories are applied via the backend's resolver
  */
 export function useAppCategories({
-  accessToken,
   orgId,
 }: UseAppCategoriesProps): UseAppCategoriesReturn {
   // State
@@ -89,7 +87,7 @@ export function useAppCategories({
    * Primary source: getUsageStats (apps actually used in the org)
    */
   const fetchData = useCallback(async () => {
-    if (!accessToken || !orgId) {
+    if (!orgId) {
       setIsLoading(false);
       return;
     }
@@ -100,8 +98,8 @@ export function useAppCategories({
     try {
       // Fetch usage stats and overrides in parallel
       const [statsResponse, overridesResponse] = await Promise.all([
-        getUsageStats(accessToken, orgId, { limit: 100 }),
-        getOverrides(accessToken, orgId, { pageSize: 100 }),
+        getUsageStats(orgId, { limit: 100 }),
+        getOverrides(orgId, { pageSize: 100 }),
       ]);
 
       // Build overrides map for quick lookup
@@ -196,21 +194,21 @@ export function useAppCategories({
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken, orgId]);
+  }, [orgId]);
 
   /**
    * Create or update an override
    */
   const createOverride = useCallback(
     async (request: OverrideRequest) => {
-      if (!accessToken || !orgId) {
+      if (!orgId) {
         throw new Error('Não autorizado');
       }
 
-      await upsertOverride(accessToken, orgId, request);
+      await upsertOverride(orgId, request);
       await fetchData();
     },
-    [accessToken, orgId, fetchData]
+    [orgId, fetchData]
   );
 
   /**
@@ -218,14 +216,14 @@ export function useAppCategories({
    */
   const removeOverride = useCallback(
     async (identifier: string) => {
-      if (!accessToken || !orgId) {
+      if (!orgId) {
         throw new Error('Não autorizado');
       }
 
-      await deleteOverride(accessToken, orgId, identifier);
+      await deleteOverride(orgId, identifier);
       await fetchData();
     },
-    [accessToken, orgId, fetchData]
+    [orgId, fetchData]
   );
 
   /**

@@ -1,11 +1,10 @@
 /**
  * Report API - HTTP client for report endpoints
  *
- * SRP: Apenas comunicação HTTP com endpoints de reports
- * OCP: Extensível para novos endpoints
- * DIP: Funções puras que dependem de tokens injetados
+ * Uses centralized apiClient for automatic 401 handling
  */
 
+import { api } from './apiClient';
 import type {
   DailySummaryResponse,
   TopAppsResponse,
@@ -17,38 +16,6 @@ import type {
   GroupByOption,
 } from '../types/reports';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-
-async function getAuthHeaders(accessToken: string): Promise<HeadersInit> {
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${accessToken}`,
-    // Disable cache to always get fresh data
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    'Pragma': 'no-cache',
-  };
-}
-
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    let errorMessage = `HTTP ${response.status}`;
-
-    try {
-      const errorData = await response.json();
-      errorMessage = errorData.message
-        || errorData.title
-        || errorData.error
-        || (typeof errorData === 'string' ? errorData : null)
-        || errorMessage;
-    } catch {
-      // Failed to parse error response
-    }
-
-    throw new Error(errorMessage);
-  }
-  return response.json();
-}
-
 // ============================================================================
 // EXISTING ENDPOINTS
 // ============================================================================
@@ -58,7 +25,6 @@ async function handleResponse<T>(response: Response): Promise<T> {
  * GET /api/v1/reports/daily?userId=&date=
  */
 export async function getDailySummary(
-  accessToken: string,
   date: string,
   userId?: string
 ): Promise<DailySummaryResponse> {
@@ -67,11 +33,7 @@ export async function getDailySummary(
     params.append('userId', userId);
   }
 
-  const response = await fetch(`${API_BASE}/reports/daily?${params.toString()}`, {
-    method: 'GET',
-    headers: await getAuthHeaders(accessToken),
-  });
-  return handleResponse<DailySummaryResponse>(response);
+  return api.get<DailySummaryResponse>(`/reports/daily?${params.toString()}`);
 }
 
 /**
@@ -79,7 +41,6 @@ export async function getDailySummary(
  * GET /api/v1/reports/top-apps?userId=&startDate=&endDate=&limit=
  */
 export async function getTopApps(
-  accessToken: string,
   startDate: string,
   endDate: string,
   limit: number = 10,
@@ -94,11 +55,7 @@ export async function getTopApps(
     params.append('userId', userId);
   }
 
-  const response = await fetch(`${API_BASE}/reports/top-apps?${params.toString()}`, {
-    method: 'GET',
-    headers: await getAuthHeaders(accessToken),
-  });
-  return handleResponse<TopAppsResponse>(response);
+  return api.get<TopAppsResponse>(`/reports/top-apps?${params.toString()}`);
 }
 
 // ============================================================================
@@ -110,7 +67,6 @@ export async function getTopApps(
  * GET /api/v1/reports/daily-summary-range?userId=&startDate=&endDate=
  */
 export async function getDailySummaryRange(
-  accessToken: string,
   startDate: string,
   endDate: string,
   userId?: string
@@ -120,11 +76,7 @@ export async function getDailySummaryRange(
     params.append('userId', userId);
   }
 
-  const response = await fetch(`${API_BASE}/reports/daily-summary-range?${params.toString()}`, {
-    method: 'GET',
-    headers: await getAuthHeaders(accessToken),
-  });
-  return handleResponse<DailySummaryRangeResponse>(response);
+  return api.get<DailySummaryRangeResponse>(`/reports/daily-summary-range?${params.toString()}`);
 }
 
 /**
@@ -132,7 +84,6 @@ export async function getDailySummaryRange(
  * GET /api/v1/reports/productivity-trend?userId=&startDate=&endDate=&groupBy=
  */
 export async function getProductivityTrend(
-  accessToken: string,
   startDate: string,
   endDate: string,
   groupBy: GroupByOption = 'day',
@@ -143,11 +94,7 @@ export async function getProductivityTrend(
     params.append('userId', userId);
   }
 
-  const response = await fetch(`${API_BASE}/reports/productivity-trend?${params.toString()}`, {
-    method: 'GET',
-    headers: await getAuthHeaders(accessToken),
-  });
-  return handleResponse<ProductivityTrendResponse>(response);
+  return api.get<ProductivityTrendResponse>(`/reports/productivity-trend?${params.toString()}`);
 }
 
 /**
@@ -155,7 +102,6 @@ export async function getProductivityTrend(
  * GET /api/v1/reports/top-paths?userId=&startDate=&endDate=&limit=
  */
 export async function getTopPaths(
-  accessToken: string,
   startDate: string,
   endDate: string,
   limit: number = 20,
@@ -170,11 +116,7 @@ export async function getTopPaths(
     params.append('userId', userId);
   }
 
-  const response = await fetch(`${API_BASE}/reports/top-paths?${params.toString()}`, {
-    method: 'GET',
-    headers: await getAuthHeaders(accessToken),
-  });
-  return handleResponse<TopPathsResponse>(response);
+  return api.get<TopPathsResponse>(`/reports/top-paths?${params.toString()}`);
 }
 
 /**
@@ -182,7 +124,6 @@ export async function getTopPaths(
  * GET /api/v1/reports/distraction-stats?userId=&startDate=&endDate=
  */
 export async function getDistractionStats(
-  accessToken: string,
   startDate: string,
   endDate: string,
   userId?: string
@@ -192,11 +133,7 @@ export async function getDistractionStats(
     params.append('userId', userId);
   }
 
-  const response = await fetch(`${API_BASE}/reports/distraction-stats?${params.toString()}`, {
-    method: 'GET',
-    headers: await getAuthHeaders(accessToken),
-  });
-  return handleResponse<DistractionStatsResponse>(response);
+  return api.get<DistractionStatsResponse>(`/reports/distraction-stats?${params.toString()}`);
 }
 
 /**
@@ -204,7 +141,6 @@ export async function getDistractionStats(
  * GET /api/v1/reports/category-distribution?userId=&startDate=&endDate=
  */
 export async function getCategoryDistribution(
-  accessToken: string,
   startDate: string,
   endDate: string,
   userId?: string
@@ -214,9 +150,5 @@ export async function getCategoryDistribution(
     params.append('userId', userId);
   }
 
-  const response = await fetch(`${API_BASE}/reports/category-distribution?${params.toString()}`, {
-    method: 'GET',
-    headers: await getAuthHeaders(accessToken),
-  });
-  return handleResponse<CategoryDistributionResponse>(response);
+  return api.get<CategoryDistributionResponse>(`/reports/category-distribution?${params.toString()}`);
 }
