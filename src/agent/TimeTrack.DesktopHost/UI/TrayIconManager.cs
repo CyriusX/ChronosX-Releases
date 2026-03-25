@@ -197,11 +197,6 @@ public sealed class TrayIconManager : IDisposable
         {
             pauseItems[0].Text = _isTrackingPaused ? "Retomar Tracking" : "Pausar Tracking";
         }
-
-        // Update icon: paused shows orange fallback, active shows the real icon
-        _notifyIcon.Icon = _isTrackingPaused
-            ? CreateFallbackIcon(Color.FromArgb(245, 158, 11)) // Orange
-            : LoadAppIcon();
     }
 
     private async void SendTrackingStateChangeAsync()
