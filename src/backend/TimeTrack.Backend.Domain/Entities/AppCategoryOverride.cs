@@ -127,9 +127,11 @@ public sealed class AppCategoryOverride
         AppSubcategory.Design => true,
         AppSubcategory.Communication => true,
         AppSubcategory.ProductivityTools => true,
+        AppSubcategory.Productivity => true,
         AppSubcategory.Meetings => true,
         AppSubcategory.Documentation => true,
         AppSubcategory.DevOps => true,
+        AppSubcategory.Finance => true,
         _ => false
     };
 
@@ -139,6 +141,7 @@ public sealed class AppCategoryOverride
         AppSubcategory.System => true,
         AppSubcategory.Unknown => true,
         AppSubcategory.FileManager => true,
+        AppSubcategory.Utilities => true,
         AppSubcategory.Communication => true,
         _ => false
     };

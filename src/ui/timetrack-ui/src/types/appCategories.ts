@@ -17,19 +17,31 @@ export type ProductivityCategory = 'productive' | 'neutral' | 'distraction' | 'u
 
 /**
  * Subcategory types for granular classification
+ * Must match backend AppSubcategory enum (snake_case → PascalCase via ToPascalCase)
  */
 export type AppSubcategory =
+  // Productive
   | 'development'
-  | 'communication'
-  | 'productivity'
   | 'design'
+  | 'communication'
+  | 'productivity_tools'
+  | 'meetings'
+  | 'documentation'
+  | 'dev_ops'
+  | 'finance'
+  // Neutral
+  | 'browser_general'
+  | 'system'
+  | 'unknown'
+  | 'file_manager'
+  | 'utilities'
+  // Distraction
   | 'social_media'
   | 'entertainment'
+  | 'gaming'
   | 'news'
-  | 'shopping'
-  | 'finance'
-  | 'utilities'
-  | 'unknown';
+  | 'music_streaming'
+  | 'shopping';
 
 /**
  * Identifier type
@@ -187,17 +199,28 @@ export interface AppCategoryDisplayItem {
  * Subcategory display configuration
  */
 export const SUBCATEGORIES: Record<AppSubcategory, { label: string; labelPt: string }> = {
+  // Productive
   development: { label: 'Development', labelPt: 'Desenvolvimento' },
-  communication: { label: 'Communication', labelPt: 'Comunicação' },
-  productivity: { label: 'Productivity', labelPt: 'Produtividade' },
   design: { label: 'Design', labelPt: 'Design' },
+  communication: { label: 'Communication', labelPt: 'Comunicação' },
+  productivity_tools: { label: 'Productivity Tools', labelPt: 'Ferramentas de Produtividade' },
+  meetings: { label: 'Meetings', labelPt: 'Reuniões' },
+  documentation: { label: 'Documentation', labelPt: 'Documentação' },
+  dev_ops: { label: 'DevOps', labelPt: 'DevOps' },
+  finance: { label: 'Finance', labelPt: 'Finanças' },
+  // Neutral
+  browser_general: { label: 'Browser', labelPt: 'Navegador' },
+  system: { label: 'System', labelPt: 'Sistema' },
+  unknown: { label: 'Unknown', labelPt: 'Desconhecido' },
+  file_manager: { label: 'File Manager', labelPt: 'Gerenciador de Arquivos' },
+  utilities: { label: 'Utilities', labelPt: 'Utilitários' },
+  // Distraction
   social_media: { label: 'Social Media', labelPt: 'Redes Sociais' },
   entertainment: { label: 'Entertainment', labelPt: 'Entretenimento' },
+  gaming: { label: 'Gaming', labelPt: 'Jogos' },
   news: { label: 'News', labelPt: 'Notícias' },
+  music_streaming: { label: 'Music/Streaming', labelPt: 'Música/Streaming' },
   shopping: { label: 'Shopping', labelPt: 'Compras' },
-  finance: { label: 'Finance', labelPt: 'Finanças' },
-  utilities: { label: 'Utilities', labelPt: 'Utilitários' },
-  unknown: { label: 'Unknown', labelPt: 'Desconhecido' },
 };
 
 /**
@@ -214,7 +237,7 @@ export const PRODUCTIVITY_CONFIG: Record<ProductivityCategory, { label: string; 
  * Subcategories grouped by productivity
  */
 export const SUBCATEGORIES_BY_PRODUCTIVITY: Record<string, AppSubcategory[]> = {
-  productive: ['development', 'communication', 'productivity', 'design', 'finance'],
-  neutral: ['utilities', 'news', 'shopping'],
-  distraction: ['social_media', 'entertainment'],
+  productive: ['development', 'design', 'communication', 'productivity_tools', 'meetings', 'documentation', 'dev_ops', 'finance'],
+  neutral: ['browser_general', 'system', 'file_manager', 'utilities', 'unknown'],
+  distraction: ['social_media', 'entertainment', 'gaming', 'news', 'music_streaming', 'shopping'],
 };
