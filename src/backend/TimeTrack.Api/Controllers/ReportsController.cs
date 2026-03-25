@@ -292,6 +292,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
         [FromQuery] int limit = 10,
+        [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
         // Validate date range
@@ -326,7 +327,8 @@ public sealed class ReportsController : ControllerBase
             UserId: targetUserId,
             StartDate: startDate,
             EndDate: endDate,
-            Limit: limit
+            Limit: limit,
+            Timezone: timezone
         );
 
         try
@@ -372,6 +374,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] Guid? userId,
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
+        [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
         if (startDate > endDate)
@@ -401,7 +404,8 @@ public sealed class ReportsController : ControllerBase
         var query = new DailySummaryRangeQuery(
             UserId: targetUserId,
             StartDate: startDate,
-            EndDate: endDate
+            EndDate: endDate,
+            Timezone: timezone
         );
 
         try
@@ -434,6 +438,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
         [FromQuery] string groupBy = "day",
+        [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
         if (startDate > endDate)
@@ -470,7 +475,8 @@ public sealed class ReportsController : ControllerBase
             UserId: targetUserId,
             StartDate: startDate,
             EndDate: endDate,
-            GroupBy: groupBy.ToLowerInvariant()
+            GroupBy: groupBy.ToLowerInvariant(),
+            Timezone: timezone
         );
 
         try
@@ -503,6 +509,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
         [FromQuery] int limit = 20,
+        [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
         if (startDate > endDate)
@@ -533,7 +540,8 @@ public sealed class ReportsController : ControllerBase
             UserId: targetUserId,
             StartDate: startDate,
             EndDate: endDate,
-            Limit: Math.Clamp(limit, 1, 100)
+            Limit: Math.Clamp(limit, 1, 100),
+            Timezone: timezone
         );
 
         try
@@ -564,6 +572,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] Guid? userId,
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
+        [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
         if (startDate > endDate)
@@ -593,7 +602,8 @@ public sealed class ReportsController : ControllerBase
         var query = new DistractionStatsQuery(
             UserId: targetUserId,
             StartDate: startDate,
-            EndDate: endDate
+            EndDate: endDate,
+            Timezone: timezone
         );
 
         try
@@ -624,6 +634,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] Guid? userId,
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
+        [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
         if (startDate > endDate)
@@ -653,7 +664,8 @@ public sealed class ReportsController : ControllerBase
         var query = new CategoryDistributionQuery(
             UserId: targetUserId,
             StartDate: startDate,
-            EndDate: endDate
+            EndDate: endDate,
+            Timezone: timezone
         );
 
         try

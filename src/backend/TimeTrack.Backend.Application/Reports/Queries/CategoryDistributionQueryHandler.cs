@@ -49,6 +49,7 @@ public sealed class CategoryDistributionQueryHandler : IRequestHandler<CategoryD
             targetUserId,
             request.StartDate,
             request.EndDate,
+            request.Timezone,
             cancellationToken);
 
         // Mapear para response

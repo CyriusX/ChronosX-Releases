@@ -53,6 +53,7 @@ public sealed class TopPathsQueryHandler : IRequestHandler<TopPathsQuery, TopPat
             request.StartDate,
             request.EndDate,
             limit,
+            request.Timezone,
             cancellationToken);
 
         // Mapear para response

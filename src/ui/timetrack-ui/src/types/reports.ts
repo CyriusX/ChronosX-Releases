@@ -160,10 +160,31 @@ export interface DateRange {
   endDate: string;
 }
 
+/**
+ * Format a Date as a local date string (YYYY-MM-DD) using the user's timezone.
+ * Unlike toISOString().split('T')[0], this doesn't convert to UTC first,
+ * so a user at 22:00 local time gets today's local date, not tomorrow's UTC date.
+ */
+export function toLocalDateStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Returns the user's IANA timezone (e.g. "America/Sao_Paulo") */
+export function getUserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return 'UTC';
+  }
+}
+
 // Period preset helpers
 export const PERIOD_PRESETS: Record<PeriodPreset, () => DateRange> = {
   today: () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalDateStr(new Date());
     return { startDate: today, endDate: today };
   },
   this_week: () => {
@@ -172,32 +193,32 @@ export const PERIOD_PRESETS: Record<PeriodPreset, () => DateRange> = {
     const monday = new Date(now);
     monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
     return {
-      startDate: monday.toISOString().split('T')[0],
-      endDate: now.toISOString().split('T')[0],
+      startDate: toLocalDateStr(monday),
+      endDate: toLocalDateStr(now),
     };
   },
   this_month: () => {
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     return {
-      startDate: firstDay.toISOString().split('T')[0],
-      endDate: now.toISOString().split('T')[0],
+      startDate: toLocalDateStr(firstDay),
+      endDate: toLocalDateStr(now),
     };
   },
   last_30_days: () => {
     const now = new Date();
     const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     return {
-      startDate: start.toISOString().split('T')[0],
-      endDate: now.toISOString().split('T')[0],
+      startDate: toLocalDateStr(start),
+      endDate: toLocalDateStr(now),
     };
   },
   last_90_days: () => {
     const now = new Date();
     const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     return {
-      startDate: start.toISOString().split('T')[0],
-      endDate: now.toISOString().split('T')[0],
+      startDate: toLocalDateStr(start),
+      endDate: toLocalDateStr(now),
     };
   },
   custom: () => ({ startDate: '', endDate: '' }),

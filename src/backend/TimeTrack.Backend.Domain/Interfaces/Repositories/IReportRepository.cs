@@ -33,6 +33,7 @@ public interface IReportRepository
         DateTime endDate,
         int limit,
         string? productivityFilter,
+        string? timezone = null,
         CancellationToken cancellationToken = default);
 
     // ========================================================================
@@ -40,12 +41,14 @@ public interface IReportRepository
     // ========================================================================
 
     /// <summary>
-    /// Obtém resumo diário para múltiplos dias (heatmap estilo GitHub)
+    /// Obtém resumo diário para múltiplos dias (heatmap estilo GitHub).
+    /// When timezone is provided, day boundaries are computed in the user's local timezone.
     /// </summary>
     Task<IEnumerable<DailySummaryItem>> GetDailySummaryRangeAsync(
         Guid userId,
         DateTime startDate,
         DateTime endDate,
+        string? timezone = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -56,6 +59,7 @@ public interface IReportRepository
         DateTime startDate,
         DateTime endDate,
         string groupBy,
+        string? timezone = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -66,6 +70,7 @@ public interface IReportRepository
         DateTime startDate,
         DateTime endDate,
         int limit,
+        string? timezone = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -75,6 +80,7 @@ public interface IReportRepository
         Guid userId,
         DateTime startDate,
         DateTime endDate,
+        string? timezone = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -84,6 +90,7 @@ public interface IReportRepository
         Guid userId,
         DateTime startDate,
         DateTime endDate,
+        string? timezone = null,
         CancellationToken cancellationToken = default);
 }
 
