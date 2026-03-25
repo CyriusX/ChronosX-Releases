@@ -103,9 +103,17 @@ export function useAppCategories({
       ]);
 
       // Build overrides map for quick lookup
-      const overridesMap = new Map(
-        overridesResponse.overrides.map((o) => [o.identifier.toLowerCase(), o])
-      );
+      // Overrides have normalized identifiers (e.g., "notepad.exe") while stats
+      // may have raw process names ("notepad"). Index by both forms for matching.
+      const overridesMap = new Map<string, (typeof overridesResponse.overrides)[number]>();
+      for (const o of overridesResponse.overrides) {
+        const key = o.identifier.toLowerCase();
+        overridesMap.set(key, o);
+        // Also index without .exe so raw process names match
+        if (key.endsWith('.exe')) {
+          overridesMap.set(key.slice(0, -4), o);
+        }
+      }
 
       // Combine ALL apps from usage stats (productive, neutral, distraction, uncategorized)
       const mergedApps: AppCategoryDisplayItem[] = [];
