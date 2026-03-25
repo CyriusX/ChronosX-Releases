@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
+import { toLocalDateStr } from '../../../types/reports';
 import type { DailySummaryDayItem } from '../../../types/reports';
 
 export interface ActivityHeatmapProps {
@@ -91,7 +92,7 @@ export function ActivityHeatmap({
 
     const currentDate = new Date(startDate);
     while (currentDate <= yearEnd || currentWeek.length > 0) {
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(currentDate);
       const dayData = daysMap.get(dateStr);
 
       currentWeek.push({
@@ -115,13 +116,13 @@ export function ActivityHeatmap({
   }, [currentYear, daysMap]);
 
   const handleCellClick = useCallback((date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toLocalDateStr(date);
     navigate(`/activity?date=${dateStr}`);
   }, [navigate]);
 
   const handleCellHover = useCallback((date: Date, dayData: DailySummaryDayItem | undefined, e: React.MouseEvent) => {
     setTooltip({
-      date: date.toISOString().split('T')[0],
+      date: toLocalDateStr(date),
       hours: dayData?.totalActiveSeconds ?? 0,
       productivity: dayData?.productivityRatio ?? 0,
       x: e.clientX,

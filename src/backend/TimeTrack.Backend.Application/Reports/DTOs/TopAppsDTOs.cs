@@ -17,7 +17,8 @@ public sealed record TopAppsQuery(
     [Required]
     DateTime EndDate,
 
-    int Limit = 10
+    int Limit = 10,
+    string? Timezone = null
 ) : IRequest<TopAppsResponse>;
 
 /// <summary>

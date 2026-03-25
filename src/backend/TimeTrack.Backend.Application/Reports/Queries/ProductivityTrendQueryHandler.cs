@@ -57,6 +57,7 @@ public sealed class ProductivityTrendQueryHandler : IRequestHandler<Productivity
             request.StartDate,
             request.EndDate,
             groupBy,
+            request.Timezone,
             cancellationToken);
 
         // Mapear para response

@@ -52,6 +52,9 @@ interface FocusDayTimelineProps {
   currentPhaseStartMs: number;
   currentCycle: number;
   currentSessionName?: string;
+  /** Timestamp when the session group started (user clicked "Start") — used to
+   *  render a single continuous live block that spans focus+break phases */
+  sessionGroupStartedAt: number;
 }
 
 // ============================================================================
@@ -125,17 +128,18 @@ export function FocusDayTimeline({
   activities,
   currentPhase,
   currentMode,
-  currentPhaseStartMs,
+  currentPhaseStartMs: _currentPhaseStartMs,
   currentCycle,
   currentSessionName,
+  sessionGroupStartedAt,
 }: FocusDayTimelineProps) {
   const [hovered, setHovered] = useState<{ session: FocusSession; rect: DOMRect } | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
   const nowMarkerRef = useRef<HTMLDivElement>(null);
 
-  // Tick every 30s to update "now" marker and live session
+  // Tick every 5s to update "now" marker and live session block in real-time
   useEffect(() => {
-    const interval = setInterval(() => setNowMs(Date.now()), 30000);
+    const interval = setInterval(() => setNowMs(Date.now()), 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -147,8 +151,6 @@ export function FocusDayTimeline({
     return () => clearTimeout(timer);
   }, []);
 
-  const focusSessions = useMemo(() => sessions.filter(s => s.phase === 'focus'), [sessions]);
-
   // Day start (midnight today)
   const dayStartMs = useMemo(() => {
     const d = new Date();
@@ -156,30 +158,43 @@ export function FocusDayTimeline({
     return d.getTime();
   }, []);
 
-  // Live focus session (currently running)
+  const isTimerActive = currentPhase !== 'idle' && sessionGroupStartedAt > 0;
+
+  // Live session block — continuous from session group start to now,
+  // spanning all focus+break phases so the block grows with the time marker
   const liveSession = useMemo<FocusSession | null>(() => {
-    if (currentPhase !== 'focus' || currentPhaseStartMs <= 0) return null;
-    const startedAt = new Date(currentPhaseStartMs);
+    if (!isTimerActive) return null;
+    const startedAt = new Date(sessionGroupStartedAt);
     const now = new Date(nowMs);
     return {
       id: -1,
       name: currentSessionName,
       mode: currentMode,
-      phase: 'focus',
+      phase: currentPhase as 'focus' | 'break',
       cycle: currentCycle + 1,
       startedAt,
       completedAt: now,
-      durationMs: nowMs - currentPhaseStartMs,
+      durationMs: nowMs - sessionGroupStartedAt,
       productivity: 0,
     };
-  }, [currentPhase, currentMode, currentPhaseStartMs, currentCycle, nowMs, currentSessionName]);
+  }, [isTimerActive, currentMode, currentPhase, sessionGroupStartedAt, currentCycle, nowMs, currentSessionName]);
+
+  // Completed focus sessions — exclude those from the current active group
+  // to avoid visual overlap with the live block
+  const completedSessions = useMemo(() => {
+    const focusOnly = sessions.filter(s => s.phase === 'focus');
+    if (!isTimerActive) return focusOnly;
+    // While timer is running, hide individual sessions from this group
+    // (the live block covers them)
+    return focusOnly.filter(s => s.startedAt.getTime() < sessionGroupStartedAt);
+  }, [sessions, isTimerActive, sessionGroupStartedAt]);
 
   // All sessions to display (completed focus + live)
   const displaySessions = useMemo(() => {
-    const result = [...focusSessions];
+    const result = [...completedSessions];
     if (liveSession) result.push(liveSession);
     return result;
-  }, [focusSessions, liveSession]);
+  }, [completedSessions, liveSession]);
 
   // Now marker position (px from top)
   const nowPx = useMemo(() => {

@@ -72,6 +72,60 @@ public sealed class ReportRepository : IReportRepository
         return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
     }
 
+    /// <summary>
+    /// Computes the UTC start/end boundaries for a local date range given the user's IANA timezone.
+    /// For example, "2026-03-24" in "America/Sao_Paulo" (UTC-3) maps to
+    /// start = 2026-03-24T03:00:00Z, end = 2026-03-25T02:59:59.9999999Z
+    /// Falls back to treating dates as UTC if timezone is null or invalid.
+    /// </summary>
+    private static (DateTime UtcStart, DateTime UtcEnd) GetUtcBoundaries(DateTime startDate, DateTime endDate, string? timezone)
+    {
+        if (!string.IsNullOrEmpty(timezone))
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById(timezone);
+
+                // Local start-of-day → UTC
+                var localStart = new DateTime(startDate.Year, startDate.Month, startDate.Day, 0, 0, 0, DateTimeKind.Unspecified);
+                var utcStart = TimeZoneInfo.ConvertTimeToUtc(localStart, tz);
+
+                // Local end-of-day → UTC
+                var localEnd = new DateTime(endDate.Year, endDate.Month, endDate.Day, 23, 59, 59, DateTimeKind.Unspecified)
+                    .AddTicks(9999999); // .9999999 seconds
+                var utcEnd = TimeZoneInfo.ConvertTimeToUtc(localEnd, tz);
+
+                return (utcStart, utcEnd);
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                // Fall through to default UTC logic
+            }
+            catch (InvalidTimeZoneException)
+            {
+                // Fall through to default UTC logic
+            }
+        }
+
+        // Fallback: treat as UTC
+        var start = EnsureUtc(startDate).Date;
+        var end = EnsureUtc(endDate).Date.AddDays(1).AddTicks(-1);
+        return (start, end);
+    }
+
+    /// <summary>
+    /// Returns the TimeZoneInfo for the given IANA timezone string, or UTC as fallback.
+    /// </summary>
+    private static TimeZoneInfo GetTimezone(string? timezone)
+    {
+        if (!string.IsNullOrEmpty(timezone))
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById(timezone); }
+            catch { /* fall through */ }
+        }
+        return TimeZoneInfo.Utc;
+    }
+
     public async Task<DailyActivityAggregate> GetDailyActivityAggregateAsync(
         Guid userId,
         DateTime date,
@@ -145,12 +199,10 @@ public sealed class ReportRepository : IReportRepository
         DateTime endDate,
         int limit,
         string? productivityFilter,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
@@ -193,18 +245,17 @@ public sealed class ReportRepository : IReportRepository
         Guid userId,
         DateTime startDate,
         DateTime endDate,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var tz = GetTimezone(timezone);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
-        // Buscar sessões e idle periods
+        // Buscar sessões e idle periods — include EndedAt for proper midnight-crossing handling
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.StartedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .Select(a => new { a.StartedAt, a.EndedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
         // DEBUG: Log raw session data
@@ -224,23 +275,43 @@ public sealed class ReportRepository : IReportRepository
             .Select(i => new { i.StartedAt, i.DurationSeconds })
             .ToListAsync(cancellationToken);
 
-        // Agrupar por data
+        // Agrupar por local date — iterate local days and compute UTC boundaries per day.
+        // Sessions are clipped to day boundaries so midnight-crossing sessions are split
+        // proportionally: only the portion that overlaps the day counts.
         var result = new List<DailySummaryItem>();
-        for (var date = start.Date; date <= utcEnd.Date; date = date.AddDays(1))
+        for (var localDate = startDate.Date; localDate <= endDate.Date; localDate = localDate.AddDays(1))
         {
-            var dayStart = date;
-            var dayEnd = date.AddDays(1).AddTicks(-1);
+            var (dayStart, dayEnd) = GetUtcBoundaries(localDate, localDate, timezone);
+            var dayEndExclusive = dayEnd.AddTicks(1); // use exclusive end for arithmetic
 
-            var daySessions = sessions.Where(s => s.StartedAt >= dayStart && s.StartedAt <= dayEnd).ToList();
-            var dayIdle = idlePeriods.Where(i => i.StartedAt >= dayStart && i.StartedAt <= dayEnd).ToList();
+            // Include sessions that OVERLAP with this day (not just StartedAt within it).
+            // A session overlaps if it started before dayEnd AND ended after dayStart.
+            var daySessions = sessions
+                .Where(s => s.StartedAt <= dayEnd && s.EndedAt > dayStart)
+                .ToList();
+            var dayIdle = idlePeriods
+                .Where(i => i.StartedAt <= dayEnd && i.StartedAt >= dayStart)
+                .ToList();
 
-            var totalActive = daySessions.Sum(s => s.DurationSeconds);
+            // Clip each session's duration to the day boundaries.
+            // If a session is entirely within the day, use full DurationSeconds.
+            // If it crosses midnight, only count the portion that falls in this day.
+            long ClipDuration(DateTime sessStart, DateTime sessEnd, int rawDuration)
+            {
+                var clippedStart = sessStart < dayStart ? dayStart : sessStart;
+                var clippedEnd = sessEnd > dayEndExclusive ? dayEndExclusive : sessEnd;
+                var clippedSeconds = (long)(clippedEnd - clippedStart).TotalSeconds;
+                // Never exceed the raw duration (avoid rounding issues)
+                return Math.Clamp(clippedSeconds, 0, rawDuration);
+            }
+
+            var totalActive = daySessions.Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
             var totalIdle = dayIdle.Sum(i => i.DurationSeconds);
 
-            // Calcular produtividade
+            // Calcular produtividade (using clipped durations)
             var productiveSeconds = daySessions
                 .Where(s => ResolveProductivity(s.AppCategory) == "productive")
-                .Sum(s => s.DurationSeconds);
+                .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
 
             // DEBUG: Log productivity calculation
             var productiveCount = daySessions.Count(s => ResolveProductivity(s.AppCategory) == "productive");
@@ -248,7 +319,7 @@ public sealed class ReportRepository : IReportRepository
             var distractionCountDebug = daySessions.Count(s => ResolveProductivity(s.AppCategory) == "distraction");
             _logger?.LogInformation(
                 "GetDailySummaryRangeAsync Day={Date}: TotalActive={TotalActive}s, Productive={Productive}s ({ProductiveCount} sessions), Neutral={NeutralCount} sessions, Distraction={DistractionCount} sessions",
-                date, totalActive, productiveSeconds, productiveCount, neutralCount, distractionCountDebug);
+                localDate, totalActive, productiveSeconds, productiveCount, neutralCount, distractionCountDebug);
 
             var productivityRatio = totalActive > 0
                 ? (double)productiveSeconds / totalActive
@@ -269,11 +340,12 @@ public sealed class ReportRepository : IReportRepository
                     .Count();
 
                 // Contar blocos de foco longo (>25min consecutivos em apps produtivos)
+                // Use clipped durations for accurate day-level accounting
                 var currentFocusBlockSeconds = 0L;
                 foreach (var session in daySessions.OrderBy(s => s.StartedAt))
                 {
                     var category = ResolveProductivity(session.AppCategory);
-                    var durationSeconds = (long)session.DurationSeconds;
+                    var durationSeconds = ClipDuration(session.StartedAt, session.EndedAt, session.DurationSeconds);
 
                     if (category == "productive")
                     {
@@ -290,10 +362,10 @@ public sealed class ReportRepository : IReportRepository
                 if (currentFocusBlockSeconds >= LongFocusBlockThresholdSeconds)
                     longFocusBlockCount++;
 
-                // Calcular Focus Score
+                // Calcular Focus Score (using clipped durations)
                 var distractionMs = daySessions
                     .Where(s => ResolveProductivity(s.AppCategory) == "distraction")
-                    .Sum(s => (long)s.DurationSeconds * 1000);
+                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds) * 1000);
 
                 var input = FocusScoreInput.Create(
                     totalTrackedMs: totalActive * 1000,
@@ -309,7 +381,7 @@ public sealed class ReportRepository : IReportRepository
 
             result.Add(new DailySummaryItem
             {
-                Date = date,
+                Date = localDate,
                 TotalActiveSeconds = totalActive,
                 TotalIdleSeconds = totalIdle,
                 ProductivityRatio = productivityRatio,
@@ -328,12 +400,11 @@ public sealed class ReportRepository : IReportRepository
         DateTime startDate,
         DateTime endDate,
         string groupBy,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var tz = GetTimezone(timezone);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
@@ -347,19 +418,23 @@ public sealed class ReportRepository : IReportRepository
             .Select(i => new { i.StartedAt, i.DurationSeconds })
             .ToListAsync(cancellationToken);
 
-        // Agrupar por período
+        // Convert UTC timestamps to local time for grouping
+        DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(utc, DateTimeKind.Utc), tz);
+
+        // Agrupar por período (using local dates)
         var grouped = groupBy.ToLowerInvariant() switch
         {
-            "week" => sessions.GroupBy(s => GetWeekKey(s.StartedAt)),
-            "month" => sessions.GroupBy(s => GetMonthKey(s.StartedAt)),
-            _ => sessions.GroupBy(s => s.StartedAt.ToString("yyyy-MM-dd"))
+            "week" => sessions.GroupBy(s => GetWeekKey(ToLocal(s.StartedAt))),
+            "month" => sessions.GroupBy(s => GetMonthKey(ToLocal(s.StartedAt))),
+            _ => sessions.GroupBy(s => ToLocal(s.StartedAt).ToString("yyyy-MM-dd"))
         };
 
         var idleGrouped = groupBy.ToLowerInvariant() switch
         {
-            "week" => idlePeriods.GroupBy(i => GetWeekKey(i.StartedAt)),
-            "month" => idlePeriods.GroupBy(i => GetMonthKey(i.StartedAt)),
-            _ => idlePeriods.GroupBy(i => i.StartedAt.ToString("yyyy-MM-dd"))
+            "week" => idlePeriods.GroupBy(i => GetWeekKey(ToLocal(i.StartedAt))),
+            "month" => idlePeriods.GroupBy(i => GetMonthKey(ToLocal(i.StartedAt))),
+            _ => idlePeriods.GroupBy(i => ToLocal(i.StartedAt).ToString("yyyy-MM-dd"))
         };
 
         var idleDict = idleGrouped.ToDictionary(g => g.Key, g => g.Sum(i => i.DurationSeconds));
@@ -395,12 +470,10 @@ public sealed class ReportRepository : IReportRepository
         DateTime startDate,
         DateTime endDate,
         int limit,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
@@ -442,12 +515,11 @@ public sealed class ReportRepository : IReportRepository
         Guid userId,
         DateTime startDate,
         DateTime endDate,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var tz = GetTimezone(timezone);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
@@ -460,9 +532,11 @@ public sealed class ReportRepository : IReportRepository
             .Where(s => ResolveProductivity(s.AppCategory) == "distraction")
             .ToList();
 
-        // Agrupar por dia
+        // Agrupar por dia (local time)
+        DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(utc, DateTimeKind.Utc), tz);
         var dailyDistractions = distractions
-            .GroupBy(s => s.StartedAt.Date)
+            .GroupBy(s => ToLocal(s.StartedAt).Date)
             .Select(g => new DailyDistraction
             {
                 Date = g.Key,
@@ -498,12 +572,10 @@ public sealed class ReportRepository : IReportRepository
         Guid userId,
         DateTime startDate,
         DateTime endDate,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()

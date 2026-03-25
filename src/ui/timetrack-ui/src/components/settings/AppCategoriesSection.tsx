@@ -53,16 +53,28 @@ export function AppCategoriesSection({ orgId }: AppCategoriesSectionProps) {
    * Handle creating/updating an override
    */
   const handleSaveOverride = async (request: OverrideRequest) => {
-    await createOverride(request);
-    notify.success(`${request.displayName} reclassificado como ${request.productivity === 'productive' ? 'Produtivo' : request.productivity === 'neutral' ? 'Neutro' : 'Distração'}`);
+    try {
+      await createOverride(request);
+      notify.success(`${request.displayName} reclassificado como ${request.productivity === 'productive' ? 'Produtivo' : request.productivity === 'neutral' ? 'Neutro' : 'Distração'}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      notify.error(`Erro ao salvar classificação: ${message}`);
+      throw error; // Re-throw so the modal can also display the error
+    }
   };
 
   /**
    * Handle adding a new app classification
    */
   const handleAddApp = async (request: OverrideRequest) => {
-    await createOverride(request);
-    notify.success(`Classificação adicionada para ${request.identifier}`);
+    try {
+      await createOverride(request);
+      notify.success(`Classificação adicionada para ${request.identifier}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      notify.error(`Erro ao adicionar classificação: ${message}`);
+      throw error;
+    }
   };
 
   /**

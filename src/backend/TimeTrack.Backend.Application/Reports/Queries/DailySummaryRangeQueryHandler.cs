@@ -55,6 +55,7 @@ public sealed class DailySummaryRangeQueryHandler : IRequestHandler<DailySummary
             targetUserId,
             request.StartDate,
             request.EndDate,
+            request.Timezone,
             cancellationToken);
 
         var dailyList = dailySummaries.ToList();
