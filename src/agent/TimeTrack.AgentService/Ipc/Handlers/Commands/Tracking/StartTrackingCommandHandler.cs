@@ -23,6 +23,7 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
     private readonly IOutboxRepository _outboxRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly IIdempotencyKeyGenerator _idempotencyKeyGenerator;
+    private readonly IIpcServer _ipcServer;
     private readonly ILogger<StartTrackingCommandHandler> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -36,6 +37,7 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         IOutboxRepository outboxRepository,
         ICurrentUserContext userContext,
         IIdempotencyKeyGenerator idempotencyKeyGenerator,
+        IIpcServer ipcServer,
         ILogger<StartTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
@@ -43,6 +45,7 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         _outboxRepository = outboxRepository;
         _userContext = userContext;
         _idempotencyKeyGenerator = idempotencyKeyGenerator;
+        _ipcServer = ipcServer;
         _logger = logger;
     }
 
@@ -72,6 +75,14 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
             }, ct);
 
             _logger.LogInformation("StartTrackingCommandHandler: StartAsync completed, Status = {Status}", result.Status);
+
+            // Broadcast state change so DesktopHost tray icon updates
+            await _ipcServer.SendEventAsync(new IpcEvent
+            {
+                EventType = "trackingStateChanged",
+                Payload = new { isTracking = true, isPaused = false }
+            }, ct);
+
             return SuccessResponse(request.RequestId, result);
         }
         catch (Exception ex)
