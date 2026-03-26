@@ -389,11 +389,13 @@
       "Bash(findstr \"LISTENING\")",
       "Bash(powershell -Command \"Stop-Process -Id 34784 -Force\" 2>&1)",
       "Bash(docker compose:*)",
-      "Bash(timeout 5 docker logs timetrack-api --tail 30 -f)"
+      "Bash(timeout 5 docker logs timetrack-api --tail 30 -f)",
+      "Read(//c/Projetos/TimeTracking/src/ui/timetrack-ui/**)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
-      "c:\\Projetos\\TimeTracking\\src\\agent\\TimeTrack.Agent.Domain\\obj"
+      "c:\\Projetos\\TimeTracking\\src\\agent\\TimeTrack.Agent.Domain\\obj",
+      "C:\\Users\\Usuario\\AppData\\Local\\TimeTrack"
     ]
   }
 }
