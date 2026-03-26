@@ -19,6 +19,15 @@ public sealed class ReportRepository : IReportRepository
     private readonly TimeTrackDbContext _context;
     private readonly ILogger<ReportRepository>? _logger;
 
+    // Internal/system apps excluded from report totals (same as agent's local dashboard)
+    private static readonly HashSet<string> InternalApps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "TimeTrack.DesktopHost",
+        "Microsoft Edge WebView2",
+        "Microsoft® Windows® Operating System",
+        "Tracking Stopped"
+    };
+
     // Cache em memória das categorias globais (carregado uma vez por instância)
     private Dictionary<string, AppCategoryGlobal>? _categoryCache;
     private readonly object _cacheLock = new();
@@ -150,6 +159,9 @@ public sealed class ReportRepository : IReportRepository
             })
             .ToListAsync(cancellationToken);
 
+        // Filter out internal/system apps to match dashboard totals
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
         // Agrupar por processo e resolver categoria
         var appGroups = sessions
             .GroupBy(a => a.ProcessName)
@@ -210,6 +222,9 @@ public sealed class ReportRepository : IReportRepository
             .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
+        // Filter out internal/system apps to match dashboard totals
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
         var appGroups = sessions
             .GroupBy(a => a.ProcessName)
             .Select(g =>
@@ -251,12 +266,19 @@ public sealed class ReportRepository : IReportRepository
         var tz = GetTimezone(timezone);
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
-        // Buscar sessões e idle periods — include EndedAt for proper midnight-crossing handling
+        // Buscar sessões and idle periods — include EndedAt for proper midnight-crossing handling.
+        // Exclude internal/system apps (same as agent's local dashboard) to avoid inflating totals
+        // with "Tracking Stopped" placeholder sessions and our own UI processes.
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
             .Select(a => new { a.StartedAt, a.EndedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
+
+        // Filter out internal/system apps in-memory (EF can't translate HashSet.Contains with OrdinalIgnoreCase)
+        sessions = sessions
+            .Where(s => !InternalApps.Contains(s.ProcessName))
+            .ToList();
 
         // DEBUG: Log raw session data
         _logger?.LogInformation(
@@ -412,6 +434,9 @@ public sealed class ReportRepository : IReportRepository
             .Select(a => new { a.StartedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
+        // Filter out internal/system apps
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
         var idlePeriods = await _context.IdlePeriods
             .AsNoTracking()
             .Where(i => i.UserId == userId && i.StartedAt >= start && i.StartedAt <= end)
@@ -482,6 +507,9 @@ public sealed class ReportRepository : IReportRepository
             .Select(a => new { a.ProcessName, a.WindowTitle, a.FilePath, a.DurationSeconds })
             .ToListAsync(cancellationToken);
 
+        // Filter out internal/system apps
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
         // Extrair paths usando FilePath se disponível, senão extrair do WindowTitle
         var paths = sessions
             .Select(s => new
@@ -526,6 +554,9 @@ public sealed class ReportRepository : IReportRepository
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
             .Select(a => new { a.StartedAt, a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
+
+        // Filter out internal/system apps
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
 
         // Filtrar distrações
         var distractions = sessions
@@ -582,6 +613,9 @@ public sealed class ReportRepository : IReportRepository
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
             .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
+
+        // Filter out internal/system apps
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
 
         var totalSeconds = sessions.Sum(s => s.DurationSeconds);
         if (totalSeconds == 0) return [];
