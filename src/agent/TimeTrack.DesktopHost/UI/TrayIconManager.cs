@@ -184,10 +184,21 @@ public sealed class TrayIconManager : IDisposable
 
     private void OnPauseClick(object? sender, EventArgs e)
     {
+        _logger.LogInformation("OnPauseClick called, current state: {State}, IsConnected: {IsConnected}",
+            _isTrackingPaused ? "Paused" : "Active", _ipcClient.IsConnected);
+
+        if (!_ipcClient.IsConnected)
+        {
+            _logger.LogWarning("Cannot change tracking state: IPC not connected");
+            _notifyIcon.ShowBalloonTip(3000, "Erro", "Não conectado ao AgentService", ToolTipIcon.Warning);
+            return;
+        }
+
+        var previousState = _isTrackingPaused;
         _isTrackingPaused = !_isTrackingPaused;
         UpdatePauseMenuItem();
 
-        SendTrackingStateChangeAsync();
+        SendTrackingStateChangeAsync(previousState);
     }
 
     private void UpdatePauseMenuItem()
@@ -199,24 +210,42 @@ public sealed class TrayIconManager : IDisposable
         }
     }
 
-    private async void SendTrackingStateChangeAsync()
+    private async void SendTrackingStateChangeAsync(bool previousState)
     {
         try
         {
+            IpcResponse response;
             if (_isTrackingPaused)
             {
                 // Send pause with reason so the activity session is labeled correctly
-                await _ipcClient.SendCommandAsync("pauseTracking", new { reason = "Tracking Stopped" });
+                response = await _ipcClient.SendCommandAsync("pauseTracking", new { reason = "Tracking Stopped" });
             }
             else
             {
-                await _ipcClient.SendCommandAsync("startTracking");
+                response = await _ipcClient.SendCommandAsync("startTracking");
             }
+
+            if (!response.Success)
+            {
+                // Revert state on failure
+                _isTrackingPaused = previousState;
+                UpdatePauseMenuItem();
+
+                _logger.LogError("Failed to change tracking state: {Error}", response.Error);
+                _notifyIcon.ShowBalloonTip(3000, "Erro", $"Falha ao alterar estado: {response.Error}", ToolTipIcon.Error);
+                return;
+            }
+
             _logger.LogInformation("Tracking state changed to: {State}", _isTrackingPaused ? "Paused" : "Active");
         }
         catch (Exception ex)
         {
+            // Revert state on exception
+            _isTrackingPaused = previousState;
+            UpdatePauseMenuItem();
+
             _logger.LogError(ex, "Error changing tracking state");
+            _notifyIcon.ShowBalloonTip(3000, "Erro", $"Erro ao alterar estado: {ex.Message}", ToolTipIcon.Error);
         }
     }
 
