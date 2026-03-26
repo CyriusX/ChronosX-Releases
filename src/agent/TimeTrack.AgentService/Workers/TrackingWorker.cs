@@ -22,7 +22,6 @@ public sealed class TrackingWorker : BackgroundService
     private readonly IActiveWindowProvider _activeWindowProvider;
     private readonly IIdleDetector _idleDetector;
     private readonly ITrackingStateRepository _stateRepository;
-    private readonly IActivitySessionRepository _sessionRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
     private readonly RecordIdlePeriodUseCase _recordIdlePeriodUseCase;
@@ -37,7 +36,6 @@ public sealed class TrackingWorker : BackgroundService
         IActiveWindowProvider activeWindowProvider,
         IIdleDetector idleDetector,
         ITrackingStateRepository stateRepository,
-        IActivitySessionRepository sessionRepository,
         ICurrentUserContext userContext,
         RecordActiveWindowUseCase recordActiveWindowUseCase,
         RecordIdlePeriodUseCase recordIdlePeriodUseCase,
@@ -48,7 +46,6 @@ public sealed class TrackingWorker : BackgroundService
         _activeWindowProvider = activeWindowProvider;
         _idleDetector = idleDetector;
         _stateRepository = stateRepository;
-        _sessionRepository = sessionRepository;
         _userContext = userContext;
         _recordActiveWindowUseCase = recordActiveWindowUseCase;
         _recordIdlePeriodUseCase = recordIdlePeriodUseCase;
@@ -233,10 +230,11 @@ public sealed class TrackingWorker : BackgroundService
                     "Usuário entrou em idle. Tempo de inatividade: {IdleTime}",
                     idleTime.Value);
             }
-            // Keep the current session alive by touching it so it doesn't expire
-            // (the idle period will be recorded when the user returns)
-            await TouchActiveSessionAsync(userId.Value, cancellationToken);
-            return; // Don't record new activity while idle
+            // Don't record activity while idle — the idle period will be recorded
+            // when the user returns. The current session naturally expires from
+            // the 60s window, and a new session starts on return. This is correct:
+            // idle time should NOT inflate session durations.
+            return;
         }
 
         // 3. Se estava idle e retornou - salvar o período de inatividade
@@ -280,14 +278,15 @@ public sealed class TrackingWorker : BackgroundService
         if (activeWindow == null)
         {
             // No active window (PC sleeping/locked/etc.) — treat as idle.
-            // Keep the session alive so tracking doesn't break on wake.
+            // The idle period will be recorded when the user returns.
+            // We do NOT extend the session's end_utc here — that would inflate
+            // the session duration with idle time.
             if (!_isIdle)
             {
                 _isIdle = true;
                 _idleStartedAt = DateTime.UtcNow;
                 _logger.LogInformation("No active window detected (PC may be sleeping/locked). Entering idle state.");
             }
-            await TouchActiveSessionAsync(userId.Value, cancellationToken);
             return;
         }
 
@@ -307,34 +306,6 @@ public sealed class TrackingWorker : BackgroundService
             "Ciclo concluído: {App} - {Title}",
             activeWindow.DisplayName,
             activeWindow.WindowTitle ?? "sem título");
-    }
-
-    /// <summary>
-    /// Extends the end_utc of the most recent session to keep it "alive"
-    /// during idle/sleep so it doesn't expire from the 60-second threshold.
-    /// Uses GetMostRecentAsync as fallback for when the PC was sleeping
-    /// and the session already expired from the 60s window.
-    /// </summary>
-    private async Task TouchActiveSessionAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            // Try the active session first (within 60s window)
-            var session = await _sessionRepository.GetActiveSessionAsync(userId, cancellationToken);
-
-            // Fallback: if PC was sleeping for > 60s, the session expired from the
-            // active window but still exists as the most recent session.
-            session ??= await _sessionRepository.GetMostRecentAsync(userId, cancellationToken);
-
-            if (session == null) return;
-
-            session.Extend(DateTime.UtcNow);
-            await _sessionRepository.UpdateAsync(session, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to touch active session during idle (non-critical)");
-        }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
