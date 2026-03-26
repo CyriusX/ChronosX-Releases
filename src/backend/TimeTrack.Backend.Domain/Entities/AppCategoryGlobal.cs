@@ -41,7 +41,7 @@ public sealed class AppCategoryGlobal
         return new AppCategoryGlobal
         {
             Id = Guid.NewGuid(),
-            Identifier = NormalizeIdentifier(identifier, identifierType),
+            Identifier = IdentifierNormalizer.Normalize(identifier, identifierType),
             IdentifierType = identifierType,
             DisplayName = displayName.Trim(),
             Productivity = productivity,
@@ -97,18 +97,6 @@ public sealed class AppCategoryGlobal
     {
         // Allow names with or without .exe extension
         return !string.IsNullOrWhiteSpace(name) && !name.Contains('/');
-    }
-
-    private static string NormalizeIdentifier(string identifier, AppIdentifierType type)
-    {
-        var normalized = identifier.Trim().ToLowerInvariant();
-
-        if (type == AppIdentifierType.Exe && !normalized.EndsWith(".exe"))
-        {
-            normalized += ".exe";
-        }
-
-        return normalized;
     }
 
     private static void ValidateDisplayName(string displayName)

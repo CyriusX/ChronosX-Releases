@@ -3,6 +3,7 @@ using TimeTrack.Backend.Domain.Entities;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
 using TimeTrack.Backend.Domain.ValueObjects;
 using TimeTrack.Backend.Infrastructure.Persistence;
+// Using IdentifierNormalizer for normalization
 
 namespace TimeTrack.Backend.Infrastructure.Repositories;
 
@@ -26,7 +27,7 @@ public sealed class AppCategoryOverrideRepository : IAppCategoryOverrideReposito
         string identifier,
         CancellationToken cancellationToken = default)
     {
-        var normalizedIdentifier = NormalizeIdentifier(identifier);
+        var normalizedIdentifier = IdentifierNormalizer.Normalize(identifier);
         return await _context.AppCategoryOverrides
             .AsNoTracking()
             .FirstOrDefaultAsync(
@@ -63,7 +64,7 @@ public sealed class AppCategoryOverrideRepository : IAppCategoryOverrideReposito
         CancellationToken cancellationToken = default)
     {
         var normalizedIdentifiers = identifiers
-            .Select(NormalizeIdentifier)
+            .Select(id => IdentifierNormalizer.Normalize(id))
             .ToHashSet();
 
         return await _context.AppCategoryOverrides
@@ -77,7 +78,7 @@ public sealed class AppCategoryOverrideRepository : IAppCategoryOverrideReposito
         string identifier,
         CancellationToken cancellationToken = default)
     {
-        var normalizedIdentifier = NormalizeIdentifier(identifier);
+        var normalizedIdentifier = IdentifierNormalizer.Normalize(identifier);
         return await _context.AppCategoryOverrides
             .AnyAsync(
                 o => o.OrgId == orgId && o.Identifier == normalizedIdentifier,
@@ -121,7 +122,7 @@ public sealed class AppCategoryOverrideRepository : IAppCategoryOverrideReposito
         string identifier,
         CancellationToken cancellationToken = default)
     {
-        var normalizedIdentifier = NormalizeIdentifier(identifier);
+        var normalizedIdentifier = IdentifierNormalizer.Normalize(identifier);
         var entity = await _context.AppCategoryOverrides
             .FirstOrDefaultAsync(
                 o => o.OrgId == orgId && o.Identifier == normalizedIdentifier,
@@ -141,21 +142,5 @@ public sealed class AppCategoryOverrideRepository : IAppCategoryOverrideReposito
     {
         return await _context.AppCategoryOverrides
             .CountAsync(o => o.OrgId == orgId, cancellationToken);
-    }
-
-    private static string NormalizeIdentifier(string identifier)
-    {
-        if (string.IsNullOrWhiteSpace(identifier))
-            return string.Empty;
-
-        var normalized = identifier.Trim().ToLowerInvariant();
-
-        // Add .exe if it looks like an exe name without extension
-        if (!normalized.Contains('.') && !normalized.Contains('/'))
-        {
-            normalized += ".exe";
-        }
-
-        return normalized;
     }
 }

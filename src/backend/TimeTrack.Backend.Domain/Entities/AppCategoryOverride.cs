@@ -47,7 +47,7 @@ public sealed class AppCategoryOverride
         {
             Id = Guid.NewGuid(),
             OrgId = orgId,
-            Identifier = NormalizeIdentifier(identifier, identifierType),
+            Identifier = IdentifierNormalizer.Normalize(identifier, identifierType),
             IdentifierType = identifierType,
             Productivity = productivity,
             Subcategory = subcategory,
@@ -82,18 +82,6 @@ public sealed class AppCategoryOverride
     {
         if (string.IsNullOrWhiteSpace(identifier))
             throw new ArgumentException("Identifier is required", nameof(identifier));
-    }
-
-    private static string NormalizeIdentifier(string identifier, AppIdentifierType type)
-    {
-        var normalized = identifier.Trim().ToLowerInvariant();
-
-        if (type == AppIdentifierType.Exe && !normalized.EndsWith(".exe"))
-        {
-            normalized += ".exe";
-        }
-
-        return normalized;
     }
 
     private static void ValidateNote(string? note)
