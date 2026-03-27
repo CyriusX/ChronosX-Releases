@@ -112,4 +112,25 @@ public sealed class ActivitySessionRepository : IActivitySessionRepository
         await _context.ActivitySessions.AddRangeAsync(sessions, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<int> UpdateCategoryByProcessNameAsync(
+        Guid orgId,
+        string processName,
+        string newAppCategory,
+        string? newAppSubcategory,
+        CancellationToken cancellationToken = default)
+    {
+        // Use raw SQL for efficient bulk update — avoids loading all entities into memory.
+        // Case-insensitive match on process_name, scoped to the specific organization.
+        // Table and column names use snake_case (Postgres convention from EF configuration).
+        var updated = await _context.Database.ExecuteSqlRawAsync(
+            @"UPDATE activity_sessions
+              SET app_category = {0}, app_subcategory = {1}
+              WHERE org_id = {2}
+                AND LOWER(process_name) = LOWER({3})",
+            [newAppCategory, newAppSubcategory ?? "unknown", orgId, processName],
+            cancellationToken);
+
+        return updated;
+    }
 }
