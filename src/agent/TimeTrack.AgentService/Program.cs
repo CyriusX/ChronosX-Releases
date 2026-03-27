@@ -26,8 +26,8 @@ IHost host = Host.CreateDefaultBuilder(args)
         // Sync Services (uses NullSyncTransport for local testing)
         services.AddSyncServices(context.Configuration);
 
-        // Application Layer - Use Cases
-        services.AddApplicationLayer();
+        // Application Layer - Use Cases + Category Sync
+        services.AddApplicationLayer(context.Configuration);
 
         // Notification and Focus Mode services
         services.AddNotificationAndFocusMode();
