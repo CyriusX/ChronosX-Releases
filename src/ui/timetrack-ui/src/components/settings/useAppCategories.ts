@@ -15,6 +15,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useIpc } from '../../hooks/useIpc';
 import type {
   AppCategoryDisplayItem,
   AppCategoryFilter,
@@ -73,6 +74,7 @@ export interface OverrideRequest {
 export function useAppCategories({
   orgId,
 }: UseAppCategoriesProps): UseAppCategoriesReturn {
+  const { sendCommand } = useIpc();
   // State
   const [allApps, setAllApps] = useState<AppCategoryDisplayItem[]>([]);
   const [overridesCount, setOverridesCount] = useState(0);
@@ -215,8 +217,20 @@ export function useAppCategories({
 
       await upsertOverride(orgId, request);
       await fetchData();
+
+      // Directly update the agent's local SQLite sessions so dashboard reflects the change instantly
+      try {
+        await sendCommand('updateAppCategory', {
+          displayName: request.displayName || request.identifier,
+          identifier: request.identifier,
+          productivity: request.productivity,
+          subcategory: request.subcategory,
+        });
+      } catch {
+        // Non-critical — will apply on next session recording
+      }
     },
-    [orgId, fetchData]
+    [orgId, fetchData, sendCommand]
   );
 
   /**
@@ -230,8 +244,15 @@ export function useAppCategories({
 
       await deleteOverride(orgId, identifier);
       await fetchData();
+
+      // Trigger immediate agent cache sync
+      try {
+        await sendCommand('syncNow');
+      } catch {
+        // Non-critical
+      }
     },
-    [orgId, fetchData]
+    [orgId, fetchData, sendCommand]
   );
 
   /**

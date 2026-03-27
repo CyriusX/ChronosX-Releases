@@ -75,16 +75,26 @@ public sealed class GetLocalDashboardUseCase
         var stateTask = _stateRepository.GetAsync(userIdValue, cancellationToken);
         var sessionsTask = _sessionRepository.GetByDateAsync(userIdValue, targetDate, cancellationToken);
         var idlePeriodsTask = _idleRepository.GetByDateAsync(userIdValue, targetDate, cancellationToken);
-        var cacheTask = _categoryCacheRepository.GetAllAsync();
 
-        await Task.WhenAll(stateTask, sessionsTask, idlePeriodsTask, cacheTask);
+        await Task.WhenAll(stateTask, sessionsTask, idlePeriodsTask);
 
         var state = await stateTask;
         var sessions = await sessionsTask;
         var idlePeriods = await idlePeriodsTask;
 
         // Build override lookup from local category cache (includes org overrides synced from backend)
-        var categoryLookup = BuildCategoryLookup(await cacheTask);
+        // Never let cache failure break the dashboard
+        CategoryLookup categoryLookup;
+        try
+        {
+            var cacheEntries = await _categoryCacheRepository.GetAllAsync();
+            categoryLookup = BuildCategoryLookup(cacheEntries);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load category cache, using baked-in categories");
+            categoryLookup = new CategoryLookup();
+        }
 
         // Internal app names to exclude from dashboard (our own UI processes)
         var internalApps = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

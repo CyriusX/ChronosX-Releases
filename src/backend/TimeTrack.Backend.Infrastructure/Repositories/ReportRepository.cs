@@ -74,43 +74,64 @@ public sealed class ReportRepository : IReportRepository
     /// <summary>
     /// Loads the org-level category overrides for a given user, keyed by normalized identifier.
     /// Returns a lookup: normalizedIdentifier → (productivity, subcategory).
+    /// NEVER throws — returns empty dict on any failure so reports still work.
     /// </summary>
     private async Task<Dictionary<string, (string Productivity, string Subcategory)>> GetOverridesForUserAsync(
         Guid userId, CancellationToken cancellationToken)
     {
-        // Get the user's orgId
-        var user = await _context.Users
-            .AsNoTracking()
-            .Where(u => u.Id == userId)
-            .Select(u => new { u.OrgId })
-            .FirstOrDefaultAsync(cancellationToken);
+        try
+        {
+            // Get the user's orgId — bypass multi-tenancy filter to ensure we find the user
+            var user = await _context.Users
+                .AsNoTracking()
+                .IgnoreQueryFilters()
+                .Where(u => u.Id == userId)
+                .Select(u => new { u.OrgId })
+                .FirstOrDefaultAsync(cancellationToken);
 
-        if (user == null) return new();
+            if (user == null)
+            {
+                _logger?.LogWarning("GetOverridesForUserAsync: User {UserId} not found", userId);
+                return new();
+            }
 
-        if (_overrideCache.TryGetValue(user.OrgId, out var cached))
-            return cached;
+            if (_overrideCache.TryGetValue(user.OrgId, out var cached))
+                return cached;
 
-        var overrides = await _context.AppCategoryOverrides
-            .AsNoTracking()
-            .Where(o => o.OrgId == user.OrgId)
-            .Select(o => new { o.Identifier, o.Productivity, o.Subcategory })
-            .ToListAsync(cancellationToken);
+            var overrides = await _context.AppCategoryOverrides
+                .AsNoTracking()
+                .IgnoreQueryFilters()
+                .Where(o => o.OrgId == user.OrgId)
+                .Select(o => new { o.Identifier, o.Productivity, o.Subcategory })
+                .ToListAsync(cancellationToken);
 
-        var lookup = overrides.ToDictionary(
-            o => o.Identifier.ToLowerInvariant(),
-            o => (
-                Productivity: o.Productivity switch
-                {
-                    AppProductivityCategory.Productive => "productive",
-                    AppProductivityCategory.Distraction => "distraction",
-                    _ => "neutral"
-                },
-                Subcategory: o.Subcategory.ToString().ToLowerInvariant()
-            ));
+            // Use last-wins for duplicate identifiers (safe against duplicate key exceptions)
+            var lookup = new Dictionary<string, (string Productivity, string Subcategory)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var o in overrides)
+            {
+                var key = o.Identifier?.ToLowerInvariant() ?? "";
+                if (string.IsNullOrEmpty(key)) continue;
+                lookup[key] = (
+                    o.Productivity switch
+                    {
+                        AppProductivityCategory.Productive => "productive",
+                        AppProductivityCategory.Distraction => "distraction",
+                        _ => "neutral"
+                    },
+                    o.Subcategory.ToString().ToLowerInvariant()
+                );
+            }
 
-        _overrideCache[user.OrgId] = lookup;
-        _logger?.LogInformation("Loaded {Count} category overrides for org {OrgId}", lookup.Count, user.OrgId);
-        return lookup;
+            _overrideCache[user.OrgId] = lookup;
+            _logger?.LogInformation("Loaded {Count} category overrides for org {OrgId}", lookup.Count, user.OrgId);
+            return lookup;
+        }
+        catch (Exception ex)
+        {
+            // NEVER let override loading break report queries — fall back to stored categories
+            _logger?.LogError(ex, "GetOverridesForUserAsync failed for user {UserId}, falling back to stored categories", userId);
+            return new();
+        }
     }
 
     /// <summary>

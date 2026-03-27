@@ -80,10 +80,18 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
     private async Task<IpcResponse> BuildFromLocalSqlite(int requestId, Guid userId, DateTime targetDate, CancellationToken ct)
     {
         var sessions = await _sessionRepository.GetByDateAsync(userId, targetDate, ct);
-        var cacheEntries = await _categoryCacheRepository.GetAllAsync();
 
-        // Build override lookup from local cache (includes org overrides synced from backend)
-        var categoryLookup = BuildCategoryLookup(cacheEntries);
+        // Build override lookup from local cache — never let failure break activities
+        CategoryLookup categoryLookup;
+        try
+        {
+            var cacheEntries = await _categoryCacheRepository.GetAllAsync();
+            categoryLookup = BuildCategoryLookup(cacheEntries);
+        }
+        catch
+        {
+            categoryLookup = new CategoryLookup();
+        }
 
         var filtered = sessions
             .Where(s => !InternalApps.Contains(s.App.DisplayName))

@@ -77,20 +77,34 @@ public sealed class DailyActivitiesQueryHandler : IRequestHandler<DailyActivitie
     private async Task<Dictionary<string, string>> BuildOverrideLookupAsync(
         IEnumerable<ActivitySession> sessions, CancellationToken ct)
     {
-        var firstSession = sessions.FirstOrDefault();
-        if (firstSession == null) return new();
+        try
+        {
+            var firstSession = sessions.FirstOrDefault();
+            if (firstSession == null) return new();
 
-        var overrides = await _overrideRepository.GetByOrgIdAsync(firstSession.OrgId, ct);
-        if (overrides.Count == 0) return new();
+            var overrides = await _overrideRepository.GetByOrgIdAsync(firstSession.OrgId, ct);
+            if (overrides.Count == 0) return new();
 
-        return overrides.ToDictionary(
-            o => o.Identifier.ToLowerInvariant(),
-            o => o.Productivity switch
+            // Use last-wins to avoid duplicate key exceptions
+            var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var o in overrides)
             {
-                AppProductivityCategory.Productive => "productive",
-                AppProductivityCategory.Distraction => "distraction",
-                _ => "neutral"
-            });
+                var key = o.Identifier?.ToLowerInvariant() ?? "";
+                if (string.IsNullOrEmpty(key)) continue;
+                lookup[key] = o.Productivity switch
+                {
+                    AppProductivityCategory.Productive => "productive",
+                    AppProductivityCategory.Distraction => "distraction",
+                    _ => "neutral"
+                };
+            }
+            return lookup;
+        }
+        catch
+        {
+            // Never break activity queries due to override loading failure
+            return new();
+        }
     }
 
     /// <summary>

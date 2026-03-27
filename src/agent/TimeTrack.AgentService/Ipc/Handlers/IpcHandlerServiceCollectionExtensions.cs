@@ -40,6 +40,7 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcCommandHandler, AssignTaskCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, UpdateSettingsCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, SetWorkHoursCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, UpdateAppCategoryCommandHandler>();
 
         // Query Handlers
         services.AddSingleton<IIpcQueryHandler, GetCurrentSessionQueryHandler>();
