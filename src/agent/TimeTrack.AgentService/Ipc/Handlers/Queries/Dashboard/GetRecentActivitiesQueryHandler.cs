@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Entities;
+using TimeTrack.Agent.Domain.ValueObjects;
 using TimeTrack.AgentService.Ipc.Handlers;
 
 namespace TimeTrack.AgentService.Ipc.Handlers.Queries.Dashboard;
@@ -18,6 +19,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
     public string QueryName => "GetRecentActivities";
 
     private readonly IActivitySessionRepository _sessionRepository;
+    private readonly IAppCategoryCacheRepository _categoryCacheRepository;
     private readonly IBackendReportsClient _reportsClient;
     private readonly ICurrentUserContext _userContext;
     private readonly ILogger<GetRecentActivitiesQueryHandler> _logger;
@@ -31,11 +33,13 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     public GetRecentActivitiesQueryHandler(
         IActivitySessionRepository sessionRepository,
+        IAppCategoryCacheRepository categoryCacheRepository,
         IBackendReportsClient reportsClient,
         ICurrentUserContext userContext,
         ILogger<GetRecentActivitiesQueryHandler> logger)
     {
         _sessionRepository = sessionRepository;
+        _categoryCacheRepository = categoryCacheRepository;
         _reportsClient = reportsClient;
         _userContext = userContext;
         _logger = logger;
@@ -76,6 +80,10 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
     private async Task<IpcResponse> BuildFromLocalSqlite(int requestId, Guid userId, DateTime targetDate, CancellationToken ct)
     {
         var sessions = await _sessionRepository.GetByDateAsync(userId, targetDate, ct);
+        var cacheEntries = await _categoryCacheRepository.GetAllAsync();
+
+        // Build override lookup from local cache (includes org overrides synced from backend)
+        var categoryLookup = BuildCategoryLookup(cacheEntries);
 
         var filtered = sessions
             .Where(s => !InternalApps.Contains(s.App.DisplayName))
@@ -83,7 +91,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
             .ToList();
 
         var appColors = AssignAppColors(filtered);
-        var blocks = MergeConsecutiveByExe(filtered, appColors);
+        var blocks = MergeConsecutiveByExe(filtered, appColors, categoryLookup);
 
         return SuccessResponse(requestId, new { activities = blocks });
     }
@@ -292,7 +300,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         return map;
     }
 
-    private static object[] MergeConsecutiveByExe(List<ActivitySession> sessions, Dictionary<string, string> appColors)
+    private static object[] MergeConsecutiveByExe(List<ActivitySession> sessions, Dictionary<string, string> appColors, CategoryLookup categoryLookup)
     {
         if (sessions.Count == 0) return Array.Empty<object>();
 
@@ -301,8 +309,9 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         var currentStart = sessions[0].Period.StartUtc;
         var currentEnd = sessions[0].Period.EndUtc;
         var currentColor = appColors.GetValueOrDefault(currentExe, "#94a3b8");
-        var currentProductivity = sessions[0].App.Category.Productivity;
-        var currentSubcategory = sessions[0].App.Category.Subcategory ?? "unknown";
+        var (initProd, initSub) = ResolveCategory(sessions[0], categoryLookup);
+        var currentProductivity = initProd;
+        var currentSubcategory = initSub;
         var tabs = new List<TabInfo>();
 
         var currentAppName = ExtractAppName(sessions[0]);
@@ -336,7 +345,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
             });
         }
 
-        AddTab(tabs, sessions[0]);
+        AddTab(tabs, sessions[0], categoryLookup);
 
         for (int i = 1; i < sessions.Count; i++)
         {
@@ -346,7 +355,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
             if (s.App.ExePathHash == currentExe && gap < 120)
             {
                 currentEnd = s.Period.EndUtc > currentEnd ? s.Period.EndUtc : currentEnd;
-                AddTab(tabs, s);
+                AddTab(tabs, s, categoryLookup);
             }
             else
             {
@@ -356,11 +365,12 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
                 currentStart = s.Period.StartUtc;
                 currentEnd = s.Period.EndUtc;
                 currentColor = appColors.GetValueOrDefault(s.App.ExePathHash, "#94a3b8");
-                currentProductivity = s.App.Category.Productivity;
-                currentSubcategory = s.App.Category.Subcategory ?? "unknown";
+                var (prod, sub) = ResolveCategory(s, categoryLookup);
+                currentProductivity = prod;
+                currentSubcategory = sub;
                 currentAppName = ExtractAppName(s);
                 tabs = new List<TabInfo>();
-                AddTab(tabs, s);
+                AddTab(tabs, s, categoryLookup);
             }
         }
 
@@ -368,16 +378,17 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         return result.ToArray();
     }
 
-    private static void AddTab(List<TabInfo> tabs, ActivitySession session)
+    private static void AddTab(List<TabInfo> tabs, ActivitySession session, CategoryLookup categoryLookup)
     {
         var title = session.App.DisplayName;
+        var (prod, sub) = ResolveCategory(session, categoryLookup);
 
         tabs.Add(new TabInfo
         {
             Title = title,
             DurationSec = (long)session.Duration.TotalSeconds,
-            Subcategory = session.App.Category.Subcategory ?? "unknown",
-            Color = GetColor(session.App.Category.Subcategory ?? session.App.Category.Productivity)
+            Subcategory = sub,
+            Color = GetColor(sub ?? prod)
         });
     }
 
@@ -422,5 +433,57 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         public long DurationSec { get; init; }
         public string Subcategory { get; init; } = "";
         public string Color { get; init; } = "";
+    }
+
+    // ============================================================================
+    // CATEGORY OVERRIDE RESOLUTION
+    // ============================================================================
+
+    private sealed class CategoryLookup
+    {
+        public Dictionary<string, (string Productivity, string Subcategory)> ByDisplayName { get; init; } = new();
+        public Dictionary<string, (string Productivity, string Subcategory)> ByDomain { get; init; } = new();
+        public bool IsEmpty => ByDisplayName.Count == 0 && ByDomain.Count == 0;
+    }
+
+    private static CategoryLookup BuildCategoryLookup(IReadOnlyList<AppCategoryCache> cacheEntries)
+    {
+        var byDisplayName = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
+        var byDomain = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in cacheEntries)
+        {
+            var productivity = entry.Productivity switch
+            {
+                AppProductivityCategory.Productive => "productive",
+                AppProductivityCategory.Distraction => "distraction",
+                _ => "neutral"
+            };
+            var subcategory = entry.Subcategory ?? "unknown";
+
+            if (!string.IsNullOrEmpty(entry.DisplayName))
+                byDisplayName[entry.DisplayName] = (productivity, subcategory);
+
+            if (entry.IdentifierType == AppIdentifierType.Domain && !string.IsNullOrEmpty(entry.Identifier))
+                byDomain[entry.Identifier] = (productivity, subcategory);
+        }
+
+        return new CategoryLookup { ByDisplayName = byDisplayName, ByDomain = byDomain };
+    }
+
+    private static (string Productivity, string Subcategory) ResolveCategory(
+        ActivitySession session, CategoryLookup lookup)
+    {
+        if (!lookup.IsEmpty)
+        {
+            if (!string.IsNullOrEmpty(session.Domain) &&
+                lookup.ByDomain.TryGetValue(session.Domain, out var domainMatch))
+                return domainMatch;
+
+            if (lookup.ByDisplayName.TryGetValue(session.App.DisplayName, out var nameMatch))
+                return nameMatch;
+        }
+
+        return (session.App.Category.Productivity, session.App.Category.Subcategory ?? "unknown");
     }
 }
