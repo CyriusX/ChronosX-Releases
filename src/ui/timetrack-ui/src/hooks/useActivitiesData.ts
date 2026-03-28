@@ -10,6 +10,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useIpc } from './useIpc';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../types/ipc';
 import { formatDuration } from '../lib/utils';
+import { getDailySummaryRange, getDailyActivities, getTopApps } from '../services/reportApi';
 
 // ============================================================================
 // TYPES
@@ -106,24 +107,91 @@ export function useActivitiesData(): ActivitiesData {
     setSearchParams(dateStr === formatDatePayload(new Date()) ? {} : { date: dateStr }, { replace: true });
   }, [setSearchParams]);
 
+  // TODAY: use IPC (local SQLite, real-time)
+  // PAST DAYS: use backend API (Postgres, authoritative)
   const fetchData = useCallback(async () => {
-    if (isFetchingRef.current || !isConnected) return;
+    if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     setIsLoading(true);
 
     try {
-      const [summaryRes, activitiesRes] = await Promise.all([
-        sendQuery('getTodaySummary', { date: datePayload }),
-        sendQuery('getRecentActivities', { date: datePayload }),
-      ]);
+      if (isToday) {
+        // Today: fetch from agent via IPC (fast, real-time)
+        if (!isConnected) return;
+        const [summaryRes, activitiesRes] = await Promise.all([
+          sendQuery('getTodaySummary', { date: datePayload }),
+          sendQuery('getRecentActivities', { date: datePayload }),
+        ]);
 
-      if (summaryRes.success && summaryRes.data) {
-        setSummary(summaryRes.data as TodaySummaryResponse);
-      }
-      if (activitiesRes.success && activitiesRes.data) {
-        setActivities(
-          ((activitiesRes.data as unknown as { activities: ActivityBlock[] }).activities) ?? [],
-        );
+        if (summaryRes.success && summaryRes.data) {
+          setSummary(summaryRes.data as TodaySummaryResponse);
+        }
+        if (activitiesRes.success && activitiesRes.data) {
+          setActivities(
+            ((activitiesRes.data as unknown as { activities: ActivityBlock[] }).activities) ?? [],
+          );
+        }
+      } else {
+        // Past days: fetch from backend API (authoritative cloud data)
+        // Use the SAME endpoints as the Reports page heatmap for consistent numbers:
+        // - getDailySummaryRange: same timezone-aware boundaries and classification as heatmap
+        // - getTopApps: same override-aware app classification as Reports TopApps
+        // - getDailyActivities: for timeline blocks
+        const [rangeResult, topAppsResult, activitiesResult] = await Promise.all([
+          getDailySummaryRange(datePayload, datePayload).catch(() => null),
+          getTopApps(datePayload, datePayload, 20).catch(() => null),
+          getDailyActivities(datePayload).catch(() => null),
+        ]);
+
+        if (rangeResult) {
+          const dayData = rangeResult.days?.[0];
+          const totalActive = dayData?.totalActiveSeconds ?? 0;
+          const totalIdle = dayData?.totalIdleSeconds ?? 0;
+          const productivityRatio = dayData?.productivityRatio ?? 0;
+          const productiveTime = Math.round(totalActive * productivityRatio);
+
+          // Build app list from topApps (uses same classification as Reports page)
+          const apps = topAppsResult?.apps ?? [];
+          const topApplications = apps.map(a => ({
+            name: a.displayName,
+            duration: a.totalSeconds,
+            percentage: totalActive > 0 ? Math.round((a.totalSeconds / totalActive) * 100 * 10) / 10 : 0,
+            productivity: a.productivity ?? 'neutral',
+            subcategory: a.subcategory ?? 'unknown',
+          }));
+
+          // Build categories from topApps grouped by productivity
+          const categoryGroups: Record<string, number> = {};
+          for (const a of apps) {
+            const prod = a.productivity ?? 'neutral';
+            categoryGroups[prod] = (categoryGroups[prod] ?? 0) + a.totalSeconds;
+          }
+          const categoryColors: Record<string, string> = { productive: '#4ade80', neutral: '#fbbf24', distraction: '#ef4444' };
+          const categories = Object.entries(categoryGroups).map(([key, duration]) => ({
+            name: key,
+            duration,
+            percentage: totalActive > 0 ? Math.round((duration / totalActive) * 100 * 10) / 10 : 0,
+            color: categoryColors[key] ?? '#94a3b8',
+            productivity: key,
+          }));
+
+          setSummary({
+            totalDuration: totalActive,
+            productiveTime,
+            idleTime: totalIdle,
+            focusTime: productiveTime,
+            focusScore: dayData?.focusScore ?? 0,
+            sessionsCount: apps.reduce((sum, a) => sum + a.sessionCount, 0),
+            topProjects: [],
+            topApplications,
+            categories,
+            weeklyHistory: [],
+          } as TodaySummaryResponse);
+        }
+
+        if (activitiesResult?.sessions) {
+          setActivities(convertSessionsToBlocks(activitiesResult.sessions));
+        }
       }
     } catch {
       /* ignore */
@@ -131,7 +199,7 @@ export function useActivitiesData(): ActivitiesData {
       isFetchingRef.current = false;
       setIsLoading(false);
     }
-  }, [sendQuery, isConnected, datePayload]);
+  }, [sendQuery, isConnected, datePayload, isToday]);
 
   // Re-fetch when date changes or connection established
   useEffect(() => {
@@ -197,4 +265,113 @@ export function useActivitiesData(): ActivitiesData {
     comparisonText,
     productivityComparison,
   };
+}
+
+// ============================================================================
+// HELPERS — Convert backend API responses to the shapes the UI expects
+// ============================================================================
+
+function mapCategoryToProductivity(category?: string): string {
+  const cat = category?.toLowerCase() ?? '';
+
+  // Productive subcategories (AppSubcategory enum values 1-8)
+  if (['development', 'design', 'communication', 'productivity_tools',
+       'meetings', 'documentation', 'dev_ops', 'devops', 'finance',
+       'productive', 'productivity'].includes(cat))
+    return 'productive';
+
+  // Distraction subcategories (AppSubcategory enum values 40-45)
+  if (['social_media', 'entertainment', 'gaming', 'news',
+       'music_streaming', 'shopping', 'distraction'].includes(cat))
+    return 'distraction';
+
+  // Neutral: browser_general, system, unknown, file_manager, utilities, or anything else
+  return 'neutral';
+}
+
+const APP_PALETTE = [
+  '#38bdf8', '#f472b6', '#34d399', '#fb923c', '#a78bfa',
+  '#fbbf24', '#22d3ee', '#f87171', '#4ade80', '#e879f9',
+];
+
+function convertSessionsToBlocks(
+  sessions: Array<{ processName: string; windowTitle?: string; appCategory?: string; startedAt: string; endedAt: string; durationSeconds: number }>
+): ActivityBlock[] {
+  if (sessions.length === 0) return [];
+
+  // Assign colors per process
+  const colorMap = new Map<string, string>();
+  let colorIdx = 0;
+  for (const s of sessions) {
+    if (!colorMap.has(s.processName)) {
+      colorMap.set(s.processName, APP_PALETTE[colorIdx % APP_PALETTE.length]);
+      colorIdx++;
+    }
+  }
+
+  // Merge consecutive sessions for the same process (< 2min gap)
+  const blocks: ActivityBlock[] = [];
+  let cur = sessions[0];
+  let curStart = cur.startedAt;
+  let curEnd = cur.endedAt;
+  let tabs: { title: string; duration: number; subcategory: string; color: string }[] = [
+    { title: cur.windowTitle || cur.processName, duration: cur.durationSeconds, subcategory: cur.appCategory || 'unknown', color: colorMap.get(cur.processName) || '#94a3b8' }
+  ];
+
+  const flush = () => {
+    const prod = mapCategoryToProductivity(cur.appCategory);
+    blocks.push({
+      id: `${curStart}-${cur.processName}`,
+      name: extractAppName(cur.windowTitle, cur.processName),
+      startUtc: curStart,
+      endUtc: curEnd,
+      duration: Math.round((new Date(curEnd).getTime() - new Date(curStart).getTime()) / 1000),
+      productivity: prod,
+      subcategory: cur.appCategory || 'unknown',
+      color: colorMap.get(cur.processName) || '#94a3b8',
+      tabs: groupTabs(tabs),
+    });
+  };
+
+  for (let i = 1; i < sessions.length; i++) {
+    const s = sessions[i];
+    const gap = (new Date(s.startedAt).getTime() - new Date(curEnd).getTime()) / 1000;
+
+    if (s.processName === cur.processName && gap < 120) {
+      curEnd = s.endedAt > curEnd ? s.endedAt : curEnd;
+      tabs.push({ title: s.windowTitle || s.processName, duration: s.durationSeconds, subcategory: s.appCategory || 'unknown', color: colorMap.get(s.processName) || '#94a3b8' });
+    } else {
+      flush();
+      cur = s;
+      curStart = s.startedAt;
+      curEnd = s.endedAt;
+      tabs = [{ title: s.windowTitle || s.processName, duration: s.durationSeconds, subcategory: s.appCategory || 'unknown', color: colorMap.get(s.processName) || '#94a3b8' }];
+    }
+  }
+  flush();
+
+  return blocks;
+}
+
+function extractAppName(windowTitle?: string, processName?: string): string {
+  if (!windowTitle) return processName || 'Unknown';
+  const seps = [' - ', ' — ', ' – '];
+  for (const sep of seps) {
+    const idx = windowTitle.lastIndexOf(sep);
+    if (idx > 0) {
+      const suffix = windowTitle.slice(idx + sep.length).trim();
+      if (suffix.length > 2 && suffix !== processName) return suffix;
+    }
+  }
+  return processName || windowTitle;
+}
+
+function groupTabs(tabs: { title: string; duration: number; subcategory: string; color: string }[]) {
+  const map = new Map<string, { title: string; duration: number; subcategory: string; color: string }>();
+  for (const t of tabs) {
+    const existing = map.get(t.title);
+    if (existing) existing.duration += t.duration;
+    else map.set(t.title, { ...t });
+  }
+  return [...map.values()].sort((a, b) => b.duration - a.duration).slice(0, 8);
 }

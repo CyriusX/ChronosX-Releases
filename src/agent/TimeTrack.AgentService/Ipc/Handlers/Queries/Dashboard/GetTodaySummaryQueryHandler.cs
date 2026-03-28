@@ -238,8 +238,12 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     /// </summary>
     private static string MapCategoryToProductivity(string? category) => category?.ToLowerInvariant() switch
     {
-        "development" or "design" or "productivity_tools" or "productive" => "productive",
-        "entertainment" or "social_media" or "distraction" => "distraction",
+        "development" or "design" or "communication" or "productivity_tools" or "productivity"
+            or "meetings" or "documentation" or "dev_ops" or "devops" or "finance"
+            or "productive" => "productive",
+        "social_media" or "entertainment" or "gaming" or "news"
+            or "music_streaming" or "shopping"
+            or "distraction" => "distraction",
         _ => "neutral"
     };
 
