@@ -79,8 +79,10 @@ public sealed class GetCategoryUsageStatsQueryHandler
         var overrideSet = overrides.Select(o => o.Identifier.ToLowerInvariant()).ToHashSet();
 
         // Resolve categories for all unique process names
-        var identifiers = aggregated.Select(a => a.ProcessName).Distinct();
-        var categories = await _categoryResolver.ResolveBatchAsync(identifiers, query.OrgId, cancellationToken);
+        var identifierList = aggregated.Select(a => a.ProcessName).Distinct().ToList();
+        var categories = await _categoryResolver.ResolveBatchAsync(identifierList, query.OrgId, cancellationToken);
+        // Build dictionary keyed by the NORMALIZED identifier (with .exe suffix)
+        // so we can look up by normalizing the ProcessName at query time.
         var categoryDict = categories.ToDictionary(c => c.Identifier, c => c);
 
         // Classify and build response
@@ -92,7 +94,13 @@ public sealed class GetCategoryUsageStatsQueryHandler
 
         foreach (var app in aggregated)
         {
-            var category = categoryDict.GetValueOrDefault(app.ProcessName) ??
+            // Normalize ProcessName the same way the resolver does (add .exe if needed)
+            // so the dictionary lookup matches the resolved category's identifier.
+            var normalizedKey = !app.ProcessName.Contains('.') && !app.ProcessName.Contains('/')
+                ? app.ProcessName + ".exe"
+                : app.ProcessName;
+
+            var category = categoryDict.GetValueOrDefault(normalizedKey) ??
                 new AppCategoryResponse
                 {
                     Identifier = app.ProcessName,

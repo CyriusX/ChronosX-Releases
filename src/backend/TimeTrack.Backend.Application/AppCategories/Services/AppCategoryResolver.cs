@@ -42,8 +42,8 @@ public sealed class AppCategoryResolver
         if (string.IsNullOrWhiteSpace(identifier))
             return CreateDefaultResponse(identifier ?? "unknown");
 
-        var normalizedIdentifier = NormalizeIdentifier(identifier);
-        var identifierType = DetermineIdentifierType(normalizedIdentifier);
+        var normalizedIdentifier = IdentifierNormalizer.Normalize(identifier);
+        var identifierType = IdentifierNormalizer.InferType(normalizedIdentifier);
 
         // 1. Check for org override (highest priority)
         var categoryOverride = await _overrideRepo.FindAsync(orgId, normalizedIdentifier, cancellationToken);
@@ -87,7 +87,7 @@ public sealed class AppCategoryResolver
     {
         var identifierList = identifiers
             .Where(i => !string.IsNullOrWhiteSpace(i))
-            .Select(NormalizeIdentifier)
+            .Select(id => IdentifierNormalizer.Normalize(id))
             .Distinct()
             .ToList();
 
@@ -179,31 +179,6 @@ public sealed class AppCategoryResolver
     // Private Helper Methods
     // ========================================================================
 
-    private static string NormalizeIdentifier(string identifier)
-    {
-        if (string.IsNullOrWhiteSpace(identifier))
-            return "unknown";
-
-        var normalized = identifier.Trim().ToLowerInvariant();
-
-        // Add .exe if it looks like an exe name without extension
-        if (!normalized.Contains('.') && !normalized.Contains('/') && !normalized.Contains('\\'))
-        {
-            normalized += ".exe";
-        }
-
-        return normalized;
-    }
-
-    private static string DetermineIdentifierType(string identifier)
-    {
-        if (identifier.EndsWith(".exe"))
-            return "exe";
-        if (identifier.Contains('/') || identifier.Contains('\\'))
-            return "exe";
-        return "domain";
-    }
-
     private static AppCategoryResponse MapOverrideToResponse(AppCategoryOverride categoryOverride)
     {
         return new AppCategoryResponse
@@ -233,12 +208,13 @@ public sealed class AppCategoryResolver
 
     private static AppCategoryResponse CreateDefaultResponse(
         string identifier,
-        string? identifierType = null)
+        AppIdentifierType? identifierType = null)
     {
+        var inferredType = identifierType ?? IdentifierNormalizer.InferType(identifier);
         return new AppCategoryResponse
         {
             Identifier = identifier,
-            IdentifierType = identifierType ?? DetermineIdentifierType(identifier),
+            IdentifierType = inferredType.ToString().ToLowerInvariant(),
             DisplayName = FormatDisplayName(identifier),
             Productivity = "neutral",
             Subcategory = "unknown",

@@ -9,7 +9,7 @@
  */
 
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { fadeUp, staggerContainer, STAGGER } from '../../../lib/animation';
 import type { CategoryDistributionItem, SubcategoryItem } from '../../../types/reports';

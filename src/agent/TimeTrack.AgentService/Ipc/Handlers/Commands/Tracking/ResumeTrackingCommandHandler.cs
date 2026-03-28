@@ -22,6 +22,7 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
     private readonly IOutboxRepository _outboxRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly IIdempotencyKeyGenerator _idempotencyKeyGenerator;
+    private readonly IIpcServer _ipcServer;
     private readonly ILogger<ResumeTrackingCommandHandler> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -35,6 +36,7 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
         IOutboxRepository outboxRepository,
         ICurrentUserContext userContext,
         IIdempotencyKeyGenerator idempotencyKeyGenerator,
+        IIpcServer ipcServer,
         ILogger<ResumeTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
@@ -42,6 +44,7 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
         _outboxRepository = outboxRepository;
         _userContext = userContext;
         _idempotencyKeyGenerator = idempotencyKeyGenerator;
+        _ipcServer = ipcServer;
         _logger = logger;
     }
 
@@ -55,6 +58,13 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
             var result = await _trackingControl.ResumeAsync(new ResumeTrackingRequest
             {
                 ResumedBy = "DesktopHost"
+            }, ct);
+
+            // Broadcast state change so DesktopHost tray icon updates
+            await _ipcServer.SendEventAsync(new IpcEvent
+            {
+                EventType = "trackingStateChanged",
+                Payload = new { isTracking = true, isPaused = false }
             }, ct);
 
             return SuccessResponse(request.RequestId, result);

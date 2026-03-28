@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Timer, Activity, RotateCcw } from 'lucide-react';
-import { getUserTimerConfig, saveUserTimerConfig, DEFAULT_CONFIGS, type TimerConfig } from '../../stores/timerStore';
+import { getUserTimerConfig, saveUserTimerConfig, DEFAULT_CONFIGS, type TimerConfig, useTimerStore } from '../../stores/timerStore';
 
 const ULTRADIAN_STORAGE_KEY = 'timetrack-ultradian-waves';
 
@@ -221,6 +221,8 @@ function UltradianWavesSetting() {
     const clamped = Math.max(1, Math.min(5, value));
     setWaves(clamped);
     localStorage.setItem(ULTRADIAN_STORAGE_KEY, String(clamped));
+    // Sync to Zustand store so the timer page and active sessions see the change
+    useTimerStore.setState({ ultradianWaves: clamped });
   };
 
   return (
@@ -273,17 +275,48 @@ interface TimeInputProps {
 }
 
 function TimeInput({ label, value, onChange, min, max, unit }: TimeInputProps) {
+  // Use local string state so the user can freely type intermediate values
+  // (e.g., clearing the field or typing "12" digit-by-digit).
+  // Commit the validated value on blur or Enter.
+  const [draft, setDraft] = useState<string>(String(value));
+  const [isFocused, setIsFocused] = useState(false);
+
+  const commit = () => {
+    const n = parseInt(draft, 10);
+    if (!isNaN(n)) {
+      const clamped = Math.max(min, Math.min(max, n));
+      onChange(clamped);
+      setDraft(String(clamped));
+    } else {
+      // Reset to current value if input is invalid
+      setDraft(String(value));
+    }
+  };
+
+  // Sync draft with external value changes (e.g., reset to defaults)
+  // but only when the input is not focused
+  const displayValue = isFocused ? draft : String(value);
+
   return (
     <div>
       <label className="text-[11px] text-[rgba(245,247,251,0.4)] mb-1.5 block">{label}</label>
       <div className="flex items-center gap-2">
         <input
           type="number"
-          value={value}
-          onChange={(e) => {
-            const n = parseInt(e.target.value, 10);
-            if (!isNaN(n) && n >= min && n <= max) {
-              onChange(n);
+          value={displayValue}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={() => {
+            setIsFocused(true);
+            setDraft(String(value));
+          }}
+          onBlur={() => {
+            setIsFocused(false);
+            commit();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commit();
+              (e.target as HTMLInputElement).blur();
             }
           }}
           min={min}

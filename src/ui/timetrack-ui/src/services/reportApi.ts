@@ -1,10 +1,13 @@
 /**
  * Report API - HTTP client for report endpoints
  *
- * Uses centralized apiClient for automatic 401 handling
+ * Uses centralized apiClient for automatic 401 handling.
+ * All date-range endpoints send the user's IANA timezone so the backend
+ * can compute correct UTC boundaries for "local day" queries.
  */
 
 import { api } from './apiClient';
+import { getUserTimezone } from '../types/reports';
 import type {
   DailySummaryResponse,
   TopAppsResponse,
@@ -22,13 +25,13 @@ import type {
 
 /**
  * Get daily summary report
- * GET /api/v1/reports/daily?userId=&date=
+ * GET /api/v1/reports/daily?userId=&date=&timezone=
  */
 export async function getDailySummary(
   date: string,
   userId?: string
 ): Promise<DailySummaryResponse> {
-  const params = new URLSearchParams({ date });
+  const params = new URLSearchParams({ date, timezone: getUserTimezone() });
   if (userId) {
     params.append('userId', userId);
   }
@@ -37,8 +40,23 @@ export async function getDailySummary(
 }
 
 /**
+ * Get daily activities (individual sessions for timeline display)
+ * GET /api/v1/reports/activities?userId=&date=&timezone=
+ */
+export async function getDailyActivities(
+  date: string,
+  userId?: string
+): Promise<{ date: string; sessions: Array<{ processName: string; windowTitle?: string; appCategory?: string; startedAt: string; endedAt: string; durationSeconds: number }> }> {
+  const params = new URLSearchParams({ date, timezone: getUserTimezone() });
+  if (userId) {
+    params.append('userId', userId);
+  }
+  return api.get(`/reports/activities?${params.toString()}`);
+}
+
+/**
  * Get top apps report
- * GET /api/v1/reports/top-apps?userId=&startDate=&endDate=&limit=
+ * GET /api/v1/reports/top-apps?userId=&startDate=&endDate=&limit=&timezone=
  */
 export async function getTopApps(
   startDate: string,
@@ -50,6 +68,7 @@ export async function getTopApps(
     startDate,
     endDate,
     limit: limit.toString(),
+    timezone: getUserTimezone(),
   });
   if (userId) {
     params.append('userId', userId);
@@ -64,14 +83,14 @@ export async function getTopApps(
 
 /**
  * Get daily summary range for heatmap
- * GET /api/v1/reports/daily-summary-range?userId=&startDate=&endDate=
+ * GET /api/v1/reports/daily-summary-range?userId=&startDate=&endDate=&timezone=
  */
 export async function getDailySummaryRange(
   startDate: string,
   endDate: string,
   userId?: string
 ): Promise<DailySummaryRangeResponse> {
-  const params = new URLSearchParams({ startDate, endDate });
+  const params = new URLSearchParams({ startDate, endDate, timezone: getUserTimezone() });
   if (userId) {
     params.append('userId', userId);
   }
@@ -81,7 +100,7 @@ export async function getDailySummaryRange(
 
 /**
  * Get productivity trend for stacked bar chart
- * GET /api/v1/reports/productivity-trend?userId=&startDate=&endDate=&groupBy=
+ * GET /api/v1/reports/productivity-trend?userId=&startDate=&endDate=&groupBy=&timezone=
  */
 export async function getProductivityTrend(
   startDate: string,
@@ -89,7 +108,7 @@ export async function getProductivityTrend(
   groupBy: GroupByOption = 'day',
   userId?: string
 ): Promise<ProductivityTrendResponse> {
-  const params = new URLSearchParams({ startDate, endDate, groupBy });
+  const params = new URLSearchParams({ startDate, endDate, groupBy, timezone: getUserTimezone() });
   if (userId) {
     params.append('userId', userId);
   }
@@ -99,7 +118,7 @@ export async function getProductivityTrend(
 
 /**
  * Get top paths (URLs and file paths)
- * GET /api/v1/reports/top-paths?userId=&startDate=&endDate=&limit=
+ * GET /api/v1/reports/top-paths?userId=&startDate=&endDate=&limit=&timezone=
  */
 export async function getTopPaths(
   startDate: string,
@@ -111,6 +130,7 @@ export async function getTopPaths(
     startDate,
     endDate,
     limit: limit.toString(),
+    timezone: getUserTimezone(),
   });
   if (userId) {
     params.append('userId', userId);
@@ -121,14 +141,14 @@ export async function getTopPaths(
 
 /**
  * Get distraction statistics
- * GET /api/v1/reports/distraction-stats?userId=&startDate=&endDate=
+ * GET /api/v1/reports/distraction-stats?userId=&startDate=&endDate=&timezone=
  */
 export async function getDistractionStats(
   startDate: string,
   endDate: string,
   userId?: string
 ): Promise<DistractionStatsResponse> {
-  const params = new URLSearchParams({ startDate, endDate });
+  const params = new URLSearchParams({ startDate, endDate, timezone: getUserTimezone() });
   if (userId) {
     params.append('userId', userId);
   }
@@ -138,14 +158,14 @@ export async function getDistractionStats(
 
 /**
  * Get category distribution for donut chart
- * GET /api/v1/reports/category-distribution?userId=&startDate=&endDate=
+ * GET /api/v1/reports/category-distribution?userId=&startDate=&endDate=&timezone=
  */
 export async function getCategoryDistribution(
   startDate: string,
   endDate: string,
   userId?: string
 ): Promise<CategoryDistributionResponse> {
-  const params = new URLSearchParams({ startDate, endDate });
+  const params = new URLSearchParams({ startDate, endDate, timezone: getUserTimezone() });
   if (userId) {
     params.append('userId', userId);
   }

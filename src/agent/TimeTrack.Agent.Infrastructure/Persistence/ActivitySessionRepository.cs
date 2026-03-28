@@ -377,6 +377,37 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             return deleted;
         }
 
+        public async Task<int> UpdateCategoryByDisplayNameAsync(
+            string displayName,
+            string newProductivity,
+            string newSubcategory,
+            string source,
+            CancellationToken cancellationToken = default)
+        {
+            var connection = await _context.GetConnectionAsync(cancellationToken);
+
+            const string sql = @"UPDATE activity_sessions
+                                 SET Category_Productivity = @Productivity,
+                                     Category_Subcategory = @Subcategory,
+                                     Category_Source = @Source
+                                 WHERE Display_Name = @DisplayName";
+
+            var updated = await connection.ExecuteAsync(sql, new
+            {
+                DisplayName = displayName,
+                Productivity = newProductivity,
+                Subcategory = newSubcategory,
+                Source = source
+            });
+
+            if (updated > 0)
+                _logger.LogInformation(
+                    "Updated {Count} sessions for '{DisplayName}': productivity={Productivity}, subcategory={Subcategory}",
+                    updated, displayName, newProductivity, newSubcategory);
+
+            return updated;
+        }
+
         private static ActivitySession MapToDomain(ActivitySessionDto dto)
         {
             var category = new AppCategory(

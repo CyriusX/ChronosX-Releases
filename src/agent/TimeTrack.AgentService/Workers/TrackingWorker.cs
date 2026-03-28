@@ -230,7 +230,11 @@ public sealed class TrackingWorker : BackgroundService
                     "Usuário entrou em idle. Tempo de inatividade: {IdleTime}",
                     idleTime.Value);
             }
-            return; // Não registra enquanto está idle
+            // Don't record activity while idle — the idle period will be recorded
+            // when the user returns. The current session naturally expires from
+            // the 60s window, and a new session starts on return. This is correct:
+            // idle time should NOT inflate session durations.
+            return;
         }
 
         // 3. Se estava idle e retornou - salvar o período de inatividade
@@ -273,7 +277,16 @@ public sealed class TrackingWorker : BackgroundService
         var activeWindow = await _activeWindowProvider.GetActiveWindowAsync(cancellationToken);
         if (activeWindow == null)
         {
-            _logger.LogDebug("Nenhuma janela ativa detectada");
+            // No active window (PC sleeping/locked/etc.) — treat as idle.
+            // The idle period will be recorded when the user returns.
+            // We do NOT extend the session's end_utc here — that would inflate
+            // the session duration with idle time.
+            if (!_isIdle)
+            {
+                _isIdle = true;
+                _idleStartedAt = DateTime.UtcNow;
+                _logger.LogInformation("No active window detected (PC may be sleeping/locked). Entering idle state.");
+            }
             return;
         }
 

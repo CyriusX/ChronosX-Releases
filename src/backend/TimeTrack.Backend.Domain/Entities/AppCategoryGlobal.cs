@@ -41,7 +41,7 @@ public sealed class AppCategoryGlobal
         return new AppCategoryGlobal
         {
             Id = Guid.NewGuid(),
-            Identifier = NormalizeIdentifier(identifier, identifierType),
+            Identifier = IdentifierNormalizer.Normalize(identifier, identifierType),
             IdentifierType = identifierType,
             DisplayName = displayName.Trim(),
             Productivity = productivity,
@@ -99,18 +99,6 @@ public sealed class AppCategoryGlobal
         return !string.IsNullOrWhiteSpace(name) && !name.Contains('/');
     }
 
-    private static string NormalizeIdentifier(string identifier, AppIdentifierType type)
-    {
-        var normalized = identifier.Trim().ToLowerInvariant();
-
-        if (type == AppIdentifierType.Exe && !normalized.EndsWith(".exe"))
-        {
-            normalized += ".exe";
-        }
-
-        return normalized;
-    }
-
     private static void ValidateDisplayName(string displayName)
     {
         if (string.IsNullOrWhiteSpace(displayName))
@@ -143,9 +131,11 @@ public sealed class AppCategoryGlobal
         AppSubcategory.Design => true,
         AppSubcategory.Communication => true,
         AppSubcategory.ProductivityTools => true,
+        AppSubcategory.Productivity => true,
         AppSubcategory.Meetings => true,
         AppSubcategory.Documentation => true,
         AppSubcategory.DevOps => true,
+        AppSubcategory.Finance => true,
         _ => false
     };
 
@@ -155,6 +145,7 @@ public sealed class AppCategoryGlobal
         AppSubcategory.System => true,
         AppSubcategory.Unknown => true,
         AppSubcategory.FileManager => true,
+        AppSubcategory.Utilities => true,
         AppSubcategory.Communication => true, // WhatsApp, Telegram, etc.
         _ => false
     };

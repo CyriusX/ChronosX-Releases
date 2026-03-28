@@ -6,6 +6,11 @@
  * DIP: Depende de authStore (abstração) e reportApi (módulo)
  *
  * Composition: Combina múltiplas fontes de dados em um único hook
+ *
+ * HYBRID DATA SOURCE:
+ * - "Today" uses IPC Local (SQLite) for real-time data, aligned with Dashboard
+ * - Past days use Backend API (PostgreSQL) for synchronized data
+ * - This ensures consistency between Dashboard, Activities, and Reports pages
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -17,6 +22,7 @@ import {
   getDistractionStats,
   getCategoryDistribution,
 } from '../services/reportApi';
+import { useIpc } from './useIpc';
 import type {
   DailySummaryRangeResponse,
   ProductivityTrendResponse,
@@ -27,8 +33,10 @@ import type {
   DateRange,
   PeriodPreset,
   GroupByOption,
+  DailySummaryDayItem,
 } from '../types/reports';
-import { PERIOD_PRESETS as periodPresets } from '../types/reports';
+import { PERIOD_PRESETS as periodPresets, toLocalDateStr } from '../types/reports';
+import type { TodaySummaryResponse } from '../types/ipc';
 
 // Polling interval for automatic refresh (60 seconds)
 const POLLING_INTERVAL_MS = 60000;
@@ -182,8 +190,37 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
   }, []);
 
   // ============================================================================
+  // IPC FOR LOCAL DATA (Today only)
+  // ============================================================================
+
+  const { sendQuery, isConnected } = useIpc();
+
+  // ============================================================================
   // DATA FETCHERS
   // ============================================================================
+
+  /**
+   * Converts TodaySummaryResponse (IPC) to DailySummaryDayItem format
+   * This allows merging local "today" data with backend historical data
+   */
+  const convertTodaySummaryToDayItem = useCallback((
+    summary: TodaySummaryResponse,
+    date: string
+  ): DailySummaryDayItem => {
+    const totalActiveSeconds = summary.totalDuration ?? 0;
+    const productiveSeconds = summary.productiveTime ?? 0;
+    const productivityRatio = totalActiveSeconds > 0
+      ? productiveSeconds / totalActiveSeconds
+      : 0;
+
+    return {
+      date,
+      totalActiveSeconds,
+      totalIdleSeconds: summary.idleTime ?? 0,
+      productivityRatio,
+      focusScore: summary.focusScore ?? 0,
+    };
+  }, []);
 
   const refreshDailySummaryRange = useCallback(async () => {
     if (!filters.dateRange.startDate) {
@@ -191,24 +228,68 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       return;
     }
 
+    // Only use hybrid approach for own data (not when viewing team member)
+    const isViewingOwnData = !filters.userId;
+    const today = toLocalDateStr(new Date());
+    const includesToday = isViewingOwnData &&
+      filters.dateRange.startDate <= today &&
+      filters.dateRange.endDate >= today;
+
     try {
       console.log('[useReportsData] Fetching daily summary range:', {
         startDate: filters.dateRange.startDate,
         endDate: filters.dateRange.endDate,
-        userId: filters.userId
+        userId: filters.userId,
+        includesToday,
+        isViewingOwnData
       });
+
+      // Fetch from backend API
       const result = await getDailySummaryRange(
         filters.dateRange.startDate,
         filters.dateRange.endDate,
         filters.userId
       );
+
+      // If period includes today and we're viewing own data, replace today with local data
+      if (includesToday && isConnected) {
+        try {
+          console.log('[useReportsData] Fetching today from local IPC for real-time data');
+          const todayResponse = await sendQuery('getTodaySummary', { date: today });
+
+          if (todayResponse.success && todayResponse.data) {
+            const localTodayItem = convertTodaySummaryToDayItem(todayResponse.data, today);
+
+            // Replace today's data in the days array
+            const mergedDays = result.days.map(day =>
+              day.date === today ? localTodayItem : day
+            );
+
+            // If today wasn't in the backend response, add it
+            if (!result.days.some(d => d.date === today)) {
+              mergedDays.push(localTodayItem);
+              mergedDays.sort((a, b) => a.date.localeCompare(b.date));
+            }
+
+            result.days = mergedDays;
+            console.log('[useReportsData] Merged local today data:', {
+              todayActive: localTodayItem.totalActiveSeconds,
+              totalDays: mergedDays.length
+            });
+          }
+        } catch (ipcError) {
+          console.warn('[useReportsData] Failed to fetch today from IPC, using backend data:', ipcError);
+          // Continue with backend data only
+        }
+      }
+
       console.log('[useReportsData] Daily summary result:', result);
       setData(prev => ({ ...prev, dailySummaryRange: result }));
     } catch (err) {
       console.error('[useReportsData] Error fetching daily summary range:', err);
       throw err;
     }
-  }, [filters.dateRange, filters.userId]);
+  }, [filters.dateRange, filters.userId, isConnected, sendQuery, convertTodaySummaryToDayItem]);
 
   const refreshProductivityTrend = useCallback(async () => {
     if (!filters.dateRange.startDate) return;
@@ -350,11 +431,41 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
   // AUTO-FETCH ON MOUNT AND FILTER CHANGES
   // ============================================================================
 
+  // Track if we've already done initial fetch with connected IPC
+  const hasConnectedFetchRef = useRef(false);
+  // Track which filters were used for the last fetch to detect changes
+  const lastFetchFiltersRef = useRef<string>('');
+
   useEffect(() => {
-    if (autoFetch && filters.dateRange.startDate) {
+    if (!autoFetch || !filters.dateRange.startDate) return;
+
+    const today = toLocalDateStr(new Date());
+    const includesToday = !filters.userId &&
+      filters.dateRange.startDate <= today &&
+      filters.dateRange.endDate >= today;
+
+    // If period includes today AND viewing own data, wait for IPC to connect
+    if (includesToday && !isConnected) {
+      console.log('[useReportsData] Waiting for IPC connection before fetching (period includes today)');
+      return;
+    }
+
+    // Build a fingerprint of the current filters to detect changes
+    const filterKey = `${filters.dateRange.startDate}|${filters.dateRange.endDate}|${filters.userId ?? ''}|${filters.groupBy}`;
+
+    // Reset the flag if filters changed (userId, dates, groupBy)
+    if (lastFetchFiltersRef.current !== filterKey) {
+      hasConnectedFetchRef.current = false;
+    }
+
+    // Fetch data if we haven't fetched with these filters yet
+    if (!hasConnectedFetchRef.current) {
+      hasConnectedFetchRef.current = true;
+      lastFetchFiltersRef.current = filterKey;
       refresh();
     }
-  }, [autoFetch, filters.dateRange, filters.userId, filters.groupBy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFetch, filters.dateRange, filters.userId, filters.groupBy, isConnected]);
 
   // ============================================================================
   // POLLING - Automatic refresh every 60 seconds

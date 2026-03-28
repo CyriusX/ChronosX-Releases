@@ -14,7 +14,8 @@ namespace TimeTrack.Backend.Application.Reports.DTOs;
 public sealed record DailySummaryRangeQuery(
     [Required] Guid? UserId,
     [Required] DateTime StartDate,
-    [Required] DateTime EndDate
+    [Required] DateTime EndDate,
+    string? Timezone = null
 ) : IRequest<DailySummaryRangeResponse>;
 
 /// <summary>
@@ -91,7 +92,8 @@ public sealed record ProductivityTrendQuery(
     [Required] Guid? UserId,
     [Required] DateTime StartDate,
     [Required] DateTime EndDate,
-    string GroupBy = "day"
+    string GroupBy = "day",
+    string? Timezone = null
 ) : IRequest<ProductivityTrendResponse>;
 
 /// <summary>
@@ -153,7 +155,8 @@ public sealed record TopPathsQuery(
     [Required] Guid? UserId,
     [Required] DateTime StartDate,
     [Required] DateTime EndDate,
-    int Limit = 20
+    int Limit = 20,
+    string? Timezone = null
 ) : IRequest<TopPathsResponse>;
 
 /// <summary>
@@ -220,7 +223,8 @@ public sealed class TopPathResponseItem
 public sealed record DistractionStatsQuery(
     [Required] Guid? UserId,
     [Required] DateTime StartDate,
-    [Required] DateTime EndDate
+    [Required] DateTime EndDate,
+    string? Timezone = null
 ) : IRequest<DistractionStatsResponse>;
 
 /// <summary>
@@ -305,7 +309,8 @@ public sealed class TopDistractionItem
 public sealed record CategoryDistributionQuery(
     [Required] Guid? UserId,
     [Required] DateTime StartDate,
-    [Required] DateTime EndDate
+    [Required] DateTime EndDate,
+    string? Timezone = null
 ) : IRequest<CategoryDistributionResponse>;
 
 /// <summary>

@@ -19,9 +19,21 @@ public sealed class ReportRepository : IReportRepository
     private readonly TimeTrackDbContext _context;
     private readonly ILogger<ReportRepository>? _logger;
 
+    // Internal/system apps excluded from report totals (same as agent's local dashboard)
+    private static readonly HashSet<string> InternalApps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "TimeTrack.DesktopHost",
+        "Microsoft Edge WebView2",
+        "Microsoft® Windows® Operating System",
+        "Tracking Stopped"
+    };
+
     // Cache em memória das categorias globais (carregado uma vez por instância)
     private Dictionary<string, AppCategoryGlobal>? _categoryCache;
     private readonly object _cacheLock = new();
+
+    // Override cache per org (loaded once per request lifetime / scoped)
+    private readonly Dictionary<Guid, Dictionary<string, (string Productivity, string Subcategory)>> _overrideCache = new();
 
     public ReportRepository(TimeTrackDbContext context, ILogger<ReportRepository>? logger = null)
     {
@@ -60,6 +72,115 @@ public sealed class ReportRepository : IReportRepository
     }
 
     /// <summary>
+    /// Loads the org-level category overrides for a given user, keyed by normalized identifier.
+    /// Returns a lookup: normalizedIdentifier → (productivity, subcategory).
+    /// NEVER throws — returns empty dict on any failure so reports still work.
+    /// </summary>
+    private async Task<Dictionary<string, (string Productivity, string Subcategory)>> GetOverridesForUserAsync(
+        Guid userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Get the user's orgId — bypass multi-tenancy filter to ensure we find the user
+            var user = await _context.Users
+                .AsNoTracking()
+                .IgnoreQueryFilters()
+                .Where(u => u.Id == userId)
+                .Select(u => new { u.OrgId })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (user == null)
+            {
+                _logger?.LogWarning("GetOverridesForUserAsync: User {UserId} not found", userId);
+                return new();
+            }
+
+            if (_overrideCache.TryGetValue(user.OrgId, out var cached))
+                return cached;
+
+            var overrides = await _context.AppCategoryOverrides
+                .AsNoTracking()
+                .IgnoreQueryFilters()
+                .Where(o => o.OrgId == user.OrgId)
+                .Select(o => new { o.Identifier, o.Productivity, o.Subcategory })
+                .ToListAsync(cancellationToken);
+
+            // Use last-wins for duplicate identifiers (safe against duplicate key exceptions)
+            var lookup = new Dictionary<string, (string Productivity, string Subcategory)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var o in overrides)
+            {
+                var key = o.Identifier?.ToLowerInvariant() ?? "";
+                if (string.IsNullOrEmpty(key)) continue;
+                lookup[key] = (
+                    o.Productivity switch
+                    {
+                        AppProductivityCategory.Productive => "productive",
+                        AppProductivityCategory.Distraction => "distraction",
+                        _ => "neutral"
+                    },
+                    o.Subcategory.ToString().ToLowerInvariant()
+                );
+            }
+
+            _overrideCache[user.OrgId] = lookup;
+            _logger?.LogInformation("Loaded {Count} category overrides for org {OrgId}", lookup.Count, user.OrgId);
+            return lookup;
+        }
+        catch (Exception ex)
+        {
+            // NEVER let override loading break report queries — fall back to stored categories
+            _logger?.LogError(ex, "GetOverridesForUserAsync failed for user {UserId}, falling back to stored categories", userId);
+            return new();
+        }
+    }
+
+    /// <summary>
+    /// Resolves productivity considering org-level overrides.
+    /// Priority: override (by processName) > stored AppCategory from session.
+    /// </summary>
+    private string? ResolveProductivityWithOverrides(
+        string? processName,
+        string? storedAppCategory,
+        Dictionary<string, (string Productivity, string Subcategory)> overrides)
+    {
+        if (!string.IsNullOrEmpty(processName) && overrides.Count > 0)
+        {
+            var normalized = processName.Trim().ToLowerInvariant();
+            if (overrides.TryGetValue(normalized, out var ov))
+                return ov.Productivity;
+            // Try without .exe suffix (override may have been created without it)
+            if (normalized.EndsWith(".exe") && overrides.TryGetValue(normalized[..^4], out ov))
+                return ov.Productivity;
+            // Try with .exe suffix (override may have been created with it)
+            if (!normalized.EndsWith(".exe") && overrides.TryGetValue(normalized + ".exe", out ov))
+                return ov.Productivity;
+        }
+        return ResolveProductivity(storedAppCategory);
+    }
+
+    /// <summary>
+    /// Resolves subcategory considering org-level overrides.
+    /// </summary>
+    private string? ResolveSubcategoryWithOverrides(
+        string? processName,
+        string? storedAppCategory,
+        string? storedAppSubcategory,
+        Dictionary<string, (string Productivity, string Subcategory)> overrides)
+    {
+        if (!string.IsNullOrEmpty(processName) && overrides.Count > 0)
+        {
+            var normalized = processName.Trim().ToLowerInvariant();
+            if (overrides.TryGetValue(normalized, out var ov))
+                return ov.Subcategory;
+            if (normalized.EndsWith(".exe") && overrides.TryGetValue(normalized[..^4], out ov))
+                return ov.Subcategory;
+            if (!normalized.EndsWith(".exe") && overrides.TryGetValue(normalized + ".exe", out ov))
+                return ov.Subcategory;
+        }
+        return ResolveSubcategory(storedAppCategory, storedAppSubcategory);
+    }
+
+    /// <summary>
     /// Ensures DateTime is UTC for PostgreSQL compatibility
     /// </summary>
     private static DateTime EnsureUtc(DateTime dt)
@@ -70,6 +191,60 @@ public sealed class ReportRepository : IReportRepository
             return dt.ToUniversalTime();
         // Kind == Unspecified: treat as UTC (already in correct format from frontend)
         return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+    }
+
+    /// <summary>
+    /// Computes the UTC start/end boundaries for a local date range given the user's IANA timezone.
+    /// For example, "2026-03-24" in "America/Sao_Paulo" (UTC-3) maps to
+    /// start = 2026-03-24T03:00:00Z, end = 2026-03-25T02:59:59.9999999Z
+    /// Falls back to treating dates as UTC if timezone is null or invalid.
+    /// </summary>
+    private static (DateTime UtcStart, DateTime UtcEnd) GetUtcBoundaries(DateTime startDate, DateTime endDate, string? timezone)
+    {
+        if (!string.IsNullOrEmpty(timezone))
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById(timezone);
+
+                // Local start-of-day → UTC
+                var localStart = new DateTime(startDate.Year, startDate.Month, startDate.Day, 0, 0, 0, DateTimeKind.Unspecified);
+                var utcStart = TimeZoneInfo.ConvertTimeToUtc(localStart, tz);
+
+                // Local end-of-day → UTC
+                var localEnd = new DateTime(endDate.Year, endDate.Month, endDate.Day, 23, 59, 59, DateTimeKind.Unspecified)
+                    .AddTicks(9999999); // .9999999 seconds
+                var utcEnd = TimeZoneInfo.ConvertTimeToUtc(localEnd, tz);
+
+                return (utcStart, utcEnd);
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                // Fall through to default UTC logic
+            }
+            catch (InvalidTimeZoneException)
+            {
+                // Fall through to default UTC logic
+            }
+        }
+
+        // Fallback: treat as UTC
+        var start = EnsureUtc(startDate).Date;
+        var end = EnsureUtc(endDate).Date.AddDays(1).AddTicks(-1);
+        return (start, end);
+    }
+
+    /// <summary>
+    /// Returns the TimeZoneInfo for the given IANA timezone string, or UTC as fallback.
+    /// </summary>
+    private static TimeZoneInfo GetTimezone(string? timezone)
+    {
+        if (!string.IsNullOrEmpty(timezone))
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById(timezone); }
+            catch { /* fall through */ }
+        }
+        return TimeZoneInfo.Utc;
     }
 
     public async Task<DailyActivityAggregate> GetDailyActivityAggregateAsync(
@@ -96,7 +271,13 @@ public sealed class ReportRepository : IReportRepository
             })
             .ToListAsync(cancellationToken);
 
-        // Agrupar por processo e resolver categoria
+        // Filter out internal/system apps to match dashboard totals
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
+        // Load org-level overrides for this user
+        var overrides = await GetOverridesForUserAsync(userId, cancellationToken);
+
+        // Agrupar por processo e resolver categoria (with override support)
         var appGroups = sessions
             .GroupBy(a => a.ProcessName)
             .Select(g => new AppAggregate
@@ -104,8 +285,8 @@ public sealed class ReportRepository : IReportRepository
                 ProcessName = g.Key,
                 TotalSeconds = g.Sum(a => a.DurationSeconds),
                 SessionCount = g.Count(),
-                Productivity = ResolveProductivity(g.First().AppCategory),
-                Subcategory = ResolveSubcategory(g.First().AppCategory, g.First().AppSubcategory),
+                Productivity = ResolveProductivityWithOverrides(g.Key, g.First().AppCategory, overrides),
+                Subcategory = ResolveSubcategoryWithOverrides(g.Key, g.First().AppCategory, g.First().AppSubcategory, overrides),
                 DisplayName = FormatDisplayName(g.Key)
             })
             .OrderByDescending(a => a.TotalSeconds)
@@ -145,12 +326,10 @@ public sealed class ReportRepository : IReportRepository
         DateTime endDate,
         int limit,
         string? productivityFilter,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
@@ -158,18 +337,24 @@ public sealed class ReportRepository : IReportRepository
             .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
+        // Filter out internal/system apps to match dashboard totals
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
+        // Load org-level overrides for this user
+        var overrides = await GetOverridesForUserAsync(userId, cancellationToken);
+
         var appGroups = sessions
             .GroupBy(a => a.ProcessName)
             .Select(g =>
             {
-                var productivity = ResolveProductivity(g.First().AppCategory);
+                var productivity = ResolveProductivityWithOverrides(g.Key, g.First().AppCategory, overrides);
                 return new AppAggregate
                 {
                     ProcessName = g.Key,
                     TotalSeconds = g.Sum(a => a.DurationSeconds),
                     SessionCount = g.Count(),
                     Productivity = productivity,
-                    Subcategory = ResolveSubcategory(g.First().AppCategory, g.First().AppSubcategory),
+                    Subcategory = ResolveSubcategoryWithOverrides(g.Key, g.First().AppCategory, g.First().AppSubcategory, overrides),
                     DisplayName = FormatDisplayName(g.Key)
                 };
             })
@@ -193,24 +378,33 @@ public sealed class ReportRepository : IReportRepository
         Guid userId,
         DateTime startDate,
         DateTime endDate,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var tz = GetTimezone(timezone);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
-        // Buscar sessões e idle periods
+        // Buscar sessões and idle periods — include EndedAt for proper midnight-crossing handling.
+        // Exclude internal/system apps (same as agent's local dashboard) to avoid inflating totals
+        // with "Tracking Stopped" placeholder sessions and our own UI processes.
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.StartedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .Select(a => new { a.StartedAt, a.EndedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
+
+        // Filter out internal/system apps in-memory (EF can't translate HashSet.Contains with OrdinalIgnoreCase)
+        sessions = sessions
+            .Where(s => !InternalApps.Contains(s.ProcessName))
+            .ToList();
+
+        // Load org-level overrides for this user
+        var overrides = await GetOverridesForUserAsync(userId, cancellationToken);
 
         // DEBUG: Log raw session data
         _logger?.LogInformation(
-            "GetDailySummaryRangeAsync: UserId={UserId}, Start={Start}, End={End}, SessionsCount={Count}",
-            userId, start, end, sessions.Count);
+            "GetDailySummaryRangeAsync: UserId={UserId}, Start={Start}, End={End}, SessionsCount={Count}, Overrides={OverrideCount}",
+            userId, start, end, sessions.Count, overrides.Count);
 
         // DEBUG: Log unique categories found
         var uniqueCategories = sessions.Select(s => s.AppCategory).Distinct().ToList();
@@ -224,31 +418,51 @@ public sealed class ReportRepository : IReportRepository
             .Select(i => new { i.StartedAt, i.DurationSeconds })
             .ToListAsync(cancellationToken);
 
-        // Agrupar por data
+        // Agrupar por local date — iterate local days and compute UTC boundaries per day.
+        // Sessions are clipped to day boundaries so midnight-crossing sessions are split
+        // proportionally: only the portion that overlaps the day counts.
         var result = new List<DailySummaryItem>();
-        for (var date = start.Date; date <= utcEnd.Date; date = date.AddDays(1))
+        for (var localDate = startDate.Date; localDate <= endDate.Date; localDate = localDate.AddDays(1))
         {
-            var dayStart = date;
-            var dayEnd = date.AddDays(1).AddTicks(-1);
+            var (dayStart, dayEnd) = GetUtcBoundaries(localDate, localDate, timezone);
+            var dayEndExclusive = dayEnd.AddTicks(1); // use exclusive end for arithmetic
 
-            var daySessions = sessions.Where(s => s.StartedAt >= dayStart && s.StartedAt <= dayEnd).ToList();
-            var dayIdle = idlePeriods.Where(i => i.StartedAt >= dayStart && i.StartedAt <= dayEnd).ToList();
+            // Include sessions that OVERLAP with this day (not just StartedAt within it).
+            // A session overlaps if it started before dayEnd AND ended after dayStart.
+            var daySessions = sessions
+                .Where(s => s.StartedAt <= dayEnd && s.EndedAt > dayStart)
+                .ToList();
+            var dayIdle = idlePeriods
+                .Where(i => i.StartedAt <= dayEnd && i.StartedAt >= dayStart)
+                .ToList();
 
-            var totalActive = daySessions.Sum(s => s.DurationSeconds);
+            // Clip each session's duration to the day boundaries.
+            // If a session is entirely within the day, use full DurationSeconds.
+            // If it crosses midnight, only count the portion that falls in this day.
+            long ClipDuration(DateTime sessStart, DateTime sessEnd, int rawDuration)
+            {
+                var clippedStart = sessStart < dayStart ? dayStart : sessStart;
+                var clippedEnd = sessEnd > dayEndExclusive ? dayEndExclusive : sessEnd;
+                var clippedSeconds = (long)(clippedEnd - clippedStart).TotalSeconds;
+                // Never exceed the raw duration (avoid rounding issues)
+                return Math.Clamp(clippedSeconds, 0, rawDuration);
+            }
+
+            var totalActive = daySessions.Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
             var totalIdle = dayIdle.Sum(i => i.DurationSeconds);
 
-            // Calcular produtividade
+            // Calcular produtividade (using clipped durations + overrides)
             var productiveSeconds = daySessions
-                .Where(s => ResolveProductivity(s.AppCategory) == "productive")
-                .Sum(s => s.DurationSeconds);
+                .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
+                .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
 
             // DEBUG: Log productivity calculation
-            var productiveCount = daySessions.Count(s => ResolveProductivity(s.AppCategory) == "productive");
-            var neutralCount = daySessions.Count(s => ResolveProductivity(s.AppCategory) == "neutral");
-            var distractionCountDebug = daySessions.Count(s => ResolveProductivity(s.AppCategory) == "distraction");
+            var productiveCount = daySessions.Count(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive");
+            var neutralCount = daySessions.Count(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "neutral");
+            var distractionCountDebug = daySessions.Count(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction");
             _logger?.LogInformation(
                 "GetDailySummaryRangeAsync Day={Date}: TotalActive={TotalActive}s, Productive={Productive}s ({ProductiveCount} sessions), Neutral={NeutralCount} sessions, Distraction={DistractionCount} sessions",
-                date, totalActive, productiveSeconds, productiveCount, neutralCount, distractionCountDebug);
+                localDate, totalActive, productiveSeconds, productiveCount, neutralCount, distractionCountDebug);
 
             var productivityRatio = totalActive > 0
                 ? (double)productiveSeconds / totalActive
@@ -263,17 +477,18 @@ public sealed class ReportRepository : IReportRepository
             {
                 // Contar distrações (apps únicos de distração)
                 distractionCount = daySessions
-                    .Where(s => ResolveProductivity(s.AppCategory) == "distraction")
+                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
                     .Select(s => s.ProcessName)
                     .Distinct()
                     .Count();
 
                 // Contar blocos de foco longo (>25min consecutivos em apps produtivos)
+                // Use clipped durations for accurate day-level accounting
                 var currentFocusBlockSeconds = 0L;
                 foreach (var session in daySessions.OrderBy(s => s.StartedAt))
                 {
-                    var category = ResolveProductivity(session.AppCategory);
-                    var durationSeconds = (long)session.DurationSeconds;
+                    var category = ResolveProductivityWithOverrides(session.ProcessName, session.AppCategory, overrides);
+                    var durationSeconds = ClipDuration(session.StartedAt, session.EndedAt, session.DurationSeconds);
 
                     if (category == "productive")
                     {
@@ -290,10 +505,10 @@ public sealed class ReportRepository : IReportRepository
                 if (currentFocusBlockSeconds >= LongFocusBlockThresholdSeconds)
                     longFocusBlockCount++;
 
-                // Calcular Focus Score
+                // Calcular Focus Score (using clipped durations)
                 var distractionMs = daySessions
-                    .Where(s => ResolveProductivity(s.AppCategory) == "distraction")
-                    .Sum(s => (long)s.DurationSeconds * 1000);
+                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
+                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds) * 1000);
 
                 var input = FocusScoreInput.Create(
                     totalTrackedMs: totalActive * 1000,
@@ -309,7 +524,7 @@ public sealed class ReportRepository : IReportRepository
 
             result.Add(new DailySummaryItem
             {
-                Date = date,
+                Date = localDate,
                 TotalActiveSeconds = totalActive,
                 TotalIdleSeconds = totalIdle,
                 ProductivityRatio = productivityRatio,
@@ -328,18 +543,23 @@ public sealed class ReportRepository : IReportRepository
         DateTime startDate,
         DateTime endDate,
         string groupBy,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var tz = GetTimezone(timezone);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.StartedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .Select(a => new { a.StartedAt, a.EndedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
+
+        // Filter out internal/system apps
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
+        // Load org-level overrides for this user
+        var overrides = await GetOverridesForUserAsync(userId, cancellationToken);
 
         var idlePeriods = await _context.IdlePeriods
             .AsNoTracking()
@@ -347,19 +567,67 @@ public sealed class ReportRepository : IReportRepository
             .Select(i => new { i.StartedAt, i.DurationSeconds })
             .ToListAsync(cancellationToken);
 
-        // Agrupar por período
+        // Convert UTC timestamps to local time for grouping
+        DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(utc, DateTimeKind.Utc), tz);
+
+        // For "day" grouping, iterate per day and clip durations (same as DailySummaryRange)
+        // to ensure consistency between heatmap and trend chart.
+        // For "week"/"month" grouping, use StartedAt-based grouping with full durations.
+        if (groupBy.Equals("day", StringComparison.OrdinalIgnoreCase))
+        {
+            var result = new List<ProductivityTrendItem>();
+            for (var localDate = startDate.Date; localDate <= endDate.Date; localDate = localDate.AddDays(1))
+            {
+                var (dayStart, dayEnd) = GetUtcBoundaries(localDate, localDate, timezone);
+                var dayEndExclusive = dayEnd.AddTicks(1);
+
+                // Sessions that OVERLAP this day (same logic as DailySummaryRange)
+                var daySessions = sessions.Where(s => s.StartedAt <= dayEnd && s.EndedAt > dayStart).ToList();
+                var dayIdle = idlePeriods.Where(i => i.StartedAt <= dayEnd && i.StartedAt >= dayStart).ToList();
+
+                // Clip durations to day boundaries
+                long ClipDuration(DateTime sessStart, DateTime sessEnd, int rawDuration)
+                {
+                    var clippedStart = sessStart < dayStart ? dayStart : sessStart;
+                    var clippedEnd = sessEnd > dayEndExclusive ? dayEndExclusive : sessEnd;
+                    return Math.Clamp((long)(clippedEnd - clippedStart).TotalSeconds, 0, rawDuration);
+                }
+
+                var productive = daySessions
+                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
+                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
+                var distraction = daySessions
+                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
+                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
+                var neutral = daySessions
+                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "neutral")
+                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
+                var idleSeconds = dayIdle.Sum(i => i.DurationSeconds);
+
+                result.Add(new ProductivityTrendItem
+                {
+                    Period = localDate.ToString("yyyy-MM-dd"),
+                    ProductiveSeconds = productive,
+                    NeutralSeconds = neutral,
+                    DistractionSeconds = distraction,
+                    IdleSeconds = idleSeconds
+                });
+            }
+            return result;
+        }
+
+        // Week/month grouping: use StartedAt-based grouping with full durations
         var grouped = groupBy.ToLowerInvariant() switch
         {
-            "week" => sessions.GroupBy(s => GetWeekKey(s.StartedAt)),
-            "month" => sessions.GroupBy(s => GetMonthKey(s.StartedAt)),
-            _ => sessions.GroupBy(s => s.StartedAt.ToString("yyyy-MM-dd"))
+            "week" => sessions.GroupBy(s => GetWeekKey(ToLocal(s.StartedAt))),
+            _ => sessions.GroupBy(s => GetMonthKey(ToLocal(s.StartedAt)))
         };
 
         var idleGrouped = groupBy.ToLowerInvariant() switch
         {
-            "week" => idlePeriods.GroupBy(i => GetWeekKey(i.StartedAt)),
-            "month" => idlePeriods.GroupBy(i => GetMonthKey(i.StartedAt)),
-            _ => idlePeriods.GroupBy(i => i.StartedAt.ToString("yyyy-MM-dd"))
+            "week" => idlePeriods.GroupBy(i => GetWeekKey(ToLocal(i.StartedAt))),
+            _ => idlePeriods.GroupBy(i => GetMonthKey(ToLocal(i.StartedAt)))
         };
 
         var idleDict = idleGrouped.ToDictionary(g => g.Key, g => g.Sum(i => i.DurationSeconds));
@@ -368,14 +636,14 @@ public sealed class ReportRepository : IReportRepository
         {
             var items = g.ToList();
             var productive = items
-                .Where(s => ResolveProductivity(s.AppCategory) == "productive")
-                .Sum(s => s.DurationSeconds);
+                .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
+                .Sum(s => (long)s.DurationSeconds);
             var distraction = items
-                .Where(s => ResolveProductivity(s.AppCategory) == "distraction")
-                .Sum(s => s.DurationSeconds);
+                .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
+                .Sum(s => (long)s.DurationSeconds);
             var neutral = items
-                .Where(s => ResolveProductivity(s.AppCategory) == "neutral")
-                .Sum(s => s.DurationSeconds);
+                .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "neutral")
+                .Sum(s => (long)s.DurationSeconds);
 
             idleDict.TryGetValue(g.Key, out var idleSeconds);
 
@@ -395,12 +663,10 @@ public sealed class ReportRepository : IReportRepository
         DateTime startDate,
         DateTime endDate,
         int limit,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
@@ -408,6 +674,9 @@ public sealed class ReportRepository : IReportRepository
             .Where(a => a.WindowTitle != null && a.WindowTitle != "")
             .Select(a => new { a.ProcessName, a.WindowTitle, a.FilePath, a.DurationSeconds })
             .ToListAsync(cancellationToken);
+
+        // Filter out internal/system apps
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
 
         // Extrair paths usando FilePath se disponível, senão extrair do WindowTitle
         var paths = sessions
@@ -442,12 +711,11 @@ public sealed class ReportRepository : IReportRepository
         Guid userId,
         DateTime startDate,
         DateTime endDate,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var tz = GetTimezone(timezone);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
@@ -455,14 +723,22 @@ public sealed class ReportRepository : IReportRepository
             .Select(a => new { a.StartedAt, a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
-        // Filtrar distrações
+        // Filter out internal/system apps
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
+        // Load org-level overrides for this user
+        var overrides = await GetOverridesForUserAsync(userId, cancellationToken);
+
+        // Filtrar distrações (with override support)
         var distractions = sessions
-            .Where(s => ResolveProductivity(s.AppCategory) == "distraction")
+            .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
             .ToList();
 
-        // Agrupar por dia
+        // Agrupar por dia (local time)
+        DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(utc, DateTimeKind.Utc), tz);
         var dailyDistractions = distractions
-            .GroupBy(s => s.StartedAt.Date)
+            .GroupBy(s => ToLocal(s.StartedAt).Date)
             .Select(g => new DailyDistraction
             {
                 Date = g.Key,
@@ -480,7 +756,7 @@ public sealed class ReportRepository : IReportRepository
                 TotalSeconds = g.Sum(s => s.DurationSeconds),
                 SessionCount = g.Count(),
                 Productivity = "distraction",
-                Subcategory = ResolveSubcategory(g.First().AppCategory, g.First().AppSubcategory),
+                Subcategory = ResolveSubcategoryWithOverrides(g.Key, g.First().AppCategory, g.First().AppSubcategory, overrides),
                 DisplayName = FormatDisplayName(g.Key)
             })
             .OrderByDescending(a => a.TotalSeconds)
@@ -498,12 +774,10 @@ public sealed class ReportRepository : IReportRepository
         Guid userId,
         DateTime startDate,
         DateTime endDate,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcStart = EnsureUtc(startDate);
-        var utcEnd = EnsureUtc(endDate);
-        var start = utcStart.Date;
-        var end = utcEnd.Date.AddDays(1).AddTicks(-1);
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
@@ -511,17 +785,23 @@ public sealed class ReportRepository : IReportRepository
             .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
+        // Filter out internal/system apps
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
+        // Load org-level overrides for this user
+        var overrides = await GetOverridesForUserAsync(userId, cancellationToken);
+
         var totalSeconds = sessions.Sum(s => s.DurationSeconds);
         if (totalSeconds == 0) return [];
 
-        // Agrupar por categoria principal
+        // Agrupar por categoria principal (with override support)
         var categories = sessions
-            .GroupBy(s => ResolveProductivity(s.AppCategory) ?? "neutral")
+            .GroupBy(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) ?? "neutral")
             .Select(g =>
             {
                 var categoryTotal = g.Sum(s => s.DurationSeconds);
                 var subcategories = g
-                    .GroupBy(s => ResolveSubcategory(s.AppCategory, s.AppSubcategory) ?? "unknown")
+                    .GroupBy(s => ResolveSubcategoryWithOverrides(s.ProcessName, s.AppCategory, s.AppSubcategory, overrides) ?? "unknown")
                     .Select(sg => new SubcategoryItem
                     {
                         Name = sg.Key,

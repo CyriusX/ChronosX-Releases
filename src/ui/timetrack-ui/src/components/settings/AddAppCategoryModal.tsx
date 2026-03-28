@@ -32,7 +32,7 @@ export function AddAppCategoryModal({
   const [identifier, setIdentifier] = useState('');
   const [identifierType, setIdentifierType] = useState<IdentifierType>('exe');
   const [productivity, setProductivity] = useState<ProductivityCategory>('productive');
-  const [subcategory, setSubcategory] = useState<AppSubcategory>('productivity');
+  const [subcategory, setSubcategory] = useState<AppSubcategory>('productivity_tools');
   const [note, setNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export function AddAppCategoryModal({
       setIdentifier('');
       setIdentifierType('exe');
       setProductivity('productive');
-      setSubcategory('productivity');
+      setSubcategory('productivity_tools');
       setNote('');
       setError(null);
     }

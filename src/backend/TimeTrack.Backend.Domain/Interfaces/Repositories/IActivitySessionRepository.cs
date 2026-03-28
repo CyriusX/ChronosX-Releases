@@ -29,4 +29,16 @@ public interface IActivitySessionRepository : IRepository<ActivitySession>
         DateTime startDate,
         DateTime endDate,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Bulk-updates the AppCategory and AppSubcategory for all sessions in an org
+    /// that match the given ProcessName (case-insensitive).
+    /// Used when an admin changes an app's classification — retroactively applies to all historical sessions.
+    /// </summary>
+    Task<int> UpdateCategoryByProcessNameAsync(
+        Guid orgId,
+        string processName,
+        string newAppCategory,
+        string? newAppSubcategory,
+        CancellationToken cancellationToken = default);
 }

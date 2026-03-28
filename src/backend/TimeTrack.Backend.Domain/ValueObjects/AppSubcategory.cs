@@ -44,6 +44,11 @@ public enum AppSubcategory
     /// </summary>
     DevOps = 7,
 
+    /// <summary>
+    /// Ferramentas financeiras e contabilidade
+    /// </summary>
+    Finance = 8,
+
     // === NEUTRAL ===
     /// <summary>
     /// Navegadores sem contexto específico
@@ -64,6 +69,16 @@ public enum AppSubcategory
     /// Arquivos e gerenciadores
     /// </summary>
     FileManager = 23,
+
+    /// <summary>
+    /// Utilitários gerais
+    /// </summary>
+    Utilities = 24,
+
+    /// <summary>
+    /// Alias para ProductivityTools (frontend compatibility)
+    /// </summary>
+    Productivity = 25,
 
     // === DISTRACTION ===
     /// <summary>

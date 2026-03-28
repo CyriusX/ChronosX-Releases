@@ -255,7 +255,7 @@ describe('useAppCategories', () => {
           identifierType: 'exe',
           displayName: 'New App',
           productivity: 'productive',
-          subcategory: 'productivity',
+          subcategory: 'productivity_tools',
         });
       });
 

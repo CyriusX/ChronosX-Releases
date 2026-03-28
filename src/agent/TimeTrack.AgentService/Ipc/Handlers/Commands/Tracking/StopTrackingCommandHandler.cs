@@ -21,17 +21,20 @@ public sealed class StopTrackingCommandHandler : IpcHandlerBase, IIpcCommandHand
     private readonly TrackingControlUseCase _trackingControl;
     private readonly IActivitySessionRepository _sessionRepository;
     private readonly ICurrentUserContext _userContext;
+    private readonly IIpcServer _ipcServer;
     private readonly ILogger<StopTrackingCommandHandler> _logger;
 
     public StopTrackingCommandHandler(
         TrackingControlUseCase trackingControl,
         IActivitySessionRepository sessionRepository,
         ICurrentUserContext userContext,
+        IIpcServer ipcServer,
         ILogger<StopTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
         _sessionRepository = sessionRepository;
         _userContext = userContext;
+        _ipcServer = ipcServer;
         _logger = logger;
     }
 
@@ -53,6 +56,13 @@ public sealed class StopTrackingCommandHandler : IpcHandlerBase, IIpcCommandHand
             {
                 StoppedBy = "DesktopHost",
                 Reason = reason
+            }, ct);
+
+            // Broadcast state change so DesktopHost tray icon updates
+            await _ipcServer.SendEventAsync(new IpcEvent
+            {
+                EventType = "trackingStateChanged",
+                Payload = new { isTracking = false, isPaused = false }
             }, ct);
 
             return SuccessResponse(request.RequestId, result);

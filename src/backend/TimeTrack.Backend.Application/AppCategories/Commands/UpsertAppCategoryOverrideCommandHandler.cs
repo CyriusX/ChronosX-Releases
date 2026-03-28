@@ -18,17 +18,20 @@ public sealed class UpsertAppCategoryOverrideCommandHandler
     : IRequestHandler<UpsertAppCategoryOverrideCommand, AppCategoryOverrideResponse>
 {
     private readonly IAppCategoryOverrideRepository _overrideRepo;
+    private readonly IActivitySessionRepository _sessionRepo;
     private readonly ICurrentUserContext _currentUser;
     private readonly IAuditLogService _auditLog;
     private readonly ILogger<UpsertAppCategoryOverrideCommandHandler> _logger;
 
     public UpsertAppCategoryOverrideCommandHandler(
         IAppCategoryOverrideRepository overrideRepo,
+        IActivitySessionRepository sessionRepo,
         ICurrentUserContext currentUser,
         IAuditLogService auditLog,
         ILogger<UpsertAppCategoryOverrideCommandHandler> logger)
     {
         _overrideRepo = overrideRepo;
+        _sessionRepo = sessionRepo;
         _currentUser = currentUser;
         _auditLog = auditLog;
         _logger = logger;
@@ -102,6 +105,45 @@ public sealed class UpsertAppCategoryOverrideCommandHandler
                 "Created category override for {Identifier} in org {OrgId}",
                 request.Identifier,
                 orgId);
+        }
+
+        // Retroactively update all historical sessions in Postgres for this org.
+        // The raw identifier from the request is the ProcessName (lowercased) from usage stats.
+        // We also try the display name and the base exe name to maximize match coverage.
+        var newCategoryStr = productivity switch
+        {
+            AppProductivityCategory.Productive => "productive",
+            AppProductivityCategory.Distraction => "distraction",
+            _ => "neutral"
+        };
+        var newSubcategoryStr = MapSubcategoryToString(subcategory);
+
+        try
+        {
+            var totalUpdated = 0;
+
+            // Match 1: by raw identifier (which is the ProcessName from usage stats, e.g., "visual studio code")
+            totalUpdated += await _sessionRepo.UpdateCategoryByProcessNameAsync(
+                orgId, request.Identifier, newCategoryStr, newSubcategoryStr, cancellationToken);
+
+            // Match 2: by display name if different from identifier
+            if (!string.IsNullOrEmpty(request.DisplayName) &&
+                !string.Equals(request.DisplayName, request.Identifier, StringComparison.OrdinalIgnoreCase))
+            {
+                totalUpdated += await _sessionRepo.UpdateCategoryByProcessNameAsync(
+                    orgId, request.DisplayName, newCategoryStr, newSubcategoryStr, cancellationToken);
+            }
+
+            _logger.LogInformation(
+                "Retroactively updated {Count} historical sessions for '{Identifier}' in org {OrgId} to {Category}",
+                totalUpdated, request.Identifier, orgId, newCategoryStr);
+        }
+        catch (Exception ex)
+        {
+            // Non-critical — override is saved, historical update is best-effort
+            _logger.LogWarning(ex,
+                "Failed to retroactively update historical sessions for '{Identifier}' in org {OrgId}",
+                request.Identifier, orgId);
         }
 
         // Audit log (fire-and-forget)
