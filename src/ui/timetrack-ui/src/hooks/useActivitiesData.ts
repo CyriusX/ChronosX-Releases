@@ -81,6 +81,7 @@ export function useActivitiesData(): ActivitiesData {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Initialize from URL ?date= parameter (e.g., /activities?date=2026-03-25)
+  // Also read ?userId= parameter for viewing other users' data
   const [selectedDate, setSelectedDateRaw] = useState<Date>(() => {
     const dateParam = searchParams.get('date');
     if (dateParam) {
@@ -89,6 +90,8 @@ export function useActivitiesData(): ActivitiesData {
     }
     return new Date();
   });
+
+  const userId = searchParams.get('userId') ?? undefined;
 
   const [summary, setSummary] = useState<TodaySummaryResponse | null>(null);
   const [activities, setActivities] = useState<ActivityBlock[]>([]);
@@ -109,6 +112,7 @@ export function useActivitiesData(): ActivitiesData {
 
   // TODAY: use IPC (local SQLite, real-time)
   // PAST DAYS: use backend API (Postgres, authoritative)
+  // When userId is present, always use backend API (viewing other user's data)
   const fetchData = useCallback(async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -118,10 +122,10 @@ export function useActivitiesData(): ActivitiesData {
       // Always fetch calendar range from backend for MiniCalendar colors
       const calStart = formatDatePayload(addDays(selectedDate, -15));
       const calEnd = formatDatePayload(new Date()); // up to today
-      const calendarPromise = getDailySummaryRange(calStart, calEnd).catch(() => null);
+      const calendarPromise = getDailySummaryRange(calStart, calEnd, userId).catch(() => null);
 
-      if (isToday) {
-        // Today: fetch from agent via IPC (fast, real-time)
+      if (isToday && !userId) {
+        // Today + own data: fetch from agent via IPC (fast, real-time)
         if (!isConnected) return;
         const [summaryRes, activitiesRes, calResult] = await Promise.all([
           sendQuery('getTodaySummary', { date: datePayload }),
@@ -152,7 +156,7 @@ export function useActivitiesData(): ActivitiesData {
           );
         }
       } else {
-        // Past days: fetch from backend API (authoritative cloud data)
+        // Past days OR viewing other user's data: fetch from backend API (authoritative cloud data)
         // Use the SAME endpoints as the Reports page heatmap for consistent numbers:
         // - getDailySummaryRange: same timezone-aware boundaries and classification as heatmap
         //   (fetch 30-day range centered on selected date for MiniCalendar colors)
@@ -161,9 +165,9 @@ export function useActivitiesData(): ActivitiesData {
         const calStart = formatDatePayload(addDays(selectedDate, -15));
         const calEnd = formatDatePayload(addDays(selectedDate, 15));
         const [rangeResult, topAppsResult, activitiesResult] = await Promise.all([
-          getDailySummaryRange(calStart, calEnd).catch(() => null),
-          getTopApps(datePayload, datePayload, 20).catch(() => null),
-          getDailyActivities(datePayload).catch(() => null),
+          getDailySummaryRange(calStart, calEnd, userId).catch(() => null),
+          getTopApps(datePayload, datePayload, 20, userId).catch(() => null),
+          getDailyActivities(datePayload, userId).catch(() => null),
         ]);
 
         if (rangeResult) {
@@ -236,19 +240,19 @@ export function useActivitiesData(): ActivitiesData {
       isFetchingRef.current = false;
       setIsLoading(false);
     }
-  }, [sendQuery, isConnected, datePayload, isToday]);
+  }, [sendQuery, isConnected, datePayload, isToday, userId]);
 
   // Re-fetch when date changes or connection established
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Poll every 30s only when viewing today
+  // Poll every 30s only when viewing today AND own data (not viewing another user)
   useEffect(() => {
-    if (!isToday || !isConnected) return;
+    if (!isToday || !isConnected || userId) return;
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, [isToday, isConnected, fetchData]);
+  }, [isToday, isConnected, fetchData, userId]);
 
   // Navigation helpers
   const goToPrevDay = useCallback(() => {

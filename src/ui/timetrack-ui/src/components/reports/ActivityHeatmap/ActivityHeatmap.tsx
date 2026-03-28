@@ -24,6 +24,8 @@ export interface ActivityHeatmapProps {
   isLoading?: boolean;
   /** Date range title */
   title?: string;
+  /** Optional user ID to pass when navigating to Activities page */
+  userId?: string;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -59,6 +61,7 @@ export function ActivityHeatmap({
   days,
   isLoading = false,
   title = 'Heatmap de Atividade',
+  userId,
 }: ActivityHeatmapProps) {
   const navigate = useNavigate();
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
@@ -117,8 +120,11 @@ export function ActivityHeatmap({
 
   const handleCellClick = useCallback((date: Date) => {
     const dateStr = toLocalDateStr(date);
-    navigate(`/activities?date=${dateStr}`);
-  }, [navigate]);
+    const url = userId
+      ? `/activities?date=${dateStr}&userId=${userId}`
+      : `/activities?date=${dateStr}`;
+    navigate(url);
+  }, [navigate, userId]);
 
   const handleCellHover = useCallback((date: Date, dayData: DailySummaryDayItem | undefined, e: React.MouseEvent) => {
     setTooltip({

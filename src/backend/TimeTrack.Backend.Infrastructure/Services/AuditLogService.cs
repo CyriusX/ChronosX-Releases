@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Domain.Entities;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
@@ -8,10 +9,14 @@ namespace TimeTrack.Backend.Infrastructure.Services;
 
 /// <summary>
 /// Implementação do serviço de auditoria
+///
+/// IMPORTANT: This service uses fire-and-forget pattern for audit logging.
+/// To avoid DbContext concurrency issues, background operations create their own
+/// service scope with separate DbContext instances.
 /// </summary>
 public sealed class AuditLogService : IAuditLogService
 {
-    private readonly IAuditLogRepository _auditLogRepository;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ICurrentUserContext _currentUser;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -21,11 +26,11 @@ public sealed class AuditLogService : IAuditLogService
     };
 
     public AuditLogService(
-        IAuditLogRepository auditLogRepository,
+        IServiceScopeFactory scopeFactory,
         ICurrentUserContext currentUser,
         IHttpContextAccessor httpContextAccessor)
     {
-        _auditLogRepository = auditLogRepository;
+        _scopeFactory = scopeFactory;
         _currentUser = currentUser;
         _httpContextAccessor = httpContextAccessor;
     }
@@ -37,12 +42,35 @@ public sealed class AuditLogService : IAuditLogService
         object? metadata = null,
         CancellationToken cancellationToken = default)
     {
-        // Fire-and-forget pattern - does not block the calling thread
+        // Capture context from current scope BEFORE starting background task
+        // This is critical because HttpContext and ICurrentUserContext are scoped
+        var orgId = _currentUser.OrgId;
+        var userId = _currentUser.UserId;
+        var httpContext = _httpContextAccessor.HttpContext;
+        var ipAddress = httpContext?.Connection?.RemoteIpAddress?.ToString();
+        var userAgent = httpContext?.Request?.Headers["User-Agent"].ToString();
+
+        // Fire-and-forget pattern with its own scope to avoid DbContext concurrency issues
         _ = Task.Run(async () =>
         {
             try
             {
-                await LogWithHttpContextAsync(action, entityType, entityId, metadata, null, null, cancellationToken);
+                // Create a new scope for this background operation
+                // This ensures we get a fresh DbContext, avoiding concurrent access
+                using var scope = _scopeFactory.CreateScope();
+                var auditLogRepository = scope.ServiceProvider.GetRequiredService<IAuditLogRepository>();
+
+                await LogWithCapturedContextAsync(
+                    auditLogRepository,
+                    orgId,
+                    userId,
+                    action,
+                    entityType,
+                    entityId,
+                    metadata,
+                    ipAddress,
+                    userAgent,
+                    cancellationToken);
             }
             catch
             {
@@ -130,7 +158,49 @@ public sealed class AuditLogService : IAuditLogService
             userAgent: capturedUserAgent
         );
 
-        await _auditLogRepository.AddAsync(auditLog, cancellationToken);
+        // For explicit logging (not fire-and-forget), we need to create a scope
+        // to get the repository since we might be called from a background thread
+        using var scope = _scopeFactory.CreateScope();
+        var auditLogRepository = scope.ServiceProvider.GetRequiredService<IAuditLogRepository>();
+        await auditLogRepository.AddAsync(auditLog, cancellationToken);
+    }
+
+    /// <summary>
+    /// Internal method for fire-and-forget logging with captured context
+    /// </summary>
+    private static async Task LogWithCapturedContextAsync(
+        IAuditLogRepository auditLogRepository,
+        Guid? orgId,
+        Guid? userId,
+        string action,
+        string entityType,
+        Guid? entityId,
+        object? metadata,
+        string? ipAddress,
+        string? userAgent,
+        CancellationToken cancellationToken)
+    {
+        // Skip if no organization context (system operations)
+        if (!orgId.HasValue)
+        {
+            return;
+        }
+
+        var sanitizedMetadata = SanitizeMetadata(metadata);
+
+        var auditLog = AuditLog.Create(
+            orgId.Value,
+            userId,
+            action,
+            entityType,
+            entityId,
+            oldValues: null,
+            newValues: sanitizedMetadata,
+            ipAddress: ipAddress,
+            userAgent: userAgent
+        );
+
+        await auditLogRepository.AddAsync(auditLog, cancellationToken);
     }
 
     /// <summary>
