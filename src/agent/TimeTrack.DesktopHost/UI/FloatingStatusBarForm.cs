@@ -62,11 +62,11 @@ public sealed class FloatingStatusBarForm : Form
 
         // --- Data labels ---
         _timeIcon = Lbl("\u23F1", icon, Cyan);
-        _timeValue = Lbl("0h 00m", bold, TextPrimary);
+        _timeValue = Lbl("—h ——m", bold, TextMuted);
         _prodIcon = Lbl("\u2714", new Font("Segoe UI", 9f), Green);
-        _prodValue = Lbl("0h 00m", bold, Green);
+        _prodValue = Lbl("—h ——m", bold, TextMuted);
         _scoreIcon = Lbl("\u26A1", icon, Amber);
-        _scoreValue = Lbl("--", bold, Amber);
+        _scoreValue = Lbl("——", bold, TextMuted);
 
         // --- Focus info ---
         _focusDot = Lbl("\u25CF", new Font("Segoe UI", 7f), Purple); _focusDot.Visible = false;
@@ -164,7 +164,9 @@ public sealed class FloatingStatusBarForm : Form
         string? focusState, string? focusMode, long? focusRemMs, int? cycle)
     {
         _timeValue.Text = Fmt(activeSec);
+        _timeValue.ForeColor = TextPrimary;
         _prodValue.Text = Fmt(prodSec);
+        _prodValue.ForeColor = Green;
         _scoreValue.Text = score.ToString();
         _scoreValue.ForeColor = score >= 80 ? Green : score >= 50 ? Amber : RedSoft;
 

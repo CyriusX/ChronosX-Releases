@@ -44,10 +44,17 @@ public sealed class FloatingStatusBarManager : IDisposable
         _logger.LogInformation("FloatingStatusBarManager initialized");
     }
 
-    private async void OnWindowMinimized(object? sender, EventArgs e) => await ShowBarAsync();
+    private void OnWindowMinimized(object? sender, EventArgs e)
+    {
+        // Defer bar creation until after the minimize/hide transition completes.
+        // Showing a new form during OnResize or OnFormClosing can be swallowed
+        // by WinForms' message pump because the main form is mid-state-change.
+        _mainForm.BeginInvoke(ShowBar);
+    }
+
     private void OnWindowRestored(object? sender, EventArgs e) => HideBar();
 
-    private async Task ShowBarAsync()
+    private void ShowBar()
     {
         if (_bar is { Visible: true, IsDisposed: false }) return;
 
@@ -58,11 +65,11 @@ public sealed class FloatingStatusBarManager : IDisposable
         _bar.FocusCommandRequested += OnFocusCommandRequested;
         _bar.FormClosed += (_, _) => { _refreshTimer?.Stop(); _bar = null; };
 
-        // Fetch data BEFORE showing so the bar renders at correct size immediately
-        await RefreshDataAsync();
-        if (_bar is null or { IsDisposed: true }) return; // window may have been restored while awaiting
-
+        // Show immediately with placeholder dashes, then fill data via refresh
         _bar.Show();
+
+        // Kick off first data fetch right away
+        _ = RefreshDataAsync();
 
         _refreshTimer?.Dispose();
         _refreshTimer = new System.Windows.Forms.Timer { Interval = 1000 };
