@@ -536,6 +536,10 @@ export const useTimerStore = create<TimerState>()(
   ),
 );
 
+// Expose store globally so the DesktopHost (C#) can read state and call actions
+// via WebView2.ExecuteScriptAsync('window.__TIMER_STORE__.getState().pause()')
+(window as unknown as Record<string, unknown>).__TIMER_STORE__ = useTimerStore;
+
 // ============================================================================
 // SELECTORS
 // ============================================================================

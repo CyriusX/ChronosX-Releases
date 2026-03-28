@@ -398,7 +398,8 @@
       "Bash(cp Program.cs Program.cs.bak)",
       "Bash(cp PgQuery.cs Program.cs)",
       "Bash(grep -n \"GetTopAppsAsync\\\\|GetDailySummaryRangeAsync\\\\|GetProductivityTrendAsync\\\\|GetTopPathsAsync\\\\|GetDistractionStatsAsync\\\\|GetCategoryDistributionAsync\\\\|GetDailyIdleSecondsAsync\\\\|GetDailyActivityAggregateAsync\\\\|GetTeamStatusCommand\" /c/Users/jr_ju/Repo/TimeTracking/src/backend/TimeTrack.Api/Controllers/*.cs)",
-      "Bash(grep -v \"^\\\\s*//\")"
+      "Bash(grep -v \"^\\\\s*//\")",
+      "Bash(grep -B5 -A10 \"useFocusMode\\(\\)\" /c/Users/jr_ju/Repo/TimeTracking/src/ui/timetrack-ui/src/components/dashboard/TimerFocusCard/*.tsx)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
