@@ -448,6 +448,7 @@ export default function Reports() {
                 days={data.dailySummaryRange?.days ?? []}
                 isLoading={isLoading}
                 title="Mapa de Atividade"
+                userId={selectedUserId}
               />
             </motion.div>
 
