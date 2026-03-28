@@ -45,7 +45,7 @@ public sealed class ActivityResumeToastForm : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         BackColor = Color.FromArgb(14, 16, 24);
-        Opacity = 0.97;
+        Opacity = 0.50;
         DoubleBuffered = true;
 
         var cw = W - SidePad * 2;
@@ -252,7 +252,7 @@ public sealed class ActivityResumeToastForm : Form
     protected override bool ShowWithoutActivation => true;
     protected override CreateParams CreateParams
     {
-        get { var cp = base.CreateParams; cp.ExStyle |= 0x00000008 | 0x08000000; return cp; }
+        get { var cp = base.CreateParams; cp.ExStyle |= 0x00000008 | 0x08000000 | 0x00080000; return cp; }
     }
     private void EnableRoundedCorners()
     { try { var p = 2; DwmSetWindowAttribute(Handle, 33, ref p, 4); } catch { } }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Cog, LogOut, Play, Square, Loader2, Bot } from 'lucide-react';
+import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Cog, LogOut, Play, Square, Loader2, BellRing } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { NavItem } from './shared';
@@ -99,8 +99,16 @@ export function Sidebar() {
         <NavItem icon={<FolderOpen className="w-[16px] h-[16px]" />} label="Projetos" active={location.pathname === '/projects'} onClick={() => navigate('/projects')} />
         <NavItem icon={<Activity className="w-[16px] h-[16px]" />} label="Atividade" active={location.pathname === '/activities'} onClick={() => navigate('/activities')} />
         <NavItem icon={<CalendarDays className="w-[16px] h-[16px]" />} label="Relatórios" active={location.pathname === '/reports'} onClick={() => navigate('/reports')} />
-        <NavItem icon={<Bot className="w-[16px] h-[16px]" />} label="Agente" active={location.pathname === '/agent'} onClick={() => navigate('/agent')} />
         <NavItem icon={<Cog className="w-[16px] h-[16px]" />} label="Configurações" active={location.pathname === '/settings'} onClick={() => navigate('/settings')} />
+
+        {/* Dev: Test resume toast */}
+        <div className="mt-auto pt-2">
+          <NavItem
+            icon={<BellRing className="w-[16px] h-[16px]" />}
+            label="Test Toast"
+            onClick={() => sendCommand('testActivityResumeToast' as never)}
+          />
+        </div>
       </nav>
 
       {/* Tracking Toggle Button — above separator & user section */}
