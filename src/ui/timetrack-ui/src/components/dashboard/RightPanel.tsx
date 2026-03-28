@@ -56,7 +56,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
   }, [showTeamCard, loadTeamStatus]);
 
   const activeMembers = useMemo(() => {
-    return members.filter((m) => m.status === 'Active' && m.userId !== currentUser?.id);
+    return members.filter((m) => m.status === 'Active'); // TODO: restore currentUser filter: && m.userId !== currentUser?.id
   }, [members, currentUser?.id]);
 
   const selectedMember = useMemo(() => {

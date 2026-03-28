@@ -235,21 +235,23 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
 
                 const string updateOutboxSql = @"
                 UPDATE sync_outbox
-                SET payload_json = @PayloadJson
+                SET payload_json = @PayloadJson,
+                    next_attempt_utc = COALESCE(next_attempt_utc, @NextAttemptUtc)
                 WHERE entity_id = @EntityId AND sent_at IS NULL
                 ";
 
                 var rowsUpdated = await connection.ExecuteAsync(updateOutboxSql, new
                 {
                     PayloadJson = newPayloadJson,
-                    EntityId = session.Id.ToString()
+                    EntityId = session.Id.ToString(),
+                    NextAttemptUtc = DateTime.UtcNow.ToString("o")
                 });
 
                 // If no pending outbox item was updated, the previous one was already sent.
                 // Create a new outbox item so the backend receives the extended end_utc.
                 if (rowsUpdated == 0)
                 {
-                    var idempotencyKey = $"activity_session:{session.Id}:{session.Period.EndUtc:yyyyMMddHHmmss}";
+                    var idempotencyKey = $"as:{session.Id}:{session.Period.EndUtc:yyyyMMddHHmmss}";
 
                     const string insertOutboxSql = @"
                     INSERT OR IGNORE INTO sync_outbox
@@ -257,7 +259,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                          attempt_count, next_attempt_utc, sent_at, last_error, created_at)
                     VALUES
                         (@Id, @UserId, 'activity_session', @EntityId, @PayloadJson, @IdempotencyKey,
-                         0, NULL, NULL, NULL, @CreatedAt)
+                         0, @NextAttemptUtc, NULL, NULL, @CreatedAt)
                     ";
 
                     await connection.ExecuteAsync(insertOutboxSql, new
@@ -267,6 +269,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                         EntityId = session.Id.ToString(),
                         PayloadJson = newPayloadJson,
                         IdempotencyKey = idempotencyKey,
+                        NextAttemptUtc = DateTime.UtcNow.ToString("o"),
                         CreatedAt = DateTime.UtcNow.ToString("o")
                     });
 

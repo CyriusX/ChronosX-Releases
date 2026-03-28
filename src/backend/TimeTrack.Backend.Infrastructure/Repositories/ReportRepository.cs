@@ -268,19 +268,31 @@ public sealed class ReportRepository : IReportRepository
         }
 
         // Query otimizada com GROUP BY + JOIN para categorias
-        var sessions = await _context.ActivitySessions
+        // Compute duration from timestamps (EndedAt - StartedAt) instead of stored DurationSeconds
+        // to match the local agent's calculation and avoid stale values from sync lag
+        var rawSessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= startOfDay && a.StartedAt <= endOfDay)
             .Select(a => new
             {
                 a.ProcessName,
-                a.DurationSeconds,
                 a.StartedAt,
                 a.EndedAt,
                 a.AppCategory,
                 a.AppSubcategory
             })
             .ToListAsync(cancellationToken);
+
+        // Compute duration from timestamps to match local agent behavior
+        var sessions = rawSessions.Select(a => new
+        {
+            a.ProcessName,
+            DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds,
+            a.StartedAt,
+            a.EndedAt,
+            a.AppCategory,
+            a.AppSubcategory
+        }).ToList();
 
         // Filter out internal/system apps to match dashboard totals
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
