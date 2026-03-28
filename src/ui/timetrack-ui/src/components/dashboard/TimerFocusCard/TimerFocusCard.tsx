@@ -20,7 +20,7 @@ interface TimerFocusCardProps {
 }
 
 // Predefined tag colors
-const TAG_COLORS = ['#4ad9ff', '#c27aff', '#05df72', '#fbbf24', '#f87171', '#ff8904'];
+const TAG_COLORS = ['#8B5CF6', '#22D3EE', '#3B82F6', '#F59E0B', '#10B981', '#EC4899'];
 
 export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
   const { sendQuery } = useIpc();
@@ -92,7 +92,7 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
             {/* Mode toggle (compact) */}
             {!isRunning && (
               <div className="flex bg-[rgba(255,255,255,0.04)] rounded-full p-0.5 border border-[rgba(255,255,255,0.06)]">
-                <button onClick={() => setMode('pomodoro')} className={`px-2 py-0.5 rounded-full text-[8px] font-medium transition-all ${mode === 'pomodoro' ? 'bg-[#4ad9ff] text-[#0b0d14]' : 'text-[rgba(245,247,251,0.4)]'}`}>25/5</button>
+                <button onClick={() => setMode('pomodoro')} className={`px-2 py-0.5 rounded-full text-[8px] font-medium transition-all ${mode === 'pomodoro' ? 'bg-[#8B5CF6] text-white' : 'text-[rgba(245,247,251,0.4)]'}`}>25/5</button>
                 <button onClick={() => setMode('ultradian')} className={`px-2 py-0.5 rounded-full text-[8px] font-medium transition-all ${mode === 'ultradian' ? 'bg-[#c27aff] text-[#0b0d14]' : 'text-[rgba(245,247,251,0.4)]'}`}>90/20</button>
               </div>
             )}
@@ -131,9 +131,9 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
             </button>
             {showProjectDropdown && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-lg overflow-hidden z-10 shadow-xl max-h-[120px] overflow-y-auto">
-                <button onClick={() => { setSelectedProject(''); setShowProjectDropdown(false); }} className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors ${!selectedProject ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.6)]'}`}>Sem projeto</button>
+                <button onClick={() => { setSelectedProject(''); setShowProjectDropdown(false); }} className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors ${!selectedProject ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>Sem projeto</button>
                 {projects.map((p) => (
-                  <button key={p.id} onClick={() => { setSelectedProject(p.id); setShowProjectDropdown(false); }} className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors truncate ${selectedProject === p.id ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.6)]'}`}>{p.name}</button>
+                  <button key={p.id} onClick={() => { setSelectedProject(p.id); setShowProjectDropdown(false); }} className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors truncate ${selectedProject === p.id ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>{p.name}</button>
                 ))}
               </div>
             )}
@@ -163,7 +163,7 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
                   }}
                   onBlur={() => { if (tagInput) addTag(tagInput); else setShowTagInput(false); }}
                   placeholder="Tag..."
-                  className="px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-[9px] text-[rgba(245,247,251,0.7)] placeholder-[rgba(245,247,251,0.2)] w-16 focus:outline-none focus:border-[rgba(74,217,255,0.3)]"
+                  className="px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-[9px] text-[rgba(245,247,251,0.7)] placeholder-[rgba(245,247,251,0.2)] w-16 focus:outline-none focus:border-[rgba(139,92,246,0.3)]"
                 />
               ) : (
                 <button

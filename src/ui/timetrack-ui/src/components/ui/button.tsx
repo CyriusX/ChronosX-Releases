@@ -4,27 +4,27 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center whitespace-nowrap rounded-[14px] text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(10,12,18)] disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
         default:
-          'bg-zinc-900 text-zinc-50 shadow hover:bg-zinc-900/90',
+          'bg-gradient-to-r from-[#8B5CF6] to-[#6D28D9] text-white shadow-[0_0_15px_rgba(139,92,246,0.25)] hover:shadow-[0_0_25px_rgba(139,92,246,0.4)] hover:brightness-110',
         destructive:
-          'bg-red-500 text-zinc-50 shadow-sm hover:bg-red-500/90',
+          'bg-gradient-to-r from-[#DC2626] to-[#B91C1C] text-white shadow-[0_0_15px_rgba(220,38,38,0.25)] hover:shadow-[0_0_25px_rgba(220,38,38,0.4)]',
         outline:
-          'border border-zinc-800 bg-transparent shadow-sm hover:bg-zinc-800 hover:text-zinc-50',
+          'border border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.04)] backdrop-blur-sm shadow-sm hover:bg-[rgba(255,255,255,0.08)] hover:border-[rgba(139,92,246,0.25)] text-[#f5f7fb]',
         secondary:
-          'bg-zinc-800 text-zinc-50 shadow-sm hover:bg-zinc-800/80',
+          'bg-[rgba(255,255,255,0.06)] backdrop-blur-sm border border-[rgba(255,255,255,0.08)] text-[#f5f7fb] shadow-sm hover:bg-[rgba(255,255,255,0.10)]',
         ghost:
-          'hover:bg-zinc-800 hover:text-zinc-50',
+          'hover:bg-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.7)] hover:text-[#f5f7fb]',
         link:
-          'text-zinc-400 underline-offset-4 hover:underline hover:text-zinc-50',
+          'text-[#8B5CF6] underline-offset-4 hover:underline hover:text-[#A78BFA]',
       },
       size: {
         default: 'h-9 px-4 py-2',
-        sm: 'h-8 rounded-md px-3 text-xs',
-        lg: 'h-10 rounded-md px-8',
+        sm: 'h-8 rounded-[12px] px-3 text-xs',
+        lg: 'h-10 rounded-[14px] px-8',
         icon: 'h-9 w-9',
       },
     },

@@ -101,8 +101,8 @@ export default function Timer() {
   const progress = totalMs > 0 ? 1 - (remainingMs / totalMs) : 0;
   const timeDisplay = fmtDuration(remainingMs);
 
-  const phaseColor = phase === 'break' ? '#8b7aff' : mode === 'ultradian' ? '#c27aff' : '#4ad9ff';
-  const phaseGlow = phase === 'break' ? 'rgba(139,122,255,0.4)' : mode === 'ultradian' ? 'rgba(194,122,255,0.4)' : 'rgba(74,217,255,0.4)';
+  const phaseColor = phase === 'break' ? '#8b7aff' : mode === 'ultradian' ? '#c27aff' : '#8B5CF6';
+  const phaseGlow = phase === 'break' ? 'rgba(139,122,255,0.4)' : mode === 'ultradian' ? 'rgba(194,122,255,0.4)' : 'rgba(139,92,246,0.4)';
 
   // Ultradian overall progress
   const singleWaveMs = config.focusMs + config.shortBreakMs;
@@ -139,7 +139,7 @@ export default function Timer() {
               {mode === 'pomodoro' && (
                 <motion.div
                   layoutId="timer-mode"
-                  className="absolute inset-0 rounded-full bg-[#4ad9ff]"
+                  className="absolute inset-0 rounded-full bg-[#8B5CF6]"
                   transition={SPRING.snappy}
                 />
               )}
@@ -224,9 +224,9 @@ export default function Timer() {
               </button>
               {showProjectDropdown && (
                 <div className="absolute bottom-full left-0 right-0 mb-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-lg overflow-hidden z-10 shadow-xl max-h-[150px] overflow-y-auto">
-                  <button onClick={() => { setSelectedProject(''); setShowProjectDropdown(false); }} className={`w-full text-left px-3 py-2 text-[11px] hover:bg-[rgba(255,255,255,0.06)] ${!selectedProject ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.6)]'}`}>Sem projeto</button>
+                  <button onClick={() => { setSelectedProject(''); setShowProjectDropdown(false); }} className={`w-full text-left px-3 py-2 text-[11px] hover:bg-[rgba(255,255,255,0.06)] ${!selectedProject ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>Sem projeto</button>
                   {projects.map(p => (
-                    <button key={p.id} onClick={() => { setSelectedProject(p.id); setShowProjectDropdown(false); }} className={`w-full text-left px-3 py-2 text-[11px] hover:bg-[rgba(255,255,255,0.06)] truncate ${selectedProject === p.id ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.6)]'}`}>{p.name}</button>
+                    <button key={p.id} onClick={() => { setSelectedProject(p.id); setShowProjectDropdown(false); }} className={`w-full text-left px-3 py-2 text-[11px] hover:bg-[rgba(255,255,255,0.06)] truncate ${selectedProject === p.id ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>{p.name}</button>
                   ))}
                 </div>
               )}
@@ -259,7 +259,7 @@ export default function Timer() {
               >
                 <motion.button
                   onClick={togglePause}
-                  className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] text-[13px] font-medium text-white hover:opacity-90 transition-opacity"
+                  className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-b from-[#8B5CF6] to-[#22D3EE] text-[13px] font-medium text-white hover:opacity-90 transition-opacity"
                   variants={scaleIn}
                   transition={{ duration: TIMING.fast }}
                 >
@@ -303,8 +303,8 @@ export default function Timer() {
                   {hasGroupData && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
                       style={{
-                        backgroundColor: groupMode === 'pomodoro' ? 'rgba(74,217,255,0.12)' : 'rgba(194,122,255,0.12)',
-                        color: groupMode === 'pomodoro' ? '#4ad9ff' : '#c27aff',
+                        backgroundColor: groupMode === 'pomodoro' ? 'rgba(139,92,246,0.12)' : 'rgba(194,122,255,0.12)',
+                        color: groupMode === 'pomodoro' ? '#8B5CF6' : '#c27aff',
                       }}>
                       {groupMode === 'pomodoro' ? 'Pomodoro' : 'Ultradian'}
                     </span>
@@ -338,7 +338,7 @@ export default function Timer() {
                       <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Puladas</p>
                     </motion.div>
                     <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
-                      <p className="text-[18px] font-bold" style={{ color: groupMode === 'pomodoro' ? '#4ad9ff' : '#c27aff' }}>
+                      <p className="text-[18px] font-bold" style={{ color: groupMode === 'pomodoro' ? '#8B5CF6' : '#c27aff' }}>
                         {groupMode === 'pomodoro' ? 'Pomo' : 'Ultra'}
                       </p>
                       <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Modo</p>

@@ -44,10 +44,10 @@ public sealed class FloatingStatusBarManager : IDisposable
         _logger.LogInformation("FloatingStatusBarManager initialized");
     }
 
-    private void OnWindowMinimized(object? sender, EventArgs e) => ShowBar();
+    private async void OnWindowMinimized(object? sender, EventArgs e) => await ShowBarAsync();
     private void OnWindowRestored(object? sender, EventArgs e) => HideBar();
 
-    private void ShowBar()
+    private async Task ShowBarAsync()
     {
         if (_bar is { Visible: true, IsDisposed: false }) return;
 
@@ -58,7 +58,10 @@ public sealed class FloatingStatusBarManager : IDisposable
         _bar.FocusCommandRequested += OnFocusCommandRequested;
         _bar.FormClosed += (_, _) => { _refreshTimer?.Stop(); _bar = null; };
 
-        _ = RefreshDataAsync();
+        // Fetch data BEFORE showing so the bar renders at correct size immediately
+        await RefreshDataAsync();
+        if (_bar is null or { IsDisposed: true }) return; // window may have been restored while awaiting
+
         _bar.Show();
 
         _refreshTimer?.Dispose();

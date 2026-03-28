@@ -78,7 +78,7 @@ export function SettingsSidebar({ activeSection, onSectionChange, canManageTeam,
             onClick={() => onSectionChange(section.id)}
             className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${
               activeSection === section.id
-                ? 'text-[#f5f7fb] bg-[rgba(74,217,255,0.15)]'
+                ? 'text-[#f5f7fb] bg-[rgba(139,92,246,0.15)]'
                 : 'text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)]'
             }`}
           >

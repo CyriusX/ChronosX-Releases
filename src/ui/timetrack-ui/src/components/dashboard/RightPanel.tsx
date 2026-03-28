@@ -22,7 +22,7 @@ interface RightPanelProps {
 function getGradientColors(gradientClass: string): [string, string] {
   const fromMatch = gradientClass.match(/from-\[([^\]]+)\]/);
   const toMatch = gradientClass.match(/to-\[([^\]]+)\]/);
-  return [fromMatch?.[1] ?? '#4ad9ff', toMatch?.[1] ?? '#3c7bff'];
+  return [fromMatch?.[1] ?? '#8B5CF6', toMatch?.[1] ?? '#6D28D9'];
 }
 
 const productivityColors: Record<string, string> = {
@@ -146,7 +146,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                     <div className="rounded-lg bg-[rgba(0,0,0,0.25)] border border-[rgba(255,255,255,0.06)] max-h-[240px] overflow-y-auto">
                       {isLoading ? (
                         <div className="flex items-center justify-center gap-2 py-3">
-                          <div className="w-4 h-4 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+                          <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
                           <span className="text-[11px] text-[rgba(245,247,251,0.4)]">Carregando...</span>
                         </div>
                       ) : activeMembers.length > 0 ? (
@@ -167,7 +167,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                                   onMemberSelect?.(member.userId);
                                   setDropdownOpen(false);
                                 }}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[rgba(255,255,255,0.06)] transition-colors first:rounded-t-lg last:rounded-b-lg ${isSelected ? 'bg-[rgba(74,217,255,0.08)] border-l-2 border-l-[#4ad9ff]' : ''}`}
+                                className={`w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[rgba(255,255,255,0.06)] transition-colors first:rounded-t-lg last:rounded-b-lg ${isSelected ? 'bg-[rgba(139,92,246,0.08)] border-l-2 border-l-[#8B5CF6]' : ''}`}
                               >
                                 <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0`}>
                                   <span className="text-[10px] font-semibold text-white">
@@ -175,7 +175,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                                   </span>
                                 </div>
                                 <div className="flex-1 min-w-0 text-left">
-                                  <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.9)]'}`}>
+                                  <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.9)]'}`}>
                                     {member.displayName}
                                   </p>
                                   <p className="text-[9px] text-[rgba(245,247,251,0.4)]">
@@ -225,7 +225,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
               onClick={() => setProjectFilter(null)}
               className={`px-2 py-0.5 rounded-md text-[9px] font-medium transition-all flex-shrink-0 ${
                 !projectFilter
-                  ? 'bg-[rgba(74,217,255,0.12)] text-[#4ad9ff]'
+                  ? 'bg-[rgba(139,92,246,0.12)] text-[#8B5CF6]'
                   : 'text-[rgba(245,247,251,0.35)] hover:text-[rgba(245,247,251,0.6)]'
               }`}
             >
@@ -237,7 +237,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                 onClick={() => setProjectFilter(proj.name)}
                 className={`px-2 py-0.5 rounded-md text-[9px] font-medium transition-all flex-shrink-0 ${
                   projectFilter === proj.name
-                    ? 'bg-[rgba(74,217,255,0.12)] text-[#4ad9ff]'
+                    ? 'bg-[rgba(139,92,246,0.12)] text-[#8B5CF6]'
                     : 'text-[rgba(245,247,251,0.35)] hover:text-[rgba(245,247,251,0.6)]'
                 }`}
               >
@@ -257,7 +257,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                     tick={{ fontSize: 9, fill: 'rgba(245,247,251,0.3)' }}
                   />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#1a1d2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
+                    contentStyle={{ backgroundColor: 'rgba(18,21,33,0.95)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '16px', fontSize: '11px', backdropFilter: 'blur(20px)' }}
                     formatter={(value) => {
                       const totalMinutes = Math.round(Number(value) * 60);
                       const h = Math.floor(totalMinutes / 60);
@@ -268,10 +268,10 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                   <Line
                     type="monotone"
                     dataKey="hours"
-                    stroke="#4ad9ff"
+                    stroke="#8B5CF6"
                     strokeWidth={2}
-                    dot={{ r: 3, fill: '#4ad9ff', stroke: '#0b0d14', strokeWidth: 2 }}
-                    activeDot={{ r: 5, fill: '#4ad9ff', stroke: '#0b0d14', strokeWidth: 2 }}
+                    dot={{ r: 3, fill: '#8B5CF6', stroke: 'rgb(10,12,18)', strokeWidth: 2 }}
+                    activeDot={{ r: 5, fill: '#8B5CF6', stroke: 'rgb(10,12,18)', strokeWidth: 2 }}
                     animationDuration={800}
                     animationEasing="ease-out"
                   />

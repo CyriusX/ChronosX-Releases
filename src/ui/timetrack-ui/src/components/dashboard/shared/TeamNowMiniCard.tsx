@@ -35,7 +35,7 @@ export function TeamNowMiniCard({ members, isLoading }: TeamNowMiniCardProps) {
 
           {isLoading ? (
             <div className="flex items-center justify-center py-4">
-              <div className="w-4 h-4 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : activeMembers.length > 0 ? (
             <div className="space-y-2">

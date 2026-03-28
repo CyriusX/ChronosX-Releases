@@ -148,3 +148,15 @@ export const subtleHover = {
   whileHover: { x: 3 },
   transition: { type: 'spring', ...SPRING.snappy },
 };
+
+// ── Glass card hover elevation ──
+export const glassCardHover = {
+  whileHover: { y: -3, transition: { duration: TIMING.fast, ease: EASING.easeOut } },
+};
+
+// ── Glow entrance for premium cards ──
+export const glowIn: Variants = {
+  hidden: { opacity: 0, scale: 0.97, filter: 'blur(4px)' },
+  visible: { opacity: 1, scale: 1, filter: 'blur(0px)' },
+  exit: { opacity: 0, scale: 0.97, filter: 'blur(4px)' },
+};

@@ -29,10 +29,10 @@ const DAY_NAMES = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
 function getHoursColor(hours: number): string {
   if (hours <= 0) return 'rgba(255,255,255,0.03)';
-  if (hours < 2) return 'rgba(74,217,255,0.15)';
-  if (hours < 4) return 'rgba(74,217,255,0.25)';
-  if (hours < 6) return 'rgba(74,217,255,0.4)';
-  return 'rgba(74,217,255,0.6)';
+  if (hours < 2) return 'rgba(139,92,246,0.15)';
+  if (hours < 4) return 'rgba(139,92,246,0.25)';
+  if (hours < 6) return 'rgba(139,92,246,0.4)';
+  return 'rgba(139,92,246,0.6)';
 }
 
 export function MiniCalendar({ selectedDate, onDateSelect, weeklyHistory }: MiniCalendarProps) {
@@ -179,12 +179,12 @@ export function MiniCalendar({ selectedDate, onDateSelect, weeklyHistory }: Mini
                   {isSelected && (
                     <motion.div
                       layoutId="calendar-selected"
-                      className="absolute inset-0 rounded-md ring-1 ring-[#4ad9ff]"
+                      className="absolute inset-0 rounded-md ring-1 ring-[#8B5CF6]"
                       transition={SPRING.snappy}
                     />
                   )}
                   {isCurrentDay && !isSelected && (
-                    <span className="absolute bottom-[2px] left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#4ad9ff]" />
+                    <span className="absolute bottom-[2px] left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#8B5CF6]" />
                   )}
                 </motion.button>
               );
@@ -199,11 +199,11 @@ export function MiniCalendar({ selectedDate, onDateSelect, weeklyHistory }: Mini
             <span className="text-[7px] text-[rgba(245,247,251,0.25)]">0h</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(74,217,255,0.25)' }} />
+            <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(139,92,246,0.25)' }} />
             <span className="text-[7px] text-[rgba(245,247,251,0.25)]">2-4h</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(74,217,255,0.6)' }} />
+            <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'rgba(139,92,246,0.6)' }} />
             <span className="text-[7px] text-[rgba(245,247,251,0.25)]">6h+</span>
           </div>
         </div>

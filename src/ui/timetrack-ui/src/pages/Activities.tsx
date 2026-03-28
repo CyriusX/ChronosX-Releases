@@ -49,7 +49,7 @@ export default function Activities() {
             <div className="flex items-center gap-2">
               <span className="text-[14px] font-medium text-[#f5f7fb]">Atividades</span>
               {isLoading && (
-                <div className="w-4 h-4 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
               )}
             </div>
             <DateNavigator
@@ -190,8 +190,8 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
                   <circle cx="50" cy="50" r="42" fill="none" stroke="url(#actGrad1)" strokeWidth="8" strokeDasharray={`${progressPercentage * 2.64} 264`} strokeLinecap="round" />
                   <defs>
                     <linearGradient id="actGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#4ad9ff" />
-                      <stop offset="100%" stopColor="#3c7bff" />
+                      <stop offset="0%" stopColor="#8B5CF6" />
+                      <stop offset="100%" stopColor="#22D3EE" />
                     </linearGradient>
                   </defs>
                 </svg>
