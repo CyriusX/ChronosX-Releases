@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { AppIcon } from './shared';
 import { useTeamStatus } from '../../hooks/useTeamStatus';
+import { useAuthStore } from '../../stores/authStore';
 import { formatDuration } from '../../lib/utils';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../../types/ipc';
 import { fadeUp, staggerContainer, STAGGER, SPRING } from '../../lib/animation';
@@ -46,6 +47,7 @@ const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,
 
 export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selectedMemberId, onMemberSelect }: RightPanelProps) {
   const { members, isLoading, loadTeamStatus } = useTeamStatus();
+  const currentUser = useAuthStore((state) => state.user);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -54,8 +56,8 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
   }, [showTeamCard, loadTeamStatus]);
 
   const activeMembers = useMemo(() => {
-    return members.filter((m) => m.status === 'Active');
-  }, [members]);
+    return members.filter((m) => m.status === 'Active' && m.userId !== currentUser?.id);
+  }, [members, currentUser?.id]);
 
   const selectedMember = useMemo(() => {
     return activeMembers.find((m) => m.userId === selectedMemberId) ?? null;
