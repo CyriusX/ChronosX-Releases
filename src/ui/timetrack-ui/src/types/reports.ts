@@ -22,6 +22,7 @@ export interface DailyAppSummary {
   displayName: string;
   totalSeconds: number;
   sessionCount: number;
+  appCategory?: string;
 }
 
 // ============================================================================

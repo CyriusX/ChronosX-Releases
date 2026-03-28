@@ -40,6 +40,17 @@ export async function getDailySummary(
 }
 
 /**
+ * Get daily activities (individual sessions for timeline display)
+ * GET /api/v1/reports/activities?date=&timezone=
+ */
+export async function getDailyActivities(
+  date: string
+): Promise<{ date: string; sessions: Array<{ processName: string; windowTitle?: string; appCategory?: string; startedAt: string; endedAt: string; durationSeconds: number }> }> {
+  const params = new URLSearchParams({ date, timezone: getUserTimezone() });
+  return api.get(`/reports/activities?${params.toString()}`);
+}
+
+/**
  * Get top apps report
  * GET /api/v1/reports/top-apps?userId=&startDate=&endDate=&limit=&timezone=
  */
