@@ -1,4 +1,4 @@
-import { Calendar, Search, MoreVertical } from 'lucide-react';
+import { Calendar, Search, SlidersHorizontal } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SPRING } from '../../lib/animation';
 
@@ -52,8 +52,8 @@ export function DashboardHeader({ activeTab, onTabChange, showTeamTab = false }:
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-3">
-        {[Calendar, Search, MoreVertical].map((Icon, i) => (
+      <div className="flex items-center gap-2">
+        {[Calendar, Search].map((Icon, i) => (
           <motion.button
             key={i}
             whileHover={{ scale: 1.08 }}
@@ -63,6 +63,14 @@ export function DashboardHeader({ activeTab, onTabChange, showTeamTab = false }:
             <Icon className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
           </motion.button>
         ))}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="flex items-center gap-1.5 px-3 py-2 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5 text-[rgba(245,247,251,0.6)]" />
+          <span className="text-[11px] font-medium text-[rgba(245,247,251,0.6)]">Filtros</span>
+        </motion.button>
       </div>
     </header>
   );

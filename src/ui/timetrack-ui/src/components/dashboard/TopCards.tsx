@@ -2,21 +2,26 @@
  * TopCards - Dashboard top cards component
  *
  * Displays three summary cards:
- * 1. Tempo Rastreado - Time tracked today with circular progress
- * 2. Foco - Focus percentage and sessions
- * 3. Timer - Timer card with optional Focus Mode support (CX-139)
+ * 1. Tempo Rastreado - Time tracked today with circular progress + VS ONTEM
+ * 2. Foco - Focus score with distractions/pauses summary
+ * 3. Timer - Status card with project/tags and controls
+ *
+ * Plus a 4th "Resumo" card replacing the old Equipe agora:
+ * Shows idle time, focus sessions, distractions, focus score
  */
 
 import { useEffect, useRef } from 'react';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, Heart, Clock, Target, AlertTriangle, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { animate } from 'animejs';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { formatDuration } from '../../lib/utils';
-import type { TodaySummaryResponse } from '../../types/ipc';
+import type { TodaySummaryResponse, WeeklyHistoryItem } from '../../types/ipc';
 import { TimerFocusCard } from './TimerFocusCard';
+import { useTimerStore, selectCurrentUserSessions } from '../../stores/timerStore';
 import { fadeUp, staggerContainer, STAGGER, SPRING, TIMING_MS } from '../../lib/animation';
 import { useAnimatedCounter } from '../../hooks/useAnimatedCounter';
+import { cardBase } from './shared/styles';
 
 interface TopCardsProps {
   summary: TodaySummaryResponse | null;
@@ -27,9 +32,8 @@ interface TopCardsProps {
   onPauseTracking?: () => void;
   onStopTracking?: () => void;
   isTeamTab?: boolean;
+  weeklyHistory?: WeeklyHistoryItem[];
 }
-
-const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl hover:border-[rgba(74,217,255,0.15)] hover:shadow-[0_0_0_1px_rgba(74,217,255,0.08),0_4px_20px_rgba(74,217,255,0.04)] transition-all duration-200";
 
 export function TopCards({
   summary,
@@ -40,6 +44,7 @@ export function TopCards({
   onPauseTracking: _onPauseTracking,
   onStopTracking: _onStopTracking,
   isTeamTab = false,
+  weeklyHistory = [],
 }: TopCardsProps) {
   const totalSeconds = summary?.totalDuration ?? 0;
   const idleSeconds = summary?.idleTime ?? 0;
@@ -53,6 +58,17 @@ export function TopCards({
     .filter(c => c.productivity === 'distraction')
     .reduce((sum, c) => sum + c.duration, 0);
   const neutralSecs = Math.max(0, totalSeconds - productiveSecs - distractionSecs);
+
+  const distractionCount = categories.filter(c => c.productivity === 'distraction').length;
+
+  // Focus sessions from timer store (pomodoro/ultradian)
+  const timerSessions = useTimerStore(selectCurrentUserSessions);
+  const focusSessions = timerSessions.filter(s => s.phase === 'focus');
+  const focusSessionCount = focusSessions.length;
+  const scoredSessions = focusSessions.filter(s => s.productivity >= 0);
+  const focusScoreAvg = scoredSessions.length > 0
+    ? Math.round(scoredSessions.reduce((sum, s) => sum + s.productivity, 0) / scoredSessions.length)
+    : 0;
 
   const productivityScore = totalSeconds > 0
     ? Math.round((productiveSecs / totalSeconds) * 100)
@@ -88,6 +104,16 @@ export function TopCards({
   });
 
   const progressPercentage = Math.min((totalSeconds / 28800) * 100, 100);
+
+  // VS ONTEM comparison
+  const todayIdx = weeklyHistory.findIndex(w => w.isToday);
+  const yesterdayEntry = todayIdx > 0 ? weeklyHistory[todayIdx - 1] : null;
+  const yesterdaySeconds = yesterdayEntry ? yesterdayEntry.hours * 3600 : 0;
+  const deltaSeconds = totalSeconds - yesterdaySeconds;
+  const deltaPositive = deltaSeconds >= 0;
+  const deltaText = deltaSeconds !== 0
+    ? `${deltaPositive ? '+' : '-'}${formatDuration(Math.abs(deltaSeconds))}`
+    : '—';
 
   // Animated counters
   const animatedScore = useAnimatedCounter(productivityScore);
@@ -126,14 +152,17 @@ export function TopCards({
     });
   }, [ringSegments.length, totalSeconds]);
 
+  // Grid: 3-col on team tab (no timer), 4-col on meu dia
+  const gridCols = isTeamTab ? 'grid-cols-3' : 'grid-cols-4';
+
   return (
     <motion.div
       variants={staggerContainer(STAGGER.cards)}
       initial="hidden"
       animate="visible"
-      className={`grid ${isTeamTab ? 'grid-cols-2' : 'grid-cols-3'} gap-4 flex-shrink-0`}
+      className={`grid ${gridCols} gap-4 flex-shrink-0`}
     >
-      {/* Tempo Rastreado Card */}
+      {/* ─── Tempo Rastreado Card ─── */}
       <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }} className="h-full">
         <Card className={`${cardBase} h-full`}>
           <CardHeader className="pb-0 pt-3 px-4">
@@ -165,24 +194,33 @@ export function TopCards({
                   <span className="text-[20px] font-semibold text-[#f5f7fb]">{formatDuration(totalSeconds)}</span>
                 </div>
               </div>
+
               <div className="mt-3 text-center">
                 <p className="text-[18px] font-semibold text-[rgba(245,247,251,0.9)]">{animatedProgress}%</p>
-                <p className="text-[10px] text-[rgba(245,247,251,0.3)] mt-0.5">Meta de hoje</p>
-                <p className="text-[10px] text-[rgba(245,247,251,0.4)] mt-1">
-                  Idle: <span className="text-[rgba(245,247,251,0.6)] font-medium">{formatDuration(idleSeconds)}</span>
-                </p>
+
+                {/* VS ONTEM comparison */}
+                <div className="flex items-center justify-center gap-1.5 mt-1">
+                  <Heart className="w-3 h-3" style={{ color: deltaPositive ? '#f87171' : 'rgba(245,247,251,0.3)' }} />
+                  <span
+                    className="text-[10px] font-medium"
+                    style={{ color: deltaPositive ? '#4ade80' : '#f87171' }}
+                  >
+                    {deltaText}
+                  </span>
+                  <span className="text-[8px] uppercase tracking-wider text-[rgba(245,247,251,0.35)]">VS ONTEM</span>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* Produtividade Card */}
+      {/* ─── Foco Card (Score + Produtivo/Neutro/Distração) ─── */}
       <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }} className="h-full">
         <Card className={`${cardBase} h-full`}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="flex items-center justify-between">
-              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Produtividade</span>
+              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Foco</span>
               <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
             </CardTitle>
           </CardHeader>
@@ -211,6 +249,7 @@ export function TopCards({
                 </div>
               </div>
 
+              {/* Produtivo / Neutro / Distração breakdown */}
               <div className="mt-2.5 w-full space-y-1">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -235,6 +274,7 @@ export function TopCards({
                 </div>
               </div>
 
+              {/* Top category dots */}
               <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 justify-center">
                 {sortedCategories.slice(0, 3).map((cat, i) => (
                   <div key={i} className="flex items-center gap-1">
@@ -248,12 +288,73 @@ export function TopCards({
         </Card>
       </motion.div>
 
-      {/* Pomodoro / Ultradian Timer Card */}
+      {/* ─── Timer Card (Meu dia only) ─── */}
       {!isTeamTab && (
         <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }}>
           <TimerFocusCard summary={summary} />
         </motion.div>
       )}
+
+      {/* ─── Resumo Card ─── */}
+      <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }} className="h-full">
+        <Card className={`${cardBase} h-full`}>
+          <CardHeader className="pb-0 pt-3 px-4">
+            <CardTitle className="flex items-center justify-between">
+              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Resumo</span>
+              <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-3 pb-3 px-4">
+            <div className="space-y-3">
+              {/* Idle time */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-md bg-[rgba(161,161,170,0.1)] border border-[rgba(161,161,170,0.2)] flex items-center justify-center">
+                    <Clock className="w-3 h-3 text-[rgba(245,247,251,0.5)]" />
+                  </div>
+                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo ocioso</span>
+                </div>
+                <span className="text-[14px] font-bold text-[rgba(245,247,251,0.6)]">{formatDuration(idleSeconds)}</span>
+              </div>
+
+              {/* Focus sessions */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-md bg-[rgba(5,223,114,0.1)] border border-[rgba(5,223,114,0.2)] flex items-center justify-center">
+                    <Target className="w-3 h-3 text-[#05df72]" />
+                  </div>
+                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Sessões de foco</span>
+                </div>
+                <span className="text-[14px] font-bold text-[#f5f7fb]">{focusSessionCount}</span>
+              </div>
+
+              {/* Distractions */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-md bg-[rgba(248,113,113,0.1)] border border-[rgba(248,113,113,0.2)] flex items-center justify-center">
+                    <AlertTriangle className="w-3 h-3 text-[#f87171]" />
+                  </div>
+                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Distrações</span>
+                </div>
+                <span className="text-[14px] font-bold text-[#f5f7fb]">{distractionCount}</span>
+              </div>
+
+              {/* Focus score */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-md bg-[rgba(74,217,255,0.1)] border border-[rgba(74,217,255,0.2)] flex items-center justify-center">
+                    <Zap className="w-3 h-3 text-[#4ad9ff]" />
+                  </div>
+                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Focus Score</span>
+                </div>
+                <span className="text-[14px] font-bold" style={{ color: getScoreColor(focusScoreAvg) }}>
+                  {focusScoreAvg}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </motion.div>
   );
 }
