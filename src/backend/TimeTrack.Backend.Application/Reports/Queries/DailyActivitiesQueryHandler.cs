@@ -59,7 +59,7 @@ public sealed class DailyActivitiesQueryHandler : IRequestHandler<DailyActivitie
                 AppCategory = ResolveCategory(s.ProcessName, s.AppCategory, overrideLookup),
                 StartedAt = s.StartedAt,
                 EndedAt = s.EndedAt,
-                DurationSeconds = s.DurationSeconds,
+                DurationSeconds = (int)(s.EndedAt - s.StartedAt).TotalSeconds,
             })
             .ToList();
 

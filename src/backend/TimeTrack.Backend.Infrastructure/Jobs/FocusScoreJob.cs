@@ -234,7 +234,7 @@ public sealed class FocusScoreJob : IFocusScoreJob
 
         foreach (var session in sessions)
         {
-            var durationMs = session.DurationSeconds * 1000L;
+            var durationMs = (long)(session.EndedAt - session.StartedAt).TotalMilliseconds;
             totalTrackedMs += durationMs;
 
             // Classify the app
