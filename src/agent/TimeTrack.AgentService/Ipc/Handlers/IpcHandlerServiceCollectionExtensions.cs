@@ -41,6 +41,8 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcCommandHandler, UpdateSettingsCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, SetWorkHoursCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, UpdateAppCategoryCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, DismissActivityResumePromptCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, TestActivityResumeToastCommandHandler>(); // TODO: Remove after testing
 
         // Query Handlers
         services.AddSingleton<IIpcQueryHandler, GetCurrentSessionQueryHandler>();
