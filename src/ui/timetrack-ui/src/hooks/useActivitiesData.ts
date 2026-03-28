@@ -115,16 +115,36 @@ export function useActivitiesData(): ActivitiesData {
     setIsLoading(true);
 
     try {
+      // Always fetch calendar range from backend for MiniCalendar colors
+      const calStart = formatDatePayload(addDays(selectedDate, -15));
+      const calEnd = formatDatePayload(new Date()); // up to today
+      const calendarPromise = getDailySummaryRange(calStart, calEnd).catch(() => null);
+
       if (isToday) {
         // Today: fetch from agent via IPC (fast, real-time)
         if (!isConnected) return;
-        const [summaryRes, activitiesRes] = await Promise.all([
+        const [summaryRes, activitiesRes, calResult] = await Promise.all([
           sendQuery('getTodaySummary', { date: datePayload }),
           sendQuery('getRecentActivities', { date: datePayload }),
+          calendarPromise,
         ]);
 
         if (summaryRes.success && summaryRes.data) {
-          setSummary(summaryRes.data as TodaySummaryResponse);
+          const summaryData = summaryRes.data as TodaySummaryResponse;
+          // Enrich weeklyHistory with backend data for full calendar coverage
+          if (calResult?.days?.length) {
+            const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+            summaryData.weeklyHistory = calResult.days.map(d => {
+              const dt = new Date(d.date + 'T00:00:00');
+              return {
+                date: d.date,
+                dayName: dayNames[dt.getDay()],
+                hours: Math.round((d.totalActiveSeconds / 3600) * 100) / 100,
+                isToday: d.date === datePayload,
+              };
+            });
+          }
+          setSummary(summaryData);
         }
         if (activitiesRes.success && activitiesRes.data) {
           setActivities(
@@ -135,20 +155,37 @@ export function useActivitiesData(): ActivitiesData {
         // Past days: fetch from backend API (authoritative cloud data)
         // Use the SAME endpoints as the Reports page heatmap for consistent numbers:
         // - getDailySummaryRange: same timezone-aware boundaries and classification as heatmap
+        //   (fetch 30-day range centered on selected date for MiniCalendar colors)
         // - getTopApps: same override-aware app classification as Reports TopApps
         // - getDailyActivities: for timeline blocks
+        const calStart = formatDatePayload(addDays(selectedDate, -15));
+        const calEnd = formatDatePayload(addDays(selectedDate, 15));
         const [rangeResult, topAppsResult, activitiesResult] = await Promise.all([
-          getDailySummaryRange(datePayload, datePayload).catch(() => null),
+          getDailySummaryRange(calStart, calEnd).catch(() => null),
           getTopApps(datePayload, datePayload, 20).catch(() => null),
           getDailyActivities(datePayload).catch(() => null),
         ]);
 
         if (rangeResult) {
-          const dayData = rangeResult.days?.[0];
+          // Find the specific day in the range
+          const allDays = rangeResult.days ?? [];
+          const dayData = allDays.find(d => d.date === datePayload) ?? allDays[0];
           const totalActive = dayData?.totalActiveSeconds ?? 0;
           const totalIdle = dayData?.totalIdleSeconds ?? 0;
           const productivityRatio = dayData?.productivityRatio ?? 0;
           const productiveTime = Math.round(totalActive * productivityRatio);
+
+          // Build weeklyHistory for MiniCalendar colors from the full range
+          const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+          const calendarHistory = allDays.map(d => {
+            const dt = new Date(d.date + 'T00:00:00');
+            return {
+              date: d.date,
+              dayName: dayNames[dt.getDay()],
+              hours: Math.round((d.totalActiveSeconds / 3600) * 100) / 100,
+              isToday: d.date === formatDatePayload(new Date()),
+            };
+          });
 
           // Build app list from topApps (uses same classification as Reports page)
           const apps = topAppsResult?.apps ?? [];
@@ -185,7 +222,7 @@ export function useActivitiesData(): ActivitiesData {
             topProjects: [],
             topApplications,
             categories,
-            weeklyHistory: [],
+            weeklyHistory: calendarHistory,
           } as TodaySummaryResponse);
         }
 
