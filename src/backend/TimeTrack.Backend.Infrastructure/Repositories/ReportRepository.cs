@@ -348,10 +348,14 @@ public sealed class ReportRepository : IReportRepository
             endOfDay = startOfDay.AddDays(1).AddTicks(-1);
         }
 
-        return await _context.IdlePeriods
+        // Compute from timestamps to match local agent behavior (avoid stale DurationSeconds)
+        var idlePeriods = await _context.IdlePeriods
             .AsNoTracking()
             .Where(i => i.UserId == userId && i.StartedAt >= startOfDay && i.StartedAt <= endOfDay)
-            .SumAsync(i => (long)i.DurationSeconds, cancellationToken);
+            .Select(i => new { i.StartedAt, i.EndedAt })
+            .ToListAsync(cancellationToken);
+
+        return idlePeriods.Sum(i => (long)(i.EndedAt - i.StartedAt).TotalSeconds);
     }
 
     public async Task<IEnumerable<AppAggregate>> GetTopAppsAsync(
@@ -365,11 +369,17 @@ public sealed class ReportRepository : IReportRepository
     {
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
-        var sessions = await _context.ActivitySessions
+        var rawSessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
+            .Select(a => new { a.ProcessName, a.StartedAt, a.EndedAt, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
+
+        // Compute duration from timestamps to avoid stale DurationSeconds
+        var sessions = rawSessions.Select(a => new {
+            a.ProcessName, DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds,
+            a.AppCategory, a.AppSubcategory
+        }).ToList();
 
         // Filter out internal/system apps to match dashboard totals
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
@@ -421,11 +431,18 @@ public sealed class ReportRepository : IReportRepository
         // Buscar sessões and idle periods — include EndedAt for proper midnight-crossing handling.
         // Exclude internal/system apps (same as agent's local dashboard) to avoid inflating totals
         // with "Tracking Stopped" placeholder sessions and our own UI processes.
-        var sessions = await _context.ActivitySessions
+        var rawSessionsForRange = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.StartedAt, a.EndedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .Select(a => new { a.StartedAt, a.EndedAt, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
+
+        // Compute duration from timestamps to avoid stale DurationSeconds
+        var sessions = rawSessionsForRange.Select(a => new {
+            a.StartedAt, a.EndedAt,
+            DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds,
+            a.ProcessName, a.AppCategory, a.AppSubcategory
+        }).ToList();
 
         // Filter out internal/system apps in-memory (EF can't translate HashSet.Contains with OrdinalIgnoreCase)
         sessions = sessions
@@ -435,22 +452,14 @@ public sealed class ReportRepository : IReportRepository
         // Load org-level overrides for this user
         var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
-        // DEBUG: Log raw session data
-        _logger?.LogInformation(
-            "GetDailySummaryRangeAsync: UserIds={UserIds}, Start={Start}, End={End}, SessionsCount={Count}, Overrides={OverrideCount}",
-            string.Join(",", userIds), start, end, sessions.Count, overrides.Count);
-
-        // DEBUG: Log unique categories found
-        var uniqueCategories = sessions.Select(s => s.AppCategory).Distinct().ToList();
-        _logger?.LogInformation(
-            "GetDailySummaryRangeAsync: Unique AppCategories: [{Categories}]",
-            string.Join(", ", uniqueCategories.Select(c => $"'{c}'")));
-
-        var idlePeriods = await _context.IdlePeriods
+        // Compute idle duration from timestamps to avoid stale DurationSeconds
+        var idlePeriods = (await _context.IdlePeriods
             .AsNoTracking()
             .Where(i => userIds.Contains(i.UserId) && i.StartedAt >= start && i.StartedAt <= end)
-            .Select(i => new { i.StartedAt, i.DurationSeconds })
-            .ToListAsync(cancellationToken);
+            .Select(i => new { i.StartedAt, i.EndedAt })
+            .ToListAsync(cancellationToken))
+            .Select(i => new { i.StartedAt, DurationSeconds = (int)(i.EndedAt - i.StartedAt).TotalSeconds })
+            .ToList();
 
         // Agrupar por local date — iterate local days and compute UTC boundaries per day.
         // Sessions are clipped to day boundaries so midnight-crossing sessions are split
@@ -583,11 +592,13 @@ public sealed class ReportRepository : IReportRepository
         var tz = GetTimezone(timezone);
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
-        var sessions = await _context.ActivitySessions
+        var sessions = (await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.StartedAt, a.EndedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
-            .ToListAsync(cancellationToken);
+            .Select(a => new { a.StartedAt, a.EndedAt, a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .ToListAsync(cancellationToken))
+            .Select(a => new { a.StartedAt, a.EndedAt, DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .ToList();
 
         // Filter out internal/system apps
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
@@ -595,11 +606,14 @@ public sealed class ReportRepository : IReportRepository
         // Load org-level overrides for this user
         var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
-        var idlePeriods = await _context.IdlePeriods
+        // Compute idle duration from timestamps to avoid stale DurationSeconds
+        var idlePeriods = (await _context.IdlePeriods
             .AsNoTracking()
             .Where(i => userIds.Contains(i.UserId) && i.StartedAt >= start && i.StartedAt <= end)
-            .Select(i => new { i.StartedAt, i.DurationSeconds })
-            .ToListAsync(cancellationToken);
+            .Select(i => new { i.StartedAt, i.EndedAt })
+            .ToListAsync(cancellationToken))
+            .Select(i => new { i.StartedAt, DurationSeconds = (int)(i.EndedAt - i.StartedAt).TotalSeconds })
+            .ToList();
 
         // Convert UTC timestamps to local time for grouping
         DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(
@@ -702,12 +716,14 @@ public sealed class ReportRepository : IReportRepository
     {
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
-        var sessions = await _context.ActivitySessions
+        var sessions = (await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
             .Where(a => a.WindowTitle != null && a.WindowTitle != "")
-            .Select(a => new { a.ProcessName, a.WindowTitle, a.FilePath, a.DurationSeconds })
-            .ToListAsync(cancellationToken);
+            .Select(a => new { a.ProcessName, a.WindowTitle, a.FilePath, a.StartedAt, a.EndedAt })
+            .ToListAsync(cancellationToken))
+            .Select(a => new { a.ProcessName, a.WindowTitle, a.FilePath, DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds })
+            .ToList();
 
         // Filter out internal/system apps
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
@@ -751,11 +767,13 @@ public sealed class ReportRepository : IReportRepository
         var tz = GetTimezone(timezone);
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
-        var sessions = await _context.ActivitySessions
+        var sessions = (await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.StartedAt, a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
-            .ToListAsync(cancellationToken);
+            .Select(a => new { a.StartedAt, a.EndedAt, a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .ToListAsync(cancellationToken))
+            .Select(a => new { a.StartedAt, a.ProcessName, DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds, a.AppCategory, a.AppSubcategory })
+            .ToList();
 
         // Filter out internal/system apps
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
@@ -813,11 +831,13 @@ public sealed class ReportRepository : IReportRepository
     {
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
-        var sessions = await _context.ActivitySessions
+        var sessions = (await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
-            .ToListAsync(cancellationToken);
+            .Select(a => new { a.ProcessName, a.StartedAt, a.EndedAt, a.AppCategory, a.AppSubcategory })
+            .ToListAsync(cancellationToken))
+            .Select(a => new { a.ProcessName, DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds, a.AppCategory, a.AppSubcategory })
+            .ToList();
 
         // Filter out internal/system apps
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();

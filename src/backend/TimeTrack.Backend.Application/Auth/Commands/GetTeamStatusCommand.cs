@@ -78,10 +78,10 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
 
         _logger.LogDebug("GetTeamStatus: Found {SessionCount} sessions for org {OrgId}", sessions.Count(), request.OrgId);
 
-        // Group sessions by user and calculate total duration
+        // Group sessions by user and calculate total duration (compute from timestamps to avoid stale DurationSeconds)
         var sessionsByUser = sessions
             .GroupBy(s => s.UserId)
-            .ToDictionary(g => g.Key, g => g.Sum(s => s.DurationSeconds));
+            .ToDictionary(g => g.Key, g => (int)g.Sum(s => (s.EndedAt - s.StartedAt).TotalSeconds));
 
         // Find users currently tracking (had activity in last 5 minutes)
         var fiveMinutesAgo = DateTime.UtcNow.AddMinutes(-5);

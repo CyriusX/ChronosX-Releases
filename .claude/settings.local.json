@@ -396,7 +396,9 @@
       "Bash(grep -n \"class ActivitySessionItem\\\\|record ActivitySessionItem\" /c/Users/jr_ju/Repo/TimeTracking/src/backend/TimeTrack.Backend.Application/Ingest/DTOs/*.cs)",
       "Bash(python3 -c \"import sys,json; d=json.loads\\(sys.stdin.read\\(\\).split\\(''''data:''''\\)[1].split\\('''',error''''\\)[0]\\); print\\(f''''totalDuration={d[totalDuration]}s \\({d[totalDuration]//60}m\\), idle={d[idleTime]}s, productive={d[productiveTime]}s, sessions={d[sessionsCount]}''''\\)\")",
       "Bash(cp Program.cs Program.cs.bak)",
-      "Bash(cp PgQuery.cs Program.cs)"
+      "Bash(cp PgQuery.cs Program.cs)",
+      "Bash(grep -n \"GetTopAppsAsync\\\\|GetDailySummaryRangeAsync\\\\|GetProductivityTrendAsync\\\\|GetTopPathsAsync\\\\|GetDistractionStatsAsync\\\\|GetCategoryDistributionAsync\\\\|GetDailyIdleSecondsAsync\\\\|GetDailyActivityAggregateAsync\\\\|GetTeamStatusCommand\" /c/Users/jr_ju/Repo/TimeTracking/src/backend/TimeTrack.Api/Controllers/*.cs)",
+      "Bash(grep -v \"^\\\\s*//\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",

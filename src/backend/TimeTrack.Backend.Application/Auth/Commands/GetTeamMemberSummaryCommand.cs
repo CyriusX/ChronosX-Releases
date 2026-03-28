@@ -120,7 +120,7 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
             TopAppsByExe = appsByName.Take(10).ToList(),
             Categories = categories,
             WeeklyHistory = weeklyHistory,
-            LastSyncAt = activity.LastActivity?.ToString("o") // ISO 8601 UTC
+            LastSyncAt = DateTime.UtcNow.ToString("o") // When this data was fetched from the backend
         };
     }
 
