@@ -401,7 +401,9 @@
       "Bash(grep -v \"^\\\\s*//\")",
       "Bash(grep -B5 -A10 \"useFocusMode\\(\\)\" /c/Users/jr_ju/Repo/TimeTracking/src/ui/timetrack-ui/src/components/dashboard/TimerFocusCard/*.tsx)",
       "Bash(find c:Usersjr_juRepoTimeTracking/src/ui/timetrack-ui/src/components -type f \\\\\\(-name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js \\\\\\))",
-      "Bash(find c:Usersjr_juRepoTimeTracking -maxdepth 3 -type f \\\\\\(-name tailwind.config.* -o -name globals.css -o -name components.json -o -name postcss.config.* \\\\\\))"
+      "Bash(find c:Usersjr_juRepoTimeTracking -maxdepth 3 -type f \\\\\\(-name tailwind.config.* -o -name globals.css -o -name components.json -o -name postcss.config.* \\\\\\))",
+      "Read(//c/Users/jr_ju/Repo/TimeTracking/$LOCALAPPDATA/TimeTrack/**)",
+      "Bash(du -sh \"$LOCALAPPDATA/TimeTrack/WebView2Cache\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
