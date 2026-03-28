@@ -154,7 +154,10 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                   >
                     <div className="rounded-lg bg-[rgba(0,0,0,0.25)] border border-[rgba(255,255,255,0.06)] max-h-[240px] overflow-y-auto">
                       {isLoading ? (
-                        <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">Carregando...</p>
+                        <div className="flex items-center justify-center gap-2 py-3">
+                          <div className="w-4 h-4 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+                          <span className="text-[11px] text-[rgba(245,247,251,0.4)]">Carregando...</span>
+                        </div>
                       ) : activeMembers.length > 0 ? (
                         <motion.div
                           variants={staggerContainer(STAGGER.fast)}

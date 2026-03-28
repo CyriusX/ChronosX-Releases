@@ -390,7 +390,8 @@
       "Bash(powershell -Command \"Stop-Process -Id 34784 -Force\" 2>&1)",
       "Bash(docker compose:*)",
       "Bash(timeout 5 docker logs timetrack-api --tail 30 -f)",
-      "Read(//c/Projetos/TimeTracking/src/ui/timetrack-ui/**)"
+      "Read(//c/Projetos/TimeTracking/src/ui/timetrack-ui/**)",
+      "Bash(git log:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",

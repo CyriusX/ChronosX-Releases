@@ -433,6 +433,8 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
 
   // Track if we've already done initial fetch with connected IPC
   const hasConnectedFetchRef = useRef(false);
+  // Track which filters were used for the last fetch to detect changes
+  const lastFetchFiltersRef = useRef<string>('');
 
   useEffect(() => {
     if (!autoFetch || !filters.dateRange.startDate) return;
@@ -442,25 +444,28 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       filters.dateRange.startDate <= today &&
       filters.dateRange.endDate >= today;
 
-    // If period includes today, wait for IPC to connect before fetching
-    // This ensures we get real-time local data instead of stale backend data
+    // If period includes today AND viewing own data, wait for IPC to connect
     if (includesToday && !isConnected) {
       console.log('[useReportsData] Waiting for IPC connection before fetching (period includes today)');
       return;
     }
 
-    // Fetch data - either IPC is connected or period doesn't include today
+    // Build a fingerprint of the current filters to detect changes
+    const filterKey = `${filters.dateRange.startDate}|${filters.dateRange.endDate}|${filters.userId ?? ''}|${filters.groupBy}`;
+
+    // Reset the flag if filters changed (userId, dates, groupBy)
+    if (lastFetchFiltersRef.current !== filterKey) {
+      hasConnectedFetchRef.current = false;
+    }
+
+    // Fetch data if we haven't fetched with these filters yet
     if (!hasConnectedFetchRef.current) {
       hasConnectedFetchRef.current = true;
+      lastFetchFiltersRef.current = filterKey;
       refresh();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoFetch, filters.dateRange, filters.userId, filters.groupBy, isConnected]);
-
-  // Reset the connected fetch flag when filters change significantly
-  useEffect(() => {
-    hasConnectedFetchRef.current = false;
-  }, [filters.dateRange.startDate, filters.userId]);
 
   // ============================================================================
   // POLLING - Automatic refresh every 60 seconds

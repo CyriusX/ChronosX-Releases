@@ -552,7 +552,7 @@ public sealed class ReportRepository : IReportRepository
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
-            .Select(a => new { a.StartedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .Select(a => new { a.StartedAt, a.EndedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
         // Filter out internal/system apps
@@ -571,19 +571,63 @@ public sealed class ReportRepository : IReportRepository
         DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(
             DateTime.SpecifyKind(utc, DateTimeKind.Utc), tz);
 
-        // Agrupar por período (using local dates)
+        // For "day" grouping, iterate per day and clip durations (same as DailySummaryRange)
+        // to ensure consistency between heatmap and trend chart.
+        // For "week"/"month" grouping, use StartedAt-based grouping with full durations.
+        if (groupBy.Equals("day", StringComparison.OrdinalIgnoreCase))
+        {
+            var result = new List<ProductivityTrendItem>();
+            for (var localDate = startDate.Date; localDate <= endDate.Date; localDate = localDate.AddDays(1))
+            {
+                var (dayStart, dayEnd) = GetUtcBoundaries(localDate, localDate, timezone);
+                var dayEndExclusive = dayEnd.AddTicks(1);
+
+                // Sessions that OVERLAP this day (same logic as DailySummaryRange)
+                var daySessions = sessions.Where(s => s.StartedAt <= dayEnd && s.EndedAt > dayStart).ToList();
+                var dayIdle = idlePeriods.Where(i => i.StartedAt <= dayEnd && i.StartedAt >= dayStart).ToList();
+
+                // Clip durations to day boundaries
+                long ClipDuration(DateTime sessStart, DateTime sessEnd, int rawDuration)
+                {
+                    var clippedStart = sessStart < dayStart ? dayStart : sessStart;
+                    var clippedEnd = sessEnd > dayEndExclusive ? dayEndExclusive : sessEnd;
+                    return Math.Clamp((long)(clippedEnd - clippedStart).TotalSeconds, 0, rawDuration);
+                }
+
+                var productive = daySessions
+                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
+                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
+                var distraction = daySessions
+                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
+                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
+                var neutral = daySessions
+                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "neutral")
+                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
+                var idleSeconds = dayIdle.Sum(i => i.DurationSeconds);
+
+                result.Add(new ProductivityTrendItem
+                {
+                    Period = localDate.ToString("yyyy-MM-dd"),
+                    ProductiveSeconds = productive,
+                    NeutralSeconds = neutral,
+                    DistractionSeconds = distraction,
+                    IdleSeconds = idleSeconds
+                });
+            }
+            return result;
+        }
+
+        // Week/month grouping: use StartedAt-based grouping with full durations
         var grouped = groupBy.ToLowerInvariant() switch
         {
             "week" => sessions.GroupBy(s => GetWeekKey(ToLocal(s.StartedAt))),
-            "month" => sessions.GroupBy(s => GetMonthKey(ToLocal(s.StartedAt))),
-            _ => sessions.GroupBy(s => ToLocal(s.StartedAt).ToString("yyyy-MM-dd"))
+            _ => sessions.GroupBy(s => GetMonthKey(ToLocal(s.StartedAt)))
         };
 
         var idleGrouped = groupBy.ToLowerInvariant() switch
         {
             "week" => idlePeriods.GroupBy(i => GetWeekKey(ToLocal(i.StartedAt))),
-            "month" => idlePeriods.GroupBy(i => GetMonthKey(ToLocal(i.StartedAt))),
-            _ => idlePeriods.GroupBy(i => ToLocal(i.StartedAt).ToString("yyyy-MM-dd"))
+            _ => idlePeriods.GroupBy(i => GetMonthKey(ToLocal(i.StartedAt)))
         };
 
         var idleDict = idleGrouped.ToDictionary(g => g.Key, g => g.Sum(i => i.DurationSeconds));
@@ -593,13 +637,13 @@ public sealed class ReportRepository : IReportRepository
             var items = g.ToList();
             var productive = items
                 .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
-                .Sum(s => s.DurationSeconds);
+                .Sum(s => (long)s.DurationSeconds);
             var distraction = items
                 .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
-                .Sum(s => s.DurationSeconds);
+                .Sum(s => (long)s.DurationSeconds);
             var neutral = items
                 .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "neutral")
-                .Sum(s => s.DurationSeconds);
+                .Sum(s => (long)s.DurationSeconds);
 
             idleDict.TryGetValue(g.Key, out var idleSeconds);
 
