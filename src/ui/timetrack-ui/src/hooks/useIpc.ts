@@ -82,7 +82,7 @@ const mockTodaySummary = {
   ],
   categories: [
     { name: 'Desenvolvimento', duration: 24120, percentage: 64, color: '#05df72' },
-    { name: 'Reuniões', duration: 4500, percentage: 17, color: '#4ad9ff' },
+    { name: 'Reuniões', duration: 4500, percentage: 17, color: '#8B5CF6' },
     { name: 'Pesquisa', duration: 2760, percentage: 10, color: '#8b7aff' },
     { name: 'Comunicação', duration: 2340, percentage: 9, color: '#ff9c5b' },
   ],

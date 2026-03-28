@@ -18,7 +18,7 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-zinc-800 focus:text-zinc-50 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[state=open]:bg-zinc-800',
+      'relative flex cursor-pointer select-none items-center rounded-[10px] px-2 py-1.5 text-sm outline-none transition-colors focus:bg-[rgba(139,92,246,0.12)] focus:text-[#f5f7fb] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[state=open]:bg-[rgba(139,92,246,0.08)]',
       inset && 'pl-8',
       className
     )}
@@ -33,7 +33,7 @@ const DropdownMenuLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Label
     ref={ref}
-    className={cn('px-2 py-1.5 text-sm font-semibold text-zinc-400', className)}
+    className={cn('px-2 py-1.5 text-sm font-semibold text-[rgba(245,247,251,0.5)]', className)}
     {...props}
   />
 ));
@@ -45,7 +45,7 @@ const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn('-mx-1 my-1 h-px-2 bg-zinc-800', className)}
+    className={cn('-mx-1 my-1 h-px bg-[rgba(255,255,255,0.08)]', className)}
     {...props}
   />
 ));

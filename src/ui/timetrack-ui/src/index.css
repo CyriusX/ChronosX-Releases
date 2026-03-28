@@ -1,67 +1,106 @@
 @import "tailwindcss";
 
+/* ─── Theme tokens (Tailwind v4) ─── */
+@theme {
+  --color-surface-base: rgba(12, 14, 22, 1);
+  --color-surface-raised: rgba(18, 21, 33, 0.85);
+  --color-surface-overlay: rgba(24, 27, 42, 0.80);
+  --color-surface-elevated: rgba(30, 34, 52, 0.75);
+
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-default: rgba(255, 255, 255, 0.10);
+  --color-border-accent: rgba(139, 92, 246, 0.25);
+
+  --color-accent-purple: #8B5CF6;
+  --color-accent-blue: #3B82F6;
+  --color-accent-cyan: #22D3EE;
+  --color-accent-amber: #F59E0B;
+  --color-accent-green: #10B981;
+  --color-accent-pink: #EC4899;
+  --color-accent-red: #EF4444;
+
+  --color-glow-purple: rgba(139, 92, 246, 0.35);
+  --color-glow-cyan: rgba(34, 211, 238, 0.25);
+  --color-glow-blue: rgba(59, 130, 246, 0.25);
+}
+
+/* ─── Semantic CSS variables ─── */
 :root {
   color-scheme: dark;
 
-  --background: 250 250 250;
-  --foreground: 39 39 42;
+  --background: 10 12 18;
+  --foreground: 245 247 251;
 
-  --card: 24 24 27;
-  --card-foreground: 250 250 250;
+  --card: 18 21 33;
+  --card-foreground: 245 247 251;
 
-  --popover: 24 24 27;
-  --popover-foreground: 250 250 250;
+  --popover: 20 23 36;
+  --popover-foreground: 245 247 251;
 
-  --primary: 99 102 241;
+  --primary: 139 92 246;
   --primary-foreground: 255 255 255;
 
-  --secondary: 39 39 42;
-  --secondary-foreground: 250 250 250;
+  --secondary: 30 34 52;
+  --secondary-foreground: 245 247 251;
 
-  --muted: 39 39 42;
-  --muted-foreground: 161 161 170;
+  --muted: 30 34 52;
+  --muted-foreground: 148 150 165;
 
-  --accent: 39 39 42;
-  --accent-foreground: 250 250 250;
+  --accent: 34 211 238;
+  --accent-foreground: 255 255 255;
 
   --destructive: 239 68 68;
   --destructive-foreground: 250 250 250;
 
-  --border: 39 39 42;
-  --input: 39 39 42;
-  --ring: 99 102 241;
+  --border: 255 255 255 / 0.08;
+  --input: 30 34 52;
+  --ring: 139 92 246;
 
-  --radius: 0.5rem;
+  --radius: 22px;
 }
 
 * {
-  border-color: rgb(39 39 42);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
+/* ─── Base styles ─── */
 body {
   margin: 0;
   padding: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: rgb(9 9 11);
-  color: rgb(250 250 250);
+  font-family: 'Inter Variable', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: rgb(10 12 18);
+  color: rgb(245 247 251);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Native select & option dark theme */
+/* ─── Atmospheric background ─── */
+#root {
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 20%, rgba(139, 92, 246, 0.07), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 85% 75%, rgba(59, 130, 246, 0.05), transparent 55%),
+    radial-gradient(ellipse 45% 35% at 50% 10%, rgba(245, 158, 11, 0.035), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 70% 40%, rgba(236, 72, 153, 0.025), transparent 45%),
+    radial-gradient(ellipse 100% 100% at 50% 50%, rgb(10 12 18), rgb(8 10 16));
+  min-height: 100vh;
+}
+
+/* ─── Native select & option dark theme ─── */
 select {
-  background-color: #0b0d14;
+  background-color: rgba(18, 21, 33, 0.95);
   color: #f5f7fb;
 }
 
 select option {
-  background-color: #1a1d2e;
+  background-color: rgba(24, 27, 42, 0.95);
   color: #f5f7fb;
 }
 
 select option:checked {
-  background-color: #2a2d3e;
+  background-color: rgba(139, 92, 246, 0.2);
 }
 
-/* Custom scrollbar — thin and subtle */
+/* ─── Custom scrollbar ─── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -80,7 +119,99 @@ select option:checked {
   background: rgba(255, 255, 255, 0.14);
 }
 
-/* Animations */
+/* ─── Focus & selection ─── */
+*:focus-visible {
+  outline: 2px solid rgb(139 92 246);
+  outline-offset: 2px;
+}
+
+::selection {
+  background-color: rgb(139 92 246 / 0.3);
+}
+
+/* ─── Glass utility classes ─── */
+@layer utilities {
+  .glass-card {
+    background: linear-gradient(135deg, rgba(22, 25, 40, 0.80), rgba(14, 16, 26, 0.80));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 22px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  }
+
+  .glass-card-elevated {
+    background: linear-gradient(135deg, rgba(28, 32, 52, 0.88), rgba(18, 21, 33, 0.88));
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 22px;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.3),
+      0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  }
+
+  .glass-card-interactive {
+    background: linear-gradient(135deg, rgba(22, 25, 40, 0.80), rgba(14, 16, 26, 0.80));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 22px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+    transition: border-color 0.2s ease, box-shadow 0.3s ease;
+  }
+
+  .glass-card-interactive:hover {
+    border-color: rgba(139, 92, 246, 0.20);
+    box-shadow:
+      0 0 0 1px rgba(139, 92, 246, 0.12),
+      0 4px 24px rgba(139, 92, 246, 0.08),
+      0 0 40px rgba(139, 92, 246, 0.04);
+  }
+
+  .glass-sidebar {
+    background: linear-gradient(180deg, rgba(12, 15, 24, 0.92), rgba(8, 10, 16, 0.95));
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border-right: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .glass-input {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+  }
+
+  .glass-input:focus {
+    border-color: rgba(139, 92, 246, 0.4);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+  }
+
+  .glass-panel {
+    background: rgba(18, 21, 33, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.25), 0 0 40px rgba(139, 92, 246, 0.10);
+  }
+
+  .glow-cyan {
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.20), 0 0 40px rgba(34, 211, 238, 0.08);
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.20), 0 0 40px rgba(59, 130, 246, 0.08);
+  }
+}
+
+/* ─── Animations ─── */
 @keyframes slide-in-from-right {
   from {
     transform: translateX(100%);
@@ -121,6 +252,15 @@ select option:checked {
   }
 }
 
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(139, 92, 246, 0.4);
+  }
+}
+
 .animate-in {
   animation-duration: 300ms;
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -137,6 +277,10 @@ select option:checked {
 
 .fade-in {
   animation-name: fade-in;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
 }
 
 /* Shimmer animation for skeleton loading */
@@ -165,15 +309,4 @@ select option:checked {
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
-}
-
-/* Focus styles */
-*:focus-visible {
-  outline: 2px solid rgb(99 102 241);
-  outline-offset: 2px;
-}
-
-/* Selection */
-::selection {
-  background-color: rgb(99 102 241 / 0.3);
 }

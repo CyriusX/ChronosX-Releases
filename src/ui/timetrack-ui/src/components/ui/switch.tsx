@@ -22,12 +22,12 @@ const Switch = React.forwardRef<
       'peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full',
       'border-2 border-transparent shadow-sm transition-colors',
       // Focus visible ring
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(10,12,18)]',
       // Disabled state
       'disabled:cursor-not-allowed disabled:opacity-50',
-      // Checked/unchecked colors - using project's accent gradient colors
-      'data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#4ad9ff] data-[state=checked]:to-[#3c7bff]',
-      'data-[state=unchecked]:bg-zinc-700',
+      // Checked/unchecked colors
+      'data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#8B5CF6] data-[state=checked]:to-[#6D28D9]',
+      'data-[state=unchecked]:bg-[rgba(255,255,255,0.10)]',
       className
     )}
     {...props}

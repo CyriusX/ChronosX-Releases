@@ -185,8 +185,8 @@ export function TopCards({
                   />
                   <defs>
                     <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#4ad9ff" />
-                      <stop offset="100%" stopColor="#3c7bff" />
+                      <stop offset="0%" stopColor="#8B5CF6" />
+                      <stop offset="100%" stopColor="#22D3EE" />
                     </linearGradient>
                   </defs>
                 </svg>
@@ -342,8 +342,8 @@ export function TopCards({
               {/* Focus score */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-md bg-[rgba(74,217,255,0.1)] border border-[rgba(74,217,255,0.2)] flex items-center justify-center">
-                    <Zap className="w-3 h-3 text-[#4ad9ff]" />
+                  <div className="w-5 h-5 rounded-md bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.2)] flex items-center justify-center">
+                    <Zap className="w-3 h-3 text-[#8B5CF6]" />
                   </div>
                   <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Focus Score</span>
                 </div>

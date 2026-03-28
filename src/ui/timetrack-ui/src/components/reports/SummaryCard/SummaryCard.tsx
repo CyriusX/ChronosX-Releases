@@ -41,7 +41,7 @@ const badgeStyles: Record<string, string> = {
   green: 'bg-[rgba(74,222,128,0.15)] border-[rgba(74,222,128,0.25)] text-[#4ade80]',
   yellow: 'bg-[rgba(251,191,36,0.15)] border-[rgba(251,191,36,0.25)] text-[#fbbf24]',
   red: 'bg-[rgba(248,113,113,0.15)] border-[rgba(248,113,113,0.25)] text-[#f87171]',
-  blue: 'bg-[rgba(74,217,255,0.15)] border-[rgba(74,217,255,0.25)] text-[#4ad9ff]',
+  blue: 'bg-[rgba(139,92,246,0.15)] border-[rgba(139,92,246,0.25)] text-[#8B5CF6]',
   purple: 'bg-[rgba(138,92,246,0.15)] border-[rgba(138,92,246,0.25)] text-[#8a5cf6]',
 };
 
@@ -50,10 +50,10 @@ export function SummaryCard({
   value,
   subtitle,
   icon: Icon,
-  iconBgColor = 'rgba(74,217,255,0.15)',
-  iconColor = '#4ad9ff',
+  iconBgColor = 'rgba(139,92,246,0.15)',
+  iconColor = '#8B5CF6',
   progress,
-  progressColor = '#4ad9ff',
+  progressColor = '#8B5CF6',
   badge,
   badgeColor = 'blue',
   isLoading = false,
@@ -72,7 +72,7 @@ export function SummaryCard({
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-3 pb-3 px-4 flex items-center justify-center flex-1">
-          <div className="w-12 h-12 rounded-full border-2 border-[rgba(255,255,255,0.1)] border-t-[#4ad9ff] animate-spin" />
+          <div className="w-12 h-12 rounded-full border-2 border-[rgba(255,255,255,0.1)] border-t-[#8B5CF6] animate-spin" />
         </CardContent>
       </Card>
     );

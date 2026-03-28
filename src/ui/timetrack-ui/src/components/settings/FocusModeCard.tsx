@@ -220,7 +220,7 @@ function FocusModeEditForm({
       {/* Ultradian Config */}
       <div className={`space-y-3 ${focusMode.mode !== 'ultradian' ? 'opacity-50' : ''}`}>
         <h4 className="text-[12px] font-medium text-[#f5f7fb] flex items-center gap-2">
-          <Timer className="w-4 h-4 text-[#4ad9ff]" />
+          <Timer className="w-4 h-4 text-[#8B5CF6]" />
           Ultradian
         </h4>
         <div className="grid grid-cols-2 gap-2">
@@ -297,7 +297,7 @@ function FocusModeDisplay({ focusMode }: FocusModeDisplayProps) {
       {/* Ultradian Info */}
       <div className={focusMode.mode !== 'ultradian' ? 'opacity-40' : ''}>
         <h4 className="text-[12px] font-medium text-[#f5f7fb] flex items-center gap-2 mb-2">
-          <Timer className="w-4 h-4 text-[#4ad9ff]" />
+          <Timer className="w-4 h-4 text-[#8B5CF6]" />
           Ultradian
         </h4>
         <div className="space-y-1">

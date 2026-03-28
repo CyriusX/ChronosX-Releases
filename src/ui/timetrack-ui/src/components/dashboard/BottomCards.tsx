@@ -196,7 +196,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
             >
               {topProjects.length > 0 ? (
                 topProjects.map((project, index) => {
-                  const barColors = ['#4ad9ff', '#c27aff', '#05df72', '#ff9c5b', '#f87171'];
+                  const barColors = ['#8B5CF6', '#22D3EE', '#3B82F6', '#F59E0B', '#10B981'];
                   const percentage = totalProjectTime > 0
                     ? Math.round((project.duration / totalProjectTime) * 100)
                     : Math.round(project.percentage);

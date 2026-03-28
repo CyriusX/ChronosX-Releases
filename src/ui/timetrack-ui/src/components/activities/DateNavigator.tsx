@@ -107,7 +107,7 @@ export function DateNavigator({
       {!isToday && (
         <button
           onClick={onToday}
-          className="px-3 py-1 rounded-full text-[10px] font-medium bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] text-white hover:opacity-90 transition-opacity"
+          className="px-3 py-1 rounded-full text-[10px] font-medium bg-gradient-to-b from-[#8B5CF6] to-[#22D3EE] text-white hover:opacity-90 transition-opacity"
         >
           Hoje
         </button>
@@ -119,7 +119,7 @@ export function DateNavigator({
           onClick={() => setShowCalendar(!showCalendar)}
           className={`p-1.5 rounded-lg transition-colors ${
             showCalendar
-              ? 'bg-[rgba(255,255,255,0.08)] text-[#4ad9ff]'
+              ? 'bg-[rgba(255,255,255,0.08)] text-[#8B5CF6]'
               : 'hover:bg-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.4)]'
           }`}
         >
@@ -245,9 +245,9 @@ function CalendarDropdown({
               onClick={() => onDateSelect(cellDate)}
               className={`w-full aspect-square flex items-center justify-center rounded-md text-[10px] transition-all ${
                 isSelected
-                  ? 'bg-[#4ad9ff] text-[#0b0d14] font-bold'
+                  ? 'bg-[#8B5CF6] text-[#0b0d14] font-bold'
                   : isCurrentDay
-                    ? 'bg-[rgba(74,217,255,0.15)] text-[#4ad9ff] font-medium'
+                    ? 'bg-[rgba(139,92,246,0.15)] text-[#8B5CF6] font-medium'
                     : isFuture
                       ? 'text-[rgba(245,247,251,0.1)] cursor-not-allowed'
                       : 'text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.06)]'

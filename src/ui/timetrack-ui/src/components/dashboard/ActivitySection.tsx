@@ -274,7 +274,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                         onClick={() => setDateRange(range)}
                         className={`px-2 py-0.5 rounded-md text-[9px] font-medium transition-all ${
                           isActive
-                            ? 'bg-[rgba(74,217,255,0.12)] text-[#4ad9ff]'
+                            ? 'bg-[rgba(139,92,246,0.12)] text-[#8B5CF6]'
                             : 'text-[rgba(245,247,251,0.35)] hover:text-[rgba(245,247,251,0.6)]'
                         }`}
                       >

@@ -399,7 +399,9 @@
       "Bash(cp PgQuery.cs Program.cs)",
       "Bash(grep -n \"GetTopAppsAsync\\\\|GetDailySummaryRangeAsync\\\\|GetProductivityTrendAsync\\\\|GetTopPathsAsync\\\\|GetDistractionStatsAsync\\\\|GetCategoryDistributionAsync\\\\|GetDailyIdleSecondsAsync\\\\|GetDailyActivityAggregateAsync\\\\|GetTeamStatusCommand\" /c/Users/jr_ju/Repo/TimeTracking/src/backend/TimeTrack.Api/Controllers/*.cs)",
       "Bash(grep -v \"^\\\\s*//\")",
-      "Bash(grep -B5 -A10 \"useFocusMode\\(\\)\" /c/Users/jr_ju/Repo/TimeTracking/src/ui/timetrack-ui/src/components/dashboard/TimerFocusCard/*.tsx)"
+      "Bash(grep -B5 -A10 \"useFocusMode\\(\\)\" /c/Users/jr_ju/Repo/TimeTracking/src/ui/timetrack-ui/src/components/dashboard/TimerFocusCard/*.tsx)",
+      "Bash(find c:Usersjr_juRepoTimeTracking/src/ui/timetrack-ui/src/components -type f \\\\\\(-name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js \\\\\\))",
+      "Bash(find c:Usersjr_juRepoTimeTracking -maxdepth 3 -type f \\\\\\(-name tailwind.config.* -o -name globals.css -o -name components.json -o -name postcss.config.* \\\\\\))"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",

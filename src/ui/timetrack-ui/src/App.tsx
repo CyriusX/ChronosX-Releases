@@ -109,7 +109,7 @@ function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-zinc-950 text-zinc-50">
+      <div className="min-h-screen bg-[rgb(10,12,18)] text-[#f5f7fb]">
         <AnimatedRoutes />
         <Toaster />
         <TrackingStoppedOverlay />

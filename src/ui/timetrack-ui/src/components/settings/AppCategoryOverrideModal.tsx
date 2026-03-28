@@ -150,7 +150,7 @@ export function AppCategoryOverrideModal({
                     onClick={() => setProductivity(cat)}
                     className={`px-3 py-2.5 rounded-lg text-[12px] font-medium transition-all ${
                       productivity === cat
-                        ? 'bg-[rgba(74,217,255,0.15)] text-[#f5f7fb] border border-[rgba(74,217,255,0.3)]'
+                        ? 'bg-[rgba(139,92,246,0.15)] text-[#f5f7fb] border border-[rgba(139,92,246,0.3)]'
                         : 'bg-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.5)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)]'
                     }`}
                   >
@@ -169,7 +169,7 @@ export function AppCategoryOverrideModal({
             <select
               value={subcategory}
               onChange={(e) => setSubcategory(e.target.value as AppSubcategory)}
-              className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2.5 text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[#4ad9ff]"
+              className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2.5 text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[#8B5CF6]"
             >
               {availableSubcategories.map((sub) => (
                 <option key={sub} value={sub}>
@@ -189,7 +189,7 @@ export function AppCategoryOverrideModal({
               onChange={(e) => setNote(e.target.value)}
               placeholder="Justificativa para a classificação..."
               rows={3}
-              className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#4ad9ff] resize-none"
+              className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#8B5CF6] resize-none"
             />
           </div>
 
@@ -222,7 +222,7 @@ export function AppCategoryOverrideModal({
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="px-4 py-2 rounded-lg text-[13px] font-medium bg-[rgba(74,217,255,0.15)] text-[#4ad9ff] border border-[rgba(74,217,255,0.3)] hover:bg-[rgba(74,217,255,0.25)] transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg text-[13px] font-medium bg-[rgba(139,92,246,0.15)] text-[#8B5CF6] border border-[rgba(139,92,246,0.3)] hover:bg-[rgba(139,92,246,0.25)] transition-colors disabled:opacity-50"
           >
             {isSaving ? 'Salvando...' : 'Salvar override'}
           </button>

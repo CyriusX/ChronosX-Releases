@@ -5,7 +5,7 @@ import { useAuthStore } from '../../stores/authStore';
 const ROLE_STYLES: Record<string, string> = {
   Admin: 'bg-[rgba(255,107,107,0.15)] text-[#ff6b6b]',
   Gestor: 'bg-[rgba(243,208,93,0.15)] text-[#f3d05d]',
-  Colaborador: 'bg-[rgba(74,217,255,0.15)] text-[#4ad9ff]',
+  Colaborador: 'bg-[rgba(139,92,246,0.15)] text-[#8B5CF6]',
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -41,7 +41,7 @@ export function ProfileSection() {
       <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6">
         {/* Avatar + Name */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#4ad9ff] to-[#3c7bff] flex items-center justify-center text-white text-[24px] font-semibold flex-shrink-0">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#22D3EE] flex items-center justify-center text-white text-[24px] font-semibold flex-shrink-0">
             {initial}
           </div>
           <div className="flex-1 min-w-0">

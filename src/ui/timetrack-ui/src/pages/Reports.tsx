@@ -230,7 +230,7 @@ export default function Reports() {
                           }}
                           className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${
                             selectedPeriod === option.value
-                              ? 'text-[#4ad9ff] bg-[rgba(74,217,255,0.1)]'
+                              ? 'text-[#8B5CF6] bg-[rgba(139,92,246,0.1)]'
                               : 'text-[rgba(245,247,251,0.8)]'
                           }`}
                         >
@@ -273,7 +273,7 @@ export default function Reports() {
                           }}
                           className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${
                             selectedGroupBy === option.value
-                              ? 'text-[#4ad9ff] bg-[rgba(74,217,255,0.1)]'
+                              ? 'text-[#8B5CF6] bg-[rgba(139,92,246,0.1)]'
                               : 'text-[rgba(245,247,251,0.8)]'
                           }`}
                         >
@@ -291,7 +291,7 @@ export default function Reports() {
                 disabled={isLoading}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="flex items-center gap-2 px-3 py-2 bg-[rgba(74,217,255,0.15)] border border-[rgba(74,217,255,0.3)] rounded-lg text-[12px] text-[#4ad9ff] hover:bg-[rgba(74,217,255,0.2)] transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-3 py-2 bg-[rgba(139,92,246,0.15)] border border-[rgba(139,92,246,0.3)] rounded-lg text-[12px] text-[#8B5CF6] hover:bg-[rgba(139,92,246,0.2)] transition-colors disabled:opacity-50"
               >
                 <Download className="w-4 h-4" />
                 Exportar CSV
@@ -327,7 +327,7 @@ export default function Reports() {
                   whileHover={{ scale: 1.005 }}
                   whileTap={{ scale: 0.995 }}
                 >
-                  <Users className="w-4 h-4 text-[#4ad9ff]" />
+                  <Users className="w-4 h-4 text-[#8B5CF6]" />
                   <span className="text-[13px] text-[rgba(245,247,251,0.6)]">Visualizando:</span>
                   <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
                     {getSelectedUserName()}
@@ -347,13 +347,13 @@ export default function Reports() {
                     >
                       <button
                         onClick={() => { handleUserChange(undefined); setShowUserDropdown(false); }}
-                        className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${!selectedUserId ? 'text-[#4ad9ff] bg-[rgba(74,217,255,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}
+                        className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${!selectedUserId ? 'text-[#8B5CF6] bg-[rgba(139,92,246,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}
                       >
                         Meus dados
                       </button>
                       <button
                         onClick={() => { handleUserChange('all'); setShowUserDropdown(false); }}
-                        className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === 'all' ? 'text-[#4ad9ff] bg-[rgba(74,217,255,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}
+                        className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === 'all' ? 'text-[#8B5CF6] bg-[rgba(139,92,246,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}
                       >
                         Toda a equipe
                       </button>
@@ -362,7 +362,7 @@ export default function Reports() {
                         <button
                           key={member.userId}
                           onClick={() => { handleUserChange(member.userId); setShowUserDropdown(false); }}
-                          className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === member.userId ? 'text-[#4ad9ff] bg-[rgba(74,217,255,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}
+                          className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === member.userId ? 'text-[#8B5CF6] bg-[rgba(139,92,246,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}
                         >
                           {member.displayName}
                         </button>
@@ -380,7 +380,7 @@ export default function Reports() {
                 <span className="text-[13px] text-[#f87171]">{error}</span>
                 <button
                   onClick={refresh}
-                  className="ml-auto text-[12px] text-[#4ad9ff] hover:underline"
+                  className="ml-auto text-[12px] text-[#8B5CF6] hover:underline"
                 >
                   Tentar novamente
                 </button>
@@ -400,8 +400,8 @@ export default function Reports() {
                   value={formatDuration(summary.totalActiveSeconds)}
                   subtitle={`${summary.daysWithData} dias com dados`}
                   icon={Clock}
-                  iconBgColor="rgba(74,217,255,0.15)"
-                  iconColor="#4ad9ff"
+                  iconBgColor="rgba(139,92,246,0.15)"
+                  iconColor="#8B5CF6"
                   isLoading={isLoading}
                 />
               </motion.div>

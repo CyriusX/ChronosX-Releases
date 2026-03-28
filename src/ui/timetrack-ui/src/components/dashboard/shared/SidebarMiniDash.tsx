@@ -5,6 +5,7 @@
  * key metrics in a tight 2-column grid, and top app.
  */
 
+import { useRef } from 'react';
 import { motion } from 'motion/react';
 import { formatDuration } from '../../../lib/utils';
 
@@ -46,17 +47,22 @@ export function SidebarMiniDash({
     : productivityScore >= 20 ? '#fb923c'
     : '#f87171';
 
+  // Only play entrance animation on first mount, not on re-renders (e.g. window restore)
+  const hasMounted = useRef(false);
+  const isFirstMount = !hasMounted.current;
+  hasMounted.current = true;
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={isFirstMount ? { opacity: 0, y: 12 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3, duration: 0.3 }}
       className="px-2.5 pb-2.5 flex-shrink-0"
     >
-      <div className="rounded-xl bg-gradient-to-br from-[rgba(26,29,46,0.6)] to-[rgba(17,19,28,0.6)] border border-[rgba(255,255,255,0.05)] px-2.5 py-2.5 space-y-2">
+      <div className="rounded-[16px] bg-[linear-gradient(135deg,rgba(22,25,40,0.70),rgba(14,16,26,0.70))] backdrop-blur-[16px] border border-[rgba(255,255,255,0.06)] px-2.5 py-2.5 space-y-2">
         {/* User row */}
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#4ad9ff] to-[#3c7bff] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
+          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
             {userInitial}
           </div>
           <div className="flex-1 min-w-0">
@@ -73,10 +79,10 @@ export function SidebarMiniDash({
           </div>
           <div className="h-1 rounded-full bg-[rgba(255,255,255,0.06)] overflow-hidden">
             <motion.div
-              initial={{ width: 0 }}
+              initial={isFirstMount ? { width: 0 } : false}
               animate={{ width: `${goalProgress}%` }}
               transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
-              className="h-full rounded-full bg-gradient-to-r from-[#4ad9ff] to-[#3c7bff]"
+              className="h-full rounded-full bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE]"
             />
           </div>
         </div>
@@ -100,7 +106,7 @@ export function SidebarMiniDash({
         {/* Top app today */}
         {topAppName && (
           <div className="flex items-center gap-1.5">
-            <div className="w-1 h-1 rounded-full bg-[#4ad9ff] flex-shrink-0" />
+            <div className="w-1 h-1 rounded-full bg-[#8B5CF6] flex-shrink-0" />
             <span className="text-[8px] text-[rgba(245,247,251,0.35)] truncate">
               Top: <span className="text-[rgba(245,247,251,0.55)] font-medium">{topAppName}</span>
             </span>

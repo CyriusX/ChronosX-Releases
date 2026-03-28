@@ -170,7 +170,7 @@ export function SettingsPage() {
                 <p className="text-[14px] text-[#ff6b6b]">{policyError}</p>
                 <button
                   onClick={loadSettings}
-                  className="mt-3 text-[12px] text-[#4ad9ff] hover:underline"
+                  className="mt-3 text-[12px] text-[#8B5CF6] hover:underline"
                 >
                   Tentar novamente
                 </button>

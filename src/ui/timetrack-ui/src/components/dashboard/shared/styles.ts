@@ -3,10 +3,16 @@
  */
 
 export const cardBase =
-  "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl hover:border-[rgba(74,217,255,0.15)] hover:shadow-[0_0_0_1px_rgba(74,217,255,0.12),0_4px_24px_rgba(74,217,255,0.06),0_0_40px_rgba(74,217,255,0.03)] transition-all duration-200";
+  "glass-card-interactive overflow-hidden";
 
 export const cardBaseNoHover =
-  "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl";
+  "glass-card overflow-hidden";
+
+export const cardElevated =
+  "glass-card-elevated overflow-hidden";
+
+export const cardCompact =
+  "glass-card overflow-hidden rounded-[16px]";
 
 export const MEMBER_GRADIENTS = [
   'from-[#ff8904] to-[#f6339a]',
@@ -20,3 +26,17 @@ export function getMemberGradient(name: string): string {
   const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return MEMBER_GRADIENTS[hash % MEMBER_GRADIENTS.length];
 }
+
+export const ACCENT_COLORS = {
+  purple: '#8B5CF6',
+  blue: '#3B82F6',
+  cyan: '#22D3EE',
+  amber: '#F59E0B',
+  green: '#10B981',
+  red: '#EF4444',
+  pink: '#EC4899',
+} as const;
+
+export const CHART_COLORS = [
+  '#8B5CF6', '#22D3EE', '#3B82F6', '#F59E0B', '#10B981', '#EC4899', '#EF4444',
+];

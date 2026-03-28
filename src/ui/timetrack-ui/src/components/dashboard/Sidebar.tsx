@@ -47,7 +47,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-[180px] flex-shrink-0 bg-gradient-to-b from-[rgba(11,13,20,0.5)] to-[rgba(17,19,28,0.5)] border-r border-[rgba(255,255,255,0.04)] flex flex-col overflow-hidden">
+    <aside className="w-[180px] flex-shrink-0 glass-sidebar flex flex-col overflow-hidden">
       {/* Logo + Tracking LED */}
       <div className="px-4 py-5 flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -57,7 +57,7 @@ export function Sidebar() {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: 'spring', stiffness: SPRING.gentle.stiffness, damping: SPRING.gentle.damping, delay: 0.2 }}
-            className="w-8 h-8 rounded-lg shadow-[0px_6px_10px_0px_rgba(0,184,219,0.2)]"
+            className="w-8 h-8 rounded-lg shadow-[0px_6px_10px_0px_rgba(139,92,246,0.25)]"
           />
           <motion.span
             initial={{ opacity: 0, x: -8 }}

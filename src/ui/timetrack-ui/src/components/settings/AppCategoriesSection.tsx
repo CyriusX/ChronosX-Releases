@@ -105,8 +105,8 @@ export function AppCategoriesSection({ orgId }: AppCategoriesSectionProps) {
     <div className="space-y-6">
       {/* Section Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-[rgba(74,217,255,0.15)] flex items-center justify-center">
-          <AppWindow className="w-5 h-5 text-[#4ad9ff]" />
+        <div className="w-10 h-10 rounded-xl bg-[rgba(139,92,246,0.15)] flex items-center justify-center">
+          <AppWindow className="w-5 h-5 text-[#8B5CF6]" />
         </div>
         <div>
           <h2 className="text-[18px] font-semibold text-[#f5f7fb]">Aplicativos</h2>
@@ -123,9 +123,9 @@ export function AppCategoriesSection({ orgId }: AppCategoriesSectionProps) {
           <span className="text-[12px] font-medium text-[#f5f7fb]">{apps.length}</span>
         </div>
         {overridesCount > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(74,217,255,0.1)] border border-[rgba(74,217,255,0.2)]">
-            <span className="text-[11px] text-[#4ad9ff]">Overrides</span>
-            <span className="text-[12px] font-medium text-[#4ad9ff]">{overridesCount}</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.2)]">
+            <span className="text-[11px] text-[#8B5CF6]">Overrides</span>
+            <span className="text-[12px] font-medium text-[#8B5CF6]">{overridesCount}</span>
           </div>
         )}
       </div>

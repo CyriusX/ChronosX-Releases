@@ -52,8 +52,8 @@ export function OrgPoliciesCard({ policies }: OrgPoliciesCardProps) {
       <div className="space-y-3">
         {/* Work Hours */}
         <div className="flex items-start gap-3 py-2">
-          <div className="w-7 h-7 rounded-lg bg-[rgba(74,217,255,0.15)] flex items-center justify-center shrink-0 mt-0.5">
-            <Clock className="w-3.5 h-3.5 text-[#4ad9ff]" />
+          <div className="w-7 h-7 rounded-lg bg-[rgba(139,92,246,0.15)] flex items-center justify-center shrink-0 mt-0.5">
+            <Clock className="w-3.5 h-3.5 text-[#8B5CF6]" />
           </div>
           <div className="flex-1">
             <p className="text-[13px] text-[rgba(245,247,251,0.9)]">Horário de trabalho</p>
