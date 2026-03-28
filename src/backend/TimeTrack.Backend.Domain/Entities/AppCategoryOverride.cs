@@ -47,7 +47,7 @@ public sealed class AppCategoryOverride
         {
             Id = Guid.NewGuid(),
             OrgId = orgId,
-            Identifier = NormalizeIdentifier(identifier, identifierType),
+            Identifier = IdentifierNormalizer.Normalize(identifier, identifierType),
             IdentifierType = identifierType,
             Productivity = productivity,
             Subcategory = subcategory,
@@ -84,18 +84,6 @@ public sealed class AppCategoryOverride
             throw new ArgumentException("Identifier is required", nameof(identifier));
     }
 
-    private static string NormalizeIdentifier(string identifier, AppIdentifierType type)
-    {
-        var normalized = identifier.Trim().ToLowerInvariant();
-
-        if (type == AppIdentifierType.Exe && !normalized.EndsWith(".exe"))
-        {
-            normalized += ".exe";
-        }
-
-        return normalized;
-    }
-
     private static void ValidateNote(string? note)
     {
         if (note != null && note.Length > 500)
@@ -127,9 +115,11 @@ public sealed class AppCategoryOverride
         AppSubcategory.Design => true,
         AppSubcategory.Communication => true,
         AppSubcategory.ProductivityTools => true,
+        AppSubcategory.Productivity => true,
         AppSubcategory.Meetings => true,
         AppSubcategory.Documentation => true,
         AppSubcategory.DevOps => true,
+        AppSubcategory.Finance => true,
         _ => false
     };
 
@@ -139,6 +129,7 @@ public sealed class AppCategoryOverride
         AppSubcategory.System => true,
         AppSubcategory.Unknown => true,
         AppSubcategory.FileManager => true,
+        AppSubcategory.Utilities => true,
         AppSubcategory.Communication => true,
         _ => false
     };

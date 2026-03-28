@@ -17,7 +17,7 @@ import { Sidebar } from '../components/dashboard';
 import { Card, CardContent } from '../components/ui/card';
 import { useIpc } from '../hooks/useIpc';
 import { FocusDayTimeline, type TimelineActivityBlock } from '../components/timer/FocusDayTimeline';
-import { useTimerStore, selectCurrentUserSessions, getUserTimerConfig, type TimerPhase } from '../stores/timerStore';
+import { useTimerStore, selectCurrentUserSessions, selectSessionGroupSummary, getUserTimerConfig, type TimerPhase } from '../stores/timerStore';
 import { fadeUp, fadeIn, scaleIn, slideLeft, staggerContainer, STAGGER, SPRING, TIMING } from '../lib/animation';
 
 // ============================================================================
@@ -54,9 +54,11 @@ export default function Timer() {
   const isPaused = useTimerStore(s => s.isPaused);
   const ultradianWaves = useTimerStore(s => s.ultradianWaves);
   const sessions = useTimerStore(selectCurrentUserSessions);
+  const groupSummary = useTimerStore(selectSessionGroupSummary);
   const sessionName = useTimerStore(s => s.sessionName);
   const selectedProject = useTimerStore(s => s.selectedProject);
   const phaseStartedAt = useTimerStore(s => s.phaseStartedAt);
+  const sessionGroupStartedAt = useTimerStore(s => s.sessionGroupStartedAt);
 
   // --- Store actions ---
   const setMode = useTimerStore(s => s.setMode);
@@ -110,12 +112,8 @@ export default function Timer() {
   const totalElapsed = completedWavesMs + (phase === 'idle' ? 0 : currentWaveElapsed);
   const ultradianProgress = allWavesMs > 0 ? totalElapsed / allWavesMs : 0;
 
-  // Session stats
-  const totalFocusMs = sessions.filter(s => s.phase === 'focus').reduce((a, s) => a + s.durationMs, 0);
-  const scoredSessions = sessions.filter(s => s.phase === 'focus' && s.productivity >= 0);
-  const avgScore = scoredSessions.length > 0
-    ? Math.round(scoredSessions.reduce((a, s) => a + s.productivity, 0) / scoredSessions.length)
-    : 0;
+  // Session group stats (current/last session)
+  const { totalDurationMs, completedCycles, focusTimeMs, breakTimeMs, skippedBreaks, mode: groupMode, hasData: hasGroupData } = groupSummary;
 
   const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl";
 
@@ -300,26 +298,57 @@ export default function Timer() {
           <div className="flex-shrink-0 p-4 pb-4 relative z-10 bg-[#0b0d14]">
             <Card className={cardBase}>
               <CardContent className="p-4">
-                <p className="text-[12px] text-[rgba(245,247,251,0.4)] mb-3 uppercase tracking-wider">Resumo da sessão</p>
-                <motion.div
-                  className="grid grid-cols-3 gap-3"
-                  variants={staggerContainer(STAGGER.cards)}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
-                    <p className="text-[20px] font-bold text-[#f5f7fb]">{sessions.filter(s => s.phase === 'focus').length}</p>
-                    <p className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase">Ciclos</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[12px] text-[rgba(245,247,251,0.4)] uppercase tracking-wider">Resumo da sessão</p>
+                  {hasGroupData && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                      style={{
+                        backgroundColor: groupMode === 'pomodoro' ? 'rgba(74,217,255,0.12)' : 'rgba(194,122,255,0.12)',
+                        color: groupMode === 'pomodoro' ? '#4ad9ff' : '#c27aff',
+                      }}>
+                      {groupMode === 'pomodoro' ? 'Pomodoro' : 'Ultradian'}
+                    </span>
+                  )}
+                </div>
+                {hasGroupData ? (
+                  <motion.div
+                    className="grid grid-cols-3 gap-3"
+                    variants={staggerContainer(STAGGER.cards)}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
+                      <p className="text-[18px] font-bold text-[#f5f7fb]">{fmtShort(totalDurationMs)}</p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Duração</p>
+                    </motion.div>
+                    <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
+                      <p className="text-[18px] font-bold text-[#f5f7fb]">{completedCycles}</p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Ciclos</p>
+                    </motion.div>
+                    <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
+                      <p className="text-[18px] font-bold text-[#4ade80]">{fmtShort(focusTimeMs)}</p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Foco</p>
+                    </motion.div>
+                    <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
+                      <p className="text-[18px] font-bold text-[#8b7aff]">{fmtShort(breakTimeMs)}</p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Pausa</p>
+                    </motion.div>
+                    <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
+                      <p className="text-[18px] font-bold text-[#fbbf24]">{skippedBreaks}</p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Puladas</p>
+                    </motion.div>
+                    <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
+                      <p className="text-[18px] font-bold" style={{ color: groupMode === 'pomodoro' ? '#4ad9ff' : '#c27aff' }}>
+                        {groupMode === 'pomodoro' ? 'Pomo' : 'Ultra'}
+                      </p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Modo</p>
+                    </motion.div>
                   </motion.div>
-                  <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
-                    <p className="text-[20px] font-bold text-[#f5f7fb]">{fmtShort(totalFocusMs)}</p>
-                    <p className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase">Foco</p>
-                  </motion.div>
-                  <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
-                    <p className="text-[20px] font-bold" style={{ color: avgScore >= 80 ? '#4ade80' : avgScore >= 50 ? '#fbbf24' : '#f87171' }}>{avgScore || '—'}</p>
-                    <p className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase">Score</p>
-                  </motion.div>
-                </motion.div>
+                ) : (
+                  <p className="text-[11px] text-[rgba(245,247,251,0.25)] text-center py-2">
+                    Inicie uma sessão para ver o resumo
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -334,6 +363,7 @@ export default function Timer() {
               currentPhaseStartMs={phaseStartedAt}
               currentCycle={cycle}
               currentSessionName={sessionName}
+              sessionGroupStartedAt={sessionGroupStartedAt}
             />
           </div>
         </motion.div>

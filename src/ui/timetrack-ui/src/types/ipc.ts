@@ -205,6 +205,13 @@ export interface PauseTrackingPayload {
   reason?: string;
 }
 
+export interface UpdateAppCategoryPayload {
+  displayName: string;    // Display name from resolver (e.g., "VS Code")
+  identifier: string;     // Normalized identifier (e.g., "code.exe")
+  productivity: string;   // "productive" | "neutral" | "distraction"
+  subcategory: string;
+}
+
 export interface AssignProjectPayload {
   projectId: string;
   sessionId?: string;
@@ -262,6 +269,7 @@ export interface CommandPayloadMap {
   assignProject: AssignProjectPayload;
   assignTask: AssignTaskPayload;
   syncNow: undefined;
+  updateAppCategory: UpdateAppCategoryPayload;
   updateSettings: UpdateSettingsPayload;
   setWorkHours: SetWorkHoursPayload;
   recordFocusSession: RecordFocusSessionPayload;

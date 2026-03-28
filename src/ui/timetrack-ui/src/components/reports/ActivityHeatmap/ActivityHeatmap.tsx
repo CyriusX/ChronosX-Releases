@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
+import { toLocalDateStr } from '../../../types/reports';
 import type { DailySummaryDayItem } from '../../../types/reports';
 
 export interface ActivityHeatmapProps {
@@ -23,6 +24,8 @@ export interface ActivityHeatmapProps {
   isLoading?: boolean;
   /** Date range title */
   title?: string;
+  /** Optional user ID to pass when navigating to Activities page */
+  userId?: string;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -58,6 +61,7 @@ export function ActivityHeatmap({
   days,
   isLoading = false,
   title = 'Heatmap de Atividade',
+  userId,
 }: ActivityHeatmapProps) {
   const navigate = useNavigate();
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
@@ -91,7 +95,7 @@ export function ActivityHeatmap({
 
     const currentDate = new Date(startDate);
     while (currentDate <= yearEnd || currentWeek.length > 0) {
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(currentDate);
       const dayData = daysMap.get(dateStr);
 
       currentWeek.push({
@@ -115,13 +119,16 @@ export function ActivityHeatmap({
   }, [currentYear, daysMap]);
 
   const handleCellClick = useCallback((date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
-    navigate(`/activity?date=${dateStr}`);
-  }, [navigate]);
+    const dateStr = toLocalDateStr(date);
+    const url = userId
+      ? `/activities?date=${dateStr}&userId=${userId}`
+      : `/activities?date=${dateStr}`;
+    navigate(url);
+  }, [navigate, userId]);
 
   const handleCellHover = useCallback((date: Date, dayData: DailySummaryDayItem | undefined, e: React.MouseEvent) => {
     setTooltip({
-      date: date.toISOString().split('T')[0],
+      date: toLocalDateStr(date),
       hours: dayData?.totalActiveSeconds ?? 0,
       productivity: dayData?.productivityRatio ?? 0,
       x: e.clientX,

@@ -9,7 +9,7 @@
  */
 
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { ExternalLink, FolderOpen, MoreHorizontal, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { fadeUp, staggerContainer, STAGGER } from '../../../lib/animation';

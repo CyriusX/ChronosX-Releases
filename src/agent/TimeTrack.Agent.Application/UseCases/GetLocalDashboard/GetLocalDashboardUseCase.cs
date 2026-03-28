@@ -3,6 +3,7 @@ using TimeTrack.Agent.Application.Services;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Entities;
+using TimeTrack.Agent.Domain.ValueObjects;
 
 namespace TimeTrack.Agent.Application.UseCases.GetLocalDashboard;
 
@@ -14,6 +15,7 @@ public sealed class GetLocalDashboardUseCase
     private readonly ITrackingStateRepository _stateRepository;
     private readonly IActivitySessionRepository _sessionRepository;
     private readonly IIdlePeriodRepository _idleRepository;
+    private readonly IAppCategoryCacheRepository _categoryCacheRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly ILogger<GetLocalDashboardUseCase> _logger;
 
@@ -24,12 +26,14 @@ public sealed class GetLocalDashboardUseCase
         ITrackingStateRepository stateRepository,
         IActivitySessionRepository sessionRepository,
         IIdlePeriodRepository idleRepository,
+        IAppCategoryCacheRepository categoryCacheRepository,
         ICurrentUserContext userContext,
         ILogger<GetLocalDashboardUseCase> logger)
     {
         _stateRepository = stateRepository ?? throw new ArgumentNullException(nameof(stateRepository));
         _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
         _idleRepository = idleRepository ?? throw new ArgumentNullException(nameof(idleRepository));
+        _categoryCacheRepository = categoryCacheRepository ?? throw new ArgumentNullException(nameof(categoryCacheRepository));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -78,6 +82,20 @@ public sealed class GetLocalDashboardUseCase
         var sessions = await sessionsTask;
         var idlePeriods = await idlePeriodsTask;
 
+        // Build override lookup from local category cache (includes org overrides synced from backend)
+        // Never let cache failure break the dashboard
+        CategoryLookup categoryLookup;
+        try
+        {
+            var cacheEntries = await _categoryCacheRepository.GetAllAsync();
+            categoryLookup = BuildCategoryLookup(cacheEntries);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load category cache, using baked-in categories");
+            categoryLookup = new CategoryLookup();
+        }
+
         // Internal app names to exclude from dashboard (our own UI processes)
         var internalApps = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -105,8 +123,8 @@ public sealed class GetLocalDashboardUseCase
                 continue;
 
             totalWorkTime += session.Duration;
-            var cat = session.App.Category.Productivity;
-            var sub = session.App.Category.Subcategory;
+            // Resolve category from cache (includes org overrides), fall back to baked-in
+            var (cat, sub) = ResolveCategory(session, categoryLookup);
 
             // Per-app aggregation with category breakdown
             if (!appUsage.TryGetValue(appName, out var existing))
@@ -199,7 +217,7 @@ public sealed class GetLocalDashboardUseCase
                 .First();
             flatAppUsage[kvp.Key] = (kvp.Value.Time, dominant.Key, dominant.Value.Subcategory);
         }
-        var focusMetrics = CalculateFocusMetrics(sessions, idlePeriods, flatAppUsage, totalWorkTime);
+        var focusMetrics = CalculateFocusMetrics(sessions, idlePeriods, flatAppUsage, totalWorkTime, categoryLookup);
         var focusScore = FocusScoreCalculator.Calculate(focusMetrics);
 
         _logger.LogDebug(
@@ -238,7 +256,8 @@ public sealed class GetLocalDashboardUseCase
         IEnumerable<ActivitySession> sessions,
         IEnumerable<IdlePeriod> idlePeriods,
         Dictionary<string, (TimeSpan Time, string Category, string Subcategory)> appUsage,
-        TimeSpan totalWorkTime)
+        TimeSpan totalWorkTime,
+        CategoryLookup categoryLookup)
     {
         long focusTimeMs = 0;
         long distractionMs = 0;
@@ -268,11 +287,11 @@ public sealed class GetLocalDashboardUseCase
 
         foreach (var session in sessions.OrderBy(s => s.Period.StartUtc))
         {
-            var category = session.App.Category.Productivity;
+            var (cat, _) = ResolveCategory(session, categoryLookup);
             var sessionMs = (long)session.Duration.TotalMilliseconds;
 
-            if (string.Equals(category, "productive", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(category, "focus", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(cat, "productive", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(cat, "focus", StringComparison.OrdinalIgnoreCase))
             {
                 currentFocusBlockMs += sessionMs;
             }
@@ -326,5 +345,76 @@ public sealed class GetLocalDashboardUseCase
         }
 
         return displayName;
+    }
+
+    // ============================================================================
+    // CATEGORY OVERRIDE RESOLUTION
+    // ============================================================================
+
+    /// <summary>
+    /// Lookup structure for resolving categories from the synced cache (includes org overrides).
+    /// </summary>
+    private sealed class CategoryLookup
+    {
+        /// <summary>DisplayName (lowercase) → (productivity, subcategory)</summary>
+        public Dictionary<string, (string Productivity, string Subcategory)> ByDisplayName { get; init; } = new();
+        /// <summary>Domain identifier (lowercase) → (productivity, subcategory)</summary>
+        public Dictionary<string, (string Productivity, string Subcategory)> ByDomain { get; init; } = new();
+
+        public bool IsEmpty => ByDisplayName.Count == 0 && ByDomain.Count == 0;
+    }
+
+    /// <summary>
+    /// Builds a dual lookup (by display name + by domain) from the local category cache.
+    /// The cache is synced from the backend every 5 min and includes org overrides.
+    /// </summary>
+    private static CategoryLookup BuildCategoryLookup(IReadOnlyList<AppCategoryCache> cacheEntries)
+    {
+        var byDisplayName = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
+        var byDomain = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in cacheEntries)
+        {
+            var productivity = entry.Productivity switch
+            {
+                AppProductivityCategory.Productive => "productive",
+                AppProductivityCategory.Distraction => "distraction",
+                _ => "neutral"
+            };
+            var subcategory = entry.Subcategory ?? "unknown";
+
+            // Index by display name (for exe apps)
+            if (!string.IsNullOrEmpty(entry.DisplayName))
+                byDisplayName[entry.DisplayName] = (productivity, subcategory);
+
+            // Index by identifier for domain-type entries (for browser overrides)
+            if (entry.IdentifierType == AppIdentifierType.Domain && !string.IsNullOrEmpty(entry.Identifier))
+                byDomain[entry.Identifier] = (productivity, subcategory);
+        }
+
+        return new CategoryLookup { ByDisplayName = byDisplayName, ByDomain = byDomain };
+    }
+
+    /// <summary>
+    /// Resolves category for a session using the cache lookup (which includes org overrides).
+    /// Priority: domain override > display name override > baked-in session category.
+    /// </summary>
+    private static (string Productivity, string Subcategory) ResolveCategory(
+        ActivitySession session, CategoryLookup lookup)
+    {
+        if (!lookup.IsEmpty)
+        {
+            // 1. Try domain match (for browser tabs with domain overrides)
+            if (!string.IsNullOrEmpty(session.Domain) &&
+                lookup.ByDomain.TryGetValue(session.Domain, out var domainMatch))
+                return domainMatch;
+
+            // 2. Try display name match (for exe apps)
+            if (lookup.ByDisplayName.TryGetValue(session.App.DisplayName, out var nameMatch))
+                return nameMatch;
+        }
+
+        // 3. Fall back to baked-in category
+        return (session.App.Category.Productivity, session.App.Category.Subcategory);
     }
 }

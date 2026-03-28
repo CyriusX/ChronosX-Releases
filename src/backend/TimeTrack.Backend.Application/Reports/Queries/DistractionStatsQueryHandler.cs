@@ -49,6 +49,7 @@ public sealed class DistractionStatsQueryHandler : IRequestHandler<DistractionSt
             targetUserId,
             request.StartDate,
             request.EndDate,
+            request.Timezone,
             cancellationToken);
 
         // Mapear para response

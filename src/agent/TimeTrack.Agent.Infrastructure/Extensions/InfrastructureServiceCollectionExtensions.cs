@@ -52,6 +52,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<ILocalSettingsRepository, LocalSettingsRepository>();
         services.AddSingleton<IFocusCycleRepository, FocusCycleRepository>();
         services.AddSingleton<IIdempotencyKeyGenerator, IdempotencyKeyGenerator>();
+        services.AddSingleton<IAppCategoryCacheRepository, AppCategoryCacheRepository>();
 
         return services;
     }

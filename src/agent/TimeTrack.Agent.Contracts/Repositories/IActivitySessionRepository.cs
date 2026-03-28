@@ -55,4 +55,15 @@ public interface IActivitySessionRepository
     /// Used to keep SQLite lean — past data is in the cloud.
     /// </summary>
     Task<int> DeleteOlderThanAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the category (productivity + subcategory) for all sessions matching the given DisplayName.
+    /// Used when an admin changes an app's classification — retroactively applies to today's sessions.
+    /// </summary>
+    Task<int> UpdateCategoryByDisplayNameAsync(
+        string displayName,
+        string newProductivity,
+        string newSubcategory,
+        string source,
+        CancellationToken cancellationToken = default);
 }

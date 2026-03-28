@@ -3,6 +3,7 @@ using TimeTrack.Backend.Domain.Entities;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
 using TimeTrack.Backend.Domain.ValueObjects;
 using TimeTrack.Backend.Infrastructure.Persistence;
+// Using IdentifierNormalizer for normalization
 
 namespace TimeTrack.Backend.Infrastructure.Repositories;
 
@@ -25,7 +26,7 @@ public sealed class AppCategoryGlobalRepository : IAppCategoryGlobalRepository
         string identifier,
         CancellationToken cancellationToken = default)
     {
-        var normalizedIdentifier = NormalizeIdentifier(identifier);
+        var normalizedIdentifier = IdentifierNormalizer.Normalize(identifier);
         return await _context.AppCategoryGlobals
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Identifier == normalizedIdentifier, cancellationToken);
@@ -73,7 +74,7 @@ public sealed class AppCategoryGlobalRepository : IAppCategoryGlobalRepository
         CancellationToken cancellationToken = default)
     {
         var normalizedIdentifiers = identifiers
-            .Select(NormalizeIdentifier)
+            .Select(id => IdentifierNormalizer.Normalize(id))
             .ToHashSet();
 
         return await _context.AppCategoryGlobals
@@ -86,7 +87,7 @@ public sealed class AppCategoryGlobalRepository : IAppCategoryGlobalRepository
         string identifier,
         CancellationToken cancellationToken = default)
     {
-        var normalizedIdentifier = NormalizeIdentifier(identifier);
+        var normalizedIdentifier = IdentifierNormalizer.Normalize(identifier);
         return await _context.AppCategoryGlobals
             .AnyAsync(c => c.Identifier == normalizedIdentifier, cancellationToken);
     }
@@ -112,25 +113,5 @@ public sealed class AppCategoryGlobalRepository : IAppCategoryGlobalRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.AppCategoryGlobals.CountAsync(cancellationToken);
-    }
-
-    private static string NormalizeIdentifier(string identifier)
-    {
-        if (string.IsNullOrWhiteSpace(identifier))
-            return string.Empty;
-
-        var normalized = identifier.Trim().ToLowerInvariant();
-
-        // Add .exe if it's an exe identifier without extension
-        if (!normalized.Contains('.') || normalized.EndsWith(".exe"))
-        {
-            if (!normalized.EndsWith(".exe") && !normalized.Contains('/'))
-            {
-                // Could be an exe name without extension
-                // We'll try both with and without .exe in the query
-            }
-        }
-
-        return normalized;
     }
 }

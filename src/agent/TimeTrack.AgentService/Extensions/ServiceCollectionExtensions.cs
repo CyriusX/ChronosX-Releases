@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TimeTrack.Agent.Application.Extensions;
+using TimeTrack.Agent.Application.Services;
 using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
@@ -109,9 +110,24 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Adiciona Use Cases do Application layer
     /// </summary>
-    public static IServiceCollection AddApplicationLayer(this IServiceCollection services)
+    public static IServiceCollection AddApplicationLayer(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
         services.AddApplicationUseCases();
+
+        // Register AppCategorySyncService with HttpClient for category cache sync
+        // Uses the same backend URL as other HTTP clients (from Sync config section)
+        var settings = configuration.GetSection(AgentSettings.SectionName).Get<AgentSettings>()
+            ?? new AgentSettings();
+        var backendUrl = settings.Sync?.BackendUrl ?? "http://localhost:5000";
+
+        services.AddHttpClient<IAppCategorySyncService, AppCategorySyncService>(client =>
+        {
+            client.BaseAddress = new Uri(backendUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
         return services;
     }
 

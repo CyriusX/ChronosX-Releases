@@ -47,6 +47,7 @@ export function AppCategoryOverrideModal({
   const [subcategory, setSubcategory] = useState<AppSubcategory>('utilities');
   const [note, setNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Reset form when app changes
   useEffect(() => {
@@ -54,6 +55,7 @@ export function AppCategoryOverrideModal({
       setProductivity(app.productivity === 'unknown' ? 'neutral' : app.productivity);
       setSubcategory(app.subcategory === 'unknown' ? 'utilities' : app.subcategory);
       setNote(app.note || '');
+      setSaveError(null);
     }
   }, [app]);
 
@@ -69,6 +71,7 @@ export function AppCategoryOverrideModal({
     if (!app) return;
 
     setIsSaving(true);
+    setSaveError(null);
     try {
       await onSave({
         identifier: app.identifier,
@@ -81,6 +84,8 @@ export function AppCategoryOverrideModal({
       onClose();
     } catch (error) {
       console.error('[AppCategoryOverrideModal] Error saving:', error);
+      const message = error instanceof Error ? error.message : 'Erro desconhecido ao salvar';
+      setSaveError(message);
     } finally {
       setIsSaving(false);
     }
@@ -196,6 +201,14 @@ export function AppCategoryOverrideModal({
             </p>
           </div>
         </div>
+
+        {/* Error message */}
+        {saveError && (
+          <div className="mx-5 mb-0 flex items-start gap-2 bg-[rgba(248,113,113,0.1)] border border-[rgba(248,113,113,0.2)] rounded-lg p-3">
+            <AlertCircle className="w-4 h-4 text-[#f87171] flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] text-[#f87171]">{saveError}</p>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.06)]">

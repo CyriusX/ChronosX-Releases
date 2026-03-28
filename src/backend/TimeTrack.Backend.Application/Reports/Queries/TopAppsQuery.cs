@@ -54,6 +54,7 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
             request.EndDate,
             limit,
             null, // productivityFilter - pode ser adicionado ao DTO depois
+            request.Timezone,
             cancellationToken);
 
         // Mapear para response

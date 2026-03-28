@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Entities;
 
 namespace TimeTrack.Agent.Application.Services;
@@ -48,6 +50,8 @@ public sealed class AppCategorySyncService : IAppCategorySyncService
 {
     private readonly IAppCategoryCacheRepository _cacheRepo;
     private readonly HttpClient _httpClient;
+    private readonly ITokenStore _tokenStore;
+    private readonly ICurrentUserContext _userContext;
     private readonly ILogger<AppCategorySyncService> _logger;
 
     // Maximum staleness before requiring sync (5 minutes)
@@ -56,10 +60,14 @@ public sealed class AppCategorySyncService : IAppCategorySyncService
     public AppCategorySyncService(
         IAppCategoryCacheRepository cacheRepo,
         HttpClient httpClient,
+        ITokenStore tokenStore,
+        ICurrentUserContext userContext,
         ILogger<AppCategorySyncService> logger)
     {
         _cacheRepo = cacheRepo ?? throw new ArgumentNullException(nameof(cacheRepo));
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _tokenStore = tokenStore ?? throw new ArgumentNullException(nameof(tokenStore));
+        _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -89,15 +97,34 @@ public sealed class AppCategorySyncService : IAppCategorySyncService
     {
         try
         {
+            // Ensure we have a valid JWT
+            if (_tokenStore.IsJwtExpiringSoon(withinMinutes: 2))
+                await _tokenStore.RefreshAsync(cancellationToken);
+
+            var jwt = await _tokenStore.GetJwtAsync(cancellationToken);
+            if (string.IsNullOrEmpty(jwt))
+            {
+                _logger.LogWarning("[CategorySync] No JWT available, skipping sync");
+                return false;
+            }
+
+            var orgId = _userContext.OrgId;
+            if (!orgId.HasValue)
+            {
+                _logger.LogWarning("[CategorySync] No OrgId available, skipping sync");
+                return false;
+            }
+
             var localVersion = await _cacheRepo.GetVersionAsync();
 
-            // Build API URL - should be injected via configuration
-            var apiUrl = "/api/v1/app-categories"; // Relative path, base URL set in HttpClient
+            // Build API URL with org context
+            var apiUrl = $"/api/v1/orgs/{orgId.Value}/app-categories";
 
-            // Fetch from backend with version for conditional request
-            var response = await _httpClient.GetAsync(
-                $"{apiUrl}?version={localVersion}",
-                cancellationToken);
+            // Fetch from backend with version and auth
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{apiUrl}?version={localVersion}");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
             {

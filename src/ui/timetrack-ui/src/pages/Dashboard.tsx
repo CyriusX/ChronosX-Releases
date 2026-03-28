@@ -50,6 +50,7 @@ export default function Dashboard() {
     if (isInitial) {
       setMemberLoading(true);
       setMemberError(null);
+      setMemberSummary(null); // Clear stale data so UI doesn't show previous member's data
     }
     try {
       console.log('[Dashboard] Fetching member summary for:', userId);

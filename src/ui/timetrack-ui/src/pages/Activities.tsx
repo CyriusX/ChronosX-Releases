@@ -37,7 +37,7 @@ const cardBase =
 
 export default function Activities() {
   const data = useActivitiesData();
-  const { summary, activities } = data;
+  const { summary, activities, isLoading } = data;
 
   return (
     <div className="flex h-screen bg-[#0b0d14] overflow-hidden">
@@ -47,7 +47,12 @@ export default function Activities() {
         {/* Header with DateNavigator */}
         <div className="px-5 pt-4 pb-2 flex-shrink-0">
           <div className="flex items-center justify-between">
-            <span className="text-[14px] font-medium text-[#f5f7fb]">Atividades</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[14px] font-medium text-[#f5f7fb]">Atividades</span>
+              {isLoading && (
+                <div className="w-4 h-4 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+              )}
+            </div>
             <DateNavigator
               selectedDate={data.selectedDate}
               isToday={data.isToday}

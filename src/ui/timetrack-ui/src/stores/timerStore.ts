@@ -165,6 +165,12 @@ interface TimerState {
   pausedAt: number; // ms timestamp when paused (0 = not paused)
   pausedElapsedMs: number; // total ms spent paused during current phase
 
+  // Session group tracking (start-to-stop boundaries)
+  sessionGroupStartedAt: number; // ms timestamp when user clicked "Iniciar Foco"
+  sessionGroupEndedAt: number;   // ms timestamp when session was stopped (0 = still running)
+  sessionGroupMode: TimerMode;   // mode used for the session group
+  skippedBreaks: number;         // number of breaks skipped via "Pular"
+
   // Session info
   sessionName: string;
   selectedProject: string;
@@ -227,6 +233,10 @@ export const useTimerStore = create<TimerState>()(
     phaseStartedAt: 0,
     pausedAt: 0,
     pausedElapsedMs: 0,
+    sessionGroupStartedAt: 0,
+    sessionGroupEndedAt: 0,
+    sessionGroupMode: 'pomodoro' as TimerMode,
+    skippedBreaks: 0,
     sessionName: '',
     selectedProject: '',
     sessions: [],
@@ -251,16 +261,21 @@ export const useTimerStore = create<TimerState>()(
       const { mode } = get();
       const config = getUserTimerConfig(mode);
       const waves = getUltradianWaves();
+      const now = Date.now();
       set({
         phase: 'focus',
         cycle: 0,
         totalMs: config.focusMs,
         remainingMs: config.focusMs,
-        phaseStartedAt: Date.now(),
+        phaseStartedAt: now,
         pausedAt: 0,
         pausedElapsedMs: 0,
         isPaused: false,
         ultradianWaves: waves,
+        sessionGroupStartedAt: now,
+        sessionGroupEndedAt: 0,
+        sessionGroupMode: mode,
+        skippedBreaks: 0,
       });
       ensureInterval();
     },
@@ -287,13 +302,17 @@ export const useTimerStore = create<TimerState>()(
     },
 
     skip: () => {
+      const state = get();
+      if (state.phase === 'break') {
+        set({ skippedBreaks: state.skippedBreaks + 1 });
+      }
       get()._handlePhaseComplete();
     },
 
     stop: () => {
       const state = get();
+      const effectiveNow = state.isPaused ? state.pausedAt : Date.now();
       if (state.phase !== 'idle') {
-        const effectiveNow = state.isPaused ? state.pausedAt : Date.now();
         const elapsed = effectiveNow - state.phaseStartedAt - state.pausedElapsedMs;
         if (elapsed > 5000) {
           get()._recordSession(state.phase as 'focus' | 'break');
@@ -309,6 +328,7 @@ export const useTimerStore = create<TimerState>()(
         remainingMs: config.focusMs,
         totalMs: config.focusMs,
         phaseStartedAt: 0,
+        sessionGroupEndedAt: effectiveNow,
       });
       clearTickInterval();
     },
@@ -332,6 +352,9 @@ export const useTimerStore = create<TimerState>()(
         phaseStartedAt: 0,
         sessionName: '',
         selectedProject: '',
+        sessionGroupStartedAt: 0,
+        sessionGroupEndedAt: 0,
+        skippedBreaks: 0,
       });
     },
 
@@ -375,6 +398,7 @@ export const useTimerStore = create<TimerState>()(
             remainingMs: config.focusMs,
             totalMs: config.focusMs,
             phaseStartedAt: 0,
+            sessionGroupEndedAt: Date.now(),
           });
           clearTickInterval();
           return;
@@ -465,11 +489,48 @@ export const useTimerStore = create<TimerState>()(
       {
         name: 'xchronus-timer-store',
         storage: timerStorage,
-        // Only persist sessions and ID counter — timer state resets on restart
+        // Persist full timer state so it survives page reload (F5)
         partialize: (state) => ({
+          mode: state.mode,
+          phase: state.phase,
+          totalMs: state.totalMs,
+          cycle: state.cycle,
+          isPaused: state.isPaused,
+          ultradianWaves: state.ultradianWaves,
+          phaseStartedAt: state.phaseStartedAt,
+          pausedAt: state.pausedAt,
+          pausedElapsedMs: state.pausedElapsedMs,
+          sessionGroupStartedAt: state.sessionGroupStartedAt,
+          sessionGroupEndedAt: state.sessionGroupEndedAt,
+          sessionGroupMode: state.sessionGroupMode,
+          skippedBreaks: state.skippedBreaks,
+          sessionName: state.sessionName,
+          selectedProject: state.selectedProject,
           sessions: state.sessions,
           _sessionIdCounter: state._sessionIdCounter,
         }),
+        onRehydrateStorage: () => (state) => {
+          if (!state) return;
+          // If the timer was active before reload, recalculate remaining time
+          // from wall-clock timestamps and restart the tick interval
+          if (state.phase !== 'idle' && state.phaseStartedAt > 0) {
+            const now = Date.now();
+            const elapsed = (state.isPaused ? state.pausedAt : now) - state.phaseStartedAt - state.pausedElapsedMs;
+            const remaining = Math.max(0, state.totalMs - elapsed);
+
+            if (remaining <= 0 && !state.isPaused) {
+              // Phase expired while app was closed — trigger completion
+              // We defer to next tick so the store is fully ready
+              setTimeout(() => useTimerStore.getState()._handlePhaseComplete(), 0);
+            } else {
+              // Update remaining time to current wall-clock value
+              useTimerStore.setState({ remainingMs: remaining });
+              if (!state.isPaused) {
+                ensureInterval();
+              }
+            }
+          }
+        },
       },
     ),
   ),
@@ -488,6 +549,60 @@ export function selectCurrentUserSessions(s: TimerState): SessionRecord[] {
   const uid = getCurrentUserId();
   if (!uid) return [];
   return s.sessions.filter((sess) => sess.userId === uid);
+}
+
+/** Summary data for the last completed session group (start-to-stop) */
+export interface SessionGroupSummary {
+  totalDurationMs: number;
+  completedCycles: number;
+  focusTimeMs: number;
+  breakTimeMs: number;
+  skippedBreaks: number;
+  mode: TimerMode;
+  hasData: boolean;
+}
+
+/** Returns the summary of the last session group, computed from real recorded sessions */
+export function selectSessionGroupSummary(s: TimerState): SessionGroupSummary {
+  const empty: SessionGroupSummary = {
+    totalDurationMs: 0, completedCycles: 0, focusTimeMs: 0,
+    breakTimeMs: 0, skippedBreaks: 0, mode: s.sessionGroupMode, hasData: false,
+  };
+
+  if (!s.sessionGroupStartedAt) return empty;
+
+  const uid = getCurrentUserId();
+  const groupStart = s.sessionGroupStartedAt;
+  const isActive = s.phase !== 'idle';
+
+  // Filter sessions that belong to this session group (recorded after group started)
+  const groupSessions = s.sessions.filter((sess) => {
+    if (uid && sess.userId !== uid) return false;
+    return sess.startedAt.getTime() >= groupStart;
+  });
+
+  // Show data if the timer is currently active OR completed sessions exist
+  if (groupSessions.length === 0 && !isActive) return empty;
+
+  const focusSessions = groupSessions.filter(sess => sess.phase === 'focus');
+  const breakSessions = groupSessions.filter(sess => sess.phase === 'break');
+
+  const focusTimeMs = focusSessions.reduce((a, sess) => a + sess.durationMs, 0);
+  const breakTimeMs = breakSessions.reduce((a, sess) => a + sess.durationMs, 0);
+
+  // Total duration = ended_at - started_at (wall-clock time)
+  const endTs = s.sessionGroupEndedAt || Date.now();
+  const totalDurationMs = endTs - groupStart;
+
+  return {
+    totalDurationMs,
+    completedCycles: focusSessions.length,
+    focusTimeMs,
+    breakTimeMs,
+    skippedBreaks: s.skippedBreaks,
+    mode: s.sessionGroupMode,
+    hasData: true,
+  };
 }
 
 // ============================================================================
