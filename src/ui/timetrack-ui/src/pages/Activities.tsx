@@ -28,8 +28,7 @@ import { fadeUp, staggerContainer, STAGGER } from '../lib/animation';
 // CONSTANTS
 // ============================================================================
 
-const cardBase =
-  'bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl';
+import { cardBase } from '../components/dashboard/shared/styles';
 
 // ============================================================================
 // PAGE
@@ -213,12 +212,12 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
         </Card>
       </motion.div>
 
-      {/* Produtividade */}
+      {/* Foco */}
       <motion.div variants={fadeUp} className="h-full">
         <Card className={`${cardBase} h-full`}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-              Produtividade
+              Foco
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-2 pb-3 px-4">

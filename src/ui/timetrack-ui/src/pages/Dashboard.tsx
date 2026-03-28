@@ -190,6 +190,7 @@ export default function Dashboard() {
                   onPauseTracking={onPauseTracking}
                   onStopTracking={onStopTracking}
                   isTeamTab={false}
+                  weeklyHistory={weeklyHistory}
                 />
                 <ActivitySection />
                 <BottomCards summary={displaySummary} />

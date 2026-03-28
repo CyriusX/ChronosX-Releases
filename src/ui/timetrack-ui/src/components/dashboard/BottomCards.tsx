@@ -1,7 +1,11 @@
+/**
+ * BottomCards - Dashboard bottom cards (Categorias, Apps & Sites, Projetos)
+ */
+
 import { useEffect, useRef } from 'react';
 import {
   TrendingUp, Globe, Briefcase, Code2, Users, MessageSquare,
-  Play, Paintbrush, Video
+  Play, Paintbrush, Video, MoreVertical
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { animate } from 'animejs';
@@ -10,6 +14,7 @@ import { CategoryItem, ProjectItem, AppIcon } from './shared';
 import { formatDuration } from '../../lib/utils';
 import type { TodaySummaryResponse, AppProductivityCategory } from '../../types/ipc';
 import { fadeUp, staggerContainer, STAGGER, SPRING, TIMING_MS } from '../../lib/animation';
+import { cardBase } from './shared/styles';
 
 interface BottomCardsProps {
   summary: TodaySummaryResponse | null;
@@ -33,8 +38,6 @@ const categoryIcons: Record<string, React.ReactNode> = {
   'social_media': <Users className="w-3 h-3" />,
   'entertainment': <Play className="w-3 h-3" />,
 };
-
-const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden hover:border-[rgba(74,217,255,0.15)] hover:shadow-[0_0_0_1px_rgba(74,217,255,0.08),0_4px_20px_rgba(74,217,255,0.04)] transition-all duration-200";
 
 export function BottomCards({ summary }: BottomCardsProps) {
   const categories = summary?.categories ?? [];
@@ -76,7 +79,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
     >
       {/* Categorias */}
       <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }} className="h-full">
-        <Card className={`${cardBase} h-full`}>
+        <Card className={`${cardBase} h-full overflow-hidden`}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -85,6 +88,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
                 </div>
                 <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Categorias</span>
               </div>
+              <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-2.5 pb-3 px-4">
@@ -116,7 +120,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
 
       {/* Apps & Sites */}
       <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }} className="h-full">
-        <Card className={`${cardBase} h-full`}>
+        <Card className={`${cardBase} h-full overflow-hidden`}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -125,6 +129,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
                 </div>
                 <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Apps & Sites</span>
               </div>
+              <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-2.5 pb-3 px-4">
@@ -170,7 +175,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
 
       {/* Projetos */}
       <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }} className="h-full">
-        <Card className={`${cardBase} h-full`}>
+        <Card className={`${cardBase} h-full overflow-hidden`}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -179,6 +184,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
                 </div>
                 <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Projetos</span>
               </div>
+              <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-2.5 pb-3 px-4">
