@@ -117,7 +117,7 @@ export function ActivityHeatmap({
 
   const handleCellClick = useCallback((date: Date) => {
     const dateStr = toLocalDateStr(date);
-    navigate(`/activity?date=${dateStr}`);
+    navigate(`/activities?date=${dateStr}`);
   }, [navigate]);
 
   const handleCellHover = useCallback((date: Date, dayData: DailySummaryDayItem | undefined, e: React.MouseEvent) => {

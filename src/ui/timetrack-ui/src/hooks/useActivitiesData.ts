@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useIpc } from './useIpc';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../types/ipc';
 import { formatDuration } from '../lib/utils';
@@ -76,7 +77,18 @@ function formatDatePayload(date: Date): string {
 
 export function useActivitiesData(): ActivitiesData {
   const { sendQuery, isConnected } = useIpc();
-  const [selectedDate, setSelectedDateRaw] = useState<Date>(new Date());
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Initialize from URL ?date= parameter (e.g., /activities?date=2026-03-25)
+  const [selectedDate, setSelectedDateRaw] = useState<Date>(() => {
+    const dateParam = searchParams.get('date');
+    if (dateParam) {
+      const parsed = new Date(dateParam + 'T00:00:00');
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return new Date();
+  });
+
   const [summary, setSummary] = useState<TodaySummaryResponse | null>(null);
   const [activities, setActivities] = useState<ActivityBlock[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -89,7 +101,10 @@ export function useActivitiesData(): ActivitiesData {
     setSelectedDateRaw(date);
     setSummary(null);
     setActivities([]);
-  }, []);
+    // Update URL to reflect the selected date (without full navigation)
+    const dateStr = formatDatePayload(date);
+    setSearchParams(dateStr === formatDatePayload(new Date()) ? {} : { date: dateStr }, { replace: true });
+  }, [setSearchParams]);
 
   const fetchData = useCallback(async () => {
     if (isFetchingRef.current || !isConnected) return;
