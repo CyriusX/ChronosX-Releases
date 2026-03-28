@@ -321,7 +321,7 @@ public sealed class ReportRepository : IReportRepository
     }
 
     public async Task<IEnumerable<AppAggregate>> GetTopAppsAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         int limit,
@@ -333,7 +333,7 @@ public sealed class ReportRepository : IReportRepository
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
             .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
@@ -341,7 +341,7 @@ public sealed class ReportRepository : IReportRepository
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
 
         // Load org-level overrides for this user
-        var overrides = await GetOverridesForUserAsync(userId, cancellationToken);
+        var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
         var appGroups = sessions
             .GroupBy(a => a.ProcessName)
@@ -375,7 +375,7 @@ public sealed class ReportRepository : IReportRepository
     private const long LongFocusBlockThresholdSeconds = 25 * 60;
 
     public async Task<IEnumerable<DailySummaryItem>> GetDailySummaryRangeAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         string? timezone = null,
@@ -389,7 +389,7 @@ public sealed class ReportRepository : IReportRepository
         // with "Tracking Stopped" placeholder sessions and our own UI processes.
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
             .Select(a => new { a.StartedAt, a.EndedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
@@ -399,12 +399,12 @@ public sealed class ReportRepository : IReportRepository
             .ToList();
 
         // Load org-level overrides for this user
-        var overrides = await GetOverridesForUserAsync(userId, cancellationToken);
+        var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
         // DEBUG: Log raw session data
         _logger?.LogInformation(
-            "GetDailySummaryRangeAsync: UserId={UserId}, Start={Start}, End={End}, SessionsCount={Count}, Overrides={OverrideCount}",
-            userId, start, end, sessions.Count, overrides.Count);
+            "GetDailySummaryRangeAsync: UserIds={UserIds}, Start={Start}, End={End}, SessionsCount={Count}, Overrides={OverrideCount}",
+            string.Join(",", userIds), start, end, sessions.Count, overrides.Count);
 
         // DEBUG: Log unique categories found
         var uniqueCategories = sessions.Select(s => s.AppCategory).Distinct().ToList();
@@ -414,7 +414,7 @@ public sealed class ReportRepository : IReportRepository
 
         var idlePeriods = await _context.IdlePeriods
             .AsNoTracking()
-            .Where(i => i.UserId == userId && i.StartedAt >= start && i.StartedAt <= end)
+            .Where(i => userIds.Contains(i.UserId) && i.StartedAt >= start && i.StartedAt <= end)
             .Select(i => new { i.StartedAt, i.DurationSeconds })
             .ToListAsync(cancellationToken);
 
@@ -539,7 +539,7 @@ public sealed class ReportRepository : IReportRepository
     }
 
     public async Task<IEnumerable<ProductivityTrendItem>> GetProductivityTrendAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         string groupBy,
@@ -551,7 +551,7 @@ public sealed class ReportRepository : IReportRepository
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
             .Select(a => new { a.StartedAt, a.EndedAt, a.DurationSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
@@ -559,11 +559,11 @@ public sealed class ReportRepository : IReportRepository
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
 
         // Load org-level overrides for this user
-        var overrides = await GetOverridesForUserAsync(userId, cancellationToken);
+        var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
         var idlePeriods = await _context.IdlePeriods
             .AsNoTracking()
-            .Where(i => i.UserId == userId && i.StartedAt >= start && i.StartedAt <= end)
+            .Where(i => userIds.Contains(i.UserId) && i.StartedAt >= start && i.StartedAt <= end)
             .Select(i => new { i.StartedAt, i.DurationSeconds })
             .ToListAsync(cancellationToken);
 
@@ -659,7 +659,7 @@ public sealed class ReportRepository : IReportRepository
     }
 
     public async Task<IEnumerable<TopPathItem>> GetTopPathsAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         int limit,
@@ -670,7 +670,7 @@ public sealed class ReportRepository : IReportRepository
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
             .Where(a => a.WindowTitle != null && a.WindowTitle != "")
             .Select(a => new { a.ProcessName, a.WindowTitle, a.FilePath, a.DurationSeconds })
             .ToListAsync(cancellationToken);
@@ -708,7 +708,7 @@ public sealed class ReportRepository : IReportRepository
     }
 
     public async Task<DistractionStats> GetDistractionStatsAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         string? timezone = null,
@@ -719,7 +719,7 @@ public sealed class ReportRepository : IReportRepository
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
             .Select(a => new { a.StartedAt, a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
@@ -727,7 +727,7 @@ public sealed class ReportRepository : IReportRepository
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
 
         // Load org-level overrides for this user
-        var overrides = await GetOverridesForUserAsync(userId, cancellationToken);
+        var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
         // Filtrar distrações (with override support)
         var distractions = sessions
@@ -771,7 +771,7 @@ public sealed class ReportRepository : IReportRepository
     }
 
     public async Task<IEnumerable<CategoryDistributionItem>> GetCategoryDistributionAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         string? timezone = null,
@@ -781,7 +781,7 @@ public sealed class ReportRepository : IReportRepository
 
         var sessions = await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => a.UserId == userId && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
             .Select(a => new { a.ProcessName, a.DurationSeconds, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
@@ -789,7 +789,7 @@ public sealed class ReportRepository : IReportRepository
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
 
         // Load org-level overrides for this user
-        var overrides = await GetOverridesForUserAsync(userId, cancellationToken);
+        var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
         var totalSeconds = sessions.Sum(s => s.DurationSeconds);
         if (totalSeconds == 0) return [];

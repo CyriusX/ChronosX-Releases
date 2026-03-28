@@ -38,15 +38,24 @@ public sealed class CategoryDistributionQueryHandler : IRequestHandler<CategoryD
             throw new ArgumentException("Start date must be before or equal to end date");
         }
 
-        // Determinar userId alvo
-        var targetUserId = request.UserId ?? _currentUser.UserId!.Value;
-
-        // Validar autorização
-        _authorizationService.EnsureCanAccessUserData(targetUserId);
+        // Determinar userId(s) alvo
+        IReadOnlyList<Guid> targetUserIds;
+        if (request.UserIds is { Count: > 0 })
+        {
+            targetUserIds = request.UserIds;
+            foreach (var uid in targetUserIds)
+                _authorizationService.EnsureCanAccessUserData(uid);
+        }
+        else
+        {
+            var targetUserId = request.UserId ?? _currentUser.UserId!.Value;
+            _authorizationService.EnsureCanAccessUserData(targetUserId);
+            targetUserIds = new[] { targetUserId };
+        }
 
         // Buscar dados
         var categories = await _reportRepository.GetCategoryDistributionAsync(
-            targetUserId,
+            targetUserIds,
             request.StartDate,
             request.EndDate,
             request.Timezone,

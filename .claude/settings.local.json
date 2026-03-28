@@ -391,7 +391,8 @@
       "Bash(docker compose:*)",
       "Bash(timeout 5 docker logs timetrack-api --tail 30 -f)",
       "Read(//c/Projetos/TimeTracking/src/ui/timetrack-ui/**)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(grep -E \"Query\\\\.cs$\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
