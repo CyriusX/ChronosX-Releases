@@ -100,11 +100,64 @@ public sealed class FloatingStatusBarForm : Form
         Controls.Add(_appIcon);
 
         LayoutAll();
-        var wa = Screen.PrimaryScreen!.WorkingArea;
-        Location = new Point(wa.Right - Width - 20, wa.Bottom - Height - 20);
+
+        // Restore saved position or default to bottom-right
+        var saved = LoadPosition();
+        if (saved.HasValue)
+            Location = saved.Value;
+        else
+        {
+            var wa = Screen.PrimaryScreen!.WorkingArea;
+            Location = new Point(wa.Right - Width - 20, wa.Bottom - Height - 20);
+        }
 
         ResumeLayout(true); PerformLayout();
         MakePill(); EnableRoundedCorners(); EnableDragOnAll();
+    }
+
+    // Save position when user drags the bar
+    protected override void OnLocationChanged(EventArgs e)
+    {
+        base.OnLocationChanged(e);
+        // Only save if form is visible and not being laid out initially
+        if (Visible && IsHandleCreated)
+            SavePosition(Location);
+    }
+
+    private static readonly string PositionFile = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "TimeTrack", "floating-bar-pos.txt");
+
+    private static void SavePosition(Point p)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(PositionFile)!;
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            File.WriteAllText(PositionFile, $"{p.X},{p.Y}");
+        }
+        catch { }
+    }
+
+    private static Point? LoadPosition()
+    {
+        try
+        {
+            if (!File.Exists(PositionFile)) return null;
+            var parts = File.ReadAllText(PositionFile).Trim().Split(',');
+            if (parts.Length == 2 && int.TryParse(parts[0], out var x) && int.TryParse(parts[1], out var y))
+            {
+                // Validate the position is on a visible screen
+                var pt = new Point(x, y);
+                foreach (var screen in Screen.AllScreens)
+                {
+                    if (screen.WorkingArea.Contains(pt))
+                        return pt;
+                }
+            }
+        }
+        catch { }
+        return null;
     }
 
     public void UpdateData(long activeSec, long prodSec, int score,
@@ -262,18 +315,19 @@ internal sealed class FocusActionIcon : Control
 
     private readonly string _icon;
     private readonly Color _color;
+    private readonly Color _parentBg;
     private bool _hovered;
     private const int Sz = 26;
 
-    public FocusActionIcon(string icon, Color color, string tooltip)
+    public FocusActionIcon(string icon, Color color, string tooltip, Color? parentBg = null)
     {
         _icon = icon; _color = color;
+        _parentBg = parentBg ?? Color.FromArgb(24, 27, 38);
         Size = new Size(Sz, Sz);
         Cursor = Cursors.Hand;
         SetStyle(ControlStyles.OptimizedDoubleBuffer
                | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
-        // Use parent's background color instead of transparent (WinForms limitation)
-        BackColor = Color.FromArgb(24, 27, 38);
+        BackColor = _parentBg;
         new ToolTip().SetToolTip(this, tooltip);
     }
 
@@ -285,22 +339,23 @@ internal sealed class FocusActionIcon : Control
     {
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        // Fill entire area with parent bg to erase any border artifacts
+        g.Clear(_parentBg);
+
         var cx = Width / 2f; var cy = Height / 2f; var r = Sz / 2f - 1;
 
-        // Background circle: subtle on hover, near-invisible otherwise
-        var bgAlpha = _hovered ? 50 : 15;
-        using (var bg = new SolidBrush(Color.FromArgb(bgAlpha, _color)))
-            g.FillEllipse(bg, cx - r, cy - r, r * 2, r * 2);
-
-        // Glow ring on hover
         if (_hovered)
         {
-            using var pen = new Pen(Color.FromArgb(60, _color), 1.2f);
+            // Subtle filled circle + ring on hover
+            using (var bg = new SolidBrush(Color.FromArgb(40, _color)))
+                g.FillEllipse(bg, cx - r, cy - r, r * 2, r * 2);
+            using var pen = new Pen(Color.FromArgb(50, _color), 1f);
             g.DrawEllipse(pen, cx - r, cy - r, r * 2, r * 2);
         }
 
-        // Icon
-        var iconColor = _hovered ? _color : Color.FromArgb(180, _color);
+        // Icon — full color on hover, dimmed otherwise
+        var iconColor = _hovered ? _color : Color.FromArgb(140, _color);
         TextRenderer.DrawText(g, _icon, new Font("Segoe UI Symbol", 9f),
             new Rectangle(0, 0, Width, Height), iconColor,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
