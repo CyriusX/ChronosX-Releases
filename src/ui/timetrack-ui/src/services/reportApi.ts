@@ -70,7 +70,9 @@ export async function getTopApps(
     limit: limit.toString(),
     timezone: getUserTimezone(),
   });
-  if (userId) {
+  if (userId === 'all') {
+    params.append('allTeam', 'true');
+  } else if (userId) {
     params.append('userId', userId);
   }
 
@@ -91,7 +93,9 @@ export async function getDailySummaryRange(
   userId?: string
 ): Promise<DailySummaryRangeResponse> {
   const params = new URLSearchParams({ startDate, endDate, timezone: getUserTimezone() });
-  if (userId) {
+  if (userId === 'all') {
+    params.append('allTeam', 'true');
+  } else if (userId) {
     params.append('userId', userId);
   }
 
@@ -109,7 +113,9 @@ export async function getProductivityTrend(
   userId?: string
 ): Promise<ProductivityTrendResponse> {
   const params = new URLSearchParams({ startDate, endDate, groupBy, timezone: getUserTimezone() });
-  if (userId) {
+  if (userId === 'all') {
+    params.append('allTeam', 'true');
+  } else if (userId) {
     params.append('userId', userId);
   }
 
@@ -132,7 +138,9 @@ export async function getTopPaths(
     limit: limit.toString(),
     timezone: getUserTimezone(),
   });
-  if (userId) {
+  if (userId === 'all') {
+    params.append('allTeam', 'true');
+  } else if (userId) {
     params.append('userId', userId);
   }
 
@@ -149,7 +157,9 @@ export async function getDistractionStats(
   userId?: string
 ): Promise<DistractionStatsResponse> {
   const params = new URLSearchParams({ startDate, endDate, timezone: getUserTimezone() });
-  if (userId) {
+  if (userId === 'all') {
+    params.append('allTeam', 'true');
+  } else if (userId) {
     params.append('userId', userId);
   }
 
@@ -166,7 +176,9 @@ export async function getCategoryDistribution(
   userId?: string
 ): Promise<CategoryDistributionResponse> {
   const params = new URLSearchParams({ startDate, endDate, timezone: getUserTimezone() });
-  if (userId) {
+  if (userId === 'all') {
+    params.append('allTeam', 'true');
+  } else if (userId) {
     params.append('userId', userId);
   }
 

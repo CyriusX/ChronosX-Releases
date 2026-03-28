@@ -18,7 +18,8 @@ public sealed record TopAppsQuery(
     DateTime EndDate,
 
     int Limit = 10,
-    string? Timezone = null
+    string? Timezone = null,
+    IReadOnlyList<Guid>? UserIds = null
 ) : IRequest<TopAppsResponse>;
 
 /// <summary>

@@ -28,7 +28,7 @@ public interface IReportRepository
     /// Obtém top apps por período ordenados por tempo total
     /// </summary>
     Task<IEnumerable<AppAggregate>> GetTopAppsAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         int limit,
@@ -45,7 +45,7 @@ public interface IReportRepository
     /// When timezone is provided, day boundaries are computed in the user's local timezone.
     /// </summary>
     Task<IEnumerable<DailySummaryItem>> GetDailySummaryRangeAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         string? timezone = null,
@@ -55,7 +55,7 @@ public interface IReportRepository
     /// Obtém tendência de produtividade por período (barras empilhadas)
     /// </summary>
     Task<IEnumerable<ProductivityTrendItem>> GetProductivityTrendAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         string groupBy,
@@ -66,7 +66,7 @@ public interface IReportRepository
     /// Obtém top URLs e caminhos extraídos de window_title
     /// </summary>
     Task<IEnumerable<TopPathItem>> GetTopPathsAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         int limit,
@@ -77,7 +77,7 @@ public interface IReportRepository
     /// Obtém estatísticas de distração (top 5 apps + linha do tempo)
     /// </summary>
     Task<DistractionStats> GetDistractionStatsAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         string? timezone = null,
@@ -87,7 +87,7 @@ public interface IReportRepository
     /// Obtém distribuição por categoria de produtividade
     /// </summary>
     Task<IEnumerable<CategoryDistributionItem>> GetCategoryDistributionAsync(
-        Guid userId,
+        IReadOnlyList<Guid> userIds,
         DateTime startDate,
         DateTime endDate,
         string? timezone = null,
