@@ -59,8 +59,6 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
         var totalIdleSeconds = await _reportRepository.GetDailyIdleSecondsAsync(request.TargetUserId, today, request.Timezone, cancellationToken);
         var weeklyHistory = await BuildWeeklyHistoryAsync(request.TargetUserId, today, request.Timezone, cancellationToken);
 
-        // Exclude internal/system apps (same filter as agent's local dashboard)
-
         // Filter out internal apps and recalculate total
         var filteredApps = activity.Apps
             .Where(a => !_internalApps.Contains(a.ProcessName))

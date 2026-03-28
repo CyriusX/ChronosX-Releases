@@ -46,7 +46,7 @@ public sealed class OutboxRepository : IOutboxRepository
                    attempt_count, next_attempt_utc, sent_at, last_error, created_at
             FROM sync_outbox
             WHERE sent_at IS NULL
-              AND next_attempt_utc <= @Now
+              AND (next_attempt_utc IS NULL OR next_attempt_utc <= @Now)
             ORDER BY next_attempt_utc, id
             LIMIT @Limit";
 
@@ -204,7 +204,7 @@ public sealed class OutboxRepository : IOutboxRepository
             SELECT COUNT(*)
             FROM sync_outbox
             WHERE sent_at IS NULL
-              AND next_attempt_utc <= @Now";
+              AND (next_attempt_utc IS NULL OR next_attempt_utc <= @Now)";
 
         var count = await connection.ExecuteScalarAsync<int>(sql, new { Now = now });
         return count > 0;
@@ -237,14 +237,14 @@ public sealed class OutboxRepository : IOutboxRepository
         var connection = await _context.GetConnectionAsync(cancellationToken);
         var now = DateTime.UtcNow.ToString("o");
 
-        // Redefine itens que ainda não foram enviados e cujo next_attempt_utc está no futuro
+        // Redefine itens que ainda não foram enviados e cujo next_attempt_utc está no futuro ou é NULL
         const string sql = @"
             UPDATE sync_outbox
             SET next_attempt_utc = @Now,
                 attempt_count = 0,
                 last_error = NULL
             WHERE sent_at IS NULL
-              AND next_attempt_utc > @Now";
+              AND (next_attempt_utc > @Now OR next_attempt_utc IS NULL)";
 
         var updated = await connection.ExecuteAsync(sql, new { Now = now });
 
