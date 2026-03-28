@@ -35,6 +35,11 @@ public sealed class MainForm : Form
     private bool _isInitialized;
     private bool _isClosing;
 
+    /// <summary>Raised when the main window is minimized or hidden to tray.</summary>
+    public event EventHandler? WindowMinimized;
+    /// <summary>Raised when the main window is restored from minimized/tray state.</summary>
+    public event EventHandler? WindowRestored;
+
     public WebViewBridge Bridge => _bridge;
 
     public MainForm(
@@ -478,19 +483,28 @@ public sealed class MainForm : Form
 
     public void ShowWindow()
     {
-        if (WindowState == FormWindowState.Minimized)
-        {
-            WindowState = FormWindowState.Normal;
-        }
-
+        // Show the form first (makes it visible but possibly behind other windows)
         Show();
+
+        // Force normal state (must be after Show to avoid triggering OnResize while hidden)
+        if (WindowState == FormWindowState.Minimized)
+            WindowState = FormWindowState.Normal;
+
+        // Use Win32 APIs to reliably bring the window to the foreground
+        // BringToFront + Activate alone don't always work from a background context
+        SetForegroundWindow(Handle);
         BringToFront();
         Activate();
 
         // Tell the React app to refresh all dashboard data immediately.
         // This ensures data shown after a tray-restore is never stale.
         NotifyAppVisible();
+
+        WindowRestored?.Invoke(this, EventArgs.Empty);
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     private void NotifyAppVisible()
     {
@@ -520,6 +534,7 @@ public sealed class MainForm : Form
         if (WindowState == FormWindowState.Minimized)
         {
             Hide();
+            WindowMinimized?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -530,6 +545,7 @@ public sealed class MainForm : Form
             // Hide to tray instead of closing
             e.Cancel = true;
             Hide();
+            WindowMinimized?.Invoke(this, EventArgs.Empty);
             return;
         }
 
