@@ -358,7 +358,7 @@ export default function Reports() {
                         Toda a equipe
                       </button>
                       <div className="border-t border-[rgba(255,255,255,0.06)]" />
-                      {members.map((member) => (
+                      {members.filter((member) => member.userId !== user?.id).map((member) => (
                         <button
                           key={member.userId}
                           onClick={() => { handleUserChange(member.userId); setShowUserDropdown(false); }}
