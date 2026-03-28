@@ -250,11 +250,22 @@ public sealed class ReportRepository : IReportRepository
     public async Task<DailyActivityAggregate> GetDailyActivityAggregateAsync(
         Guid userId,
         DateTime date,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcDate = EnsureUtc(date);
-        var startOfDay = utcDate.Date;
-        var endOfDay = startOfDay.AddDays(1).AddTicks(-1);
+        DateTime startOfDay, endOfDay;
+        if (!string.IsNullOrEmpty(timezone))
+        {
+            var (s, e) = GetUtcBoundaries(date, date, timezone);
+            startOfDay = s;
+            endOfDay = e;
+        }
+        else
+        {
+            var utcDate = EnsureUtc(date);
+            startOfDay = utcDate.Date;
+            endOfDay = startOfDay.AddDays(1).AddTicks(-1);
+        }
 
         // Query otimizada com GROUP BY + JOIN para categorias
         var sessions = await _context.ActivitySessions
@@ -308,11 +319,22 @@ public sealed class ReportRepository : IReportRepository
     public async Task<long> GetDailyIdleSecondsAsync(
         Guid userId,
         DateTime date,
+        string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var utcDate = EnsureUtc(date);
-        var startOfDay = utcDate.Date;
-        var endOfDay = startOfDay.AddDays(1).AddTicks(-1);
+        DateTime startOfDay, endOfDay;
+        if (!string.IsNullOrEmpty(timezone))
+        {
+            var (s, e) = GetUtcBoundaries(date, date, timezone);
+            startOfDay = s;
+            endOfDay = e;
+        }
+        else
+        {
+            var utcDate = EnsureUtc(date);
+            startOfDay = utcDate.Date;
+            endOfDay = startOfDay.AddDays(1).AddTicks(-1);
+        }
 
         return await _context.IdlePeriods
             .AsNoTracking()

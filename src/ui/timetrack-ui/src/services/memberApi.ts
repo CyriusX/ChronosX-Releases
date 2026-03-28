@@ -5,6 +5,7 @@
  */
 
 import { api } from './apiClient';
+import { getUserTimezone } from '../types/reports';
 import type {
   ListMembersResponse,
   TeamStatusResponse,
@@ -26,14 +27,16 @@ export async function listMembers(): Promise<ListMembersResponse> {
  * Get team status with today's worked time
  */
 export async function getTeamStatus(): Promise<TeamStatusResponse> {
-  return api.get<TeamStatusResponse>('/auth/team/status');
+  const params = new URLSearchParams({ timezone: getUserTimezone() });
+  return api.get<TeamStatusResponse>(`/auth/team/status?${params.toString()}`);
 }
 
 /**
  * Get a specific member's today summary (admin/manager view)
  */
 export async function getMemberSummary(userId: string): Promise<MemberSummaryResponse> {
-  return api.get<MemberSummaryResponse>(`/auth/team/members/${encodeURIComponent(userId)}/summary`);
+  const params = new URLSearchParams({ timezone: getUserTimezone() });
+  return api.get<MemberSummaryResponse>(`/auth/team/members/${encodeURIComponent(userId)}/summary?${params.toString()}`);
 }
 
 /**
