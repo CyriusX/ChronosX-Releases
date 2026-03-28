@@ -14,6 +14,7 @@ public interface IReportRepository
     Task<DailyActivityAggregate> GetDailyActivityAggregateAsync(
         Guid userId,
         DateTime date,
+        string? timezone = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -22,6 +23,7 @@ public interface IReportRepository
     Task<long> GetDailyIdleSecondsAsync(
         Guid userId,
         DateTime date,
+        string? timezone = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

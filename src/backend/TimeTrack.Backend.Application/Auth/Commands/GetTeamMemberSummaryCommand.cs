@@ -10,7 +10,7 @@ namespace TimeTrack.Backend.Application.Auth.Commands;
 /// <summary>
 /// Command para obter resumo de hoje de um membro da equipe
 /// </summary>
-public sealed record GetTeamMemberSummaryCommand(Guid OrgId, Guid TargetUserId) : IRequest<TeamMemberSummaryResponse>;
+public sealed record GetTeamMemberSummaryCommand(Guid OrgId, Guid TargetUserId, string? Timezone = null) : IRequest<TeamMemberSummaryResponse>;
 
 public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeamMemberSummaryCommand, TeamMemberSummaryResponse>
 {
@@ -51,12 +51,13 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
         if (targetUser == null || targetUser.OrgId != request.OrgId)
             throw new NotFoundException("User", request.TargetUserId);
 
-        var today = DateTime.UtcNow.Date;
+        // Use caller's timezone to determine "today" correctly
+        var today = GetLocalToday(request.Timezone);
 
         // Fetch sequentially — EF Core DbContext is not thread-safe
-        var activity = await _reportRepository.GetDailyActivityAggregateAsync(request.TargetUserId, today, cancellationToken);
-        var totalIdleSeconds = await _reportRepository.GetDailyIdleSecondsAsync(request.TargetUserId, today, cancellationToken);
-        var weeklyHistory = await BuildWeeklyHistoryAsync(request.TargetUserId, today, cancellationToken);
+        var activity = await _reportRepository.GetDailyActivityAggregateAsync(request.TargetUserId, today, request.Timezone, cancellationToken);
+        var totalIdleSeconds = await _reportRepository.GetDailyIdleSecondsAsync(request.TargetUserId, today, request.Timezone, cancellationToken);
+        var weeklyHistory = await BuildWeeklyHistoryAsync(request.TargetUserId, today, request.Timezone, cancellationToken);
 
         // Exclude internal/system apps (same filter as agent's local dashboard)
 
@@ -125,8 +126,25 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
         };
     }
 
+    /// <summary>
+    /// Determines "today" in the caller's timezone. Returns a date-only DateTime.
+    /// </summary>
+    private static DateTime GetLocalToday(string? timezone)
+    {
+        if (!string.IsNullOrEmpty(timezone))
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById(timezone);
+                return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz).Date;
+            }
+            catch { /* fall through */ }
+        }
+        return DateTime.UtcNow.Date;
+    }
+
     private async Task<List<MemberWeeklyHistoryItem>> BuildWeeklyHistoryAsync(
-        Guid userId, DateTime today, CancellationToken cancellationToken)
+        Guid userId, DateTime today, string? timezone, CancellationToken cancellationToken)
     {
         var dayNames = new[] { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" };
 
@@ -140,7 +158,7 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
 
             try
             {
-                var dayActivity = await _reportRepository.GetDailyActivityAggregateAsync(userId, date, cancellationToken);
+                var dayActivity = await _reportRepository.GetDailyActivityAggregateAsync(userId, date, timezone, cancellationToken);
                 var filteredSeconds = dayActivity.Apps
                     .Where(a => !_internalApps.Contains(a.ProcessName))
                     .Sum(a => a.TotalSeconds);

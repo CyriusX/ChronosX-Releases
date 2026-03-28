@@ -10,7 +10,7 @@ namespace TimeTrack.Backend.Application.Auth.Commands;
 /// <summary>
 /// Command para obter status da equipe com tempo trabalhado
 /// </summary>
-public sealed record GetTeamStatusCommand(Guid OrgId) : IRequest<TeamStatusResponse>;
+public sealed record GetTeamStatusCommand(Guid OrgId, string? Timezone = null) : IRequest<TeamStatusResponse>;
 
 public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusCommand, TeamStatusResponse>
 {
@@ -31,6 +31,28 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
         _logger = logger;
     }
 
+    private static (DateTime UtcStart, DateTime UtcEnd) GetTodayUtcBoundaries(string? timezone)
+    {
+        if (!string.IsNullOrEmpty(timezone))
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById(timezone);
+                var nowInTz = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+                var localToday = nowInTz.Date;
+                var localTomorrow = localToday.AddDays(1);
+                var utcStart = TimeZoneInfo.ConvertTimeToUtc(
+                    DateTime.SpecifyKind(localToday, DateTimeKind.Unspecified), tz);
+                var utcEnd = TimeZoneInfo.ConvertTimeToUtc(
+                    DateTime.SpecifyKind(localTomorrow, DateTimeKind.Unspecified), tz);
+                return (utcStart, utcEnd);
+            }
+            catch { /* fall through to UTC */ }
+        }
+        var today = DateTime.UtcNow.Date;
+        return (today, today.AddDays(1));
+    }
+
     public async Task<TeamStatusResponse> Handle(GetTeamStatusCommand request, CancellationToken cancellationToken)
     {
         // Verify user belongs to the org
@@ -39,9 +61,8 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
             throw new ForbiddenException("Access denied to this organization");
         }
 
-        // Get today's date range in UTC (start of today to end of today)
-        var today = DateTime.UtcNow.Date;
-        var tomorrow = today.AddDays(1);
+        // Get today's date range using caller's timezone for correct day boundaries
+        var (today, tomorrow) = GetTodayUtcBoundaries(request.Timezone);
 
         _logger.LogDebug("GetTeamStatus: Today={Today}, Tomorrow={Tomorrow}", today, tomorrow);
 
