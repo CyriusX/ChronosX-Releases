@@ -118,7 +118,6 @@ export default function Activities() {
 function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivitiesData>['summary'] }) {
   const totalSeconds = summary?.totalDuration ?? 0;
   const idleSeconds = summary?.idleTime ?? 0;
-  const sessionsCount = summary?.sessionsCount ?? 0;
 
   // Focus Score = average from Pomodoro/Ultradian focus sessions (timer store)
   const timerSessions = useTimerStore(selectCurrentUserSessions);
@@ -264,10 +263,6 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
           </CardHeader>
           <CardContent className="pt-4 pb-3 px-4">
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Sessoes</span>
-                <span className="text-[16px] font-bold text-[#f5f7fb]">{sessionsCount}</span>
-              </div>
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo produtivo</span>
                 <span className="text-[16px] font-bold text-[#4ade80]">{formatDuration(productiveSecs)}</span>
