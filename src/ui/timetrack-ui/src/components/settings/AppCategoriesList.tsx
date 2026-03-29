@@ -66,7 +66,7 @@ export function AppCategoriesList({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Buscar app ou site..."
-            className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg pl-10 pr-4 py-2.5 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#4ad9ff]"
+            className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg pl-10 pr-4 py-2.5 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#8B5CF6]"
           />
         </div>
 
@@ -76,7 +76,7 @@ export function AppCategoriesList({
           <select
             value={activeFilter}
             onChange={(e) => onFilterChange(e.target.value as AppCategoryFilter)}
-            className="bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[#4ad9ff]"
+            className="bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[#8B5CF6]"
           >
             {FILTER_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -105,7 +105,7 @@ export function AppCategoriesList({
           </span>
           <button
             onClick={() => onFilterChange('unknown')}
-            className="text-[11px] text-[#4ad9ff] hover:underline"
+            className="text-[11px] text-[#8B5CF6] hover:underline"
           >
             Filtrar
           </button>
@@ -134,7 +134,7 @@ export function AppCategoriesList({
         {isLoading && (
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
               <span className="text-[13px] text-[rgba(245,247,251,0.5)]">Carregando...</span>
             </div>
           </div>
@@ -145,7 +145,7 @@ export function AppCategoriesList({
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <p className="text-[14px] text-[#ff6b6b]">{error}</p>
-              <button className="mt-2 text-[12px] text-[#4ad9ff] hover:underline">
+              <button className="mt-2 text-[12px] text-[#8B5CF6] hover:underline">
                 Tentar novamente
               </button>
             </div>
@@ -162,7 +162,7 @@ export function AppCategoriesList({
               {searchQuery && (
                 <button
                   onClick={() => onSearchChange('')}
-                  className="mt-2 text-[12px] text-[#4ad9ff] hover:underline"
+                  className="mt-2 text-[12px] text-[#8B5CF6] hover:underline"
                 >
                   Limpar busca
                 </button>
@@ -245,7 +245,7 @@ function AppCategoryRow({ app, onEdit, onDelete }: AppCategoryRowProps) {
       {/* Source */}
       <div className="col-span-2">
         {isOverride ? (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-[rgba(74,217,255,0.15)] text-[#4ad9ff] border border-[rgba(74,217,255,0.3)]">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-[rgba(139,92,246,0.15)] text-[#8B5CF6] border border-[rgba(139,92,246,0.3)]">
             ✏️ Override
           </span>
         ) : (

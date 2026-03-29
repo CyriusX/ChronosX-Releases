@@ -41,8 +41,30 @@ public sealed class DailyActivitiesQueryHandler : IRequestHandler<DailyActivitie
 
         _authorizationService.EnsureCanAccessUserData(targetUserId);
 
-        var startOfDay = DateTime.SpecifyKind(request.Date.Date, DateTimeKind.Utc);
-        var endOfDay = DateTime.SpecifyKind(startOfDay.AddDays(1), DateTimeKind.Utc);
+        // Compute UTC boundaries from the user's timezone so "March 28" in São Paulo
+        // correctly spans 03:00 UTC to 03:00 UTC next day (not UTC midnight to midnight)
+        DateTime startOfDay, endOfDay;
+        if (!string.IsNullOrEmpty(request.Timezone))
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById(request.Timezone);
+                var localStart = new DateTime(request.Date.Year, request.Date.Month, request.Date.Day, 0, 0, 0, DateTimeKind.Unspecified);
+                var localEnd = localStart.AddDays(1);
+                startOfDay = TimeZoneInfo.ConvertTimeToUtc(localStart, tz);
+                endOfDay = TimeZoneInfo.ConvertTimeToUtc(localEnd, tz);
+            }
+            catch
+            {
+                startOfDay = DateTime.SpecifyKind(request.Date.Date, DateTimeKind.Utc);
+                endOfDay = startOfDay.AddDays(1);
+            }
+        }
+        else
+        {
+            startOfDay = DateTime.SpecifyKind(request.Date.Date, DateTimeKind.Utc);
+            endOfDay = startOfDay.AddDays(1);
+        }
 
         var sessions = await _sessionRepository.GetByUserIdAndDateRangeAsync(
             targetUserId, startOfDay, endOfDay, cancellationToken);
@@ -59,7 +81,7 @@ public sealed class DailyActivitiesQueryHandler : IRequestHandler<DailyActivitie
                 AppCategory = ResolveCategory(s.ProcessName, s.AppCategory, overrideLookup),
                 StartedAt = s.StartedAt,
                 EndedAt = s.EndedAt,
-                DurationSeconds = s.DurationSeconds,
+                DurationSeconds = (int)(s.EndedAt - s.StartedAt).TotalSeconds,
             })
             .ToList();
 

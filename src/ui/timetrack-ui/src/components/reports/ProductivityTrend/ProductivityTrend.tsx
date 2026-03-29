@@ -69,7 +69,7 @@ function TrendBar({ period, productive, neutral, distraction, idle, maxSeconds }
         )}
         {neutral > 0 && (
           <motion.div
-            className="h-full bg-[rgba(74,217,255,0.6)]"
+            className="h-full bg-[rgba(139,92,246,0.6)]"
             initial={{ width: 0 }}
             animate={{ width: `${neutralWidth}%` }}
             transition={{ duration: 0.6, ease: 'easeOut', delay: 0.1 }}
@@ -151,7 +151,7 @@ export function ProductivityTrend({
         </CardHeader>
         <CardContent className="pt-2 pb-3 px-4">
           <div className="flex items-center justify-center h-[200px]">
-            <div className="w-6 h-6 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
           </div>
         </CardContent>
       </Card>
@@ -172,7 +172,7 @@ export function ProductivityTrend({
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-sm bg-[rgba(74,217,255,0.6)]" />
+                <div className="w-2 h-2 rounded-sm bg-[rgba(139,92,246,0.6)]" />
                 <span className="text-[9px] text-[rgba(245,247,251,0.4)]">
                   {Math.round(summary.neutralPercent)}%
                 </span>

@@ -442,7 +442,12 @@ public sealed class SyncWorker : BackgroundService
 
         try
         {
-            var todayStart = DateTime.UtcNow.Date;
+            // Use LOCAL machine time so that "today" aligns with the user's timezone.
+            // Previously used DateTime.UtcNow.Date which caused sessions from today (in the
+            // user's timezone) to be deleted when UTC date rolls over before local date.
+            // E.g., in UTC-3 (São Paulo), UTC midnight is 21:00 local — sessions from
+            // 21:00-23:59 local would be purged as "yesterday" in UTC.
+            var todayStart = DateTime.Today.ToUniversalTime();
 
             // 1. Remove sent outbox items older than 24h
             var outboxRemoved = await _outboxRepository.RemoveSentOlderThanAsync(

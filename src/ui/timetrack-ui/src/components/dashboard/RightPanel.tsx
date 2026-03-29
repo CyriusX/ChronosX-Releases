@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Users } from 'lucide-react';
-import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import { ChevronDown, Users, MoreVertical } from 'lucide-react';
+import { LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { AppIcon } from './shared';
 import { useTeamStatus } from '../../hooks/useTeamStatus';
+import { useAuthStore } from '../../stores/authStore';
 import { formatDuration } from '../../lib/utils';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../../types/ipc';
 import { fadeUp, staggerContainer, STAGGER, SPRING } from '../../lib/animation';
+import { cardBase as sharedCardBase, getMemberGradient } from './shared/styles';
 
 interface RightPanelProps {
   summary: TodaySummaryResponse | null;
@@ -17,23 +19,10 @@ interface RightPanelProps {
   onMemberSelect?: (memberId: string | null) => void;
 }
 
-const MEMBER_GRADIENTS = [
-  'from-[#ff8904] to-[#f6339a]',
-  'from-[#51a2ff] to-[#00b8db]',
-  'from-[#c27aff] to-[#f6339a]',
-  'from-[#05df72] to-[#00bba7]',
-  'from-[#fdc700] to-[#ff6900]',
-];
-
-function getMemberGradient(name: string): string {
-  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return MEMBER_GRADIENTS[hash % MEMBER_GRADIENTS.length];
-}
-
 function getGradientColors(gradientClass: string): [string, string] {
   const fromMatch = gradientClass.match(/from-\[([^\]]+)\]/);
   const toMatch = gradientClass.match(/to-\[([^\]]+)\]/);
-  return [fromMatch?.[1] ?? '#4ad9ff', toMatch?.[1] ?? '#3c7bff'];
+  return [fromMatch?.[1] ?? '#8B5CF6', toMatch?.[1] ?? '#6D28D9'];
 }
 
 const productivityColors: Record<string, string> = {
@@ -42,20 +31,22 @@ const productivityColors: Record<string, string> = {
   distraction: '#f87171',
 };
 
-const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden";
+const cardBase = sharedCardBase + " overflow-hidden";
 
 export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selectedMemberId, onMemberSelect }: RightPanelProps) {
   const { members, isLoading, loadTeamStatus } = useTeamStatus();
+  const currentUser = useAuthStore((state) => state.user);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
 
   useEffect(() => {
     if (showTeamCard) loadTeamStatus();
   }, [showTeamCard, loadTeamStatus]);
 
   const activeMembers = useMemo(() => {
-    return members.filter((m) => m.status === 'Active');
-  }, [members]);
+    return members.filter((m) => m.status === 'Active'); // TODO: restore currentUser filter: && m.userId !== currentUser?.id
+  }, [members, currentUser?.id]);
 
   const selectedMember = useMemo(() => {
     return activeMembers.find((m) => m.userId === selectedMemberId) ?? null;
@@ -155,7 +146,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                     <div className="rounded-lg bg-[rgba(0,0,0,0.25)] border border-[rgba(255,255,255,0.06)] max-h-[240px] overflow-y-auto">
                       {isLoading ? (
                         <div className="flex items-center justify-center gap-2 py-3">
-                          <div className="w-4 h-4 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+                          <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
                           <span className="text-[11px] text-[rgba(245,247,251,0.4)]">Carregando...</span>
                         </div>
                       ) : activeMembers.length > 0 ? (
@@ -176,7 +167,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                                   onMemberSelect?.(member.userId);
                                   setDropdownOpen(false);
                                 }}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[rgba(255,255,255,0.06)] transition-colors first:rounded-t-lg last:rounded-b-lg ${isSelected ? 'bg-[rgba(74,217,255,0.08)] border-l-2 border-l-[#4ad9ff]' : ''}`}
+                                className={`w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[rgba(255,255,255,0.06)] transition-colors first:rounded-t-lg last:rounded-b-lg ${isSelected ? 'bg-[rgba(139,92,246,0.08)] border-l-2 border-l-[#8B5CF6]' : ''}`}
                               >
                                 <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0`}>
                                   <span className="text-[10px] font-semibold text-white">
@@ -184,7 +175,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                                   </span>
                                 </div>
                                 <div className="flex-1 min-w-0 text-left">
-                                  <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#4ad9ff]' : 'text-[rgba(245,247,251,0.9)]'}`}>
+                                  <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.9)]'}`}>
                                     {member.displayName}
                                   </p>
                                   <p className="text-[9px] text-[rgba(245,247,251,0.4)]">
@@ -215,19 +206,50 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
         </Card>
       )}
 
-      {/* Atividade semanal */}
+      {/* Minha Produtividade */}
       {(!showTeamCard || selectedMemberId) && <Card className={cardBase}>
         <CardHeader className="pb-0 pt-3 px-4">
           <CardTitle className="flex items-center justify-between">
-            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Atividade semanal</span>
-            <span className="text-[11px] text-[rgba(245,247,251,0.4)]">{Math.floor(weeklyTotal)}h {Math.round((weeklyTotal % 1) * 60)}m total</span>
+            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Minha Produtividade</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-[rgba(245,247,251,0.4)]">{Math.floor(weeklyTotal)}h {Math.round((weeklyTotal % 1) * 60)}m</span>
+              <span className="text-[9px] text-[rgba(245,247,251,0.25)]">Semana</span>
+              <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)] ml-1" />
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-2 pb-3 px-4">
+          {/* Project filter tabs */}
+          <div className="flex items-center gap-1 mb-2 overflow-x-auto">
+            <button
+              onClick={() => setProjectFilter(null)}
+              className={`px-2 py-0.5 rounded-md text-[9px] font-medium transition-all flex-shrink-0 ${
+                !projectFilter
+                  ? 'bg-[rgba(139,92,246,0.12)] text-[#8B5CF6]'
+                  : 'text-[rgba(245,247,251,0.35)] hover:text-[rgba(245,247,251,0.6)]'
+              }`}
+            >
+              Todos
+            </button>
+            {(summary?.topProjects ?? []).slice(0, 3).map((proj) => (
+              <button
+                key={proj.name}
+                onClick={() => setProjectFilter(proj.name)}
+                className={`px-2 py-0.5 rounded-md text-[9px] font-medium transition-all flex-shrink-0 ${
+                  projectFilter === proj.name
+                    ? 'bg-[rgba(139,92,246,0.12)] text-[#8B5CF6]'
+                    : 'text-[rgba(245,247,251,0.35)] hover:text-[rgba(245,247,251,0.6)]'
+                }`}
+              >
+                {proj.name}
+              </button>
+            ))}
+          </div>
+
           {weeklyTotal > 0 ? (
             <div className="h-[120px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyHistory} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                <LineChart data={weeklyHistory} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
                   <XAxis
                     dataKey="dayName"
                     axisLine={false}
@@ -235,7 +257,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                     tick={{ fontSize: 9, fill: 'rgba(245,247,251,0.3)' }}
                   />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#1a1d2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
+                    contentStyle={{ backgroundColor: 'rgba(18,21,33,0.95)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '16px', fontSize: '11px', backdropFilter: 'blur(20px)' }}
                     formatter={(value) => {
                       const totalMinutes = Math.round(Number(value) * 60);
                       const h = Math.floor(totalMinutes / 60);
@@ -243,44 +265,71 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                       return [h > 0 ? `${h}h ${m}m` : `${m}m`, 'Tempo'];
                     }}
                   />
-                  <Bar dataKey="hours" fill="#4ad9ff" radius={[3, 3, 0, 0]} maxBarSize={20} animationDuration={800} animationEasing="ease-out" />
-                </BarChart>
+                  <Line
+                    type="monotone"
+                    dataKey="hours"
+                    stroke="#8B5CF6"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: '#8B5CF6', stroke: 'rgb(10,12,18)', strokeWidth: 2 }}
+                    activeDot={{ r: 5, fill: '#8B5CF6', stroke: 'rgb(10,12,18)', strokeWidth: 2 }}
+                    animationDuration={800}
+                    animationEasing="ease-out"
+                  />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-6">No data yet</p>
+            <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-6">Sem dados ainda</p>
           )}
 
           {/* Apps mais usados */}
           <div className="border-t border-[rgba(255,255,255,0.04)] pt-2.5 mt-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[12px] font-medium text-[rgba(245,247,251,0.9)]">Apps mais usados</span>
+              <MoreVertical className="w-3 h-3 text-[rgba(245,247,251,0.2)]" />
             </div>
             <motion.div
               variants={staggerContainer(STAGGER.listItems)}
               initial="hidden"
               animate="visible"
-              className="space-y-2"
+              className="space-y-2.5"
             >
               {topApps.length > 0 ? (
-                topApps.map((app) => (
-                  <motion.div key={app.label} variants={fadeUp} className="flex items-center gap-2 min-w-0">
-                    <AppIcon name={app.label} size={14} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-[rgba(245,247,251,0.9)] truncate">{app.label}</p>
-                      <div className="flex items-center gap-1.5">
-                        <div
-                          className="w-[5px] h-[5px] rounded-full flex-shrink-0"
-                          style={{ backgroundColor: app.color, boxShadow: `0px 0px 3px 0px ${app.color}` }}
-                        />
-                        <span className="text-[9px] text-[rgba(245,247,251,0.4)]">{app.subtext}</span>
+                topApps.map((app) => {
+                  // Calculate bar width relative to max app
+                  const maxDuration = topApps[0] ? parseFloat(topApps[0].subtext) : 1;
+                  const currentPct = parseFloat(app.subtext) || 0;
+                  const barWidth = maxDuration > 0 ? (currentPct / maxDuration) * 100 : 0;
+
+                  return (
+                    <motion.div key={app.label} variants={fadeUp} className="relative">
+                      {/* Background usage bar */}
+                      <div
+                        className="absolute inset-0 rounded-md opacity-[0.06]"
+                        style={{
+                          width: `${barWidth}%`,
+                          backgroundColor: app.color,
+                        }}
+                      />
+                      <div className="relative flex items-center gap-2 min-w-0 py-0.5">
+                        <AppIcon name={app.label} size={16} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-medium text-[rgba(245,247,251,0.9)] truncate">{app.label}</p>
+                          <div className="flex items-center gap-1.5">
+                            <div
+                              className="w-[5px] h-[5px] rounded-full flex-shrink-0"
+                              style={{ backgroundColor: app.color, boxShadow: `0px 0px 3px 0px ${app.color}` }}
+                            />
+                            <span className="text-[9px] text-[rgba(245,247,251,0.4)]">{app.subtext}</span>
+                          </div>
+                        </div>
+                        <span className="text-[11px] text-[rgba(245,247,251,0.5)] flex-shrink-0 font-medium">{app.time}</span>
                       </div>
-                    </div>
-                    <span className="text-[11px] text-[rgba(245,247,251,0.4)] flex-shrink-0">{app.time}</span>
-                  </motion.div>
-                ))
+                    </motion.div>
+                  );
+                })
               ) : (
-                <p className="text-[10px] text-[rgba(245,247,251,0.4)] text-center py-1">No data yet</p>
+                <p className="text-[10px] text-[rgba(245,247,251,0.4)] text-center py-1">Sem dados ainda</p>
               )}
             </motion.div>
           </div>

@@ -169,7 +169,7 @@ export function ActivityHeatmap({
         </CardHeader>
         <CardContent className="pt-2 pb-3 px-4">
           <div className="flex items-center justify-center h-[120px]">
-            <div className="w-6 h-6 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
           </div>
         </CardContent>
       </Card>

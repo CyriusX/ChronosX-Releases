@@ -102,8 +102,8 @@ export function AddAppCategoryModal({
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.06)]">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[rgba(74,217,255,0.15)] flex items-center justify-center">
-              <Plus className="w-4 h-4 text-[#4ad9ff]" />
+            <div className="w-8 h-8 rounded-lg bg-[rgba(139,92,246,0.15)] flex items-center justify-center">
+              <Plus className="w-4 h-4 text-[#8B5CF6]" />
             </div>
             <h2 className="text-[16px] font-semibold text-[#f5f7fb]">
               Adicionar classificação
@@ -129,7 +129,7 @@ export function AddAppCategoryModal({
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder="ex: meuapp.exe ou meusite.com.br"
-              className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2.5 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#4ad9ff]"
+              className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2.5 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#8B5CF6]"
             />
           </div>
 
@@ -143,7 +143,7 @@ export function AddAppCategoryModal({
                 onClick={() => setIdentifierType('exe')}
                 className={`px-3 py-2 rounded-lg text-[12px] font-medium transition-all ${
                   identifierType === 'exe'
-                    ? 'bg-[rgba(74,217,255,0.15)] text-[#f5f7fb] border border-[rgba(74,217,255,0.3)]'
+                    ? 'bg-[rgba(139,92,246,0.15)] text-[#f5f7fb] border border-[rgba(139,92,246,0.3)]'
                     : 'bg-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.5)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)]'
                 }`}
               >
@@ -153,7 +153,7 @@ export function AddAppCategoryModal({
                 onClick={() => setIdentifierType('domain')}
                 className={`px-3 py-2 rounded-lg text-[12px] font-medium transition-all ${
                   identifierType === 'domain'
-                    ? 'bg-[rgba(74,217,255,0.15)] text-[#f5f7fb] border border-[rgba(74,217,255,0.3)]'
+                    ? 'bg-[rgba(139,92,246,0.15)] text-[#f5f7fb] border border-[rgba(139,92,246,0.3)]'
                     : 'bg-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.5)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)]'
                 }`}
               >
@@ -175,7 +175,7 @@ export function AddAppCategoryModal({
                     onClick={() => setProductivity(cat)}
                     className={`px-3 py-2.5 rounded-lg text-[12px] font-medium transition-all ${
                       productivity === cat
-                        ? 'bg-[rgba(74,217,255,0.15)] text-[#f5f7fb] border border-[rgba(74,217,255,0.3)]'
+                        ? 'bg-[rgba(139,92,246,0.15)] text-[#f5f7fb] border border-[rgba(139,92,246,0.3)]'
                         : 'bg-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.5)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)]'
                     }`}
                   >
@@ -194,7 +194,7 @@ export function AddAppCategoryModal({
             <select
               value={subcategory}
               onChange={(e) => setSubcategory(e.target.value as AppSubcategory)}
-              className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2.5 text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[#4ad9ff]"
+              className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2.5 text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[#8B5CF6]"
             >
               {availableSubcategories.map((sub) => (
                 <option key={sub} value={sub}>
@@ -214,7 +214,7 @@ export function AddAppCategoryModal({
               onChange={(e) => setNote(e.target.value)}
               placeholder="Justificativa para a classificação..."
               rows={2}
-              className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#4ad9ff] resize-none"
+              className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#8B5CF6] resize-none"
             />
           </div>
 

@@ -77,10 +77,10 @@ public static class RateLimitingExtensions
                 await context.HttpContext.Response.WriteAsJsonAsync(response, cancellationToken);
             };
 
-            // Auth policy: 5 requests per 15 minutes by IP
+            // Auth policy: 50 requests per 15 minutes by IP (relaxed for dev with web + desktop)
             options.AddFixedWindowLimiter(PolicyNames.Auth, opt =>
             {
-                opt.PermitLimit = 5;
+                opt.PermitLimit = 50;
                 opt.Window = TimeSpan.FromMinutes(15);
                 opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
                 opt.QueueLimit = 0;

@@ -50,7 +50,7 @@ public sealed class ActivitySessionRepository : IActivitySessionRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.ActivitySessions
-            .Where(a => a.UserId == userId && a.StartedAt >= startDate && a.EndedAt <= endDate)
+            .Where(a => a.UserId == userId && a.StartedAt >= startDate && a.StartedAt < endDate)
             .OrderByDescending(a => a.StartedAt)
             .ToListAsync(cancellationToken);
     }

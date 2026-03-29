@@ -43,6 +43,11 @@ public sealed class AgentSettings
     public bool EnableDiagnostics { get; set; } = false;
 
     /// <summary>
+    /// Seconds of continuous user activity (while paused) before showing resume prompt.
+    /// </summary>
+    public int ActivityResumeThresholdSeconds { get; set; } = 300;
+
+    /// <summary>
     /// Configurações de sincronização
     /// </summary>
     public SyncSettings Sync { get; set; } = new();

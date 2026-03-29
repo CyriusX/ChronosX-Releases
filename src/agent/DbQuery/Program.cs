@@ -11,7 +11,7 @@ connection.Open();
 // Cleanup mode
 if (shouldCleanup)
 {
-    var cutoffDate = DateTime.UtcNow.Date;
+    var cutoffDate = DateTime.Today.ToUniversalTime();
     Console.WriteLine($"=== CLEANUP OLD DATA (before {cutoffDate:yyyy-MM-dd}) ===");
 
     using var transaction = connection.BeginTransaction();

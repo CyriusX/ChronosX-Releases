@@ -212,12 +212,12 @@ public sealed class AuthController : ControllerBase
     [ProducesResponseType(typeof(TeamStatusResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<TeamStatusResponse>> GetTeamStatus()
+    public async Task<ActionResult<TeamStatusResponse>> GetTeamStatus([FromQuery] string? timezone = null)
     {
         var orgId = _currentUserContext.OrgId
             ?? throw new UnauthorizedAccessException("User not associated with an organization");
 
-        var result = await _mediator.Send(new GetTeamStatusCommand(orgId));
+        var result = await _mediator.Send(new GetTeamStatusCommand(orgId, timezone));
         return Ok(result);
     }
 
@@ -230,12 +230,12 @@ public sealed class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<TeamMemberSummaryResponse>> GetTeamMemberSummary(Guid userId)
+    public async Task<ActionResult<TeamMemberSummaryResponse>> GetTeamMemberSummary(Guid userId, [FromQuery] string? timezone = null)
     {
         var orgId = _currentUserContext.OrgId
             ?? throw new UnauthorizedAccessException("User not associated with an organization");
 
-        var result = await _mediator.Send(new GetTeamMemberSummaryCommand(orgId, userId));
+        var result = await _mediator.Send(new GetTeamMemberSummaryCommand(orgId, userId, timezone));
         return Ok(result);
     }
 }

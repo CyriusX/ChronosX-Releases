@@ -13,7 +13,7 @@ export function SkeletonShimmer({
 }: SkeletonShimmerProps) {
   return (
     <div
-      className={`animate-shimmer bg-gradient-to-r from-[rgba(74,217,255,0.03)] via-[rgba(74,217,255,0.08)] to-[rgba(74,217,255,0.03)] bg-[length:200%_100%] ${rounded} ${className}`}
+      className={`animate-shimmer bg-gradient-to-r from-[rgba(139,92,246,0.03)] via-[rgba(139,92,246,0.10)] to-[rgba(139,92,246,0.03)] bg-[length:200%_100%] ${rounded} ${className}`}
       style={{ width, height }}
     />
   );

@@ -9,10 +9,11 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { useIpc } from '../../hooks/useIpc';
 import { useTrackingStore } from '../../stores/trackingStore';
+import { cardBase } from './shared/styles';
 
 interface TabDetail {
   title: string;
@@ -62,12 +63,26 @@ function fmtDuration(sec: number) {
 // Module-level — survives component unmount/remount across page navigation
 let _persistedGap: { start: number; end: number | null } | null = null;
 
+type DateRange = 'today' | 'yesterday' | '7days';
+
 interface ActivitySectionProps {
   activities?: ActivityBlock[];
   selectedDate?: Date;
 }
 
-export function ActivitySection({ activities: controlledActivities, selectedDate }: ActivitySectionProps = {}) {
+export function ActivitySection({ activities: controlledActivities, selectedDate: externalSelectedDate }: ActivitySectionProps = {}) {
+  const [dateRange, setDateRange] = useState<DateRange>('today');
+
+  // Compute selectedDate from dateRange when not externally controlled
+  const selectedDate = useMemo(() => {
+    if (externalSelectedDate) return externalSelectedDate;
+    if (dateRange === 'yesterday') {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return d;
+    }
+    return undefined; // today
+  }, [dateRange, externalSelectedDate]);
   const { sendQuery, isConnected } = useIpc();
   const isTracking = useTrackingStore(s => s.isTracking);
   const isPaused = useTrackingStore(s => s.isPaused);
@@ -226,14 +241,13 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
   // Show the timeline even when only a "Tracking Stopped" live block exists
   const hasBlocks = blocks.length > 0;
 
-  const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl";
-
   return (
     <>
       <div>
         <Card className={cardBase}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="flex items-center justify-between">
+              {/* Left: Collapse + Title */}
               <button
                 onClick={() => setIsCollapsed(!isCollapsed)}
                 className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
@@ -246,9 +260,49 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                 </div>
                 <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Atividade</span>
               </button>
-              <span className="text-[10px] text-[rgba(245,247,251,0.3)] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
-                {!selectedDate || isSameDay(selectedDate, new Date()) ? 'Hoje' : selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-              </span>
+
+              {/* Right: Date tabs + nav arrows + indicators */}
+              <div className="flex items-center gap-2">
+                {/* Date filter tabs */}
+                <div className="flex items-center gap-0 bg-[rgba(255,255,255,0.03)] rounded-lg border border-[rgba(255,255,255,0.06)] p-0.5">
+                  {(['today', 'yesterday', '7days'] as DateRange[]).map((range) => {
+                    const labels: Record<DateRange, string> = { today: 'Hoje', yesterday: 'Ontem', '7days': '7 dias' };
+                    const isActive = dateRange === range;
+                    return (
+                      <button
+                        key={range}
+                        onClick={() => setDateRange(range)}
+                        className={`px-2 py-0.5 rounded-md text-[9px] font-medium transition-all ${
+                          isActive
+                            ? 'bg-[rgba(139,92,246,0.12)] text-[#8B5CF6]'
+                            : 'text-[rgba(245,247,251,0.35)] hover:text-[rgba(245,247,251,0.6)]'
+                        }`}
+                      >
+                        {labels[range]}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Nav arrows */}
+                <div className="flex items-center gap-0.5">
+                  <button className="w-5 h-5 flex items-center justify-center rounded text-[rgba(245,247,251,0.3)] hover:text-[rgba(245,247,251,0.6)] transition-colors">
+                    <ChevronLeft className="w-3 h-3" />
+                  </button>
+                  <button className="w-5 h-5 flex items-center justify-center rounded text-[rgba(245,247,251,0.3)] hover:text-[rgba(245,247,251,0.6)] transition-colors">
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {/* Metric badges */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.4)] font-mono">
+                    {blocks.filter(b => b.name !== TRACKING_STOPPED_NAME).length}
+                  </span>
+                </div>
+
+                <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
+              </div>
             </CardTitle>
           </CardHeader>
 
@@ -256,7 +310,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
             <CardContent className="pt-3 pb-3 px-4">
               {!hasBlocks ? (
                 <div className="text-center py-6">
-                  <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Nenhuma atividade registrada hoje</p>
+                  <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Nenhuma atividade registrada</p>
                 </div>
               ) : (
                 <div>
@@ -278,8 +332,6 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                     {hourLabels.slice(1, -1).map((h) => (
                       <div key={h} className="absolute top-0 bottom-0 w-px bg-[rgba(255,255,255,0.03)]" style={{ left: `${(h / TOTAL_HOURS) * 100}%` }} />
                     ))}
-
-                    {/* Activity blocks */}
                     {blocks.map((block, i) => (
                       <div
                         key={block.id || i}
@@ -297,15 +349,12 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                         onMouseLeave={handleMouseLeave}
                       />
                     ))}
-
-                    {/* Now marker */}
                     {nowPct >= 0 && (
                       <div className="absolute top-0 bottom-0 w-px bg-[rgba(245,247,251,0.4)]" style={{ left: `${nowPct}%` }}>
                         <div className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-[5px] h-[5px] rounded-full bg-[rgba(245,247,251,0.6)]" />
                       </div>
                     )}
                   </div>
-
                 </div>
               )}
             </CardContent>

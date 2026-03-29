@@ -29,7 +29,7 @@ export default function Login() {
           <motion.img
             src={logoImg}
             alt="ChronosX"
-            className="w-20 h-20 mx-auto mb-4 drop-shadow-[0_0_20px_rgba(74,217,255,0.3)]"
+            className="w-20 h-20 mx-auto mb-4 drop-shadow-[0_0_20px_rgba(139,92,246,0.3)]"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: 'spring', stiffness: SPRING.gentle.stiffness, damping: SPRING.gentle.damping, delay: 0.1 }}

@@ -13,7 +13,9 @@ public sealed record DailyActivitiesQuery(
     Guid? UserId,
 
     [Required]
-    DateTime Date
+    DateTime Date,
+
+    string? Timezone = null
 ) : IRequest<DailyActivitiesResponse>;
 
 /// <summary>

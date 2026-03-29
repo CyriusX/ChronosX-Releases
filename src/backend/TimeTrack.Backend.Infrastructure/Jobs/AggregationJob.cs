@@ -121,34 +121,26 @@ public sealed class AggregationJob : IAggregationJob
         var startOfDay = date.Date;
         var endOfDay = startOfDay.AddDays(1);
 
-        // Aggregate activity sessions
-        var sessionStats = await _context.ActivitySessions
+        // Aggregate activity sessions (compute from timestamps to avoid stale DurationSeconds)
+        var activitySessions = await _context.ActivitySessions
             .AsNoTracking()
             .IgnoreQueryFilters()
             .Where(a => a.UserId == userId && a.StartedAt >= startOfDay && a.StartedAt < endOfDay)
-            .GroupBy(a => a.UserId)
-            .Select(g => new
-            {
-                TotalActiveSeconds = g.Sum(a => a.DurationSeconds),
-                SessionCount = g.Count()
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+            .Select(a => new { a.StartedAt, a.EndedAt })
+            .ToListAsync(cancellationToken);
 
-        // Aggregate idle periods
-        var idleStats = await _context.IdlePeriods
+        var totalActiveSeconds = (int)activitySessions.Sum(a => (a.EndedAt - a.StartedAt).TotalSeconds);
+        var sessionCount = activitySessions.Count;
+
+        // Aggregate idle periods (compute from timestamps)
+        var idleSessions = await _context.IdlePeriods
             .AsNoTracking()
             .IgnoreQueryFilters()
             .Where(i => i.UserId == userId && i.StartedAt >= startOfDay && i.StartedAt < endOfDay)
-            .GroupBy(i => i.UserId)
-            .Select(g => new
-            {
-                TotalIdleSeconds = g.Sum(i => i.DurationSeconds)
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+            .Select(i => new { i.StartedAt, i.EndedAt })
+            .ToListAsync(cancellationToken);
 
-        var totalActiveSeconds = sessionStats?.TotalActiveSeconds ?? 0;
-        var sessionCount = sessionStats?.SessionCount ?? 0;
-        var totalIdleSeconds = idleStats?.TotalIdleSeconds ?? 0;
+        var totalIdleSeconds = (int)idleSessions.Sum(i => (i.EndedAt - i.StartedAt).TotalSeconds);
 
         // Upsert daily summary (idempotent operation)
         await _dailySummaryRepository.UpsertAsync(

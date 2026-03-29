@@ -3,7 +3,7 @@
  */
 
 import { motion } from 'motion/react';
-import { TrendingUp, TrendingDown, Clock, Zap } from 'lucide-react';
+import { TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import { scaleIn, staggerContainer, STAGGER } from '../../lib/animation';
 import type { TodaySummaryResponse } from '../../types/ipc';
 
@@ -23,7 +23,6 @@ export function DayInsights({
   if (!summary) return null;
 
   const isAboveAverage = comparisonText.startsWith('+');
-  const sessionsCount = summary.sessionsCount;
 
   return (
     <motion.div
@@ -60,21 +59,16 @@ export function DayInsights({
         </span>
       </motion.div>
 
-      {/* Sessions count */}
-      <motion.div
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]"
-        variants={scaleIn}
-      >
-        <Clock className="w-3.5 h-3.5 text-[#4ad9ff]" />
-        <span className="text-[11px] text-[rgba(245,247,251,0.7)]">
-          {sessionsCount} {sessionsCount === 1 ? 'sessao' : 'sessoes'}
-          {isToday && (
-            <span className="ml-1.5 text-[9px] text-[#05df72] bg-[rgba(5,223,114,0.15)] px-1.5 py-0.5 rounded-full">
-              ao vivo
-            </span>
-          )}
-        </span>
-      </motion.div>
+      {/* Live indicator */}
+      {isToday && (
+        <motion.div
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(5,223,114,0.05)] border border-[rgba(5,223,114,0.15)]"
+          variants={scaleIn}
+        >
+          <div className="w-2 h-2 rounded-full bg-[#05df72] animate-pulse" />
+          <span className="text-[11px] text-[#05df72] font-medium">Ao vivo</span>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

@@ -31,7 +31,7 @@ export function GeneralSection({ settings, onUpdate }: GeneralSectionProps) {
             onClick={() => onUpdate({ language: 'pt-BR' })}
             className={`flex-1 py-2 px-4 rounded-lg text-[13px] font-medium transition-all ${
               settings.language === 'pt-BR'
-                ? 'bg-gradient-to-r from-[#4ad9ff] to-[#3c7bff] text-white'
+                ? 'bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE] text-white'
                 : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)]'
             }`}
           >
@@ -41,7 +41,7 @@ export function GeneralSection({ settings, onUpdate }: GeneralSectionProps) {
             onClick={() => onUpdate({ language: 'en-US' })}
             className={`flex-1 py-2 px-4 rounded-lg text-[13px] font-medium transition-all ${
               settings.language === 'en-US'
-                ? 'bg-gradient-to-r from-[#4ad9ff] to-[#3c7bff] text-white'
+                ? 'bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE] text-white'
                 : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)]'
             }`}
           >

@@ -10,6 +10,7 @@ using TimeTrack.Backend.Application.Common.Security;
 using TimeTrack.Backend.Application.Common.Utilities;
 using TimeTrack.Backend.Application.Reports.DTOs;
 using TimeTrack.Backend.Application.Reports.Queries;
+using TimeTrack.Backend.Domain.Interfaces.Repositories;
 using TimeTrack.Backend.Domain.ValueObjects;
 
 namespace TimeTrack.Api.Controllers;
@@ -27,17 +28,38 @@ public sealed class ReportsController : ControllerBase
     private readonly IUserAuthorizationService _authorizationService;
     private readonly ICurrentUserContext _currentUser;
     private readonly IAuditLogService _auditLogService;
+    private readonly IUserRepository _userRepository;
 
     public ReportsController(
         ISender mediator,
         IUserAuthorizationService authorizationService,
         ICurrentUserContext currentUser,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        IUserRepository userRepository)
     {
         _mediator = mediator;
         _authorizationService = authorizationService;
         _currentUser = currentUser;
         _auditLogService = auditLogService;
+        _userRepository = userRepository;
+    }
+
+    /// <summary>
+    /// Resolves org member IDs when allTeam is true.
+    /// Returns null if allTeam is false (caller should use single userId logic).
+    /// </summary>
+    private async Task<IReadOnlyList<Guid>?> ResolveTeamUserIdsAsync(bool allTeam, CancellationToken cancellationToken)
+    {
+        if (!allTeam) return null;
+
+        var userRole = _currentUser.Role;
+        if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            return null;
+
+        var orgId = _currentUser.OrgId;
+        if (orgId == null || orgId == Guid.Empty) return null;
+        var orgMembers = await _userRepository.GetByOrgIdAsync(orgId.Value, cancellationToken);
+        return orgMembers.Select(m => m.Id).ToList();
     }
 
     /// <summary>
@@ -227,6 +249,7 @@ public sealed class ReportsController : ControllerBase
     public async Task<IActionResult> GetDailyActivities(
         [FromQuery] Guid? userId,
         [FromQuery] DateTime date,
+        [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
         var targetUserId = userId ?? _currentUser.UserId!.Value;
@@ -250,7 +273,8 @@ public sealed class ReportsController : ControllerBase
 
         var query = new DailyActivitiesQuery(
             UserId: targetUserId,
-            Date: date
+            Date: date,
+            Timezone: timezone
         );
 
         try
@@ -293,6 +317,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateTime endDate,
         [FromQuery] int limit = 10,
         [FromQuery] string? timezone = null,
+        [FromQuery] bool allTeam = false,
         CancellationToken cancellationToken = default)
     {
         // Validate date range
@@ -301,12 +326,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        // Resolve team user IDs if allTeam is requested
+        var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
+
         // Determine target userId
         var targetUserId = userId ?? _currentUser.UserId!.Value;
         var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
 
         // Validate authorization - if requesting another user's data
-        if (isAccessingOtherUserData)
+        if (isAccessingOtherUserData && teamUserIds == null)
         {
             var userRole = _currentUser.Role;
             if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
@@ -328,7 +356,8 @@ public sealed class ReportsController : ControllerBase
             StartDate: startDate,
             EndDate: endDate,
             Limit: limit,
-            Timezone: timezone
+            Timezone: timezone,
+            UserIds: teamUserIds
         );
 
         try
@@ -375,6 +404,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
         [FromQuery] string? timezone = null,
+        [FromQuery] bool allTeam = false,
         CancellationToken cancellationToken = default)
     {
         if (startDate > endDate)
@@ -382,10 +412,12 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
+
         var targetUserId = userId ?? _currentUser.UserId!.Value;
         var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
 
-        if (isAccessingOtherUserData)
+        if (isAccessingOtherUserData && teamUserIds == null)
         {
             var userRole = _currentUser.Role;
             if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
@@ -405,7 +437,8 @@ public sealed class ReportsController : ControllerBase
             UserId: targetUserId,
             StartDate: startDate,
             EndDate: endDate,
-            Timezone: timezone
+            Timezone: timezone,
+            UserIds: teamUserIds
         );
 
         try
@@ -439,6 +472,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateTime endDate,
         [FromQuery] string groupBy = "day",
         [FromQuery] string? timezone = null,
+        [FromQuery] bool allTeam = false,
         CancellationToken cancellationToken = default)
     {
         if (startDate > endDate)
@@ -452,10 +486,12 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "groupBy must be one of: day, week, month" });
         }
 
+        var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
+
         var targetUserId = userId ?? _currentUser.UserId!.Value;
         var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
 
-        if (isAccessingOtherUserData)
+        if (isAccessingOtherUserData && teamUserIds == null)
         {
             var userRole = _currentUser.Role;
             if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
@@ -476,7 +512,8 @@ public sealed class ReportsController : ControllerBase
             StartDate: startDate,
             EndDate: endDate,
             GroupBy: groupBy.ToLowerInvariant(),
-            Timezone: timezone
+            Timezone: timezone,
+            UserIds: teamUserIds
         );
 
         try
@@ -510,6 +547,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateTime endDate,
         [FromQuery] int limit = 20,
         [FromQuery] string? timezone = null,
+        [FromQuery] bool allTeam = false,
         CancellationToken cancellationToken = default)
     {
         if (startDate > endDate)
@@ -517,10 +555,12 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
+
         var targetUserId = userId ?? _currentUser.UserId!.Value;
         var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
 
-        if (isAccessingOtherUserData)
+        if (isAccessingOtherUserData && teamUserIds == null)
         {
             var userRole = _currentUser.Role;
             if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
@@ -541,7 +581,8 @@ public sealed class ReportsController : ControllerBase
             StartDate: startDate,
             EndDate: endDate,
             Limit: Math.Clamp(limit, 1, 100),
-            Timezone: timezone
+            Timezone: timezone,
+            UserIds: teamUserIds
         );
 
         try
@@ -573,6 +614,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
         [FromQuery] string? timezone = null,
+        [FromQuery] bool allTeam = false,
         CancellationToken cancellationToken = default)
     {
         if (startDate > endDate)
@@ -580,10 +622,12 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
+
         var targetUserId = userId ?? _currentUser.UserId!.Value;
         var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
 
-        if (isAccessingOtherUserData)
+        if (isAccessingOtherUserData && teamUserIds == null)
         {
             var userRole = _currentUser.Role;
             if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
@@ -603,7 +647,8 @@ public sealed class ReportsController : ControllerBase
             UserId: targetUserId,
             StartDate: startDate,
             EndDate: endDate,
-            Timezone: timezone
+            Timezone: timezone,
+            UserIds: teamUserIds
         );
 
         try
@@ -635,6 +680,7 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
         [FromQuery] string? timezone = null,
+        [FromQuery] bool allTeam = false,
         CancellationToken cancellationToken = default)
     {
         if (startDate > endDate)
@@ -642,10 +688,12 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
+
         var targetUserId = userId ?? _currentUser.UserId!.Value;
         var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
 
-        if (isAccessingOtherUserData)
+        if (isAccessingOtherUserData && teamUserIds == null)
         {
             var userRole = _currentUser.Role;
             if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
@@ -665,7 +713,8 @@ public sealed class ReportsController : ControllerBase
             UserId: targetUserId,
             StartDate: startDate,
             EndDate: endDate,
-            Timezone: timezone
+            Timezone: timezone,
+            UserIds: teamUserIds
         );
 
         try

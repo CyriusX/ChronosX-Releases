@@ -30,7 +30,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   distraction: '#f87171',
   // Subcategories
   development: '#4ade80',
-  communication: '#4ad9ff',
+  communication: '#8B5CF6',
   productivity_tools: '#c27aff',
   research: '#06b6d4',
   entertainment: '#f87171',
@@ -142,7 +142,7 @@ function CategoryLegendItem({
           {percentage.toFixed(1)}%
         </span>
         {hasSubcategories && (
-          <span className="text-[10px] text-[rgba(74,217,255,0.6)] ml-1">
+          <span className="text-[10px] text-[rgba(139,92,246,0.6)] ml-1">
             {isExpanded ? '▲' : '▼'}
           </span>
         )}
@@ -214,7 +214,7 @@ export function CategoryDonut({
         </CardHeader>
         <CardContent className="pt-2 pb-3 px-4">
           <div className="flex items-center justify-center h-[200px]">
-            <div className="w-6 h-6 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
           </div>
         </CardContent>
       </Card>
