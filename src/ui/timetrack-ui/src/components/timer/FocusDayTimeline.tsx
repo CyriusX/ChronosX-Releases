@@ -249,7 +249,7 @@ export function FocusDayTimeline({
                 (s.durationMs / DAY_MS) * TIMELINE_HEIGHT,
               );
               const isLive = s.id === -1;
-              const color = s.mode === 'ultradian' ? '#c27aff' : '#4ad9ff';
+              const color = s.mode === 'ultradian' ? '#c27aff' : '#8B5CF6';
               const label = s.name || `Foco #${s.cycle}`;
 
               return (
@@ -361,7 +361,7 @@ function SessionTooltip({
     setPos({ left, top });
   }, [anchorRect]);
 
-  const color = session.mode === 'ultradian' ? '#c27aff' : '#4ad9ff';
+  const color = session.mode === 'ultradian' ? '#c27aff' : '#8B5CF6';
   const isLive = session.id === -1;
   const isTooShort = session.productivity === -1;
   const label = session.name || `Foco #${session.cycle}`;

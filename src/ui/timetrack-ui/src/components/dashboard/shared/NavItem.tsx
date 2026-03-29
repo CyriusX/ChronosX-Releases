@@ -14,7 +14,7 @@ export function NavItem({ icon, label, active = false, onClick }: NavItemProps) 
       onClick={onClick}
       whileHover={{ x: active ? 0 : 3 }}
       transition={{ type: 'spring', stiffness: SPRING.snappy.stiffness, damping: SPRING.snappy.damping }}
-      className={`w-full flex items-center gap-3 px-3 py-[10px] rounded-[10px] transition-colors relative ${
+      className={`w-full flex items-center gap-3 px-3 py-[10px] rounded-[12px] transition-colors relative ${
         active
           ? 'text-[#f5f7fb]'
           : 'text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.7)]'
@@ -23,7 +23,7 @@ export function NavItem({ icon, label, active = false, onClick }: NavItemProps) 
       {active && (
         <motion.div
           layoutId="sidebar-active"
-          className="absolute inset-0 bg-[#1c1f2e] rounded-[10px]"
+          className="absolute inset-0 bg-[rgba(139,92,246,0.10)] border border-[rgba(139,92,246,0.15)] rounded-[12px]"
           transition={{ type: 'spring', stiffness: SPRING.snappy.stiffness, damping: SPRING.snappy.damping }}
         />
       )}

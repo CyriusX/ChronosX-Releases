@@ -59,7 +59,7 @@ export function MembersSection() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-6 h-6 animate-spin text-[#4ad9ff]" />
+        <Loader2 className="w-6 h-6 animate-spin text-[#8B5CF6]" />
       </div>
     );
   }
@@ -77,7 +77,7 @@ export function MembersSection() {
         {canInviteMembers && (
           <button
             onClick={() => setShowInviteForm(!showInviteForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#4ad9ff] to-[#3c7bff] rounded-lg text-[13px] font-medium text-white hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE] rounded-lg text-[13px] font-medium text-white hover:opacity-90 transition-opacity"
           >
             <UserPlus className="w-4 h-4" />
             Convidar

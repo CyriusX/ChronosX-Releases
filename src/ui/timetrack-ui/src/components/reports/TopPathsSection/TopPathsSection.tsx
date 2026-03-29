@@ -61,7 +61,7 @@ function PathItem({
     <motion.div
       className={`group py-2 px-3 rounded-lg cursor-pointer ${
         isExpanded
-          ? 'bg-[rgba(74,217,255,0.08)] border border-[rgba(74,217,255,0.2)]'
+          ? 'bg-[rgba(139,92,246,0.08)] border border-[rgba(139,92,246,0.2)]'
           : 'hover:bg-[rgba(255,255,255,0.02)] border border-transparent'
       }`}
       onClick={handleToggle}
@@ -76,10 +76,10 @@ function PathItem({
         </span>
         <div
           className="w-5 h-5 rounded-lg flex items-center justify-center shrink-0"
-          style={{ backgroundColor: isWebUrl ? 'rgba(74,217,255,0.15)' : 'rgba(5,223,114,0.15)' }}
+          style={{ backgroundColor: isWebUrl ? 'rgba(139,92,246,0.15)' : 'rgba(5,223,114,0.15)' }}
         >
           {isWebUrl ? (
-            <ExternalLink className="w-3 h-3 text-[rgba(74,217,255,0.8)]" />
+            <ExternalLink className="w-3 h-3 text-[rgba(139,92,246,0.8)]" />
           ) : (
             <FolderOpen className="w-3 h-3 text-[rgba(5,223,114,0.8)]" />
           )}
@@ -93,7 +93,7 @@ function PathItem({
               transition={{ duration: 0.2 }}
             >
               {/* Título principal */}
-              <div className="text-[13px] text-[#4ad9ff] font-semibold">
+              <div className="text-[13px] text-[#8B5CF6] font-semibold">
                 {title}
               </div>
               {/* Caminho/Arquivo */}
@@ -127,7 +127,7 @@ function PathItem({
             <span className="text-[10px] text-[rgba(245,247,251,0.3)]">
               via {sourceApp}
             </span>
-            <span className="text-[9px] text-[rgba(74,217,255,0.5)] opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-[9px] text-[rgba(139,92,246,0.5)] opacity-0 group-hover:opacity-100 transition-opacity">
               {isExpanded ? 'Clique para recolher' : 'Clique para expandir'}
             </span>
           </div>
@@ -140,7 +140,7 @@ function PathItem({
             transition={{ duration: 0.5, ease: 'easeOut' }}
             style={{
               background: isWebUrl
-                ? 'linear-gradient(90deg, rgba(74,217,255,0.6), rgba(74,217,255,0.3))'
+                ? 'linear-gradient(90deg, rgba(139,92,246,0.6), rgba(139,92,246,0.3))'
                 : 'linear-gradient(90deg, rgba(5,223,114,0.6), rgba(5,223,114,0.3))'
             }}
           />
@@ -189,7 +189,7 @@ export function TopPathsSection({
         </CardHeader>
         <CardContent className="pt-2 pb-3 px-4">
           <div className="flex items-center justify-center h-[200px]">
-            <div className="w-6 h-6 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
           </div>
         </CardContent>
       </Card>
@@ -231,7 +231,7 @@ export function TopPathsSection({
             {paths.length > maxItems && (
               <motion.button
                 onClick={() => setShowAll(!showAll)}
-                className="w-full mt-2 py-1 text-[10px] text-[rgba(74,217,255,0.7)] hover:text-[rgba(74,217,255,0.9)] flex items-center justify-center gap-1"
+                className="w-full mt-2 py-1 text-[10px] text-[rgba(139,92,246,0.7)] hover:text-[rgba(139,92,246,0.9)] flex items-center justify-center gap-1"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >

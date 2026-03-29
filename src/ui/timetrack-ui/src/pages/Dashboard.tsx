@@ -125,7 +125,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0b0d14] overflow-hidden">
+    <div className="flex h-screen bg-transparent overflow-hidden">
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -144,7 +144,7 @@ export default function Dashboard() {
             {isViewingMember && memberLoading && (
               <div className="flex items-center justify-center py-8">
                 <div className="flex items-center gap-3">
-                  <div className="w-4 h-4 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
                   <span className="text-[13px] text-[rgba(245,247,251,0.5)]">Carregando dados do membro...</span>
                 </div>
               </div>
@@ -158,7 +158,7 @@ export default function Dashboard() {
                   <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-1">{memberError}</p>
                   <button
                     onClick={() => selectedMemberId && fetchMemberSummary(selectedMemberId, true)}
-                    className="mt-2 px-3 py-1 text-[11px] text-[#4ad9ff] border border-[rgba(74,217,255,0.3)] rounded-md hover:bg-[rgba(74,217,255,0.1)] transition-colors"
+                    className="mt-2 px-3 py-1 text-[11px] text-[#8B5CF6] border border-[rgba(139,92,246,0.3)] rounded-md hover:bg-[rgba(139,92,246,0.1)] transition-colors"
                   >
                     Tentar novamente
                   </button>
@@ -190,6 +190,7 @@ export default function Dashboard() {
                   onPauseTracking={onPauseTracking}
                   onStopTracking={onStopTracking}
                   isTeamTab={false}
+                  weeklyHistory={weeklyHistory}
                 />
                 <ActivitySection />
                 <BottomCards summary={displaySummary} />
@@ -202,7 +203,7 @@ export default function Dashboard() {
                 {/* Last sync indicator */}
                 {memberLastSyncAt && (
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.05)]">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#4ad9ff] animate-pulse" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#8B5CF6] animate-pulse" />
                     <span className="text-[10px] text-[rgba(245,247,251,0.4)]">
                       Última sincronização: {formatSyncTime(memberLastSyncAt)}
                     </span>

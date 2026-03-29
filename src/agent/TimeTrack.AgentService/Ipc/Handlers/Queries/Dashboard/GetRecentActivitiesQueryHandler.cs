@@ -28,7 +28,9 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
     {
         "TimeTrack.DesktopHost",
         "Microsoft Edge WebView2",
-        "Microsoft® Windows® Operating System"
+        "Microsoft® Windows® Operating System",
+        "Sistema operacional Microsoft® Windows®",
+        "Tracking Stopped",
     };
 
     public GetRecentActivitiesQueryHandler(

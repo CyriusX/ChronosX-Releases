@@ -28,6 +28,7 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
     private readonly ILogger<NotificationEventHandler> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
     private bool _disposed;
+    private ActivityResumeToastForm? _activeResumeToast;
 
     public NotificationEventHandler(
         IIpcClient ipcClient,
@@ -75,6 +76,10 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
                 case "clearAllNotifications":
                     await HandleClearAllNotificationsAsync();
                     break;
+
+                case "showActivityResumePrompt":
+                    HandleActivityResumePrompt(e.Payload);
+                    break;
             }
         }
         catch (Exception ex)
@@ -116,6 +121,63 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
     {
         _logger.LogDebug("Clearing all notifications");
         await _notificationService.ClearAllAsync();
+    }
+
+    private void HandleActivityResumePrompt(JsonElement payload)
+    {
+        var countdownSeconds = 10;
+        if (payload.TryGetProperty("countdownSeconds", out var cdEl) && cdEl.ValueKind == JsonValueKind.Number)
+            countdownSeconds = cdEl.GetInt32();
+
+        _logger.LogInformation("Received activity resume prompt — showing toast with {Countdown}s countdown", countdownSeconds);
+
+        // Must show on UI thread
+        if (System.Windows.Forms.Application.OpenForms.Count > 0)
+        {
+            var mainForm = System.Windows.Forms.Application.OpenForms[0];
+            mainForm?.BeginInvoke(() => ShowActivityResumeToast(countdownSeconds));
+        }
+        else
+        {
+            _logger.LogWarning("No open forms — cannot show activity resume toast");
+        }
+    }
+
+    private void ShowActivityResumeToast(int countdownSeconds)
+    {
+        // Prevent duplicate toasts
+        if (_activeResumeToast is { Visible: true })
+        {
+            _logger.LogDebug("Activity resume toast already showing — skipping");
+            return;
+        }
+
+        var toast = new ActivityResumeToastForm(countdownSeconds);
+        _activeResumeToast = toast;
+
+        toast.PromptResult += async (_, resume) =>
+        {
+            _activeResumeToast = null;
+            try
+            {
+                if (resume)
+                {
+                    _logger.LogInformation("User accepted activity resume — sending resumeTracking command");
+                    await _ipcClient.SendCommandAsync("resumeTracking");
+                }
+                else
+                {
+                    _logger.LogInformation("User dismissed activity resume — sending dismissActivityResumePrompt command");
+                    await _ipcClient.SendCommandAsync("dismissActivityResumePrompt");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending IPC command after activity resume prompt");
+            }
+        };
+
+        toast.Show();
     }
 
     private AgentNotification? ParseNotification(JsonElement payload)

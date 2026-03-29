@@ -15,7 +15,8 @@ public sealed record DailySummaryRangeQuery(
     [Required] Guid? UserId,
     [Required] DateTime StartDate,
     [Required] DateTime EndDate,
-    string? Timezone = null
+    string? Timezone = null,
+    IReadOnlyList<Guid>? UserIds = null
 ) : IRequest<DailySummaryRangeResponse>;
 
 /// <summary>
@@ -93,7 +94,8 @@ public sealed record ProductivityTrendQuery(
     [Required] DateTime StartDate,
     [Required] DateTime EndDate,
     string GroupBy = "day",
-    string? Timezone = null
+    string? Timezone = null,
+    IReadOnlyList<Guid>? UserIds = null
 ) : IRequest<ProductivityTrendResponse>;
 
 /// <summary>
@@ -156,7 +158,8 @@ public sealed record TopPathsQuery(
     [Required] DateTime StartDate,
     [Required] DateTime EndDate,
     int Limit = 20,
-    string? Timezone = null
+    string? Timezone = null,
+    IReadOnlyList<Guid>? UserIds = null
 ) : IRequest<TopPathsResponse>;
 
 /// <summary>
@@ -224,7 +227,8 @@ public sealed record DistractionStatsQuery(
     [Required] Guid? UserId,
     [Required] DateTime StartDate,
     [Required] DateTime EndDate,
-    string? Timezone = null
+    string? Timezone = null,
+    IReadOnlyList<Guid>? UserIds = null
 ) : IRequest<DistractionStatsResponse>;
 
 /// <summary>
@@ -310,7 +314,8 @@ public sealed record CategoryDistributionQuery(
     [Required] Guid? UserId,
     [Required] DateTime StartDate,
     [Required] DateTime EndDate,
-    string? Timezone = null
+    string? Timezone = null,
+    IReadOnlyList<Guid>? UserIds = null
 ) : IRequest<CategoryDistributionResponse>;
 
 /// <summary>

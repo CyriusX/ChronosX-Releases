@@ -14,7 +14,7 @@ const getRoleIcon = (role: UserRole) => {
     case 'Admin':
       return <Crown className="w-3.5 h-3.5 text-[#f6339a]" />;
     case 'Gestor':
-      return <Shield className="w-3.5 h-3.5 text-[#4ad9ff]" />;
+      return <Shield className="w-3.5 h-3.5 text-[#8B5CF6]" />;
     default:
       return <User className="w-3.5 h-3.5 text-[rgba(245,247,251,0.5)]" />;
   }
@@ -25,7 +25,7 @@ const getRoleBadgeStyle = (role: UserRole) => {
     case 'Admin':
       return 'bg-[rgba(246,51,154,0.15)] text-[#f6339a]';
     case 'Gestor':
-      return 'bg-[rgba(74,217,255,0.15)] text-[#4ad9ff]';
+      return 'bg-[rgba(139,92,246,0.15)] text-[#8B5CF6]';
     default:
       return 'bg-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.6)]';
   }
@@ -44,7 +44,7 @@ export function MemberCard({
   return (
     <div className="flex items-center justify-between p-4 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#4ad9ff] to-[#3c7bff] flex items-center justify-center text-white text-[13px] font-medium">
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#22D3EE] flex items-center justify-center text-white text-[13px] font-medium">
           {member.displayName.charAt(0).toUpperCase()}
         </div>
         <div>
@@ -53,7 +53,7 @@ export function MemberCard({
               {member.displayName}
             </p>
             {isCurrentUser && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-[rgba(74,217,255,0.15)] text-[#4ad9ff] rounded">
+              <span className="text-[10px] px-1.5 py-0.5 bg-[rgba(139,92,246,0.15)] text-[#8B5CF6] rounded">
                 Você
               </span>
             )}

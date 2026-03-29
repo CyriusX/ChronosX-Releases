@@ -42,6 +42,7 @@ static class Program
             // Get main form from DI
             var mainForm = _host.Services.GetRequiredService<MainForm>();
             var trayIcon = _host.Services.GetRequiredService<TrayIconManager>();
+            var floatingBar = _host.Services.GetRequiredService<FloatingStatusBarManager>();
 
             // Run application
             Application.Run(mainForm);
@@ -99,5 +100,6 @@ static class Program
                 // UI Components
                 services.AddSingleton<MainForm>();
                 services.AddSingleton<TrayIconManager>();
+                services.AddSingleton<FloatingStatusBarManager>();
             });
 }

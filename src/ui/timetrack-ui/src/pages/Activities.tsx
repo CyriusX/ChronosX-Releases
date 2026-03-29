@@ -28,8 +28,7 @@ import { fadeUp, staggerContainer, STAGGER } from '../lib/animation';
 // CONSTANTS
 // ============================================================================
 
-const cardBase =
-  'bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl';
+import { cardBase } from '../components/dashboard/shared/styles';
 
 // ============================================================================
 // PAGE
@@ -50,7 +49,7 @@ export default function Activities() {
             <div className="flex items-center gap-2">
               <span className="text-[14px] font-medium text-[#f5f7fb]">Atividades</span>
               {isLoading && (
-                <div className="w-4 h-4 border-2 border-[#4ad9ff] border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
               )}
             </div>
             <DateNavigator
@@ -119,7 +118,6 @@ export default function Activities() {
 function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivitiesData>['summary'] }) {
   const totalSeconds = summary?.totalDuration ?? 0;
   const idleSeconds = summary?.idleTime ?? 0;
-  const sessionsCount = summary?.sessionsCount ?? 0;
 
   // Focus Score = average from Pomodoro/Ultradian focus sessions (timer store)
   const timerSessions = useTimerStore(selectCurrentUserSessions);
@@ -192,8 +190,8 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
                   <circle cx="50" cy="50" r="42" fill="none" stroke="url(#actGrad1)" strokeWidth="8" strokeDasharray={`${progressPercentage * 2.64} 264`} strokeLinecap="round" />
                   <defs>
                     <linearGradient id="actGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#4ad9ff" />
-                      <stop offset="100%" stopColor="#3c7bff" />
+                      <stop offset="0%" stopColor="#8B5CF6" />
+                      <stop offset="100%" stopColor="#22D3EE" />
                     </linearGradient>
                   </defs>
                 </svg>
@@ -213,12 +211,12 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
         </Card>
       </motion.div>
 
-      {/* Produtividade */}
+      {/* Foco */}
       <motion.div variants={fadeUp} className="h-full">
         <Card className={`${cardBase} h-full`}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-              Produtividade
+              Foco
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-2 pb-3 px-4">
@@ -265,10 +263,6 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
           </CardHeader>
           <CardContent className="pt-4 pb-3 px-4">
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Sessoes</span>
-                <span className="text-[16px] font-bold text-[#f5f7fb]">{sessionsCount}</span>
-              </div>
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo produtivo</span>
                 <span className="text-[16px] font-bold text-[#4ade80]">{formatDuration(productiveSecs)}</span>

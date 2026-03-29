@@ -22,7 +22,7 @@ const DialogOverlay = React.forwardRef<
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className={cn('fixed inset-0 z-50 bg-zinc-950/80', className)}
+      className={cn('fixed inset-0 z-50 bg-[rgba(6,8,14,0.85)] backdrop-blur-sm', className)}
     />
   </DialogPrimitive.Overlay>
 ));
@@ -45,7 +45,7 @@ const DialogContent = React.forwardRef<
           damping: SPRING.gentle.damping,
         }}
         className={cn(
-          'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-zinc-800 bg-zinc-900 p-6 shadow-lg sm:rounded-lg',
+          'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-[rgba(255,255,255,0.10)] bg-[linear-gradient(135deg,rgba(22,25,40,0.92),rgba(14,16,26,0.92))] backdrop-blur-[24px] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.5)] sm:rounded-[22px]',
           className
         )}
       >
@@ -84,7 +84,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('text-lg font-semibold leading-none tracking-tight text-zinc-50', className)}
+    className={cn('text-lg font-semibold leading-none tracking-tight text-[#f5f7fb]', className)}
     {...props}
   />
 ));
@@ -96,7 +96,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-sm text-zinc-400', className)}
+    className={cn('text-sm text-[rgba(245,247,251,0.5)]', className)}
     {...props}
   />
 ));

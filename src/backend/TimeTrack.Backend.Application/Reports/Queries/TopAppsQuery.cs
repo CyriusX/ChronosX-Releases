@@ -41,15 +41,24 @@ public sealed class TopAppsQueryHandler : IRequestHandler<TopAppsQuery, TopAppsR
         // Validar limite
         var limit = Math.Clamp(request.Limit, 1, 100);
 
-        // Determinar userId alvo
-        var targetUserId = request.UserId ?? _currentUser.UserId!.Value;
-
-        // Validar autorização
-        _authorizationService.EnsureCanAccessUserData(targetUserId);
+        // Determinar userId(s) alvo
+        IReadOnlyList<Guid> targetUserIds;
+        if (request.UserIds is { Count: > 0 })
+        {
+            targetUserIds = request.UserIds;
+            foreach (var uid in targetUserIds)
+                _authorizationService.EnsureCanAccessUserData(uid);
+        }
+        else
+        {
+            var targetUserId = request.UserId ?? _currentUser.UserId!.Value;
+            _authorizationService.EnsureCanAccessUserData(targetUserId);
+            targetUserIds = new[] { targetUserId };
+        }
 
         // Buscar dados com filtro de produtividade (se fornecido)
         var apps = await _reportRepository.GetTopAppsAsync(
-            targetUserId,
+            targetUserIds,
             request.StartDate,
             request.EndDate,
             limit,

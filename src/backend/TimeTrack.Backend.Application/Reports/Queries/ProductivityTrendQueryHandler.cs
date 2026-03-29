@@ -45,15 +45,24 @@ public sealed class ProductivityTrendQueryHandler : IRequestHandler<Productivity
             throw new ArgumentException("GroupBy must be 'day', 'week', or 'month'");
         }
 
-        // Determinar userId alvo
-        var targetUserId = request.UserId ?? _currentUser.UserId!.Value;
-
-        // Validar autorização
-        _authorizationService.EnsureCanAccessUserData(targetUserId);
+        // Determinar userId(s) alvo
+        IReadOnlyList<Guid> targetUserIds;
+        if (request.UserIds is { Count: > 0 })
+        {
+            targetUserIds = request.UserIds;
+            foreach (var uid in targetUserIds)
+                _authorizationService.EnsureCanAccessUserData(uid);
+        }
+        else
+        {
+            var targetUserId = request.UserId ?? _currentUser.UserId!.Value;
+            _authorizationService.EnsureCanAccessUserData(targetUserId);
+            targetUserIds = new[] { targetUserId };
+        }
 
         // Buscar dados
         var trendItems = await _reportRepository.GetProductivityTrendAsync(
-            targetUserId,
+            targetUserIds,
             request.StartDate,
             request.EndDate,
             groupBy,

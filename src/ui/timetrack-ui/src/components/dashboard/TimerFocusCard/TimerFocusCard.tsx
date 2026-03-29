@@ -1,23 +1,26 @@
 /**
- * TimerFocusCard — Dashboard Pomodoro / Ultradian Timer card
+ * TimerFocusCard — Dashboard Timer status card (premium redesign)
  *
- * Compact timer that shares state with the full Timer page via timerStore.
- * Starting/stopping/pausing here is reflected on the Timer page and vice versa.
+ * Shows timer status, project, tags, and controls in a clean status card layout.
+ * PomodoroRing and UltradianWave are preserved for the full Timer page.
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { Play, Pause, Square, SkipForward, ChevronDown, Focus, Activity, Coffee } from 'lucide-react';
+import { Play, Pause, Square, ChevronDown, MoreVertical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
+import { TagPill } from '../shared/TagPill';
 import { useIpc } from '../../../hooks/useIpc';
-import { useTimerStore, getUserTimerConfig, type TimerPhase } from '../../../stores/timerStore';
+import { useTimerStore, type TimerPhase } from '../../../stores/timerStore';
 import type { TodaySummaryResponse } from '../../../types/ipc';
+import { cardBase } from '../shared/styles';
 
 interface TimerFocusCardProps {
   summary?: TodaySummaryResponse | null;
   [key: string]: unknown;
 }
 
-const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl";
+// Predefined tag colors
+const TAG_COLORS = ['#8B5CF6', '#22D3EE', '#3B82F6', '#F59E0B', '#10B981', '#EC4899'];
 
 export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
   const { sendQuery } = useIpc();
@@ -26,25 +29,22 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
   const mode = useTimerStore(s => s.mode);
   const phase = useTimerStore(s => s.phase);
   const remainingMs = useTimerStore(s => s.remainingMs);
-  const totalMs = useTimerStore(s => s.totalMs);
-  const cycle = useTimerStore(s => s.cycle);
   const isPaused = useTimerStore(s => s.isPaused);
-  const ultradianWaves = useTimerStore(s => s.ultradianWaves);
-  const sessionName = useTimerStore(s => s.sessionName);
   const selectedProject = useTimerStore(s => s.selectedProject);
 
   // --- Store actions ---
   const setMode = useTimerStore(s => s.setMode);
   const start = useTimerStore(s => s.start);
   const togglePause = useTimerStore(s => s.togglePause);
-  const skip = useTimerStore(s => s.skip);
   const stop = useTimerStore(s => s.stop);
-  const setSessionName = useTimerStore(s => s.setSessionName);
   const setSelectedProject = useTimerStore(s => s.setSelectedProject);
 
   // --- Local UI state ---
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [showTagInput, setShowTagInput] = useState(false);
 
   useEffect(() => {
     sendQuery('getProjects').then((res) => {
@@ -53,119 +53,152 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
   }, [sendQuery]);
 
   // --- Computed ---
-  const config = getUserTimerConfig(mode);
   const totalSec = Math.max(0, Math.ceil(remainingMs / 1000));
   const minutes = Math.floor(totalSec / 60);
   const seconds = totalSec % 60;
   const timeDisplay = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  const progress = totalMs > 0 ? 1 - (remainingMs / totalMs) : 0;
 
-  const phaseColor = phase === 'break' ? '#8b7aff' : mode === 'ultradian' ? '#c27aff' : '#4ad9ff';
-  const phaseGlow = phase === 'break' ? 'rgba(139,122,255,0.3)' : mode === 'ultradian' ? 'rgba(194,122,255,0.3)' : 'rgba(74,217,255,0.3)';
-  const phaseLabel = phase === 'focus' ? 'Foco' : phase === 'break' ? 'Recovery' : mode === 'pomodoro' ? 'Pomodoro' : 'Ultradian';
+  const isRunning = phase !== 'idle';
+  const statusDotColor = isRunning
+    ? isPaused ? '#fbbf24' : '#05df72'
+    : 'rgba(245,247,251,0.3)';
+  const statusLabel = isRunning
+    ? isPaused ? 'Pausado' : 'Em andamento'
+    : 'Inativo';
 
-  // Overall progress across ALL ultradian waves
-  const singleWaveMs = config.focusMs + config.shortBreakMs;
-  const allWavesMs = singleWaveMs * ultradianWaves;
-  const completedWavesMs = cycle * singleWaveMs;
-  const currentWaveElapsed = phase === 'focus'
-    ? config.focusMs * progress
-    : config.focusMs + config.shortBreakMs * progress;
-  const totalElapsed = completedWavesMs + (phase === 'idle' ? 0 : currentWaveElapsed);
-  const ultradianProgress = allWavesMs > 0 ? totalElapsed / allWavesMs : 0;
+  const selectedProjectName = selectedProject
+    ? projects.find(p => p.id === selectedProject)?.name ?? selectedProject
+    : 'Sem projeto';
+
+  const addTag = (tag: string) => {
+    const trimmed = tag.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags(prev => [...prev, trimmed]);
+    }
+    setTagInput('');
+    setShowTagInput(false);
+  };
+
+  const removeTag = (tag: string) => {
+    setTags(prev => prev.filter(t => t !== tag));
+  };
 
   return (
-    <Card className={cardBase}>
+    <Card className={`${cardBase} h-full`}>
       <CardHeader className="pb-0 pt-3 px-4">
         <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            {mode === 'pomodoro' ? <Focus className="w-3.5 h-3.5 text-[#4ad9ff]" /> : <Activity className="w-3.5 h-3.5 text-[#c27aff]" />}
-            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{phaseLabel}</span>
-            {phase !== 'idle' && (
-              <span className="text-[10px] text-[rgba(245,247,251,0.4)] ml-1">
-                {phase === 'break'
-                  ? <><Coffee className="w-3 h-3 inline -mt-0.5 mr-0.5" />Pausa</>
-                  : mode === 'pomodoro'
-                    ? <>Ciclo {cycle + 1}</>
-                    : <>Onda {cycle + 1}/{ultradianWaves}</>
-                }
-              </span>
+          <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Timer</span>
+          <div className="flex items-center gap-2">
+            {/* Mode toggle (compact) */}
+            {!isRunning && (
+              <div className="flex bg-[rgba(255,255,255,0.04)] rounded-full p-0.5 border border-[rgba(255,255,255,0.06)]">
+                <button onClick={() => setMode('pomodoro')} className={`px-2 py-0.5 rounded-full text-[8px] font-medium transition-all ${mode === 'pomodoro' ? 'bg-[#8B5CF6] text-white' : 'text-[rgba(245,247,251,0.4)]'}`}>25/5</button>
+                <button onClick={() => setMode('ultradian')} className={`px-2 py-0.5 rounded-full text-[8px] font-medium transition-all ${mode === 'ultradian' ? 'bg-[#c27aff] text-[#0b0d14]' : 'text-[rgba(245,247,251,0.4)]'}`}>90/20</button>
+              </div>
             )}
+            <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
           </div>
-          {phase === 'idle' && (
-            <div className="flex bg-[rgba(255,255,255,0.04)] rounded-full p-0.5 border border-[rgba(255,255,255,0.06)]">
-              <button onClick={() => setMode('pomodoro')} className={`px-2 py-0.5 rounded-full text-[8px] font-medium transition-all ${mode === 'pomodoro' ? 'bg-[#4ad9ff] text-[#0b0d14]' : 'text-[rgba(245,247,251,0.4)]'}`}>25/5</button>
-              <button onClick={() => setMode('ultradian')} className={`px-2 py-0.5 rounded-full text-[8px] font-medium transition-all ${mode === 'ultradian' ? 'bg-[#c27aff] text-[#0b0d14]' : 'text-[rgba(245,247,251,0.4)]'}`}>90/20</button>
-            </div>
-          )}
         </CardTitle>
       </CardHeader>
 
       <CardContent className="pt-2 pb-3 px-4">
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col gap-2.5">
 
-          {/* === POMODORO: Ring clock === */}
-          {mode === 'pomodoro' && <PomodoroRing progress={progress} phase={phase} phaseColor={phaseColor} phaseGlow={phaseGlow} timeDisplay={timeDisplay} />}
-
-          {/* === ULTRADIAN: Wave === */}
-          {mode === 'ultradian' && <UltradianWave progress={ultradianProgress} phase={phase} timeDisplay={timeDisplay} totalWaves={ultradianWaves} currentWave={cycle} />}
-
-          {/* Cycle dots (pomodoro only) */}
-          {phase !== 'idle' && mode === 'pomodoro' && (
-            <div className="flex items-center gap-1.5 mt-2">
-              {Array.from({ length: config.cyclesBeforeLong }).map((_, i) => (
-                <div key={i} className="w-2 h-2 rounded-full transition-all duration-300" style={{
-                  backgroundColor: i < cycle ? phaseColor : i === cycle && phase === 'focus' ? phaseColor : 'rgba(255,255,255,0.1)',
-                  boxShadow: i <= cycle ? `0 0 4px ${phaseGlow}` : 'none',
-                  opacity: i < cycle ? 1 : i === cycle && phase === 'focus' ? 0.6 : 0.3,
-                }} />
-              ))}
-            </div>
-          )}
-
-          {/* Session name */}
-          <div className="w-full mt-2.5">
-            <input
-              type="text"
-              value={sessionName}
-              onChange={e => setSessionName(e.target.value)}
-              placeholder="Nomear sessão..."
-              className="w-full px-2.5 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-[10px] text-[rgba(245,247,251,0.7)] placeholder-[rgba(245,247,251,0.2)] focus:outline-none focus:border-[rgba(255,255,255,0.15)] transition-colors"
+          {/* Status indicator */}
+          <div className="flex items-center gap-2">
+            <div
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{
+                backgroundColor: statusDotColor,
+                boxShadow: isRunning && !isPaused ? `0 0 8px ${statusDotColor}` : 'none',
+              }}
             />
+            <span className="text-[11px] font-medium text-[rgba(245,247,251,0.7)]">{statusLabel}</span>
+            {isRunning && (
+              <span className="text-[11px] font-mono text-[rgba(245,247,251,0.5)] ml-auto">{timeDisplay}</span>
+            )}
           </div>
 
           {/* Project selector */}
-          <div className="w-full mt-1.5 relative">
-            <button onClick={() => setShowProjectDropdown(!showProjectDropdown)} className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-[10px] hover:bg-[rgba(255,255,255,0.05)] transition-colors">
-              <span className="text-[rgba(245,247,251,0.5)] truncate">{selectedProject ? projects.find(p => p.id === selectedProject)?.name ?? selectedProject : 'Sem projeto'}</span>
+          <div className="relative">
+            <label className="text-[9px] uppercase tracking-wider text-[rgba(245,247,251,0.3)] mb-1 block">Projeto</label>
+            <button
+              onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-[10px] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+            >
+              <span className="text-[rgba(245,247,251,0.7)] truncate">{selectedProjectName}</span>
               <ChevronDown className="w-3 h-3 text-[rgba(245,247,251,0.3)] flex-shrink-0" />
             </button>
             {showProjectDropdown && (
-              <div className="absolute bottom-full left-0 right-0 mb-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-lg overflow-hidden z-10 shadow-xl max-h-[120px] overflow-y-auto">
-                <button onClick={() => { setSelectedProject(''); setShowProjectDropdown(false); }} className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors ${!selectedProject ? 'text-[#c27aff]' : 'text-[rgba(245,247,251,0.6)]'}`}>Sem projeto</button>
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-lg overflow-hidden z-10 shadow-xl max-h-[120px] overflow-y-auto">
+                <button onClick={() => { setSelectedProject(''); setShowProjectDropdown(false); }} className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors ${!selectedProject ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>Sem projeto</button>
                 {projects.map((p) => (
-                  <button key={p.id} onClick={() => { setSelectedProject(p.id); setShowProjectDropdown(false); }} className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors truncate ${selectedProject === p.id ? 'text-[#c27aff]' : 'text-[rgba(245,247,251,0.6)]'}`}>{p.name}</button>
+                  <button key={p.id} onClick={() => { setSelectedProject(p.id); setShowProjectDropdown(false); }} className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors truncate ${selectedProject === p.id ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>{p.name}</button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Controls */}
-          <div className="flex gap-2 mt-2.5 w-full">
+          {/* Tags */}
+          <div>
+            <label className="text-[9px] uppercase tracking-wider text-[rgba(245,247,251,0.3)] mb-1 block">Tags</label>
+            <div className="flex flex-wrap gap-1.5 items-center">
+              {tags.map((tag, i) => (
+                <TagPill
+                  key={tag}
+                  label={tag}
+                  color={TAG_COLORS[i % TAG_COLORS.length]}
+                  size="sm"
+                  onRemove={() => removeTag(tag)}
+                />
+              ))}
+              {showTagInput ? (
+                <input
+                  autoFocus
+                  value={tagInput}
+                  onChange={e => setTagInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') addTag(tagInput);
+                    if (e.key === 'Escape') { setShowTagInput(false); setTagInput(''); }
+                  }}
+                  onBlur={() => { if (tagInput) addTag(tagInput); else setShowTagInput(false); }}
+                  placeholder="Tag..."
+                  className="px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-[9px] text-[rgba(245,247,251,0.7)] placeholder-[rgba(245,247,251,0.2)] w-16 focus:outline-none focus:border-[rgba(139,92,246,0.3)]"
+                />
+              ) : (
+                <button
+                  onClick={() => setShowTagInput(true)}
+                  className="px-2 py-0.5 rounded-full border border-dashed border-[rgba(255,255,255,0.1)] text-[9px] text-[rgba(245,247,251,0.3)] hover:text-[rgba(245,247,251,0.6)] hover:border-[rgba(255,255,255,0.2)] transition-colors"
+                >
+                  + Tag
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2 mt-1">
             {phase === 'idle' ? (
-              <button onClick={start} className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-full bg-gradient-to-b from-[#05df72] to-[#00b359] text-[11px] font-medium text-white hover:opacity-90 transition-opacity shadow-[0_3px_10px_rgba(5,223,114,0.2)]">
+              <button
+                onClick={start}
+                className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-full bg-gradient-to-r from-[#05df72] to-[#00b8db] text-[11px] font-medium text-white hover:opacity-90 transition-opacity shadow-[0_3px_12px_rgba(5,223,114,0.25)]"
+              >
                 <Play className="w-3.5 h-3.5" /> Iniciar
               </button>
             ) : (
               <>
-                <button onClick={togglePause} className="flex items-center justify-center gap-1 flex-1 py-2 rounded-full bg-gradient-to-b from-[#4ad9ff] to-[#3c7bff] text-[11px] font-medium text-white hover:opacity-90 transition-opacity">
-                  {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />} {isPaused ? 'Retomar' : 'Pausar'}
+                <button
+                  onClick={togglePause}
+                  className="flex items-center justify-center gap-1 flex-1 py-2 rounded-full bg-gradient-to-r from-[#05df72] to-[#00b8db] text-[11px] font-medium text-white hover:opacity-90 transition-opacity shadow-[0_3px_12px_rgba(5,223,114,0.2)]"
+                >
+                  {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                  {isPaused ? 'Retomar' : 'Pausar'}
                 </button>
-                <button onClick={skip} className="flex items-center justify-center py-2 px-3 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.08)] transition-colors" title="Pular fase">
-                  <SkipForward className="w-3 h-3" />
-                </button>
-                <button onClick={stop} className="flex items-center justify-center py-2 px-3 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.08)] transition-colors" title="Parar">
-                  <Square className="w-3 h-3" />
+                <button
+                  onClick={stop}
+                  className="flex items-center justify-center gap-1 px-4 py-2 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[11px] font-medium text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                >
+                  <Square className="w-3 h-3" /> Finalizar
                 </button>
               </>
             )}
@@ -177,10 +210,10 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
 }
 
 // ============================================================================
-// POMODORO RING — animated clock with tick marks
+// POMODORO RING — animated clock with tick marks (used by Timer page)
 // ============================================================================
 
-function PomodoroRing({ progress, phase, phaseColor, phaseGlow, timeDisplay }: {
+export function PomodoroRing({ progress, phase, phaseColor, phaseGlow, timeDisplay }: {
   progress: number; phase: TimerPhase; phaseColor: string; phaseGlow: string; timeDisplay: string;
 }) {
   const size = 110;
@@ -225,10 +258,10 @@ function PomodoroRing({ progress, phase, phaseColor, phaseGlow, timeDisplay }: {
 }
 
 // ============================================================================
-// ULTRADIAN WAVE — sine wave showing focus peak → recovery trough
+// ULTRADIAN WAVE — sine wave showing focus peak → recovery trough (used by Timer page)
 // ============================================================================
 
-function UltradianWave({ progress, phase, timeDisplay, totalWaves, currentWave }: {
+export function UltradianWave({ progress, phase, timeDisplay, totalWaves, currentWave }: {
   progress: number; phase: TimerPhase; timeDisplay: string; totalWaves: number; currentWave: number;
 }) {
   const w = 220;
@@ -301,7 +334,6 @@ function UltradianWave({ progress, phase, timeDisplay, totalWaves, currentWave }
 
   return (
     <div className="w-full flex flex-col items-center">
-      {/* Timer display */}
       <div className="mb-1 text-center">
         <span className="text-[22px] font-bold font-mono tracking-wider" style={{ color: isIdle ? 'rgba(245,247,251,0.5)' : '#f5f7fb' }}>{timeDisplay}</span>
         {!isIdle && (
@@ -311,7 +343,6 @@ function UltradianWave({ progress, phase, timeDisplay, totalWaves, currentWave }
         )}
       </div>
 
-      {/* Wave SVG */}
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="w-full">
         <defs>
           <linearGradient id="ultFillGrad" x1="0" y1="0" x2="0" y2="1">
@@ -355,7 +386,6 @@ function UltradianWave({ progress, phase, timeDisplay, totalWaves, currentWave }
         )}
       </svg>
 
-      {/* Wave dots indicator */}
       {totalWaves > 1 && !isIdle && (
         <div className="flex items-center gap-1.5 mt-1">
           {Array.from({ length: totalWaves }).map((_, i) => (

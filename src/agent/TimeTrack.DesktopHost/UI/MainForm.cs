@@ -35,6 +35,11 @@ public sealed class MainForm : Form
     private bool _isInitialized;
     private bool _isClosing;
 
+    /// <summary>Raised when the main window is minimized or hidden to tray.</summary>
+    public event EventHandler? WindowMinimized;
+    /// <summary>Raised when the main window is restored from minimized/tray state.</summary>
+    public event EventHandler? WindowRestored;
+
     public WebViewBridge Bridge => _bridge;
 
     public MainForm(
@@ -478,18 +483,95 @@ public sealed class MainForm : Form
 
     public void ShowWindow()
     {
-        if (WindowState == FormWindowState.Minimized)
-        {
-            WindowState = FormWindowState.Normal;
-        }
-
+        // Show the form first (makes it visible but possibly behind other windows)
         Show();
+
+        // Force normal state (must be after Show to avoid triggering OnResize while hidden)
+        if (WindowState == FormWindowState.Minimized)
+            WindowState = FormWindowState.Normal;
+
+        // Use Win32 APIs to reliably bring the window to the foreground
+        // BringToFront + Activate alone don't always work from a background context
+        SetForegroundWindow(Handle);
         BringToFront();
         Activate();
 
         // Tell the React app to refresh all dashboard data immediately.
         // This ensures data shown after a tray-restore is never stale.
         NotifyAppVisible();
+
+        WindowRestored?.Invoke(this, EventArgs.Empty);
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    /// <summary>
+    /// Reads the React timerStore state from the WebView2. Returns JSON or null.
+    /// Used by FloatingStatusBarManager to show focus session on the bar.
+    /// </summary>
+    public async Task<string?> GetTimerStateFromWebViewAsync()
+    {
+        if (_webView?.CoreWebView2 == null) return null;
+        try
+        {
+            // Read the Zustand timerStore persisted state from localStorage
+            // The store key is 'xchronus-timer-store'
+            var js = @"
+                (function() {
+                    try {
+                        var raw = localStorage.getItem('xchronus-timer-store');
+                        if (!raw) return JSON.stringify({phase:'idle'});
+                        var parsed = JSON.parse(raw);
+                        var s = parsed.state || {};
+                        return JSON.stringify({
+                            phase: s.phase || 'idle',
+                            mode: s.mode || 'pomodoro',
+                            remainingMs: s.remainingMs || 0,
+                            totalMs: s.totalMs || 0,
+                            cycle: s.cycle || 0,
+                            phaseStartedAt: s.phaseStartedAt || 0,
+                            pausedAt: s.pausedAt || 0,
+                            pausedElapsedMs: s.pausedElapsedMs || 0
+                        });
+                    } catch(e) { return JSON.stringify({phase:'idle'}); }
+                })()";
+            var result = await _webView.CoreWebView2.ExecuteScriptAsync(js);
+            // ExecuteScriptAsync returns a JSON-encoded string (wrapped in quotes)
+            if (result != null && result.StartsWith("\""))
+            {
+                // Unescape the outer JSON string encoding
+                return System.Text.Json.JsonSerializer.Deserialize<string>(result);
+            }
+            return result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Executes a focus mode action in the React timerStore via JavaScript.
+    /// Actions: 'pause', 'resume', 'stop', 'skip'
+    /// </summary>
+    public async Task ExecuteTimerActionAsync(string action)
+    {
+        if (_webView?.CoreWebView2 == null) return;
+        try
+        {
+            // Call the Zustand store actions directly
+            var js = $@"
+                (function() {{
+                    try {{
+                        var store = window.__TIMER_STORE__;
+                        if (store) {{ store.getState().{action}(); return 'ok'; }}
+                        return 'no-store';
+                    }} catch(e) {{ return e.message; }}
+                }})()";
+            await _webView.CoreWebView2.ExecuteScriptAsync(js);
+        }
+        catch { }
     }
 
     private void NotifyAppVisible()
@@ -520,6 +602,7 @@ public sealed class MainForm : Form
         if (WindowState == FormWindowState.Minimized)
         {
             Hide();
+            WindowMinimized?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -530,6 +613,7 @@ public sealed class MainForm : Form
             // Hide to tray instead of closing
             e.Cancel = true;
             Hide();
+            WindowMinimized?.Invoke(this, EventArgs.Empty);
             return;
         }
 

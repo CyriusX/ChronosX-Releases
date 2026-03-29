@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Cog, LogOut, Play, Square, Loader2 } from 'lucide-react';
+import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Cog, LogOut, Play, Square, Loader2, BellRing } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { NavItem } from './shared';
+import { SidebarMiniDash } from './shared/SidebarMiniDash';
 import { useAuthStore } from '../../stores/authStore';
 import { useTrackingStore } from '../../stores/trackingStore';
 import { useIpc } from '../../hooks/useIpc';
@@ -15,6 +16,7 @@ export function Sidebar() {
   const { logout, user } = useAuthStore();
   const isTracking = useTrackingStore(s => s.isTracking);
   const isPaused = useTrackingStore(s => s.isPaused);
+  const todaySummary = useTrackingStore(s => s.todaySummary);
   const { sendCommand } = useIpc();
   const [isBusy, setIsBusy] = useState(false);
 
@@ -45,7 +47,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-[180px] flex-shrink-0 bg-gradient-to-b from-[rgba(11,13,20,0.5)] to-[rgba(17,19,28,0.5)] border-r border-[rgba(255,255,255,0.04)] flex flex-col overflow-hidden">
+    <aside className="w-[180px] flex-shrink-0 glass-sidebar flex flex-col overflow-hidden">
       {/* Logo + Tracking LED */}
       <div className="px-4 py-5 flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -55,7 +57,7 @@ export function Sidebar() {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: 'spring', stiffness: SPRING.gentle.stiffness, damping: SPRING.gentle.damping, delay: 0.2 }}
-            className="w-8 h-8 rounded-lg shadow-[0px_6px_10px_0px_rgba(0,184,219,0.2)]"
+            className="w-8 h-8 rounded-lg shadow-[0px_6px_10px_0px_rgba(139,92,246,0.25)]"
           />
           <motion.span
             initial={{ opacity: 0, x: -8 }}
@@ -98,6 +100,15 @@ export function Sidebar() {
         <NavItem icon={<Activity className="w-[16px] h-[16px]" />} label="Atividade" active={location.pathname === '/activities'} onClick={() => navigate('/activities')} />
         <NavItem icon={<CalendarDays className="w-[16px] h-[16px]" />} label="Relatórios" active={location.pathname === '/reports'} onClick={() => navigate('/reports')} />
         <NavItem icon={<Cog className="w-[16px] h-[16px]" />} label="Configurações" active={location.pathname === '/settings'} onClick={() => navigate('/settings')} />
+
+        {/* Dev: Test resume toast */}
+        <div className="mt-auto pt-2">
+          <NavItem
+            icon={<BellRing className="w-[16px] h-[16px]" />}
+            label="Test Toast"
+            onClick={() => sendCommand('testActivityResumeToast' as never)}
+          />
+        </div>
       </nav>
 
       {/* Tracking Toggle Button — above separator & user section */}
@@ -132,30 +143,45 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* User & Logout */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.3 }}
-        className="px-3 py-3 border-t border-[rgba(255,255,255,0.04)] flex-shrink-0"
-      >
-        <div className="flex items-center gap-2 px-2 mb-2">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#4ad9ff] to-[#3c7bff] flex items-center justify-center text-white text-[11px] font-medium flex-shrink-0">
-            {user?.displayName?.charAt(0)?.toUpperCase() || '?'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-medium text-[#f5f7fb] truncate">{user?.displayName || 'Usuário'}</p>
-            <p className="text-[9px] text-[rgba(245,247,251,0.4)]">{user?.role || ''}</p>
-          </div>
+      {/* Mini Dashboard Widget */}
+      <div className="border-t border-[rgba(255,255,255,0.04)] flex-shrink-0 pt-2">
+        <SidebarMiniDash
+          userName={user?.displayName || 'Usuário'}
+          userInitial={user?.displayName?.charAt(0)?.toUpperCase() || '?'}
+          userRole={user?.role || ''}
+          totalDuration={todaySummary?.totalDuration ?? 0}
+          productiveTime={todaySummary?.productiveTime ?? 0}
+          productivityScore={(() => {
+            const total = todaySummary?.totalDuration ?? 0;
+            const prod = (todaySummary?.categories ?? [])
+              .filter(c => c.productivity === 'productive')
+              .reduce((sum, c) => sum + c.duration, 0);
+            return total > 0 ? Math.round((prod / total) * 100) : 0;
+          })()}
+          topAppName={
+            (todaySummary?.topApplications ?? []).length > 0
+              ? [...(todaySummary?.topApplications ?? [])].sort((a, b) => b.duration - a.duration)[0]?.name ?? null
+              : null
+          }
+          topAppDuration={
+            (todaySummary?.topApplications ?? []).length > 0
+              ? [...(todaySummary?.topApplications ?? [])].sort((a, b) => b.duration - a.duration)[0]?.duration ?? 0
+              : 0
+          }
+          dailyGoalSeconds={28800}
+        />
+
+        {/* Logout */}
+        <div className="px-3 pb-3">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
+          >
+            <LogOut className="w-[14px] h-[14px]" />
+            Sair
+          </button>
         </div>
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
-        >
-          <LogOut className="w-[14px] h-[14px]" />
-          Sair
-        </button>
-      </motion.div>
+      </div>
     </aside>
   );
 }

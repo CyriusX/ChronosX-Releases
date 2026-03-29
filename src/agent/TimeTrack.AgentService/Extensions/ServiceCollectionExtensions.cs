@@ -8,6 +8,7 @@ using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Infrastructure.Extensions;
 using TimeTrack.AgentService.Configuration;
 using TimeTrack.AgentService.Health;
+using TimeTrack.AgentService.Workers;
 using TimeTrack.AgentService.Ipc;
 using TimeTrack.AgentService.Ipc.Handlers;
 using TimeTrack.AgentService.Notifications;
@@ -154,6 +155,8 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<TrackingWorker>();
         services.AddHostedService<SyncWorker>();
         services.AddHostedService<FocusModeEventBroadcaster>();
+        services.AddSingleton<ActivityResumeState>();
+        services.AddHostedService<ActivityResumeDetector>();
 
         return services;
     }

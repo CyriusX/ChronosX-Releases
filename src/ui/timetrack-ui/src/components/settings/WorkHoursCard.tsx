@@ -66,8 +66,8 @@ export function WorkHoursCard({
     <PolicyCardShell
       title="Horário de Trabalho"
       icon={Clock}
-      iconColor="text-[#4ad9ff]"
-      iconBgColor="bg-[rgba(74,217,255,0.15)]"
+      iconColor="text-[#8B5CF6]"
+      iconBgColor="bg-[rgba(139,92,246,0.15)]"
       canEdit={canEdit}
       isEditing={isEditing}
       onEdit={onEdit}
@@ -84,7 +84,7 @@ export function WorkHoursCard({
                 type="time"
                 value={startTime}
                 onChange={(e) => onStartTimeChange(e.target.value)}
-                className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[#4ad9ff]"
+                className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[#8B5CF6]"
               />
             </div>
             <div className="flex-1">
@@ -93,7 +93,7 @@ export function WorkHoursCard({
                 type="time"
                 value={endTime}
                 onChange={(e) => onEndTimeChange(e.target.value)}
-                className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[#4ad9ff]"
+                className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[#8B5CF6]"
               />
             </div>
           </div>
@@ -106,7 +106,7 @@ export function WorkHoursCard({
                   onClick={() => onToggleDay(day.value)}
                   className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                     days.includes(day.value)
-                      ? 'bg-[#4ad9ff] text-[#0a0c10]'
+                      ? 'bg-[#8B5CF6] text-[#0a0c10]'
                       : 'bg-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.08)]'
                   }`}
                 >
