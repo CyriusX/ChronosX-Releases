@@ -24,6 +24,7 @@ public sealed class SyncWorker : BackgroundService
     private readonly ICurrentUserContext _userContext;
     private readonly IDeviceActivationService _deviceActivationService;
     private readonly ITokenStore _tokenStore;
+    private readonly AgentStatusEventBroadcaster _statusBroadcaster;
 
     private int _consecutiveFailures;
     private DateTime? _lastSuccessfulSync;
@@ -40,7 +41,8 @@ public sealed class SyncWorker : BackgroundService
         ISyncTransport syncTransport,
         ICurrentUserContext userContext,
         IDeviceActivationService deviceActivationService,
-        ITokenStore tokenStore)
+        ITokenStore tokenStore,
+        AgentStatusEventBroadcaster statusBroadcaster)
     {
         _logger = logger;
         _settings = settings;
@@ -53,6 +55,7 @@ public sealed class SyncWorker : BackgroundService
         _userContext = userContext;
         _deviceActivationService = deviceActivationService;
         _tokenStore = tokenStore;
+        _statusBroadcaster = statusBroadcaster;
     }
 
     /// <summary>
@@ -181,6 +184,9 @@ public sealed class SyncWorker : BackgroundService
                 return;
             }
 
+            // Emit sync started event
+            await _statusBroadcaster.BroadcastSyncProgressAsync("in_progress", 0, "Iniciando sincronização...", cancellationToken);
+
             // Obter itens pendentes
             var pendingItems = await _outboxRepository.GetPendingAsync(
                 _settings.Sync.MaxBatchSize,
@@ -190,6 +196,8 @@ public sealed class SyncWorker : BackgroundService
             {
                 return;
             }
+
+            var totalItems = pendingItems.Count();
 
             // Separar por tipo de entidade
             var activitySessions = pendingItems
@@ -216,6 +224,10 @@ public sealed class SyncWorker : BackgroundService
             // Processar activity sessions
             if (activitySessions.Any())
             {
+                // Emit progress
+                var progress = (int)((double)allProcessedIds.Count / totalItems * 100);
+                await _statusBroadcaster.BroadcastSyncProgressAsync("in_progress", progress, "Sincronizando sessões de atividade...", cancellationToken);
+
                 var result = await ProcessBatchAsync(
                     activitySessions,
                     () => _syncTransport.SendActivitySessionsAsync(activitySessions, cancellationToken),
@@ -234,6 +246,9 @@ public sealed class SyncWorker : BackgroundService
             // Processar idle periods
             if (idlePeriods.Any())
             {
+                var progress = (int)((double)allProcessedIds.Count / totalItems * 100);
+                await _statusBroadcaster.BroadcastSyncProgressAsync("in_progress", progress, "Sincronizando períodos de inatividade...", cancellationToken);
+
                 var result = await ProcessBatchAsync(
                     idlePeriods,
                     () => _syncTransport.SendIdlePeriodsAsync(idlePeriods, cancellationToken),
@@ -252,6 +267,9 @@ public sealed class SyncWorker : BackgroundService
             // Processar focus sessions
             if (focusSessions.Any())
             {
+                var progress = (int)((double)allProcessedIds.Count / totalItems * 100);
+                await _statusBroadcaster.BroadcastSyncProgressAsync("in_progress", progress, "Sincronizando sessões de foco...", cancellationToken);
+
                 var result = await ProcessBatchAsync(
                     focusSessions,
                     () => _syncTransport.SendFocusSessionsAsync(focusSessions, cancellationToken),
@@ -278,12 +296,18 @@ public sealed class SyncWorker : BackgroundService
                     "Sync concluído com sucesso. {Count} itens sincronizados",
                     allProcessedIds.Count);
 
+                // Emit sync completed event
+                await _statusBroadcaster.BroadcastSyncProgressAsync("completed", 100, $"{allProcessedIds.Count} itens sincronizados", cancellationToken);
+
                 // Cleanup old synced data (run at most once per hour)
                 await CleanupOldDataAsync(cancellationToken);
             }
             else if (hasFailures)
             {
                 _consecutiveFailures++;
+
+                // Emit sync failed event
+                await _statusBroadcaster.BroadcastSyncProgressAsync("failed", 0, "Falha na sincronização", cancellationToken);
 
                 if (IsCritical)
                 {
@@ -297,6 +321,9 @@ public sealed class SyncWorker : BackgroundService
         {
             _logger.LogError(ex, "Erro no ciclo de sync");
             _consecutiveFailures++;
+
+            // Emit sync failed event
+            await _statusBroadcaster.BroadcastSyncProgressAsync("failed", 0, ex.Message, cancellationToken);
         }
     }
 

@@ -7,6 +7,7 @@ export type SettingsSection =
   | 'focus-timer'
   | 'team'
   | 'organization'
+  | 'agent-status'
   | 'about';
 
 export type SettingsGroup = 'personal' | 'management' | 'system';

@@ -11,6 +11,7 @@ import { FocusTimerSection } from './FocusTimerSection';
 import { AboutSection } from './AboutSection';
 import { MembersSection } from './MembersSection';
 import { OrganizationSection } from './OrganizationSection';
+import { AgentStatusSection } from './AgentStatusSection';
 import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -180,6 +181,8 @@ export function SettingsPage() {
         ) : null;
       case 'about':
         return <AboutSection />;
+      case 'agent-status':
+        return <AgentStatusSection />;
       default:
         return null;
     }

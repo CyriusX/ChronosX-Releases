@@ -152,6 +152,9 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddAgentWorkers(this IServiceCollection services)
     {
+        services.AddSingleton<AgentStatusEventBroadcaster>();
+        services.AddHostedService(sp => sp.GetRequiredService<AgentStatusEventBroadcaster>());
+
         services.AddHostedService<TrackingWorker>();
         services.AddHostedService<SyncWorker>();
         services.AddHostedService<FocusModeEventBroadcaster>();
