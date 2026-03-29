@@ -5,33 +5,44 @@ namespace TimeTrack.Agent.Application.UseCases.GetSyncState;
 
 /// <summary>
 /// Response com o estado atual de sincronização
+/// Campos nomeados para compatibilidade com o frontend IPC
 /// </summary>
 public sealed class SyncStateResponse
 {
     /// <summary>
-    /// Timestamp do último sync bem-sucedido
+    /// Status geral: synced, pending, syncing, failed, offline
     /// </summary>
-    public DateTime? LastSuccessfulSyncAt { get; init; }
+    public string Status { get; init; } = "pending";
+
+    /// <summary>
+    /// Timestamp do último sync bem-sucedido (formato ISO 8601)
+    /// </summary>
+    public string? LastSyncAt { get; init; }
 
     /// <summary>
     /// Quantidade de itens pendentes no Outbox
     /// </summary>
-    public int PendingItemsCount { get; init; }
+    public int PendingItems { get; init; }
 
     /// <summary>
-    /// Último erro registrado (se houver)
+    /// Quantidade de itens que falharam
     /// </summary>
-    public SyncErrorInfo? LastError { get; init; }
+    public int FailedItems { get; init; }
 
     /// <summary>
-    /// Status geral: synced, pending, error
+    /// Próximo sync previsto (opcional)
     /// </summary>
-    public string Status { get; init; } = "pending";
+    public string? NextSyncAt { get; init; }
 
     /// <summary>
     /// Se o backend está acessível
     /// </summary>
     public bool BackendReachable { get; init; }
+
+    /// <summary>
+    /// Último erro registrado (se houver)
+    /// </summary>
+    public SyncErrorInfo? LastError { get; init; }
 }
 
 /// <summary>
@@ -70,6 +81,9 @@ public sealed class GetSyncStateUseCase
         var pendingItems = await _outboxRepository.GetPendingAsync(1000, cancellationToken);
         var pendingCount = pendingItems.Count();
 
+        // Get failed items count (errors in the last hour)
+        var failedCount = await _syncErrorRepository.CountConsecutiveFailuresAsync(cancellationToken);
+
         // Get last error
         var lastError = await _syncErrorRepository.GetLatestAsync(cancellationToken);
 
@@ -80,21 +94,23 @@ public sealed class GetSyncStateUseCase
         var lastSuccessfulSyncAt = await GetLastSuccessfulSyncTimeAsync(cancellationToken);
 
         // Determine overall status
-        var status = DetermineStatus(pendingCount, lastError, backendReachable);
+        var status = DetermineStatus(pendingCount, failedCount, lastError, backendReachable);
 
         return new SyncStateResponse
         {
-            LastSuccessfulSyncAt = lastSuccessfulSyncAt,
-            PendingItemsCount = pendingCount,
+            Status = status,
+            LastSyncAt = lastSuccessfulSyncAt?.ToString("O"),
+            PendingItems = pendingCount,
+            FailedItems = failedCount,
+            NextSyncAt = null, // Could be calculated based on sync interval
+            BackendReachable = backendReachable,
             LastError = lastError is not null ? new SyncErrorInfo
             {
                 TimestampUtc = lastError.TimestampUtc,
                 Endpoint = lastError.Endpoint,
                 StatusCode = lastError.StatusCode,
                 ErrorMessage = lastError.ErrorMessage
-            } : null,
-            Status = status,
-            BackendReachable = backendReachable
+            } : null
         };
     }
 
@@ -107,14 +123,15 @@ public sealed class GetSyncStateUseCase
 
     private static string DetermineStatus(
         int pendingCount,
+        int failedCount,
         Domain.Entities.SyncError? lastError,
         bool backendReachable)
     {
         if (!backendReachable)
-            return "offline";
+            return "failed";
 
-        if (lastError is not null && lastError.TimestampUtc > DateTime.UtcNow.AddHours(-1))
-            return "error";
+        if (failedCount > 0 || (lastError is not null && lastError.TimestampUtc > DateTime.UtcNow.AddHours(-1)))
+            return "failed";
 
         if (pendingCount > 0)
             return "pending";

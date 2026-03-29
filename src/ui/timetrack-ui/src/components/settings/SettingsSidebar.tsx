@@ -1,4 +1,4 @@
-import { User, Settings2, Bell, Activity, Users, Building2, Info } from 'lucide-react';
+import { User, Settings2, Bell, Activity, Users, Building2, Info, Cpu } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SPRING } from '../../lib/animation';
 import type { SettingsSection, SettingsSectionDef, SettingsGroup } from '../../types/settingsNav';
@@ -17,6 +17,7 @@ const SECTIONS: SettingsSectionDef[] = [
   { id: 'focus-timer', label: 'Foco & Timer', icon: Activity, group: 'personal' },
   { id: 'team', label: 'Equipe', icon: Users, group: 'management', requiresPermission: 'canManageTeam' },
   { id: 'organization', label: 'Organização', icon: Building2, group: 'management', requiresPermission: 'canViewOrgPolicies' },
+  { id: 'agent-status', label: 'Status do Agent', icon: Cpu, group: 'system' },
   { id: 'about', label: 'Sobre', icon: Info, group: 'system' },
 ];
 

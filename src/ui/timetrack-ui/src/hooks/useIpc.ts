@@ -183,6 +183,12 @@ const mockSyncState = {
   failedItems: 0,
 };
 
+// Mock errors for agent status
+const mockErrors = {
+  errors: [],
+  total: 0,
+};
+
 // CX-139: Mock Focus Mode state for development (mutable)
 let mockFocusModeState: FocusModeSnapshot = {
   state: 'Off',
@@ -315,6 +321,7 @@ class MockIpcClient implements IIpcClient {
       getCurrentStatus: mockCurrentStatus,
       getSyncState: mockSyncState,
       getFocusModeState: { ...mockFocusModeState, timestamp: new Date().toISOString() },
+      getErrors: mockErrors,
     };
 
     const data = mockData[query as string] ?? null;
