@@ -249,6 +249,7 @@ public sealed class ReportsController : ControllerBase
     public async Task<IActionResult> GetDailyActivities(
         [FromQuery] Guid? userId,
         [FromQuery] DateTime date,
+        [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
         var targetUserId = userId ?? _currentUser.UserId!.Value;
@@ -272,7 +273,8 @@ public sealed class ReportsController : ControllerBase
 
         var query = new DailyActivitiesQuery(
             UserId: targetUserId,
-            Date: date
+            Date: date,
+            Timezone: timezone
         );
 
         try

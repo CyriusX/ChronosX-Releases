@@ -144,5 +144,5 @@ export async function getDailyActivities(
     timezone: getUserTimezone(),
   });
   if (userId) params.append('userId', userId);
-  return api.get<DailyActivitiesResponse>(`/reports/daily-activities?${params.toString()}`);
+  return api.get<DailyActivitiesResponse>(`/reports/activities?${params.toString()}`);
 }
