@@ -19,13 +19,14 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     private readonly IBackendReportsClient _reportsClient;
     private readonly ILogger<GetTodaySummaryQueryHandler> _logger;
 
-    // Internal apps excluded from dashboard totals (same as GetLocalDashboardUseCase)
+    // Internal apps excluded from dashboard totals (must match all other views)
     private static readonly HashSet<string> InternalApps = new(StringComparer.OrdinalIgnoreCase)
     {
         "TimeTrack.DesktopHost",
         "Microsoft Edge WebView2",
         "Microsoft® Windows® Operating System",
-        "Sistema operacional Microsoft® Windows®"
+        "Sistema operacional Microsoft® Windows®",
+        "Tracking Stopped",
     };
 
     public GetTodaySummaryQueryHandler(

@@ -19,14 +19,8 @@ public sealed class ReportRepository : IReportRepository
     private readonly TimeTrackDbContext _context;
     private readonly ILogger<ReportRepository>? _logger;
 
-    // Internal/system apps excluded from report totals (same as agent's local dashboard)
-    private static readonly HashSet<string> InternalApps = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "TimeTrack.DesktopHost",
-        "Microsoft Edge WebView2",
-        "Microsoft® Windows® Operating System",
-        "Tracking Stopped"
-    };
+    // Use shared constant for consistent filtering across all views
+    private static readonly HashSet<string> InternalApps = TimeTrack.Backend.Domain.Constants.InternalApps.ProcessNames;
 
     // Cache em memória das categorias globais (carregado uma vez por instância)
     private Dictionary<string, AppCategoryGlobal>? _categoryCache;
@@ -294,8 +288,18 @@ public sealed class ReportRepository : IReportRepository
             a.AppSubcategory
         }).ToList();
 
+        _logger?.LogInformation(
+            "[DailyAggregate] UserId={UserId} Date={Date} Tz={Tz} Bounds={Start}..{End} RawCount={RawCount} RawSum={RawSum}s",
+            userId, date.ToString("yyyy-MM-dd"), timezone,
+            startOfDay.ToString("o"), endOfDay.ToString("o"),
+            sessions.Count, sessions.Sum(a => a.DurationSeconds));
+
         // Filter out internal/system apps to match dashboard totals
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
+        _logger?.LogInformation(
+            "[DailyAggregate] After internal filter: Count={Count} Sum={Sum}s",
+            sessions.Count, sessions.Sum(a => a.DurationSeconds));
 
         // Load org-level overrides for this user
         var overrides = await GetOverridesForUserAsync(userId, cancellationToken);

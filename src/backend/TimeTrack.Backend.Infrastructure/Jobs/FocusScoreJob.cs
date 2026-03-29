@@ -180,6 +180,11 @@ public sealed class FocusScoreJob : IFocusScoreJob
             .OrderBy(a => a.StartedAt)
             .ToListAsync(cancellationToken);
 
+        // Filter out internal/system apps before score calculation
+        sessions = sessions
+            .Where(s => !TimeTrack.Backend.Domain.Constants.InternalApps.IsInternal(s.ProcessName))
+            .ToList();
+
         if (sessions.Count == 0)
         {
             _logger.LogDebug("No activity sessions found for user {UserId} on {Date}", userId, date);

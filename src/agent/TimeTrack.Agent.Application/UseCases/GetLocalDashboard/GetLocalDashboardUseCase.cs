@@ -57,7 +57,7 @@ public sealed class GetLocalDashboardUseCase
             // Return empty dashboard instead of throwing
             return new LocalDashboardResponse
             {
-                Date = date?.Date ?? DateTime.UtcNow.Date,
+                Date = date?.Date ?? DateTime.Today,
                 TrackingStatus = "NotAuthenticated",
                 TotalWorkTime = TimeSpan.Zero,
                 TotalIdleTime = TimeSpan.Zero,
@@ -67,7 +67,7 @@ public sealed class GetLocalDashboardUseCase
             };
         }
 
-        var targetDate = date?.Date ?? DateTime.UtcNow.Date;
+        var targetDate = date?.Date ?? DateTime.Today;
 
         var userIdValue = userId.Value;
 
@@ -101,7 +101,9 @@ public sealed class GetLocalDashboardUseCase
         {
             "TimeTrack.DesktopHost",
             "Microsoft Edge WebView2",
-            "Microsoft® Windows® Operating System"
+            "Microsoft® Windows® Operating System",
+            "Sistema operacional Microsoft® Windows®",
+            "Tracking Stopped",
         };
 
         // Calcula totais (excluding our own app processes)

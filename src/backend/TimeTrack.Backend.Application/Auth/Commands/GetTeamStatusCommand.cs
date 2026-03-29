@@ -78,8 +78,13 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
 
         _logger.LogDebug("GetTeamStatus: Found {SessionCount} sessions for org {OrgId}", sessions.Count(), request.OrgId);
 
+        // Filter out internal/system apps to match dashboard totals (shared constant)
+        var filteredSessions = sessions
+            .Where(s => !Domain.Constants.InternalApps.IsInternal(s.ProcessName))
+            .ToList();
+
         // Group sessions by user and calculate total duration (compute from timestamps to avoid stale DurationSeconds)
-        var sessionsByUser = sessions
+        var sessionsByUser = filteredSessions
             .GroupBy(s => s.UserId)
             .ToDictionary(g => g.Key, g => (int)g.Sum(s => (s.EndedAt - s.StartedAt).TotalSeconds));
 
