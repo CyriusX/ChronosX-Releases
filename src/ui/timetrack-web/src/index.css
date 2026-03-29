@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Scan desktop component sources so Tailwind generates their utility classes */
+@source "../../timetrack-ui/src/**/*.tsx";
+@source "../../timetrack-ui/src/**/*.ts";
+
 /* ─── Theme tokens (Tailwind v4) ─── */
 @theme {
   --color-surface-base: rgba(12, 14, 22, 1);
@@ -208,6 +212,61 @@ select option:checked {
 
   .glow-blue {
     box-shadow: 0 0 20px rgba(59, 130, 246, 0.20), 0 0 40px rgba(59, 130, 246, 0.08);
+  }
+}
+
+/* ─── Hide usage bar backgrounds on RightPanel app list ─── */
+/* The desktop RightPanel renders colored bars behind each app row.
+   On the web portal we want a clean list with just names and durations. */
+.web-clean-apps .absolute.inset-0.rounded-md {
+  display: none !important;
+}
+
+/* Also hide the colored dot next to the percentage */
+.web-clean-apps .w-\[5px\].h-\[5px\].rounded-full {
+  display: none !important;
+}
+
+/* ─── Responsive overrides for desktop components ─── */
+
+/* TopCards: desktop uses grid-cols-3 (hardcoded). Make responsive. */
+.web-responsive-top-cards > div {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 1024px) {
+  .web-responsive-top-cards > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .web-responsive-top-cards > div {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* BottomCards: desktop uses grid-cols-3 (hardcoded). Make responsive. */
+.web-responsive-bottom-cards > div {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 1024px) {
+  .web-responsive-bottom-cards > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .web-responsive-bottom-cards > div {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* WebSidebar: collapse on mobile */
+@media (max-width: 768px) {
+  .web-sidebar-desktop {
+    display: none;
   }
 }
 

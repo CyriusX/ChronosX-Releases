@@ -1,6 +1,7 @@
-import { BarChart3, Activity, CalendarDays, Cog, LogOut, Shield } from 'lucide-react';
+import { useState } from 'react';
+import { BarChart3, Activity, CalendarDays, Cog, LogOut, Shield, Menu, X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { NavItem } from '@desktop/components/dashboard/shared/NavItem';
 import { useAuthStore } from '../stores/authStore';
 import { SPRING } from '@desktop/lib/animation';
@@ -10,14 +11,27 @@ export function WebSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuthStore();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
-  return (
-    <aside className="w-[200px] flex-shrink-0 glass-sidebar flex flex-col overflow-hidden">
+  const handleNav = (path: string) => {
+    navigate(path);
+    setMobileOpen(false);
+  };
+
+  const navItems = [
+    { icon: <BarChart3 className="w-[16px] h-[16px]" />, label: 'Dashboard', path: '/' },
+    { icon: <Activity className="w-[16px] h-[16px]" />, label: 'Atividade', path: '/activities' },
+    { icon: <CalendarDays className="w-[16px] h-[16px]" />, label: 'Relatorios', path: '/reports' },
+    { icon: <Cog className="w-[16px] h-[16px]" />, label: 'Configuracoes', path: '/settings' },
+  ];
+
+  const sidebarContent = (
+    <>
       {/* Logo + Admin Badge */}
       <div className="px-4 py-5 flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -30,40 +44,32 @@ export function WebSidebar() {
             className="w-8 h-8 rounded-lg shadow-[0px_6px_10px_0px_rgba(139,92,246,0.25)]"
           />
           <div className="flex flex-col">
-            <motion.span
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3, duration: 0.3 }}
-              className="text-[15px] font-semibold text-[#f5f7fb] tracking-[-0.3px]"
-            >
-              ChronosX
-            </motion.span>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="flex items-center gap-1"
-            >
+            <span className="text-[15px] font-semibold text-[#f5f7fb] tracking-[-0.3px]">ChronosX</span>
+            <div className="flex items-center gap-1">
               <Shield className="w-2.5 h-2.5 text-[#8B5CF6]" />
               <span className="text-[9px] text-[rgba(139,92,246,0.8)] font-medium uppercase tracking-wider">
                 Admin Portal
               </span>
-            </motion.div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 flex flex-col gap-[2px] overflow-y-auto">
-        <NavItem icon={<BarChart3 className="w-[16px] h-[16px]" />} label="Dashboard" active={location.pathname === '/'} onClick={() => navigate('/')} />
-        <NavItem icon={<Activity className="w-[16px] h-[16px]" />} label="Atividade" active={location.pathname === '/activities'} onClick={() => navigate('/activities')} />
-        <NavItem icon={<CalendarDays className="w-[16px] h-[16px]" />} label="Relatorios" active={location.pathname === '/reports'} onClick={() => navigate('/reports')} />
-        <NavItem icon={<Cog className="w-[16px] h-[16px]" />} label="Configuracoes" active={location.pathname === '/settings'} onClick={() => navigate('/settings')} />
+        {navItems.map((item) => (
+          <NavItem
+            key={item.path}
+            icon={item.icon}
+            label={item.label}
+            active={location.pathname === item.path}
+            onClick={() => handleNav(item.path)}
+          />
+        ))}
       </nav>
 
       {/* User section + Logout */}
       <div className="border-t border-[rgba(255,255,255,0.04)] flex-shrink-0 px-3 py-3">
-        {/* User Info */}
         <div className="flex items-center gap-2.5 px-2 py-2">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
             <span className="text-[12px] font-bold text-white">
@@ -79,8 +85,6 @@ export function WebSidebar() {
             </p>
           </div>
         </div>
-
-        {/* Logout */}
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
@@ -89,6 +93,57 @@ export function WebSidebar() {
           Sair
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-[200px] flex-shrink-0 glass-sidebar flex-col overflow-hidden">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile header bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4 py-3 glass-sidebar border-b border-[rgba(255,255,255,0.04)]">
+        <button onClick={() => setMobileOpen(true)} className="p-1">
+          <Menu className="w-5 h-5 text-[rgba(245,247,251,0.7)]" />
+        </button>
+        <img src={logoImg} alt="ChronosX" className="w-6 h-6 rounded-md" />
+        <span className="text-[14px] font-semibold text-[#f5f7fb]">ChronosX</span>
+        <div className="ml-auto flex items-center gap-1">
+          <Shield className="w-2.5 h-2.5 text-[#8B5CF6]" />
+          <span className="text-[8px] text-[rgba(139,92,246,0.8)] font-medium uppercase tracking-wider">Admin</span>
+        </div>
+      </div>
+
+      {/* Mobile drawer overlay */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+              onClick={() => setMobileOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="md:hidden fixed left-0 top-0 bottom-0 z-50 w-[260px] glass-sidebar flex flex-col overflow-hidden"
+            >
+              <div className="absolute top-4 right-3">
+                <button onClick={() => setMobileOpen(false)} className="p-1 rounded-lg hover:bg-[rgba(255,255,255,0.06)]">
+                  <X className="w-4 h-4 text-[rgba(245,247,251,0.5)]" />
+                </button>
+              </div>
+              {sidebarContent}
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
