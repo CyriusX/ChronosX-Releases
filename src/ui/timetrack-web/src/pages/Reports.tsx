@@ -18,7 +18,6 @@ import {
   Download,
 } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
-import { useAuthStore } from '../stores/authStore';
 import { useReportsData, useReportsSummary } from '../hooks/useReportsData';
 import { listMembers } from '../services/memberApi';
 import { fadeUp, staggerContainer, STAGGER } from '@desktop/lib/animation';
@@ -60,8 +59,6 @@ function formatDuration(seconds: number): string {
 }
 
 export default function Reports() {
-  const user = useAuthStore((state) => state.user);
-
   const [members, setMembers] = useState<Member[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
@@ -73,7 +70,8 @@ export default function Reports() {
 
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodPreset>('last_30_days');
   const [selectedGroupBy, setSelectedGroupBy] = useState<GroupByOption>('day');
-  const [selectedUserId, setSelectedUserId] = useState<string | undefined>(undefined);
+  // Default to "all team" so the admin sees aggregated data immediately
+  const [selectedUserId, setSelectedUserId] = useState<string | undefined>('all');
 
   const {
     data,
@@ -122,8 +120,7 @@ export default function Reports() {
   };
 
   const getSelectedUserName = () => {
-    if (!selectedUserId) return 'Meus dados';
-    if (selectedUserId === 'all') return 'Toda a equipe';
+    if (!selectedUserId || selectedUserId === 'all') return 'Toda a equipe';
     const member = members.find((m) => m.userId === selectedUserId);
     return member?.displayName || 'Usuario';
   };
@@ -266,16 +263,12 @@ export default function Reports() {
                     transition={{ duration: 0.15 }}
                     className="absolute top-full left-0 right-0 mt-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-lg z-20 max-h-[300px] overflow-y-auto"
                   >
-                    <button onClick={() => { handleUserChange(undefined); setShowUserDropdown(false); }}
-                      className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${!selectedUserId ? 'text-[#8B5CF6] bg-[rgba(139,92,246,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}>
-                      Meus dados
-                    </button>
                     <button onClick={() => { handleUserChange('all'); setShowUserDropdown(false); }}
                       className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === 'all' ? 'text-[#8B5CF6] bg-[rgba(139,92,246,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}>
                       Toda a equipe
                     </button>
                     <div className="border-t border-[rgba(255,255,255,0.06)]" />
-                    {members.filter(m => m.userId !== user?.id).map((member) => (
+                    {members.map((member) => (
                       <button key={member.userId}
                         onClick={() => { handleUserChange(member.userId); setShowUserDropdown(false); }}
                         className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === member.userId ? 'text-[#8B5CF6] bg-[rgba(139,92,246,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}>
