@@ -14,14 +14,8 @@ public sealed record GetTeamMemberSummaryCommand(Guid OrgId, Guid TargetUserId, 
 
 public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeamMemberSummaryCommand, TeamMemberSummaryResponse>
 {
-    // Internal/system apps excluded from dashboard totals (same as agent's local dashboard)
-    private static readonly HashSet<string> _internalApps = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "TimeTrack.DesktopHost",
-        "Microsoft Edge WebView2",
-        "Microsoft® Windows® Operating System",
-        "Sistema operacional Microsoft® Windows®"
-    };
+    // Use shared constant for consistent filtering across all views
+    private static readonly HashSet<string> _internalApps = Domain.Constants.InternalApps.ProcessNames;
 
     private readonly IUserRepository _userRepository;
     private readonly IReportRepository _reportRepository;
@@ -59,11 +53,21 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
         var totalIdleSeconds = await _reportRepository.GetDailyIdleSecondsAsync(request.TargetUserId, today, request.Timezone, cancellationToken);
         var weeklyHistory = await BuildWeeklyHistoryAsync(request.TargetUserId, today, request.Timezone, cancellationToken);
 
+        _logger.LogInformation(
+            "[MemberSummary] User={UserId} Today={Today} Tz={Tz} AggregateTotal={AggTotal}s Apps={AppCount} AppsSum={AppsSum}s",
+            request.TargetUserId, today.ToString("yyyy-MM-dd"), request.Timezone,
+            activity.TotalSeconds, activity.Apps.Count(),
+            activity.Apps.Sum(a => a.TotalSeconds));
+
         // Filter out internal apps and recalculate total
         var filteredApps = activity.Apps
             .Where(a => !_internalApps.Contains(a.ProcessName))
             .ToList();
         var totalSeconds = filteredApps.Sum(a => a.TotalSeconds);
+
+        _logger.LogInformation(
+            "[MemberSummary] After internal filter: FilteredApps={FilteredCount} FilteredSum={FilteredSum}s TotalSeconds={TotalSeconds}s",
+            filteredApps.Count, filteredApps.Sum(a => a.TotalSeconds), totalSeconds);
 
         // Merge aggregates that have the same ProcessName but different category rows
         // (can happen if category changed mid-day). Take the dominant category per app.

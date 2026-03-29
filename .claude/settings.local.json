@@ -403,7 +403,17 @@
       "Bash(find c:Usersjr_juRepoTimeTracking/src/ui/timetrack-ui/src/components -type f \\\\\\(-name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js \\\\\\))",
       "Bash(find c:Usersjr_juRepoTimeTracking -maxdepth 3 -type f \\\\\\(-name tailwind.config.* -o -name globals.css -o -name components.json -o -name postcss.config.* \\\\\\))",
       "Read(//c/Users/jr_ju/Repo/TimeTracking/$LOCALAPPDATA/TimeTrack/**)",
-      "Bash(du -sh \"$LOCALAPPDATA/TimeTrack/WebView2Cache\")"
+      "Bash(du -sh \"$LOCALAPPDATA/TimeTrack/WebView2Cache\")",
+      "Bash(start \"\" \"bin/Debug/net8.0-windows10.0.17763/TimeTrack.DesktopHost.exe\")",
+      "Bash(PGPASSWORD=npg_y6PlhoBZJ9QS psql \"host=ep-billowing-snow-adnjkioj-pooler.c-2.us-east-1.aws.neon.tech dbname=neondb user=neondb_owner sslmode=require\" -c \"SELECT u.id, u.email, u.display_name, u.role, u.status, u.org_id, o.name as org_name FROM users u JOIN orgs o ON u.org_id = o.id ORDER BY u.created_at;\")",
+      "Bash(npm init:*)",
+      "Bash(node query.mjs)",
+      "Bash(node create-admin.mjs)",
+      "Bash(node fix-admin.mjs)",
+      "Read(//c/Users/jr_ju/**)",
+      "Bash(node compare.mjs)",
+      "Bash(node local-query.mjs)",
+      "Read(//c/Temp/ttdbquery node -e \nimport Database from 'better-sqlite3';\nconst db = new Database\\('C:/Users/jr_ju/AppData/Local/TimeTrack/timetrack.db'\\);\nconst sessions = db.prepare\\('DELETE FROM activity_sessions'\\).run\\(\\);\nconst idle = db.prepare\\('DELETE FROM idle_periods'\\).run\\(\\);\nconst outbox = db.prepare\\('DELETE FROM sync_outbox'\\).run\\(\\);\nconst focus = db.prepare\\('DELETE FROM focus_cycles'\\).run\\(\\);\nconst errors = db.prepare\\('DELETE FROM sync_errors'\\).run\\(\\);\nconsole.log\\('LOCAL cleaned:'\\);\nconsole.log\\('  Sessions:', sessions.changes\\);\nconsole.log\\('  Idle periods:', idle.changes\\);\nconsole.log\\('  Outbox:', outbox.changes\\);\nconsole.log\\('  Focus cycles:', focus.changes\\);\nconsole.log\\('  Sync errors:', errors.changes\\);\ndb.close\\(\\);\n node -e \nimport pg from 'pg';\nconst c = new pg.Client\\({host:'ep-billowing-snow-adnjkioj-pooler.c-2.us-east-1.aws.neon.tech',database:'neondb',user:'neondb_owner',password:'npg_y6PlhoBZJ9QS',ssl:{rejectUnauthorized:false}}\\);\nawait c.connect\\(\\);\nconst user = await c.query\\(\"SELECT id, org_id FROM users WHERE email = 'junrc21@gmail.com'\"\\);\nconst userId = user.rows[0].id;\nconst orgId = user.rows[0].org_id;\nconst spStart = '2026-03-28T03:00:00Z';\nconst s = await c.query\\('DELETE FROM activity_sessions WHERE user_id = $1 AND started_at >= $2 RETURNING id', [userId, spStart]\\);\nconst i = await c.query\\('DELETE FROM idle_periods WHERE user_id = $1 AND started_at >= $2 RETURNING id', [userId, spStart]\\);\nconst ds = await c.query\\(\"DELETE FROM daily_summaries WHERE user_id = $1 AND date >= '2026-03-28' RETURNING id\", [userId]\\);\nconst fs = await c.query\\(\"DELETE FROM daily_focus_scores WHERE user_id = $1 AND date >= '2026-03-28' RETURNING id\", [userId]\\);\nconst ik = await c.query\\('DELETE FROM idempotency_keys WHERE org_id = $1 RETURNING id', [orgId]\\);\nconsole.log\\('/**)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
