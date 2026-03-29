@@ -16,6 +16,7 @@ import { formatDuration } from '@desktop/lib/utils';
 import { fadeUp, staggerContainer, STAGGER } from '@desktop/lib/animation';
 import { Card, CardContent, CardHeader, CardTitle } from '@desktop/components/ui/card';
 import { DateNavigator, DayInsights, ProductivityHeatmap, MiniCalendar, SessionList } from '@desktop/components/activities';
+import { ActivitySection } from '@desktop/components/dashboard/ActivitySection';
 import { AppIcon } from '@desktop/components/dashboard/shared';
 import { cardBase } from '@desktop/components/dashboard/shared/styles';
 import type { Member } from '@desktop/types/member';
@@ -144,6 +145,12 @@ export default function Activities() {
                 />
 
                 <ActivitiesTopCards summary={summary} />
+
+                {/* Activity Timeline */}
+                <ActivitySection
+                  activities={activities}
+                  selectedDate={data.selectedDate}
+                />
 
                 <ProductivityHeatmap activities={activities} selectedDate={data.selectedDate} />
 
