@@ -30,6 +30,33 @@ import {
   deleteOverride,
 } from '../../services/appCategoriesApi';
 
+/**
+ * Normalize identifier the same way the backend does (IdentifierNormalizer.Normalize)
+ * - Lowercase
+ * - Add .exe if no extension and not a domain-like pattern
+ * - Handle paths by adding .exe if not present
+ */
+function normalizeIdentifier(identifier: string): string {
+  const normalized = identifier.trim().toLowerCase();
+
+  // If it looks like a path (contains / or \), add .exe if not present
+  if (normalized.includes('/') || normalized.includes('\\')) {
+    if (!normalized.endsWith('.exe')) {
+      return normalized + '.exe';
+    }
+    return normalized;
+  }
+
+  // If no dot at all, it's a raw process name - add .exe
+  if (!normalized.includes('.')) {
+    return normalized + '.exe';
+  }
+
+  // Has dots - could be domain (github.com) or already has extension (chrome.exe)
+  // Keep as-is
+  return normalized;
+}
+
 interface UseAppCategoriesProps {
   orgId: string | null | undefined;
 }
@@ -104,16 +131,18 @@ export function useAppCategories({
         getOverrides(orgId, { pageSize: 100 }),
       ]);
 
-      // Build overrides map for quick lookup
-      // Overrides have normalized identifiers (e.g., "notepad.exe") while stats
-      // may have raw process names ("notepad"). Index by both forms for matching.
+      // Build overrides map for quick lookup using normalized identifiers
+      // This ensures consistent matching between stats (raw process names) and overrides (normalized)
       const overridesMap = new Map<string, (typeof overridesResponse.overrides)[number]>();
       for (const o of overridesResponse.overrides) {
-        const key = o.identifier.toLowerCase();
-        overridesMap.set(key, o);
-        // Also index without .exe so raw process names match
-        if (key.endsWith('.exe')) {
-          overridesMap.set(key.slice(0, -4), o);
+        // Index by the normalized identifier from the backend
+        const normalizedKey = normalizeIdentifier(o.identifier);
+        overridesMap.set(normalizedKey, o);
+
+        // Also index the raw identifier (lowercased) for backwards compatibility
+        const rawKey = o.identifier.toLowerCase();
+        if (rawKey !== normalizedKey) {
+          overridesMap.set(rawKey, o);
         }
       }
 
@@ -138,7 +167,9 @@ export function useAppCategories({
         if (addedIdentifiers.has(key)) return;
         addedIdentifiers.add(key);
 
-        const override = overridesMap.get(key);
+        // Look up override using normalized identifier for consistent matching
+        const normalizedKey = normalizeIdentifier(app.identifier);
+        const override = overridesMap.get(normalizedKey) || overridesMap.get(key);
         mergedApps.push({
           identifier: app.identifier,
           identifierType,
@@ -220,14 +251,18 @@ export function useAppCategories({
 
       // Directly update the agent's local SQLite sessions so dashboard reflects the change instantly
       try {
-        await sendCommand('updateAppCategory', {
+        const result = await sendCommand('updateAppCategory', {
           displayName: request.displayName || request.identifier,
           identifier: request.identifier,
           productivity: request.productivity,
           subcategory: request.subcategory,
         });
-      } catch {
+        if (!result.success) {
+          console.warn('[useAppCategories] updateAppCategory command failed:', result.error);
+        }
+      } catch (error) {
         // Non-critical — will apply on next session recording
+        console.warn('[useAppCategories] updateAppCategory command error:', error);
       }
     },
     [orgId, fetchData, sendCommand]
@@ -247,9 +282,13 @@ export function useAppCategories({
 
       // Trigger immediate agent cache sync
       try {
-        await sendCommand('syncNow');
-      } catch {
+        const result = await sendCommand('syncNow');
+        if (!result.success) {
+          console.warn('[useAppCategories] syncNow command failed:', result.error);
+        }
+      } catch (error) {
         // Non-critical
+        console.warn('[useAppCategories] syncNow command error:', error);
       }
     },
     [orgId, fetchData, sendCommand]

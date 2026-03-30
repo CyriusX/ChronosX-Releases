@@ -94,11 +94,9 @@ public sealed class GetCategoryUsageStatsQueryHandler
 
         foreach (var app in aggregated)
         {
-            // Normalize ProcessName the same way the resolver does (add .exe if needed)
-            // so the dictionary lookup matches the resolved category's identifier.
-            var normalizedKey = !app.ProcessName.Contains('.') && !app.ProcessName.Contains('/')
-                ? app.ProcessName + ".exe"
-                : app.ProcessName;
+            // Normalize ProcessName using IdentifierNormalizer to ensure consistent lookup
+            // with the category resolver (handles paths, domains, and exe names consistently)
+            var normalizedKey = IdentifierNormalizer.Normalize(app.ProcessName);
 
             var category = categoryDict.GetValueOrDefault(normalizedKey) ??
                 new AppCategoryResponse
