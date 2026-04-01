@@ -218,6 +218,16 @@ public sealed class SqliteContext : IAsyncDisposable
             _logger.LogInformation("Adding domain column to activity_sessions");
             await connection.ExecuteAsync("ALTER TABLE activity_sessions ADD COLUMN domain TEXT");
         }
+
+        // Add idle_threshold_seconds column to local_settings
+        var idleThresholdExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('local_settings') WHERE name = 'idle_threshold_seconds'");
+
+        if (idleThresholdExists == 0)
+        {
+            _logger.LogInformation("Adding idle_threshold_seconds column to local_settings");
+            await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN idle_threshold_seconds INTEGER");
+        }
     }
 
     /// <summary>

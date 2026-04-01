@@ -1,6 +1,17 @@
-import { Bell } from 'lucide-react';
+import { Bell, Timer } from 'lucide-react';
 import { Switch } from '../ui/switch';
 import type { LocalSettings, UpdateLocalSettingsRequest } from '../../types/settings';
+
+const IDLE_OPTIONS = [
+  { value: 60, label: '1 min' },
+  { value: 120, label: '2 min' },
+  { value: 180, label: '3 min' },
+  { value: 300, label: '5 min' },
+  { value: 600, label: '10 min' },
+  { value: 900, label: '15 min' },
+  { value: 1800, label: '30 min' },
+  { value: 3600, label: '60 min' },
+];
 
 interface NotificationsSectionProps {
   settings: LocalSettings;
@@ -8,6 +19,8 @@ interface NotificationsSectionProps {
 }
 
 export function NotificationsSection({ settings, onUpdate }: NotificationsSectionProps) {
+  const currentIdle = settings.idleThresholdSeconds ?? 300;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -65,6 +78,43 @@ export function NotificationsSection({ settings, onUpdate }: NotificationsSectio
                 onUpdate({ notificationSoundsEnabled: checked })
               }
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Idle Threshold Card */}
+      <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#f59e0b] to-[#ef4444] flex items-center justify-center">
+            <Timer className="w-4 h-4 text-white" />
+          </div>
+          <h3 className="text-[14px] font-medium text-[#f5f7fb]">Detecção de inatividade</h3>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <p className="text-[13px] text-[rgba(245,247,251,0.9)]">
+              Tempo até considerar inativo
+            </p>
+            <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
+              Após esse tempo sem atividade, o tracking será pausado automaticamente
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mt-2">
+            {IDLE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => onUpdate({ idleThresholdSeconds: opt.value })}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
+                  currentIdle === opt.value
+                    ? 'bg-[rgba(139,92,246,0.2)] border border-[rgba(139,92,246,0.5)] text-[#8B5CF6]'
+                    : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
