@@ -22,6 +22,7 @@ import {
 } from '../components/activities';
 import { AppIcon } from '../components/dashboard/shared';
 import { useTimerStore, selectCurrentUserSessions } from '../stores/timerStore';
+import { Clock } from 'lucide-react';
 import { fadeUp, staggerContainer, STAGGER } from '../lib/animation';
 
 // ============================================================================
@@ -165,8 +166,6 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
     return segment;
   });
 
-  const progressPercentage = Math.min((totalSeconds / 28800) * 100, 100);
-
   return (
     <motion.div
       className="grid grid-cols-3 gap-4 flex-shrink-0"
@@ -187,7 +186,7 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
               <div className="relative w-[100px] h-[100px]">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="url(#actGrad1)" strokeWidth="8" strokeDasharray={`${progressPercentage * 2.64} 264`} strokeLinecap="round" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="url(#actGrad1)" strokeWidth="8" strokeDasharray="264 264" strokeLinecap="round" opacity="0.3" />
                   <defs>
                     <linearGradient id="actGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
                       <stop offset="0%" stopColor="#8B5CF6" />
@@ -200,11 +199,10 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
                 </div>
               </div>
               <div className="mt-3 text-center">
-                <p className="text-[18px] font-semibold text-[rgba(245,247,251,0.9)]">{Math.round(progressPercentage)}%</p>
-                <p className="text-[10px] text-[rgba(245,247,251,0.3)] mt-0.5">Meta de 8h</p>
-                <p className="text-[10px] text-[rgba(245,247,251,0.4)] mt-1">
-                  Idle: <span className="text-[rgba(245,247,251,0.6)] font-medium">{formatDuration(idleSeconds)}</span>
-                </p>
+                <div className="flex items-center justify-center gap-1">
+                  <Clock className="w-3 h-3 text-[rgba(245,247,251,0.35)]" />
+                  <span className="text-[10px] text-[rgba(245,247,251,0.45)]">Ocioso: {formatDuration(idleSeconds)}</span>
+                </div>
               </div>
             </div>
           </CardContent>
