@@ -19,4 +19,9 @@ public sealed class UpdateLocalSettingsRequest
     /// Novo idioma (null = não alterar)
     /// </summary>
     public string? Language { get; init; }
+
+    /// <summary>
+    /// Novo limiar de inatividade em segundos (null = não alterar, 60–3600)
+    /// </summary>
+    public int? IdleThresholdSeconds { get; init; }
 }

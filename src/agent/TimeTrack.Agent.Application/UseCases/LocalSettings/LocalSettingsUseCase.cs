@@ -48,7 +48,8 @@ public sealed class LocalSettingsUseCase
         var updatedSettings = currentSettings.WithUpdates(
             autoResumeNotification: request.AutoResumeNotificationEnabled,
             notificationSounds: request.NotificationSoundsEnabled,
-            language: request.Language
+            language: request.Language,
+            idleThresholdSeconds: request.IdleThresholdSeconds
         );
 
         // Persistir
@@ -64,6 +65,7 @@ public sealed class LocalSettingsUseCase
             AutoResumeNotificationEnabled = settings.AutoResumeNotificationEnabled,
             NotificationSoundsEnabled = settings.NotificationSoundsEnabled,
             Language = settings.Language,
+            IdleThresholdSeconds = settings.IdleThresholdSeconds,
             UpdatedAt = settings.UpdatedAt
         };
     }

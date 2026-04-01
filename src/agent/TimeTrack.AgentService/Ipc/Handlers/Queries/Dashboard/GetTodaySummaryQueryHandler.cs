@@ -138,9 +138,11 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                 _logger.LogInformation("[GetTodaySummary] Got summary from backend for {Date}",
                     targetDate.ToString("yyyy-MM-dd"));
 
-                // Filter out internal apps
+                // Filter out internal apps — use ProcessName (canonical) with DisplayName fallback
+                // for responses from older backend versions that didn't include processName.
                 var filteredApps = report.Apps
-                    .Where(a => !InternalApps.Contains(a.DisplayName))
+                    .Where(a => !InternalApps.Contains(
+                        string.IsNullOrEmpty(a.ProcessName) ? a.DisplayName : a.ProcessName))
                     .ToList();
 
                 var totalActiveSeconds = filteredApps.Sum(a => a.TotalSeconds);
@@ -286,7 +288,8 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                     {
                         // Filter out internal apps (same filter as local dashboard)
                         var filteredSeconds = report.Apps
-                            .Where(a => !InternalApps.Contains(a.DisplayName))
+                            .Where(a => !InternalApps.Contains(
+                                string.IsNullOrEmpty(a.ProcessName) ? a.DisplayName : a.ProcessName))
                             .Sum(a => a.TotalSeconds);
                         hours = filteredSeconds / 3600.0;
                     }

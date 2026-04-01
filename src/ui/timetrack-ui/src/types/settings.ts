@@ -23,6 +23,9 @@ export interface LocalSettings {
   /** Idioma da interface (pt-BR, en-US) */
   language: 'pt-BR' | 'en-US';
 
+  /** Limiar de inatividade em segundos (60–3600). null = padrão do Agent (300s) */
+  idleThresholdSeconds: number | null;
+
   /** Timestamp da última atualização */
   updatedAt: string;
 }
@@ -34,6 +37,7 @@ export interface UpdateLocalSettingsRequest {
   autoResumeNotificationEnabled?: boolean;
   notificationSoundsEnabled?: boolean;
   language?: 'pt-BR' | 'en-US';
+  idleThresholdSeconds?: number;
 }
 
 // ============================================================================
@@ -245,6 +249,7 @@ export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
   autoResumeNotificationEnabled: true,
   notificationSoundsEnabled: true,
   language: 'pt-BR',
+  idleThresholdSeconds: null,
   updatedAt: new Date().toISOString(),
 };
 

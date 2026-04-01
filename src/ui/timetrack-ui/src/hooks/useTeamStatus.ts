@@ -1,6 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { getTeamStatus, listMembers } from '../services/memberApi';
 import type { TeamMemberStatus, Member } from '../types/member';
+
+const TEAM_STATUS_POLL_INTERVAL_MS = 60_000; // refresh every 60s (matches agent sync interval)
 
 interface UseTeamStatusReturn {
   members: TeamMemberStatus[];
@@ -8,7 +10,7 @@ interface UseTeamStatusReturn {
   error: string | null;
   activeCount: number;
   trackingCount: number;
-  loadTeamStatus: () => Promise<void>;
+  loadTeamStatus: (showLoading?: boolean) => Promise<void>;
 }
 
 export function useTeamStatus(): UseTeamStatusReturn {
@@ -17,6 +19,7 @@ export function useTeamStatus(): UseTeamStatusReturn {
   const [error, setError] = useState<string | null>(null);
   const [activeCount, setActiveCount] = useState(0);
   const [trackingCount, setTrackingCount] = useState(0);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Convert basic Member to TeamMemberStatus (fallback)
   const mapMemberToStatus = (member: Member): TeamMemberStatus => ({
@@ -29,8 +32,8 @@ export function useTeamStatus(): UseTeamStatusReturn {
     isTracking: false,
   });
 
-  const loadTeamStatus = useCallback(async () => {
-    setIsLoading(true);
+  const loadTeamStatus = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
     setError(null);
     try {
       // Try the new team status endpoint first
@@ -47,13 +50,23 @@ export function useTeamStatus(): UseTeamStatusReturn {
         setMembers(mappedMembers);
         setActiveCount(mappedMembers.filter(m => m.status === 'Active').length);
         setTrackingCount(0);
-      } catch (fallbackErr) {
+      } catch {
         setError(err instanceof Error ? err.message : 'Erro ao carregar status da equipe');
       }
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   }, []);
+
+  // Auto-poll to keep the team list fresh (matches agent sync interval)
+  useEffect(() => {
+    pollRef.current = setInterval(() => {
+      loadTeamStatus(false); // silent refresh — no loading spinner
+    }, TEAM_STATUS_POLL_INTERVAL_MS);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [loadTeamStatus]);
 
   return {
     members,

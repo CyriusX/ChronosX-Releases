@@ -36,6 +36,7 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
                 auto_resume_notification_enabled,
                 notification_sounds_enabled,
                 language,
+                idle_threshold_seconds,
                 updated_at
             FROM local_settings
             LIMIT 1";
@@ -48,13 +49,15 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
             return LocalSettings.CreateDefault();
         }
 
-        _logger.LogDebug("Local settings loaded: Language={Language}", dto.Language);
+        _logger.LogDebug("Local settings loaded: Language={Language}, IdleThreshold={IdleThreshold}",
+            dto.Language, dto.IdleThresholdSeconds);
 
         return Domain.Entities.LocalSettings.CreateDefault()
             .WithUpdates(
                 autoResumeNotification: dto.AutoResumeNotificationEnabled == 1,
                 notificationSounds: dto.NotificationSoundsEnabled == 1,
-                language: dto.Language);
+                language: dto.Language,
+                idleThresholdSeconds: dto.IdleThresholdSeconds);
     }
 
     public async Task SaveAsync(LocalSettings settings, CancellationToken cancellationToken = default)
@@ -66,9 +69,9 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
         // SQLite UPSERT usando INSERT OR REPLACE
         const string sql = @"
             INSERT OR REPLACE INTO local_settings
-                (id, auto_resume_notification_enabled, notification_sounds_enabled, language, updated_at)
+                (id, auto_resume_notification_enabled, notification_sounds_enabled, language, idle_threshold_seconds, updated_at)
             VALUES
-                (@Id, @AutoResumeNotificationEnabled, @NotificationSoundsEnabled, @Language, @UpdatedAt)";
+                (@Id, @AutoResumeNotificationEnabled, @NotificationSoundsEnabled, @Language, @IdleThresholdSeconds, @UpdatedAt)";
 
         await connection.ExecuteAsync(sql, new
         {
@@ -76,6 +79,7 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
             AutoResumeNotificationEnabled = settings.AutoResumeNotificationEnabled ? 1 : 0,
             NotificationSoundsEnabled = settings.NotificationSoundsEnabled ? 1 : 0,
             Language = settings.Language,
+            IdleThresholdSeconds = settings.IdleThresholdSeconds,
             UpdatedAt = settings.UpdatedAt.ToString("O")
         });
 
@@ -94,6 +98,7 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
         public int AutoResumeNotificationEnabled { get; set; }
         public int NotificationSoundsEnabled { get; set; }
         public string Language { get; set; } = "pt-BR";
+        public int? IdleThresholdSeconds { get; set; }
         public string? UpdatedAt { get; set; }
     }
 }

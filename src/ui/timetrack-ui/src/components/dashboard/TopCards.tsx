@@ -103,8 +103,6 @@ export function TopCards({
     return segment;
   });
 
-  const progressPercentage = Math.min((totalSeconds / 28800) * 100, 100);
-
   // VS ONTEM comparison
   const todayIdx = weeklyHistory.findIndex(w => w.isToday);
   const yesterdayEntry = todayIdx > 0 ? weeklyHistory[todayIdx - 1] : null;
@@ -117,22 +115,6 @@ export function TopCards({
 
   // Animated counters
   const animatedScore = useAnimatedCounter(productivityScore);
-  const animatedProgress = useAnimatedCounter(Math.round(progressPercentage));
-
-  // SVG ring animation for time tracked
-  const timeRingRef = useRef<SVGCircleElement>(null);
-  const prevProgressRef = useRef(0);
-
-  useEffect(() => {
-    if (!timeRingRef.current) return;
-    const targetDash = progressPercentage * 2.64;
-    animate(timeRingRef.current, {
-      strokeDasharray: [`${prevProgressRef.current * 2.64} 264`, `${targetDash} 264`],
-      duration: TIMING_MS.ring,
-      ease: 'inOutQuart',
-    });
-    prevProgressRef.current = progressPercentage;
-  }, [progressPercentage]);
 
   // SVG ring animation for productivity segments
   const segmentRefs = useRef<(SVGCircleElement | null)[]>([]);
@@ -152,8 +134,8 @@ export function TopCards({
     });
   }, [ringSegments.length, totalSeconds]);
 
-  // Grid: 3-col on team tab (no timer), 4-col on meu dia
-  const gridCols = isTeamTab ? 'grid-cols-3' : 'grid-cols-4';
+  // Grid: 3-col on both tabs (Meu dia: Tempo + Produtividade + Timer; Team: Tempo + Produtividade + Resumo)
+  const gridCols = 'grid-cols-3';
 
   return (
     <motion.div
@@ -177,11 +159,11 @@ export function TopCards({
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
                   <circle
-                    ref={timeRingRef}
                     cx="50" cy="50" r="42" fill="none"
                     stroke="url(#gradient1)" strokeWidth="8"
-                    strokeDasharray={`0 264`}
+                    strokeDasharray="264 264"
                     strokeLinecap="round"
+                    opacity="0.3"
                   />
                   <defs>
                     <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -196,7 +178,11 @@ export function TopCards({
               </div>
 
               <div className="mt-3 text-center">
-                <p className="text-[18px] font-semibold text-[rgba(245,247,251,0.9)]">{animatedProgress}%</p>
+                {/* Idle time label */}
+                <div className="flex items-center justify-center gap-1">
+                  <Clock className="w-3 h-3 text-[rgba(245,247,251,0.35)]" />
+                  <span className="text-[10px] text-[rgba(245,247,251,0.45)]">Ocioso: {formatDuration(idleSeconds)}</span>
+                </div>
 
                 {/* VS ONTEM comparison */}
                 <div className="flex items-center justify-center gap-1.5 mt-1">
@@ -295,66 +281,68 @@ export function TopCards({
         </motion.div>
       )}
 
-      {/* ─── Resumo Card ─── */}
-      <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }} className="h-full">
-        <Card className={`${cardBase} h-full`}>
-          <CardHeader className="pb-0 pt-3 px-4">
-            <CardTitle className="flex items-center justify-between">
-              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Resumo</span>
-              <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-3 pb-3 px-4">
-            <div className="space-y-3">
-              {/* Idle time */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-md bg-[rgba(161,161,170,0.1)] border border-[rgba(161,161,170,0.2)] flex items-center justify-center">
-                    <Clock className="w-3 h-3 text-[rgba(245,247,251,0.5)]" />
+      {/* ─── Resumo Card (Teams tab only) ─── */}
+      {isTeamTab && (
+        <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }} className="h-full">
+          <Card className={`${cardBase} h-full`}>
+            <CardHeader className="pb-0 pt-3 px-4">
+              <CardTitle className="flex items-center justify-between">
+                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Resumo</span>
+                <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-3 pb-3 px-4">
+              <div className="space-y-3">
+                {/* Idle time */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-md bg-[rgba(161,161,170,0.1)] border border-[rgba(161,161,170,0.2)] flex items-center justify-center">
+                      <Clock className="w-3 h-3 text-[rgba(245,247,251,0.5)]" />
+                    </div>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo ocioso</span>
                   </div>
-                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo ocioso</span>
+                  <span className="text-[14px] font-bold text-[rgba(245,247,251,0.6)]">{formatDuration(idleSeconds)}</span>
                 </div>
-                <span className="text-[14px] font-bold text-[rgba(245,247,251,0.6)]">{formatDuration(idleSeconds)}</span>
-              </div>
 
-              {/* Focus sessions */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-md bg-[rgba(5,223,114,0.1)] border border-[rgba(5,223,114,0.2)] flex items-center justify-center">
-                    <Target className="w-3 h-3 text-[#05df72]" />
+                {/* Focus sessions */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-md bg-[rgba(5,223,114,0.1)] border border-[rgba(5,223,114,0.2)] flex items-center justify-center">
+                      <Target className="w-3 h-3 text-[#05df72]" />
+                    </div>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Sessões de foco</span>
                   </div>
-                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Sessões de foco</span>
+                  <span className="text-[14px] font-bold text-[#f5f7fb]">{focusSessionCount}</span>
                 </div>
-                <span className="text-[14px] font-bold text-[#f5f7fb]">{focusSessionCount}</span>
-              </div>
 
-              {/* Distractions */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-md bg-[rgba(248,113,113,0.1)] border border-[rgba(248,113,113,0.2)] flex items-center justify-center">
-                    <AlertTriangle className="w-3 h-3 text-[#f87171]" />
+                {/* Distractions */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-md bg-[rgba(248,113,113,0.1)] border border-[rgba(248,113,113,0.2)] flex items-center justify-center">
+                      <AlertTriangle className="w-3 h-3 text-[#f87171]" />
+                    </div>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Distrações</span>
                   </div>
-                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Distrações</span>
+                  <span className="text-[14px] font-bold text-[#f5f7fb]">{distractionCount}</span>
                 </div>
-                <span className="text-[14px] font-bold text-[#f5f7fb]">{distractionCount}</span>
-              </div>
 
-              {/* Focus score */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-md bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.2)] flex items-center justify-center">
-                    <Zap className="w-3 h-3 text-[#8B5CF6]" />
+                {/* Focus score */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-md bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.2)] flex items-center justify-center">
+                      <Zap className="w-3 h-3 text-[#8B5CF6]" />
+                    </div>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Focus Score</span>
                   </div>
-                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Focus Score</span>
+                  <span className="text-[14px] font-bold" style={{ color: getScoreColor(focusScoreAvg) }}>
+                    {focusScoreAvg}
+                  </span>
                 </div>
-                <span className="text-[14px] font-bold" style={{ color: getScoreColor(focusScoreAvg) }}>
-                  {focusScoreAvg}
-                </span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

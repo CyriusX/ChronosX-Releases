@@ -12,7 +12,9 @@ public sealed record DailySummaryQuery(
     Guid? UserId,
 
     [Required]
-    DateTime Date
+    DateTime Date,
+
+    string? Timezone = null
 ) : IRequest<DailySummaryResponse>;
 
 /// <summary>
@@ -62,6 +64,12 @@ public sealed class DailySummaryResponse
 /// </summary>
 public sealed class DailyAppSummary
 {
+    /// <summary>
+    /// Raw process name (used for internal-app filtering on the agent side)
+    /// </summary>
+    [JsonPropertyName("processName")]
+    public string ProcessName { get; init; } = string.Empty;
+
     /// <summary>
     /// Nome de exibição do app
     /// </summary>
