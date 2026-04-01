@@ -49,8 +49,11 @@ public sealed class ActivitySessionRepository : IActivitySessionRepository
         DateTime endDate,
         CancellationToken cancellationToken = default)
     {
+        // Overlap query: include sessions that OVERLAP with [startDate, endDate), not just
+        // ones that start within it. Cross-midnight sessions that start just before startDate
+        // and end within the range are included so the timeline shows them.
         return await _context.ActivitySessions
-            .Where(a => a.UserId == userId && a.StartedAt >= startDate && a.StartedAt < endDate)
+            .Where(a => a.UserId == userId && a.StartedAt < endDate && a.EndedAt >= startDate)
             .OrderByDescending(a => a.StartedAt)
             .ToListAsync(cancellationToken);
     }

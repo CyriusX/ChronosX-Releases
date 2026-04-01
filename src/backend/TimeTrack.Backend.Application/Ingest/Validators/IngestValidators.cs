@@ -114,8 +114,7 @@ public sealed class FocusSessionItemValidator : AbstractValidator<FocusSessionIt
             .NotEmpty().WithMessage("StartedAt is required");
 
         RuleFor(x => x.PlannedDurationMinutes)
-            .GreaterThan(0).WithMessage("PlannedDurationMinutes must be greater than 0")
-            .LessThanOrEqualTo(480).WithMessage("PlannedDurationMinutes cannot exceed 480 minutes (8 hours)");
+            .GreaterThan(0).WithMessage("PlannedDurationMinutes must be greater than 0");
 
         RuleFor(x => x.Status)
             .NotEmpty().WithMessage("Status is required")
@@ -124,7 +123,6 @@ public sealed class FocusSessionItemValidator : AbstractValidator<FocusSessionIt
 
         RuleFor(x => x.ActualDurationMinutes)
             .GreaterThan(0).WithMessage("ActualDurationMinutes must be greater than 0 when provided")
-            .LessThanOrEqualTo(480).WithMessage("ActualDurationMinutes cannot exceed 480 minutes (8 hours)")
             .When(x => x.ActualDurationMinutes.HasValue);
 
         RuleFor(x => x.FocusScore)

@@ -12,7 +12,9 @@ public sealed record DailySummaryQuery(
     Guid? UserId,
 
     [Required]
-    DateTime Date
+    DateTime Date,
+
+    string? Timezone = null
 ) : IRequest<DailySummaryResponse>;
 
 /// <summary>

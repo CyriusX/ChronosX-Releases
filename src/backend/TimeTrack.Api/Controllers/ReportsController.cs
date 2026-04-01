@@ -182,6 +182,7 @@ public sealed class ReportsController : ControllerBase
     public async Task<IActionResult> GetDailySummary(
         [FromQuery] Guid? userId,
         [FromQuery] DateTime date,
+        [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
         // Determine target userId
@@ -208,7 +209,8 @@ public sealed class ReportsController : ControllerBase
 
         var query = new DailySummaryQuery(
             UserId: targetUserId,
-            Date: date
+            Date: date,
+            Timezone: timezone
         );
 
         try

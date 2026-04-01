@@ -261,12 +261,12 @@ public sealed class ReportRepository : IReportRepository
             endOfDay = startOfDay.AddDays(1).AddTicks(-1);
         }
 
-        // Query otimizada com GROUP BY + JOIN para categorias
-        // Compute duration from timestamps (EndedAt - StartedAt) instead of stored DurationSeconds
-        // to match the local agent's calculation and avoid stale values from sync lag
+        // Overlap query: include sessions that OVERLAP with the day, not just ones that start in it.
+        // A session starting just before local midnight that ends in the day must be included.
+        var dayEndExclusive = endOfDay.AddTicks(1); // exclusive bound for clip arithmetic
         var rawSessions = await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => a.UserId == userId && a.StartedAt >= startOfDay && a.StartedAt <= endOfDay)
+            .Where(a => a.UserId == userId && a.StartedAt <= endOfDay && a.EndedAt > startOfDay)
             .Select(a => new
             {
                 a.ProcessName,
@@ -277,11 +277,15 @@ public sealed class ReportRepository : IReportRepository
             })
             .ToListAsync(cancellationToken);
 
-        // Compute duration from timestamps to match local agent behavior
+        // Clip each session to the day boundaries so cross-midnight sessions only contribute
+        // the portion that falls within this local day.
         var sessions = rawSessions.Select(a => new
         {
             a.ProcessName,
-            DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds,
+            DurationSeconds = (int)Math.Max(0, (
+                (a.EndedAt > dayEndExclusive ? dayEndExclusive : a.EndedAt) -
+                (a.StartedAt < startOfDay ? startOfDay : a.StartedAt)
+            ).TotalSeconds),
             a.StartedAt,
             a.EndedAt,
             a.AppCategory,
@@ -320,7 +324,12 @@ public sealed class ReportRepository : IReportRepository
             .ToList();
 
         var timeBounds = sessions.Count != 0
-            ? new { FirstActivity = sessions.Min(a => a.StartedAt), LastActivity = sessions.Max(a => a.EndedAt) }
+            ? new {
+                // Clip times to day boundaries so cross-midnight sessions don't report
+                // a StartedAt from yesterday or an EndedAt from tomorrow.
+                FirstActivity = sessions.Min(a => a.StartedAt < startOfDay ? startOfDay : a.StartedAt),
+                LastActivity = sessions.Max(a => a.EndedAt > dayEndExclusive ? dayEndExclusive : a.EndedAt)
+            }
             : null;
 
         return new DailyActivityAggregate
@@ -352,14 +361,19 @@ public sealed class ReportRepository : IReportRepository
             endOfDay = startOfDay.AddDays(1).AddTicks(-1);
         }
 
-        // Compute from timestamps to match local agent behavior (avoid stale DurationSeconds)
+        // Overlap query + clip: include idle periods crossing midnight, count only the portion
+        // within the local day.
+        var dayEndExclusiveIdle = endOfDay.AddTicks(1);
         var idlePeriods = await _context.IdlePeriods
             .AsNoTracking()
-            .Where(i => i.UserId == userId && i.StartedAt >= startOfDay && i.StartedAt <= endOfDay)
+            .Where(i => i.UserId == userId && i.StartedAt <= endOfDay && i.EndedAt > startOfDay)
             .Select(i => new { i.StartedAt, i.EndedAt })
             .ToListAsync(cancellationToken);
 
-        return idlePeriods.Sum(i => (long)(i.EndedAt - i.StartedAt).TotalSeconds);
+        return idlePeriods.Sum(i => (long)Math.Max(0, (
+            (i.EndedAt > dayEndExclusiveIdle ? dayEndExclusiveIdle : i.EndedAt) -
+            (i.StartedAt < startOfDay ? startOfDay : i.StartedAt)
+        ).TotalSeconds));
     }
 
     public async Task<IEnumerable<AppAggregate>> GetTopAppsAsync(
@@ -373,15 +387,22 @@ public sealed class ReportRepository : IReportRepository
     {
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
+        // Overlap query + clip: sessions crossing the range boundary contribute only the
+        // portion that falls within [start, end].
+        var endExclusive = end.AddTicks(1);
         var rawSessions = await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
             .Select(a => new { a.ProcessName, a.StartedAt, a.EndedAt, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
-        // Compute duration from timestamps to avoid stale DurationSeconds
+        // Clip each session to the queried range boundaries
         var sessions = rawSessions.Select(a => new {
-            a.ProcessName, DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds,
+            a.ProcessName,
+            DurationSeconds = (int)Math.Max(0, (
+                (a.EndedAt > endExclusive ? endExclusive : a.EndedAt) -
+                (a.StartedAt < start ? start : a.StartedAt)
+            ).TotalSeconds),
             a.AppCategory, a.AppSubcategory
         }).ToList();
 
@@ -435,9 +456,12 @@ public sealed class ReportRepository : IReportRepository
         // Buscar sessões and idle periods — include EndedAt for proper midnight-crossing handling.
         // Exclude internal/system apps (same as agent's local dashboard) to avoid inflating totals
         // with "Tracking Stopped" placeholder sessions and our own UI processes.
+        // Use overlap query: include sessions that OVERLAP with the range, not just ones that
+        // start within it. A session starting just before local midnight that ends in the range
+        // (cross-midnight session) must be included so ClipDuration can split it correctly.
         var rawSessionsForRange = await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
             .Select(a => new { a.StartedAt, a.EndedAt, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken);
 
@@ -456,13 +480,14 @@ public sealed class ReportRepository : IReportRepository
         // Load org-level overrides for this user
         var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
-        // Compute idle duration from timestamps to avoid stale DurationSeconds
+        // Overlap query for idle periods: include periods crossing day boundaries.
+        // Keep EndedAt so ClipDuration can split cross-midnight idle periods correctly.
         var idlePeriods = (await _context.IdlePeriods
             .AsNoTracking()
-            .Where(i => userIds.Contains(i.UserId) && i.StartedAt >= start && i.StartedAt <= end)
+            .Where(i => userIds.Contains(i.UserId) && i.StartedAt <= end && i.EndedAt > start)
             .Select(i => new { i.StartedAt, i.EndedAt })
             .ToListAsync(cancellationToken))
-            .Select(i => new { i.StartedAt, DurationSeconds = (int)(i.EndedAt - i.StartedAt).TotalSeconds })
+            .Select(i => new { i.StartedAt, i.EndedAt, DurationSeconds = (int)(i.EndedAt - i.StartedAt).TotalSeconds })
             .ToList();
 
         // Agrupar por local date — iterate local days and compute UTC boundaries per day.
@@ -479,8 +504,9 @@ public sealed class ReportRepository : IReportRepository
             var daySessions = sessions
                 .Where(s => s.StartedAt <= dayEnd && s.EndedAt > dayStart)
                 .ToList();
+            // Overlap filter for idle: include any idle period that overlaps with this day
             var dayIdle = idlePeriods
-                .Where(i => i.StartedAt <= dayEnd && i.StartedAt >= dayStart)
+                .Where(i => i.StartedAt < dayEndExclusive && i.EndedAt > dayStart)
                 .ToList();
 
             // Clip each session's duration to the day boundaries.
@@ -496,7 +522,7 @@ public sealed class ReportRepository : IReportRepository
             }
 
             var totalActive = daySessions.Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
-            var totalIdle = dayIdle.Sum(i => i.DurationSeconds);
+            var totalIdle = dayIdle.Sum(i => ClipDuration(i.StartedAt, i.EndedAt, i.DurationSeconds));
 
             // Calcular produtividade (using clipped durations + overrides)
             var productiveSeconds = daySessions
@@ -598,10 +624,17 @@ public sealed class ReportRepository : IReportRepository
 
         var sessions = (await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
             .Select(a => new { a.StartedAt, a.EndedAt, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken))
-            .Select(a => new { a.StartedAt, a.EndedAt, DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds, a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .Select(a => new {
+                a.StartedAt, a.EndedAt,
+                DurationSeconds = (int)Math.Max(0, (
+                    (a.EndedAt > end.AddTicks(1) ? end.AddTicks(1) : a.EndedAt) -
+                    (a.StartedAt < start ? start : a.StartedAt)
+                ).TotalSeconds),
+                a.ProcessName, a.AppCategory, a.AppSubcategory
+            })
             .ToList();
 
         // Filter out internal/system apps
@@ -610,13 +643,13 @@ public sealed class ReportRepository : IReportRepository
         // Load org-level overrides for this user
         var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
-        // Compute idle duration from timestamps to avoid stale DurationSeconds
+        // Overlap query for idle periods; keep EndedAt for per-day clipping
         var idlePeriods = (await _context.IdlePeriods
             .AsNoTracking()
-            .Where(i => userIds.Contains(i.UserId) && i.StartedAt >= start && i.StartedAt <= end)
+            .Where(i => userIds.Contains(i.UserId) && i.StartedAt <= end && i.EndedAt > start)
             .Select(i => new { i.StartedAt, i.EndedAt })
             .ToListAsync(cancellationToken))
-            .Select(i => new { i.StartedAt, DurationSeconds = (int)(i.EndedAt - i.StartedAt).TotalSeconds })
+            .Select(i => new { i.StartedAt, i.EndedAt, DurationSeconds = (int)(i.EndedAt - i.StartedAt).TotalSeconds })
             .ToList();
 
         // Convert UTC timestamps to local time for grouping
@@ -636,7 +669,7 @@ public sealed class ReportRepository : IReportRepository
 
                 // Sessions that OVERLAP this day (same logic as DailySummaryRange)
                 var daySessions = sessions.Where(s => s.StartedAt <= dayEnd && s.EndedAt > dayStart).ToList();
-                var dayIdle = idlePeriods.Where(i => i.StartedAt <= dayEnd && i.StartedAt >= dayStart).ToList();
+                var dayIdle = idlePeriods.Where(i => i.StartedAt < dayEndExclusive && i.EndedAt > dayStart).ToList();
 
                 // Clip durations to day boundaries
                 long ClipDuration(DateTime sessStart, DateTime sessEnd, int rawDuration)
@@ -655,7 +688,7 @@ public sealed class ReportRepository : IReportRepository
                 var neutral = daySessions
                     .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "neutral")
                     .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
-                var idleSeconds = dayIdle.Sum(i => i.DurationSeconds);
+                var idleSeconds = dayIdle.Sum(i => ClipDuration(i.StartedAt, i.EndedAt, i.DurationSeconds));
 
                 result.Add(new ProductivityTrendItem
                 {
@@ -720,13 +753,20 @@ public sealed class ReportRepository : IReportRepository
     {
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
+        var endExclusivePaths = end.AddTicks(1);
         var sessions = (await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
             .Where(a => a.WindowTitle != null && a.WindowTitle != "")
             .Select(a => new { a.ProcessName, a.WindowTitle, a.FilePath, a.StartedAt, a.EndedAt })
             .ToListAsync(cancellationToken))
-            .Select(a => new { a.ProcessName, a.WindowTitle, a.FilePath, DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds })
+            .Select(a => new {
+                a.ProcessName, a.WindowTitle, a.FilePath,
+                DurationSeconds = (int)Math.Max(0, (
+                    (a.EndedAt > endExclusivePaths ? endExclusivePaths : a.EndedAt) -
+                    (a.StartedAt < start ? start : a.StartedAt)
+                ).TotalSeconds)
+            })
             .ToList();
 
         // Filter out internal/system apps
@@ -771,12 +811,20 @@ public sealed class ReportRepository : IReportRepository
         var tz = GetTimezone(timezone);
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
+        var endExclusiveDistr = end.AddTicks(1);
         var sessions = (await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
             .Select(a => new { a.StartedAt, a.EndedAt, a.ProcessName, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken))
-            .Select(a => new { a.StartedAt, a.ProcessName, DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds, a.AppCategory, a.AppSubcategory })
+            .Select(a => new {
+                a.StartedAt, a.ProcessName,
+                DurationSeconds = (int)Math.Max(0, (
+                    (a.EndedAt > endExclusiveDistr ? endExclusiveDistr : a.EndedAt) -
+                    (a.StartedAt < start ? start : a.StartedAt)
+                ).TotalSeconds),
+                a.AppCategory, a.AppSubcategory
+            })
             .ToList();
 
         // Filter out internal/system apps
@@ -835,12 +883,20 @@ public sealed class ReportRepository : IReportRepository
     {
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
+        var endExclusiveCat = end.AddTicks(1);
         var sessions = (await _context.ActivitySessions
             .AsNoTracking()
-            .Where(a => userIds.Contains(a.UserId) && a.StartedAt >= start && a.StartedAt <= end)
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
             .Select(a => new { a.ProcessName, a.StartedAt, a.EndedAt, a.AppCategory, a.AppSubcategory })
             .ToListAsync(cancellationToken))
-            .Select(a => new { a.ProcessName, DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds, a.AppCategory, a.AppSubcategory })
+            .Select(a => new {
+                a.ProcessName,
+                DurationSeconds = (int)Math.Max(0, (
+                    (a.EndedAt > endExclusiveCat ? endExclusiveCat : a.EndedAt) -
+                    (a.StartedAt < start ? start : a.StartedAt)
+                ).TotalSeconds),
+                a.AppCategory, a.AppSubcategory
+            })
             .ToList();
 
         // Filter out internal/system apps
