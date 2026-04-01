@@ -73,3 +73,7 @@ Thumbs.db
 # Logs
 logs/
 *.log
+
+# Claude
+CLAUDE.md
+.claude/settings.local.json
