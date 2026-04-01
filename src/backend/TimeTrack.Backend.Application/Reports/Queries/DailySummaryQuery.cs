@@ -51,6 +51,7 @@ public sealed class DailySummaryQueryHandler : IRequestHandler<DailySummaryQuery
             LastActivity = activity.LastActivity?.ToString("HH:mm:ss"),
             Apps = activity.Apps.Select(a => new DailyAppSummary
             {
+                ProcessName = a.ProcessName,
                 DisplayName = a.DisplayName ?? a.ProcessName,
                 TotalSeconds = a.TotalSeconds,
                 SessionCount = a.SessionCount,

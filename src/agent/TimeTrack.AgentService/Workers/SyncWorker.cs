@@ -129,11 +129,13 @@ public sealed class SyncWorker : BackgroundService
         if (!_userContext.IsAuthenticated)
             return false;
 
-        if (_userContext.DeviceId.HasValue)
+        // Guid.Empty means the JWT was refreshed from a web-login token (DeviceId placeholder).
+        // Treat it the same as missing — the device has not been properly activated yet.
+        if (_userContext.DeviceId.HasValue && _userContext.DeviceId.Value != Guid.Empty)
             return true;
 
         _logger.LogWarning(
-            "JWT is missing device_id claim. Attempting device activation to unblock sync.");
+            "JWT is missing device_id claim (or has empty placeholder). Attempting device activation to unblock sync.");
 
         var jwt = await _tokenStore.GetJwtAsync(cancellationToken);
         var refreshToken = await _tokenStore.GetRefreshTokenAsync(cancellationToken);

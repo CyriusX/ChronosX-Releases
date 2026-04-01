@@ -50,8 +50,11 @@ public sealed class TokenService : ITokenService
             new("must_change_password", mustChangePassword.ToString().ToLowerInvariant())
         };
 
-        // Add device_id claim if device is specified (for Agent/desktop clients)
-        if (deviceId.HasValue)
+        // Add device_id claim if device is specified (for Agent/desktop clients).
+        // Skip Guid.Empty — web-login refresh tokens store DeviceId=Guid.Empty as a
+        // placeholder; including it in the JWT causes FK violations on activity_sessions
+        // (device_id → devices.id) since no Device row exists for the empty GUID.
+        if (deviceId.HasValue && deviceId.Value != Guid.Empty)
         {
             claims.Add(new Claim("device_id", deviceId.Value.ToString()));
         }

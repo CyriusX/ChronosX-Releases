@@ -64,7 +64,7 @@ try
         options.AddDefaultPolicy(policy =>
         {
             var frontendUrl = builder.Configuration["Frontend:BaseUrl"] ?? "http://localhost:5173";
-            policy.WithOrigins(frontendUrl, "http://localhost:5174", "http://localhost:3000")
+            policy.WithOrigins(frontendUrl, "http://localhost:5174", "http://localhost:3000", "https://app.local")
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials();

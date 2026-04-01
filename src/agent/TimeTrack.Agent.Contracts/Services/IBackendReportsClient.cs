@@ -35,6 +35,7 @@ public sealed class DailyReportResult
 /// </summary>
 public sealed class DailyReportApp
 {
+    public string ProcessName { get; init; } = string.Empty;
     public string DisplayName { get; init; } = string.Empty;
     public long TotalSeconds { get; init; }
     public int SessionCount { get; init; }

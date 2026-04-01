@@ -113,6 +113,7 @@ public sealed class BackendReportsClient : IBackendReportsClient
                 TotalIdleSeconds = dto.TotalIdleSeconds,
                 Apps = dto.Apps?.Select(a => new DailyReportApp
                 {
+                    ProcessName = a.ProcessName ?? string.Empty,
                     DisplayName = a.DisplayName ?? string.Empty,
                     TotalSeconds = a.TotalSeconds,
                     SessionCount = a.SessionCount,
@@ -220,6 +221,7 @@ public sealed class BackendReportsClient : IBackendReportsClient
 
     private sealed class AppDto
     {
+        public string? ProcessName { get; set; }
         public string? DisplayName { get; set; }
         public long TotalSeconds { get; set; }
         public int SessionCount { get; set; }
