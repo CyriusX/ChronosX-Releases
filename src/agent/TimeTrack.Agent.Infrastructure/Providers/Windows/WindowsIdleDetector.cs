@@ -134,7 +134,7 @@ public sealed class IdleDetectorOptions
     /// <summary>
     /// Default idle threshold in seconds (3 minutes)
     /// </summary>
-    public int DefaultThresholdSeconds { get; set; } = 180;
+    public int DefaultThresholdSeconds { get; set; } = 300;
 
     /// <summary>
     /// Minimum threshold allowed (60 seconds)
