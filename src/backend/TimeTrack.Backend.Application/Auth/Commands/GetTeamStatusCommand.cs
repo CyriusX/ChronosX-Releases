@@ -83,10 +83,17 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
             .Where(s => !Domain.Constants.InternalApps.IsInternal(s.ProcessName))
             .ToList();
 
-        // Group sessions by user and calculate total duration (compute from timestamps to avoid stale DurationSeconds)
+        // Group sessions by user and calculate total duration.
+        // Clip each session to the day boundaries so cross-midnight sessions only contribute
+        // the portion that falls within today — matching GetDailyActivityAggregateAsync behaviour.
         var sessionsByUser = filteredSessions
             .GroupBy(s => s.UserId)
-            .ToDictionary(g => g.Key, g => (int)g.Sum(s => (s.EndedAt - s.StartedAt).TotalSeconds));
+            .ToDictionary(g => g.Key, g => (int)g.Sum(s =>
+            {
+                var clippedStart = s.StartedAt < today ? today : s.StartedAt;
+                var clippedEnd = s.EndedAt > tomorrow ? tomorrow : s.EndedAt;
+                return Math.Max(0, (clippedEnd - clippedStart).TotalSeconds);
+            }));
 
         // Find users currently tracking (had activity in last 5 minutes)
         var fiveMinutesAgo = DateTime.UtcNow.AddMinutes(-5);

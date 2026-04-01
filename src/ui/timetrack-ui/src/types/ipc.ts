@@ -233,6 +233,7 @@ export interface UpdateSettingsPayload {
   autoResumeNotificationEnabled?: boolean;
   notificationSoundsEnabled?: boolean;
   language?: 'pt-BR' | 'en-US';
+  idleThresholdSeconds?: number;
 }
 
 export interface SetWorkHoursPayload {

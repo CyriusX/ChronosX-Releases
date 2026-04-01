@@ -24,6 +24,19 @@ public sealed class BackendReportsClient : IBackendReportsClient
         PropertyNameCaseInsensitive = true
     };
 
+    /// <summary>
+    /// Returns the IANA timezone ID for the local system timezone.
+    /// On Windows, converts from Windows timezone ID (e.g. "E. South America Standard Time")
+    /// to IANA ID (e.g. "America/Sao_Paulo") using the .NET 6+ built-in converter.
+    /// Falls back to "UTC" if conversion fails.
+    /// </summary>
+    private static string GetLocalIanaTimezone()
+    {
+        var local = TimeZoneInfo.Local;
+        if (local.HasIanaId) return local.Id;
+        return TimeZoneInfo.TryConvertWindowsIdToIanaId(local.Id, out var ianaId) ? ianaId : "UTC";
+    }
+
     public BackendReportsClient(
         HttpClient httpClient,
         ITokenStore tokenStore,
@@ -60,9 +73,10 @@ public sealed class BackendReportsClient : IBackendReportsClient
             }
 
             var dateStr = date.ToString("yyyy-MM-dd");
+            var timezone = Uri.EscapeDataString(GetLocalIanaTimezone());
             _logger.LogInformation("[BackendReports] Fetching daily report for {Date}", dateStr);
 
-            var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/reports/daily?date={dateStr}");
+            var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/reports/daily?date={dateStr}&timezone={timezone}");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
 
             var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -75,7 +89,7 @@ public sealed class BackendReportsClient : IBackendReportsClient
                 if (refreshed)
                 {
                     jwt = await _tokenStore.GetJwtAsync(cancellationToken);
-                    var retryRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/reports/daily?date={dateStr}");
+                    var retryRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/reports/daily?date={dateStr}&timezone={timezone}");
                     retryRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
                     response = await _httpClient.SendAsync(retryRequest, cancellationToken);
                 }
@@ -99,6 +113,7 @@ public sealed class BackendReportsClient : IBackendReportsClient
                 TotalIdleSeconds = dto.TotalIdleSeconds,
                 Apps = dto.Apps?.Select(a => new DailyReportApp
                 {
+                    ProcessName = a.ProcessName ?? string.Empty,
                     DisplayName = a.DisplayName ?? string.Empty,
                     TotalSeconds = a.TotalSeconds,
                     SessionCount = a.SessionCount,
@@ -206,6 +221,7 @@ public sealed class BackendReportsClient : IBackendReportsClient
 
     private sealed class AppDto
     {
+        public string? ProcessName { get; set; }
         public string? DisplayName { get; set; }
         public long TotalSeconds { get; set; }
         public int SessionCount { get; set; }

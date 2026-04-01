@@ -134,7 +134,7 @@ public sealed class IdleDetectorOptions
     /// <summary>
     /// Default idle threshold in seconds (3 minutes)
     /// </summary>
-    public int DefaultThresholdSeconds { get; set; } = 180;
+    public int DefaultThresholdSeconds { get; set; } = 300;
 
     /// <summary>
     /// Minimum threshold allowed (60 seconds)
@@ -142,9 +142,10 @@ public sealed class IdleDetectorOptions
     public int MinThresholdSeconds { get; set; } = 60;
 
     /// <summary>
-    /// Maximum threshold allowed (600 seconds = 10 minutes)
+    /// Maximum threshold allowed. No practical upper bound — a user tracking a 20-hour session
+    /// should be able to set idle detection to any reasonable value.
     /// </summary>
-    public int MaxThresholdSeconds { get; set; } = 600;
+    public int MaxThresholdSeconds { get; set; } = 86400; // 24 hours
 
     /// <summary>
     /// Polling interval in milliseconds when monitoring

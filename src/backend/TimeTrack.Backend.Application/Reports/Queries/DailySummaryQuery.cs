@@ -37,9 +37,9 @@ public sealed class DailySummaryQueryHandler : IRequestHandler<DailySummaryQuery
 
         // Buscar dados sequencialmente — EF Core DbContext is not thread-safe
         var activity = await _reportRepository.GetDailyActivityAggregateAsync(
-            targetUserId, request.Date, cancellationToken: cancellationToken);
+            targetUserId, request.Date, request.Timezone, cancellationToken);
         var totalIdleSeconds = await _reportRepository.GetDailyIdleSecondsAsync(
-            targetUserId, request.Date, cancellationToken: cancellationToken);
+            targetUserId, request.Date, request.Timezone, cancellationToken);
 
         // Mapear para response
         return new DailySummaryResponse
@@ -51,6 +51,7 @@ public sealed class DailySummaryQueryHandler : IRequestHandler<DailySummaryQuery
             LastActivity = activity.LastActivity?.ToString("HH:mm:ss"),
             Apps = activity.Apps.Select(a => new DailyAppSummary
             {
+                ProcessName = a.ProcessName,
                 DisplayName = a.DisplayName ?? a.ProcessName,
                 TotalSeconds = a.TotalSeconds,
                 SessionCount = a.SessionCount,

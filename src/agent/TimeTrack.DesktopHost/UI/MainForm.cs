@@ -168,7 +168,16 @@ public sealed class MainForm : Form
             }
             else
             {
-                _webView.Source = new Uri(bundlePath);
+                // Map the dist folder to a virtual host so the UI is served under a
+                // proper https:// origin instead of file://. This avoids CORS issues
+                // (file:// sends Origin: null which backends reject) and other
+                // file:// protocol limitations.
+                var distFolder = Path.GetDirectoryName(bundlePath)!;
+                _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                    "app.local",
+                    distFolder,
+                    CoreWebView2HostResourceAccessKind.Allow);
+                _webView.Source = new Uri("https://app.local/index.html");
             }
         }
         catch (Exception ex)
@@ -310,7 +319,7 @@ public sealed class MainForm : Form
 
             // Block external domains in production
 #if !DEBUG
-            if (uri.Host != "localhost" && uri.Scheme != "file")
+            if (uri.Host != "localhost" && uri.Host != "app.local" && uri.Scheme != "file")
             {
                 _logger.LogWarning("Blocked external navigation to: {Uri}", e.Uri);
                 e.Cancel = true;

@@ -109,7 +109,8 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
             .OrderByDescending(c => c.Duration)
             .ToList();
 
-        var sessionsCount = activity.Apps.Sum(a => a.SessionCount);
+        // Use filteredApps (internal apps already excluded) so the count matches visible totals
+        var sessionsCount = filteredApps.Sum(a => a.SessionCount);
 
         return new TeamMemberSummaryResponse
         {

@@ -20,7 +20,7 @@ public sealed class AgentSettings
     /// <summary>
     /// Limiar de inatividade em segundos
     /// </summary>
-    public int IdleThresholdSeconds { get; set; } = 60;
+    public int IdleThresholdSeconds { get; set; } = 300;
 
     /// <summary>
     /// Timeout para graceful shutdown em segundos

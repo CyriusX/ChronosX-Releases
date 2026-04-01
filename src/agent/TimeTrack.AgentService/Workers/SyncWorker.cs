@@ -129,11 +129,13 @@ public sealed class SyncWorker : BackgroundService
         if (!_userContext.IsAuthenticated)
             return false;
 
-        if (_userContext.DeviceId.HasValue)
+        // Guid.Empty means the JWT was refreshed from a web-login token (DeviceId placeholder).
+        // Treat it the same as missing — the device has not been properly activated yet.
+        if (_userContext.DeviceId.HasValue && _userContext.DeviceId.Value != Guid.Empty)
             return true;
 
         _logger.LogWarning(
-            "JWT is missing device_id claim. Attempting device activation to unblock sync.");
+            "JWT is missing device_id claim (or has empty placeholder). Attempting device activation to unblock sync.");
 
         var jwt = await _tokenStore.GetJwtAsync(cancellationToken);
         var refreshToken = await _tokenStore.GetRefreshTokenAsync(cancellationToken);
@@ -218,24 +220,26 @@ public sealed class SyncWorker : BackgroundService
                 idlePeriods.Count,
                 focusSessions.Count);
 
-            var allProcessedIds = new List<Guid>();
+            var totalSentIds = new List<Guid>();
             var hasFailures = false;
 
             // Processar activity sessions
             if (activitySessions.Any())
             {
                 // Emit progress
-                var progress = (int)((double)allProcessedIds.Count / totalItems * 100);
+                var progress = (int)((double)totalSentIds.Count / totalItems * 100);
                 await _statusBroadcaster.BroadcastSyncProgressAsync("in_progress", progress, "Sincronizando sessões de atividade...", cancellationToken);
 
                 var result = await ProcessBatchAsync(
                     activitySessions,
-                    () => _syncTransport.SendActivitySessionsAsync(activitySessions, cancellationToken),
+                    batch => _syncTransport.SendActivitySessionsAsync(batch, cancellationToken),
                     cancellationToken);
 
                 if (result.IsSuccess)
                 {
-                    allProcessedIds.AddRange(result.ProcessedIds);
+                    // Mark this type's items immediately — don't wait for other types
+                    await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
+                    totalSentIds.AddRange(result.ProcessedIds);
                 }
                 else
                 {
@@ -246,17 +250,18 @@ public sealed class SyncWorker : BackgroundService
             // Processar idle periods
             if (idlePeriods.Any())
             {
-                var progress = (int)((double)allProcessedIds.Count / totalItems * 100);
+                var progress = (int)((double)totalSentIds.Count / totalItems * 100);
                 await _statusBroadcaster.BroadcastSyncProgressAsync("in_progress", progress, "Sincronizando períodos de inatividade...", cancellationToken);
 
                 var result = await ProcessBatchAsync(
                     idlePeriods,
-                    () => _syncTransport.SendIdlePeriodsAsync(idlePeriods, cancellationToken),
+                    batch => _syncTransport.SendIdlePeriodsAsync(batch, cancellationToken),
                     cancellationToken);
 
                 if (result.IsSuccess)
                 {
-                    allProcessedIds.AddRange(result.ProcessedIds);
+                    await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
+                    totalSentIds.AddRange(result.ProcessedIds);
                 }
                 else
                 {
@@ -267,17 +272,18 @@ public sealed class SyncWorker : BackgroundService
             // Processar focus sessions
             if (focusSessions.Any())
             {
-                var progress = (int)((double)allProcessedIds.Count / totalItems * 100);
+                var progress = (int)((double)totalSentIds.Count / totalItems * 100);
                 await _statusBroadcaster.BroadcastSyncProgressAsync("in_progress", progress, "Sincronizando sessões de foco...", cancellationToken);
 
                 var result = await ProcessBatchAsync(
                     focusSessions,
-                    () => _syncTransport.SendFocusSessionsAsync(focusSessions, cancellationToken),
+                    batch => _syncTransport.SendFocusSessionsAsync(batch, cancellationToken),
                     cancellationToken);
 
                 if (result.IsSuccess)
                 {
-                    allProcessedIds.AddRange(result.ProcessedIds);
+                    await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
+                    totalSentIds.AddRange(result.ProcessedIds);
                 }
                 else
                 {
@@ -286,23 +292,26 @@ public sealed class SyncWorker : BackgroundService
             }
 
             // Atualizar estado
-            if (!hasFailures && allProcessedIds.Any())
+            if (totalSentIds.Any())
             {
-                await _outboxRepository.MarkAsSentAsync(allProcessedIds, cancellationToken);
                 _consecutiveFailures = 0;
                 _lastSuccessfulSync = DateTime.UtcNow;
 
                 _logger.LogInformation(
-                    "Sync concluído com sucesso. {Count} itens sincronizados",
-                    allProcessedIds.Count);
+                    "Sync concluído. {Count} itens sincronizados{Partial}",
+                    totalSentIds.Count,
+                    hasFailures ? " (parcial — alguns tipos falharam)" : string.Empty);
 
-                // Emit sync completed event
-                await _statusBroadcaster.BroadcastSyncProgressAsync("completed", 100, $"{allProcessedIds.Count} itens sincronizados", cancellationToken);
+                var statusMsg = hasFailures
+                    ? $"{totalSentIds.Count} itens sincronizados (parcial)"
+                    : $"{totalSentIds.Count} itens sincronizados";
+                await _statusBroadcaster.BroadcastSyncProgressAsync("completed", 100, statusMsg, cancellationToken);
 
                 // Cleanup old synced data (run at most once per hour)
                 await CleanupOldDataAsync(cancellationToken);
             }
-            else if (hasFailures)
+
+            if (hasFailures && totalSentIds.Count == 0)
             {
                 _consecutiveFailures++;
 
@@ -327,27 +336,29 @@ public sealed class SyncWorker : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Sends a batch, splitting it into smaller chunks if it exceeds the byte limit.
+    /// <paramref name="sendFactory"/> receives the exact sub-batch to send, preventing
+    /// closure capture bugs where the full original list was always sent.
+    /// </summary>
     private async Task<SyncResult> ProcessBatchAsync(
         List<OutboxItem> items,
-        Func<Task<SyncResult>> sendFunc,
+        Func<List<OutboxItem>, Task<SyncResult>> sendFactory,
         CancellationToken cancellationToken)
     {
         try
         {
-            // Verificar tamanho do batch em bytes
             var estimatedSize = items.Sum(i => i.PayloadJson.Length * 2); // UTF-16 chars
 
             if (estimatedSize > _settings.Sync.MaxBatchSizeBytes)
             {
-                // Dividir o batch se necessário
-                return await ProcessSplitBatchAsync(items, sendFunc, cancellationToken);
+                return await ProcessSplitBatchAsync(items, sendFactory, cancellationToken);
             }
 
-            var result = await sendFunc();
+            var result = await sendFactory(items);
 
             if (!result.IsSuccess)
             {
-                // Marcar todos os itens como falhados
                 foreach (var item in items)
                 {
                     await _outboxRepository.MarkAsFailedAsync(
@@ -377,13 +388,12 @@ public sealed class SyncWorker : BackgroundService
 
     private async Task<SyncResult> ProcessSplitBatchAsync(
         List<OutboxItem> items,
-        Func<Task<SyncResult>> sendFunc,
+        Func<List<OutboxItem>, Task<SyncResult>> sendFactory,
         CancellationToken cancellationToken)
     {
         var allProcessedIds = new List<Guid>();
         var hasFailures = false;
 
-        // Dividir em chunks menores
         var currentBatch = new List<OutboxItem>();
         var currentSize = 0;
 
@@ -391,20 +401,11 @@ public sealed class SyncWorker : BackgroundService
         {
             var itemSize = item.PayloadJson.Length * 2;
 
-            if (currentSize + itemSize > _settings.Sync.MaxBatchSizeBytes &&
-                currentBatch.Any())
+            if (currentSize + itemSize > _settings.Sync.MaxBatchSizeBytes && currentBatch.Any())
             {
-                // Processar batch atual
-                var result = await SendBatchAsync(currentBatch, sendFunc, cancellationToken);
-
-                if (result.IsSuccess)
-                {
-                    allProcessedIds.AddRange(result.ProcessedIds);
-                }
-                else
-                {
-                    hasFailures = true;
-                }
+                var result = await SendChunkAsync(currentBatch, sendFactory, cancellationToken);
+                if (result.IsSuccess) allProcessedIds.AddRange(result.ProcessedIds);
+                else hasFailures = true;
 
                 currentBatch.Clear();
                 currentSize = 0;
@@ -414,19 +415,11 @@ public sealed class SyncWorker : BackgroundService
             currentSize += itemSize;
         }
 
-        // Processar batch final
         if (currentBatch.Any())
         {
-            var finalResult = await SendBatchAsync(currentBatch, sendFunc, cancellationToken);
-
-            if (finalResult.IsSuccess)
-            {
-                allProcessedIds.AddRange(finalResult.ProcessedIds);
-            }
-            else
-            {
-                hasFailures = true;
-            }
+            var finalResult = await SendChunkAsync(currentBatch, sendFactory, cancellationToken);
+            if (finalResult.IsSuccess) allProcessedIds.AddRange(finalResult.ProcessedIds);
+            else hasFailures = true;
         }
 
         return hasFailures
@@ -434,16 +427,16 @@ public sealed class SyncWorker : BackgroundService
             : SyncResult.Success(allProcessedIds.Count, 0, allProcessedIds);
     }
 
-    private async Task<SyncResult> SendBatchAsync(
-        List<OutboxItem> items,
-        Func<Task<SyncResult>> sendFunc,
+    private async Task<SyncResult> SendChunkAsync(
+        List<OutboxItem> chunk,
+        Func<List<OutboxItem>, Task<SyncResult>> sendFactory,
         CancellationToken cancellationToken)
     {
-        var result = await sendFunc();
+        var result = await sendFactory(chunk);
 
         if (!result.IsSuccess)
         {
-            foreach (var item in items)
+            foreach (var item in chunk)
             {
                 await _outboxRepository.MarkAsFailedAsync(
                     item.Id,

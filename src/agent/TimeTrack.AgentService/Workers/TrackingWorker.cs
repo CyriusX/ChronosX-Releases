@@ -22,6 +22,7 @@ public sealed class TrackingWorker : BackgroundService
     private readonly IActiveWindowProvider _activeWindowProvider;
     private readonly IIdleDetector _idleDetector;
     private readonly ITrackingStateRepository _stateRepository;
+    private readonly ILocalSettingsRepository _localSettingsRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
     private readonly RecordIdlePeriodUseCase _recordIdlePeriodUseCase;
@@ -36,6 +37,7 @@ public sealed class TrackingWorker : BackgroundService
         IActiveWindowProvider activeWindowProvider,
         IIdleDetector idleDetector,
         ITrackingStateRepository stateRepository,
+        ILocalSettingsRepository localSettingsRepository,
         ICurrentUserContext userContext,
         RecordActiveWindowUseCase recordActiveWindowUseCase,
         RecordIdlePeriodUseCase recordIdlePeriodUseCase,
@@ -46,6 +48,7 @@ public sealed class TrackingWorker : BackgroundService
         _activeWindowProvider = activeWindowProvider;
         _idleDetector = idleDetector;
         _stateRepository = stateRepository;
+        _localSettingsRepository = localSettingsRepository;
         _userContext = userContext;
         _recordActiveWindowUseCase = recordActiveWindowUseCase;
         _recordIdlePeriodUseCase = recordIdlePeriodUseCase;
@@ -216,9 +219,11 @@ public sealed class TrackingWorker : BackgroundService
 
         _logger.LogDebug("Tracking ativo. Executando ciclo de captura...");
 
-        // 2. Verificar idle
+        // 2. Verificar idle (user setting overrides agent default)
         var idleTime = await _idleDetector.GetIdleTimeAsync(cancellationToken);
-        var idleThreshold = TimeSpan.FromSeconds(_settings.IdleThresholdSeconds);
+        var localSettings = await _localSettingsRepository.GetAsync(cancellationToken);
+        var idleThresholdSecs = localSettings.IdleThresholdSeconds ?? _settings.IdleThresholdSeconds;
+        var idleThreshold = TimeSpan.FromSeconds(idleThresholdSecs);
 
         if (idleTime.HasValue && idleTime.Value >= idleThreshold)
         {
