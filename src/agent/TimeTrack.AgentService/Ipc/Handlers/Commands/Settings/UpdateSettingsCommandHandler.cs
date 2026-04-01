@@ -30,6 +30,7 @@ public sealed class UpdateSettingsCommandHandler : IpcHandlerBase, IIpcCommandHa
             bool? autoResumeNotification = null;
             bool? notificationSounds = null;
             string? language = null;
+            int? idleThresholdSeconds = null;
 
             if (request.Payload.HasValue && request.Payload.Value.ValueKind == JsonValueKind.Object)
             {
@@ -43,13 +44,17 @@ public sealed class UpdateSettingsCommandHandler : IpcHandlerBase, IIpcCommandHa
 
                 if (payload.TryGetProperty("language", out var langProp))
                     language = langProp.GetString();
+
+                if (payload.TryGetProperty("idleThresholdSeconds", out var idleProp))
+                    idleThresholdSeconds = idleProp.GetInt32();
             }
 
             var updateRequest = new UpdateLocalSettingsRequest
             {
                 AutoResumeNotificationEnabled = autoResumeNotification,
                 NotificationSoundsEnabled = notificationSounds,
-                Language = language
+                Language = language,
+                IdleThresholdSeconds = idleThresholdSeconds
             };
 
             var result = await _localSettings.UpdateAsync(updateRequest, ct);

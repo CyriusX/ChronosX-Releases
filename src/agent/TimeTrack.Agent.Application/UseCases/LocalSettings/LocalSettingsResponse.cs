@@ -21,6 +21,11 @@ public sealed class LocalSettingsResponse
     public string Language { get; init; } = "pt-BR";
 
     /// <summary>
+    /// Limiar de inatividade em segundos (null = usar padrão do Agent)
+    /// </summary>
+    public int? IdleThresholdSeconds { get; init; }
+
+    /// <summary>
     /// Timestamp da última atualização
     /// </summary>
     public DateTime UpdatedAt { get; init; }

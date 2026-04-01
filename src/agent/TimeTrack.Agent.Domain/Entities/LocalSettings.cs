@@ -31,6 +31,11 @@ public sealed class LocalSettings
     public string Language { get; private set; } = "pt-BR";
 
     /// <summary>
+    /// Limiar de inatividade em segundos (60–3600). Null = usar padrão do Agent (300s).
+    /// </summary>
+    public int? IdleThresholdSeconds { get; private set; }
+
+    /// <summary>
     /// Timestamp da última atualização
     /// </summary>
     public DateTime UpdatedAt { get; private set; }
@@ -91,10 +96,22 @@ public sealed class LocalSettings
     /// <summary>
     /// Atualiza múltiplas configurações de uma vez
     /// </summary>
+    public LocalSettings WithIdleThreshold(int? seconds)
+    {
+        if (seconds.HasValue && (seconds.Value < 60 || seconds.Value > 3600))
+            throw new ArgumentOutOfRangeException(nameof(seconds), "Idle threshold must be between 60 and 3600 seconds");
+
+        var settings = Clone();
+        settings.IdleThresholdSeconds = seconds;
+        settings.UpdatedAt = DateTime.UtcNow;
+        return settings;
+    }
+
     public LocalSettings WithUpdates(
         bool? autoResumeNotification = null,
         bool? notificationSounds = null,
-        string? language = null)
+        string? language = null,
+        int? idleThresholdSeconds = null)
     {
         var settings = Clone();
 
@@ -111,6 +128,13 @@ public sealed class LocalSettings
             settings.Language = language;
         }
 
+        if (idleThresholdSeconds.HasValue)
+        {
+            if (idleThresholdSeconds.Value < 60 || idleThresholdSeconds.Value > 3600)
+                throw new ArgumentOutOfRangeException(nameof(idleThresholdSeconds), "Idle threshold must be between 60 and 3600 seconds");
+            settings.IdleThresholdSeconds = idleThresholdSeconds.Value;
+        }
+
         settings.UpdatedAt = DateTime.UtcNow;
         return settings;
     }
@@ -123,6 +147,7 @@ public sealed class LocalSettings
             AutoResumeNotificationEnabled = this.AutoResumeNotificationEnabled,
             NotificationSoundsEnabled = this.NotificationSoundsEnabled,
             Language = this.Language,
+            IdleThresholdSeconds = this.IdleThresholdSeconds,
             UpdatedAt = this.UpdatedAt
         };
     }
