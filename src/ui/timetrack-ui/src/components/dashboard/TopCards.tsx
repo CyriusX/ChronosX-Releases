@@ -103,8 +103,6 @@ export function TopCards({
     return segment;
   });
 
-  const progressPercentage = Math.min((totalSeconds / 28800) * 100, 100);
-
   // VS ONTEM comparison
   const todayIdx = weeklyHistory.findIndex(w => w.isToday);
   const yesterdayEntry = todayIdx > 0 ? weeklyHistory[todayIdx - 1] : null;
@@ -117,22 +115,6 @@ export function TopCards({
 
   // Animated counters
   const animatedScore = useAnimatedCounter(productivityScore);
-  const animatedProgress = useAnimatedCounter(Math.round(progressPercentage));
-
-  // SVG ring animation for time tracked
-  const timeRingRef = useRef<SVGCircleElement>(null);
-  const prevProgressRef = useRef(0);
-
-  useEffect(() => {
-    if (!timeRingRef.current) return;
-    const targetDash = progressPercentage * 2.64;
-    animate(timeRingRef.current, {
-      strokeDasharray: [`${prevProgressRef.current * 2.64} 264`, `${targetDash} 264`],
-      duration: TIMING_MS.ring,
-      ease: 'inOutQuart',
-    });
-    prevProgressRef.current = progressPercentage;
-  }, [progressPercentage]);
 
   // SVG ring animation for productivity segments
   const segmentRefs = useRef<(SVGCircleElement | null)[]>([]);
@@ -177,11 +159,11 @@ export function TopCards({
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
                   <circle
-                    ref={timeRingRef}
                     cx="50" cy="50" r="42" fill="none"
                     stroke="url(#gradient1)" strokeWidth="8"
-                    strokeDasharray={`0 264`}
+                    strokeDasharray="264 264"
                     strokeLinecap="round"
+                    opacity="0.3"
                   />
                   <defs>
                     <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -196,7 +178,11 @@ export function TopCards({
               </div>
 
               <div className="mt-3 text-center">
-                <p className="text-[18px] font-semibold text-[rgba(245,247,251,0.9)]">{animatedProgress}%</p>
+                {/* Idle time label */}
+                <div className="flex items-center justify-center gap-1">
+                  <Clock className="w-3 h-3 text-[rgba(245,247,251,0.35)]" />
+                  <span className="text-[10px] text-[rgba(245,247,251,0.45)]">Ocioso: {formatDuration(idleSeconds)}</span>
+                </div>
 
                 {/* VS ONTEM comparison */}
                 <div className="flex items-center justify-center gap-1.5 mt-1">
