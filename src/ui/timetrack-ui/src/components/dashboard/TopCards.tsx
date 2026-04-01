@@ -152,8 +152,8 @@ export function TopCards({
     });
   }, [ringSegments.length, totalSeconds]);
 
-  // Grid: 3-col on team tab (no timer), 4-col on meu dia
-  const gridCols = isTeamTab ? 'grid-cols-3' : 'grid-cols-4';
+  // Grid: 3-col on both tabs (Meu dia: Tempo + Produtividade + Timer; Team: Tempo + Produtividade + Resumo)
+  const gridCols = 'grid-cols-3';
 
   return (
     <motion.div
@@ -295,66 +295,68 @@ export function TopCards({
         </motion.div>
       )}
 
-      {/* ─── Resumo Card ─── */}
-      <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }} className="h-full">
-        <Card className={`${cardBase} h-full`}>
-          <CardHeader className="pb-0 pt-3 px-4">
-            <CardTitle className="flex items-center justify-between">
-              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Resumo</span>
-              <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-3 pb-3 px-4">
-            <div className="space-y-3">
-              {/* Idle time */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-md bg-[rgba(161,161,170,0.1)] border border-[rgba(161,161,170,0.2)] flex items-center justify-center">
-                    <Clock className="w-3 h-3 text-[rgba(245,247,251,0.5)]" />
+      {/* ─── Resumo Card (Teams tab only) ─── */}
+      {isTeamTab && (
+        <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }} className="h-full">
+          <Card className={`${cardBase} h-full`}>
+            <CardHeader className="pb-0 pt-3 px-4">
+              <CardTitle className="flex items-center justify-between">
+                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Resumo</span>
+                <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-3 pb-3 px-4">
+              <div className="space-y-3">
+                {/* Idle time */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-md bg-[rgba(161,161,170,0.1)] border border-[rgba(161,161,170,0.2)] flex items-center justify-center">
+                      <Clock className="w-3 h-3 text-[rgba(245,247,251,0.5)]" />
+                    </div>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo ocioso</span>
                   </div>
-                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo ocioso</span>
+                  <span className="text-[14px] font-bold text-[rgba(245,247,251,0.6)]">{formatDuration(idleSeconds)}</span>
                 </div>
-                <span className="text-[14px] font-bold text-[rgba(245,247,251,0.6)]">{formatDuration(idleSeconds)}</span>
-              </div>
 
-              {/* Focus sessions */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-md bg-[rgba(5,223,114,0.1)] border border-[rgba(5,223,114,0.2)] flex items-center justify-center">
-                    <Target className="w-3 h-3 text-[#05df72]" />
+                {/* Focus sessions */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-md bg-[rgba(5,223,114,0.1)] border border-[rgba(5,223,114,0.2)] flex items-center justify-center">
+                      <Target className="w-3 h-3 text-[#05df72]" />
+                    </div>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Sessões de foco</span>
                   </div>
-                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Sessões de foco</span>
+                  <span className="text-[14px] font-bold text-[#f5f7fb]">{focusSessionCount}</span>
                 </div>
-                <span className="text-[14px] font-bold text-[#f5f7fb]">{focusSessionCount}</span>
-              </div>
 
-              {/* Distractions */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-md bg-[rgba(248,113,113,0.1)] border border-[rgba(248,113,113,0.2)] flex items-center justify-center">
-                    <AlertTriangle className="w-3 h-3 text-[#f87171]" />
+                {/* Distractions */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-md bg-[rgba(248,113,113,0.1)] border border-[rgba(248,113,113,0.2)] flex items-center justify-center">
+                      <AlertTriangle className="w-3 h-3 text-[#f87171]" />
+                    </div>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Distrações</span>
                   </div>
-                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Distrações</span>
+                  <span className="text-[14px] font-bold text-[#f5f7fb]">{distractionCount}</span>
                 </div>
-                <span className="text-[14px] font-bold text-[#f5f7fb]">{distractionCount}</span>
-              </div>
 
-              {/* Focus score */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-md bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.2)] flex items-center justify-center">
-                    <Zap className="w-3 h-3 text-[#8B5CF6]" />
+                {/* Focus score */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-md bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.2)] flex items-center justify-center">
+                      <Zap className="w-3 h-3 text-[#8B5CF6]" />
+                    </div>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Focus Score</span>
                   </div>
-                  <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Focus Score</span>
+                  <span className="text-[14px] font-bold" style={{ color: getScoreColor(focusScoreAvg) }}>
+                    {focusScoreAvg}
+                  </span>
                 </div>
-                <span className="text-[14px] font-bold" style={{ color: getScoreColor(focusScoreAvg) }}>
-                  {focusScoreAvg}
-                </span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
     </motion.div>
   );
 }
