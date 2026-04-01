@@ -65,6 +65,12 @@ public sealed class DailySummaryResponse
 public sealed class DailyAppSummary
 {
     /// <summary>
+    /// Raw process name (used for internal-app filtering on the agent side)
+    /// </summary>
+    [JsonPropertyName("processName")]
+    public string ProcessName { get; init; } = string.Empty;
+
+    /// <summary>
     /// Nome de exibição do app
     /// </summary>
     [JsonPropertyName("displayName")]

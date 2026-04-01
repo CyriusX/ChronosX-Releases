@@ -79,9 +79,9 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
             UserId = Guid.Parse(dto.User_Id),
             Status = (TrackingStatus)dto.Status,
             Reason = dto.Reason,
-            PausedAt = dto.PausedAt != null ? DateTime.Parse(dto.PausedAt, null, System.Globalization.DateTimeStyles.RoundtripKind) : null,
-            ResumedAt = dto.ResumedAt != null ? DateTime.Parse(dto.ResumedAt, null, System.Globalization.DateTimeStyles.RoundtripKind) : null,
-            UpdatedAt = DateTime.Parse(dto.UpdatedAt, null, System.Globalization.DateTimeStyles.RoundtripKind),
+            PausedAt = !string.IsNullOrEmpty(dto.PausedAt) ? DateTime.Parse(dto.PausedAt, null, System.Globalization.DateTimeStyles.RoundtripKind) : null,
+            ResumedAt = !string.IsNullOrEmpty(dto.ResumedAt) ? DateTime.Parse(dto.ResumedAt, null, System.Globalization.DateTimeStyles.RoundtripKind) : null,
+            UpdatedAt = !string.IsNullOrEmpty(dto.UpdatedAt) ? DateTime.Parse(dto.UpdatedAt, null, System.Globalization.DateTimeStyles.RoundtripKind) : DateTime.UtcNow,
             LastModifiedBy = dto.LastModifiedBy
         });
     }

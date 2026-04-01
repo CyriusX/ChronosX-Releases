@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { HashRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { AnimatePresence } from "motion/react";
 import { useIpc } from "./hooks/useIpc";
@@ -108,14 +108,14 @@ function App() {
   }, [isConnected, isAuthenticated, tokens]);
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div className="min-h-screen bg-[rgb(10,12,18)] text-[#f5f7fb]">
         <AnimatedRoutes />
         <Toaster />
         <TrackingStoppedOverlay />
         <SessionExpiredNotifier />
       </div>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
