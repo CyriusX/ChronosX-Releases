@@ -92,13 +92,31 @@ export default function Activities() {
             <ActivitiesTopCards summary={summary} workGoalSeconds={workGoalSeconds} />
 
             {/* Activity Timeline */}
-            <ActivitySection
-              activities={activities}
-              selectedDate={data.selectedDate}
-            />
+            {isLoading && activities.length === 0 ? (
+              <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6 flex items-center justify-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[12px] text-[rgba(245,247,251,0.5)]">Carregando atividades...</span>
+                </div>
+              </div>
+            ) : (
+              <ActivitySection
+                activities={activities}
+                selectedDate={data.selectedDate}
+              />
+            )}
 
             {/* Productivity Heatmap */}
-            <ProductivityHeatmap activities={activities} selectedDate={data.selectedDate} />
+            {isLoading && activities.length === 0 ? (
+              <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6 flex items-center justify-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[12px] text-[rgba(245,247,251,0.5)]">Carregando produtividade...</span>
+                </div>
+              </div>
+            ) : (
+              <ProductivityHeatmap activities={activities} selectedDate={data.selectedDate} />
+            )}
 
             {/* Categories, Apps & Sites, Projects */}
             <BottomCards summary={summary} />
@@ -251,10 +269,20 @@ function ActivitiesTopCards({ summary, workGoalSeconds = 28800 }: { summary: Ret
               <div className="relative w-[100px] h-[100px]">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r={ringRadius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
-                  {ringSegments.map((seg, i) => (
-                    <circle key={i} cx="50" cy="50" r={ringRadius} fill="none" stroke={seg.color} strokeWidth="9"
-                      strokeDasharray={seg.dasharray} strokeDashoffset={seg.offset} strokeLinecap="butt" />
-                  ))}
+                  <circle
+                    cx="50" cy="50" r={ringRadius}
+                    fill="none"
+                    stroke="url(#actGradFoco)"
+                    strokeWidth="9"
+                    strokeDasharray={`${(productivityScore / 100) * circumference} ${circumference}`}
+                    strokeLinecap="round"
+                  />
+                  <defs>
+                    <linearGradient id="actGradFoco" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#8B5CF6" />
+                      <stop offset="100%" stopColor="#22D3EE" />
+                    </linearGradient>
+                  </defs>
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-[26px] font-bold" style={{ color: scoreColor }}>{productivityScore}</span>

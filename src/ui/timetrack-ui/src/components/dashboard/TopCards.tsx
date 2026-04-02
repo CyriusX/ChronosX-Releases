@@ -248,20 +248,23 @@ export function TopCards({
             <div className="flex flex-col items-center">
               <div className="relative w-[100px] h-[100px]">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  {/* Track */}
                   <circle cx="50" cy="50" r={ringRadius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
-                  {ringSegments.map((seg, i) => (
-                    <circle
-                      key={i}
-                      ref={(el) => { segmentRefs.current[i] = el; }}
-                      cx="50" cy="50" r={ringRadius}
-                      fill="none"
-                      stroke={seg.color}
-                      strokeWidth="9"
-                      strokeDasharray={`0 ${circumference}`}
-                      strokeDashoffset={0}
-                      strokeLinecap="butt"
-                    />
-                  ))}
+                  {/* Gradient arc — same as Tempo Rastreado */}
+                  <circle
+                    cx="50" cy="50" r={ringRadius}
+                    fill="none"
+                    stroke="url(#gradientFoco)"
+                    strokeWidth="9"
+                    strokeDasharray={`${(productivityScore / 100) * circumference} ${circumference}`}
+                    strokeLinecap="round"
+                  />
+                  <defs>
+                    <linearGradient id="gradientFoco" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#8B5CF6" />
+                      <stop offset="100%" stopColor="#22D3EE" />
+                    </linearGradient>
+                  </defs>
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-[26px] font-bold" style={{ color: scoreColor }}>{animatedScore}</span>

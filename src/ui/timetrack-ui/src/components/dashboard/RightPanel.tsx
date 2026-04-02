@@ -265,13 +265,19 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                       return [h > 0 ? `${h}h ${m}m` : `${m}m`, 'Tempo'];
                     }}
                   />
+                  <defs>
+                    <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#8B5CF6" />
+                      <stop offset="100%" stopColor="#22D3EE" />
+                    </linearGradient>
+                  </defs>
                   <Line
                     type="monotone"
                     dataKey="hours"
-                    stroke="#8B5CF6"
+                    stroke="url(#lineGradient)"
                     strokeWidth={2}
-                    dot={{ r: 3, fill: '#8B5CF6', stroke: 'rgb(10,12,18)', strokeWidth: 2 }}
-                    activeDot={{ r: 5, fill: '#8B5CF6', stroke: 'rgb(10,12,18)', strokeWidth: 2 }}
+                    dot={{ r: 3, fill: '#22D3EE', stroke: 'rgb(10,12,18)', strokeWidth: 2 }}
+                    activeDot={{ r: 5, fill: '#22D3EE', stroke: 'rgb(10,12,18)', strokeWidth: 2 }}
                     animationDuration={800}
                     animationEasing="ease-out"
                   />
