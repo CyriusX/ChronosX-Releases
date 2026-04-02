@@ -230,10 +230,17 @@ public sealed class TrackingWorker : BackgroundService
             if (!_isIdle)
             {
                 _isIdle = true;
-                _idleStartedAt = DateTime.UtcNow.Subtract(idleTime.Value);
+                // Clamp idle start: GetLastInputInfo() returns time since last system-wide
+                // input, which can predate the current tracking session (e.g., if the user
+                // started tracking after being away for hours). The idle period should never
+                // start before the tracking state became active or before the idle threshold
+                // window, whichever is later.
+                var maxIdleStart = DateTime.UtcNow.Subtract(idleTime.Value);
+                var trackingStart = state.UpdatedAt;
+                _idleStartedAt = maxIdleStart < trackingStart ? trackingStart : maxIdleStart;
                 _logger.LogInformation(
-                    "Usuário entrou em idle. Tempo de inatividade: {IdleTime}",
-                    idleTime.Value);
+                    "Usuário entrou em idle. Tempo reportado: {IdleTime}, clamped start: {Start}",
+                    idleTime.Value, _idleStartedAt);
             }
             // Don't record activity while idle — the idle period will be recorded
             // when the user returns. The current session naturally expires from
