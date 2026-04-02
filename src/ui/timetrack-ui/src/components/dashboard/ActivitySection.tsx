@@ -339,7 +339,6 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                           left: `${block.left}%`,
                           width: `${block.width}%`,
                           backgroundColor: block.color,
-                          boxShadow: `0 0 6px ${block.color}25`,
                           minWidth: '1px',
                         }}
                         className={`absolute top-[2px] bottom-[2px] rounded-[3px] cursor-pointer hover:brightness-125 ${
