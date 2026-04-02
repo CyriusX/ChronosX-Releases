@@ -4,9 +4,21 @@ using System;
 var dbPath = args.Length > 0 ? args[0] : "../TimeTrack.AgentService/timetrack.db";
 var connectionString = $"Data Source={dbPath}";
 var shouldCleanup = args.Length > 1 && args[1].Equals("cleanup", StringComparison.OrdinalIgnoreCase);
+var sqlMode = args.Length > 1 && args[1].Equals("sql", StringComparison.OrdinalIgnoreCase);
 
 using var connection = new SqliteConnection(connectionString);
 connection.Open();
+
+// SQL execution mode: dotnet run -- <dbPath> sql "DELETE FROM ..."
+if (sqlMode && args.Length > 2)
+{
+    var sql = args[2];
+    using var cmd = connection.CreateCommand();
+    cmd.CommandText = sql;
+    var affected = cmd.ExecuteNonQuery();
+    Console.WriteLine($"Executed: {affected} row(s) affected");
+    return;
+}
 
 // Cleanup mode
 if (shouldCleanup)
