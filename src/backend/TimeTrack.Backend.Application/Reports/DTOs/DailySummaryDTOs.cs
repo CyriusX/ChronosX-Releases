@@ -89,8 +89,14 @@ public sealed class DailyAppSummary
     public int SessionCount { get; init; }
 
     /// <summary>
-    /// Categoria do app (ex: "development", "productivity_tools", "entertainment")
+    /// Subcategoria do app (ex: "development", "productivity_tools", "entertainment")
     /// </summary>
     [JsonPropertyName("appCategory")]
     public string? AppCategory { get; init; }
+
+    /// <summary>
+    /// Productivity level resolved from cloud DB overrides: "productive", "neutral", "distraction"
+    /// </summary>
+    [JsonPropertyName("productivity")]
+    public string? Productivity { get; init; }
 }

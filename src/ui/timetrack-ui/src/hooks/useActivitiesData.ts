@@ -8,9 +8,11 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useIpc } from './useIpc';
+import { useAuthStore } from '../stores/authStore';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../types/ipc';
 import { formatDuration } from '../lib/utils';
 import { getDailySummaryRange, getDailyActivities, getTopApps } from '../services/reportApi';
+import { getMemberSummary } from '../services/memberApi';
 
 // ============================================================================
 // TYPES
@@ -78,6 +80,7 @@ function formatDatePayload(date: Date): string {
 
 export function useActivitiesData(): ActivitiesData {
   const { sendQuery, isConnected } = useIpc();
+  const currentUser = useAuthStore(s => s.user);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Initialize from URL ?date= parameter (e.g., /activities?date=2026-03-25)
@@ -125,31 +128,41 @@ export function useActivitiesData(): ActivitiesData {
       const calendarPromise = getDailySummaryRange(calStart, calEnd, userId).catch(() => null);
 
       if (isToday && !userId) {
-        // Today + own data: fetch from agent via IPC (fast, real-time)
-        if (!isConnected) return;
-        const [summaryRes, activitiesRes, calResult] = await Promise.all([
-          sendQuery('getTodaySummary', { date: datePayload }),
-          sendQuery('getRecentActivities', { date: datePayload }),
+        // Today + own data: fetch summary from cloud API (single source of truth for categories)
+        // Activities timeline still via IPC (real-time local data)
+        const [activitiesRes, calResult] = await Promise.all([
+          isConnected ? sendQuery('getRecentActivities', { date: datePayload }) : Promise.resolve({ success: false, data: null }),
           calendarPromise,
         ]);
 
-        if (summaryRes.success && summaryRes.data) {
-          const summaryData = summaryRes.data as TodaySummaryResponse;
-          // Enrich weeklyHistory with backend data for full calendar coverage
-          if (calResult?.days?.length) {
-            const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-            summaryData.weeklyHistory = calResult.days.map(d => {
-              const dt = new Date(d.date + 'T00:00:00');
-              return {
-                date: d.date,
-                dayName: dayNames[dt.getDay()],
-                hours: Math.round((d.totalActiveSeconds / 3600) * 100) / 100,
-                isToday: d.date === datePayload,
-              };
-            });
-          }
-          setSummary(summaryData);
+        // Fetch summary from cloud — same endpoint as Teams tab
+        let gotCloudSummary = false;
+        if (currentUser?.id) {
+          try {
+            const cloudSummary = await getMemberSummary(currentUser.id) as unknown as TodaySummaryResponse;
+            if (calResult?.days?.length) {
+              const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+              cloudSummary.weeklyHistory = calResult.days.map(d => {
+                const dt = new Date(d.date + 'T00:00:00');
+                return {
+                  date: d.date,
+                  dayName: dayNames[dt.getDay()],
+                  hours: Math.round((d.totalActiveSeconds / 3600) * 100) / 100,
+                  isToday: d.date === datePayload,
+                };
+              });
+            }
+            setSummary(cloudSummary);
+            gotCloudSummary = true;
+          } catch { /* fall through to IPC */ }
         }
+        if (!gotCloudSummary && isConnected) {
+          const summaryRes = await sendQuery('getTodaySummary', { date: datePayload });
+          if (summaryRes.success && summaryRes.data) {
+            setSummary(summaryRes.data as TodaySummaryResponse);
+          }
+        }
+
         if (activitiesRes.success && activitiesRes.data) {
           setActivities(
             ((activitiesRes.data as unknown as { activities: ActivityBlock[] }).activities) ?? [],

@@ -360,19 +360,22 @@ public sealed class GetLocalDashboardUseCase
     {
         /// <summary>DisplayName (lowercase) → (productivity, subcategory)</summary>
         public Dictionary<string, (string Productivity, string Subcategory)> ByDisplayName { get; init; } = new();
+        /// <summary>ProcessName/Identifier (lowercase) → (productivity, subcategory)</summary>
+        public Dictionary<string, (string Productivity, string Subcategory)> ByProcessName { get; init; } = new();
         /// <summary>Domain identifier (lowercase) → (productivity, subcategory)</summary>
         public Dictionary<string, (string Productivity, string Subcategory)> ByDomain { get; init; } = new();
 
-        public bool IsEmpty => ByDisplayName.Count == 0 && ByDomain.Count == 0;
+        public bool IsEmpty => ByDisplayName.Count == 0 && ByProcessName.Count == 0 && ByDomain.Count == 0;
     }
 
     /// <summary>
-    /// Builds a dual lookup (by display name + by domain) from the local category cache.
-    /// The cache is synced from the backend every 5 min and includes org overrides.
+    /// Builds a triple lookup (by display name + process name + domain) from the local category cache.
+    /// The cache is synced from the backend and is the single source of truth for categories.
     /// </summary>
     private static CategoryLookup BuildCategoryLookup(IReadOnlyList<AppCategoryCache> cacheEntries)
     {
         var byDisplayName = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
+        var byProcessName = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
         var byDomain = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var entry in cacheEntries)
@@ -389,17 +392,21 @@ public sealed class GetLocalDashboardUseCase
             if (!string.IsNullOrEmpty(entry.DisplayName))
                 byDisplayName[entry.DisplayName] = (productivity, subcategory);
 
+            // Index by identifier/process name (matches backend's resolution logic)
+            if (!string.IsNullOrEmpty(entry.Identifier) && entry.IdentifierType != AppIdentifierType.Domain)
+                byProcessName[entry.Identifier] = (productivity, subcategory);
+
             // Index by identifier for domain-type entries (for browser overrides)
             if (entry.IdentifierType == AppIdentifierType.Domain && !string.IsNullOrEmpty(entry.Identifier))
                 byDomain[entry.Identifier] = (productivity, subcategory);
         }
 
-        return new CategoryLookup { ByDisplayName = byDisplayName, ByDomain = byDomain };
+        return new CategoryLookup { ByDisplayName = byDisplayName, ByProcessName = byProcessName, ByDomain = byDomain };
     }
 
     /// <summary>
-    /// Resolves category for a session using the cache lookup (which includes org overrides).
-    /// Priority: domain override > display name override > baked-in session category.
+    /// Resolves category for a session using the cloud-synced cache as single source of truth.
+    /// Priority: domain override > process name > display name > baked-in session category.
     /// </summary>
     private static (string Productivity, string Subcategory) ResolveCategory(
         ActivitySession session, CategoryLookup lookup)
@@ -411,12 +418,23 @@ public sealed class GetLocalDashboardUseCase
                 lookup.ByDomain.TryGetValue(session.Domain, out var domainMatch))
                 return domainMatch;
 
-            // 2. Try display name match (for exe apps)
+            // 2. Try process name/identifier match (same key as backend uses)
+            var identifier = session.App.ExePathHash;
+            if (!string.IsNullOrEmpty(identifier))
+            {
+                if (lookup.ByProcessName.TryGetValue(identifier, out var procMatch))
+                    return procMatch;
+                if (identifier.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+                    lookup.ByProcessName.TryGetValue(identifier[..^4], out procMatch))
+                    return procMatch;
+            }
+
+            // 3. Try display name match
             if (lookup.ByDisplayName.TryGetValue(session.App.DisplayName, out var nameMatch))
                 return nameMatch;
         }
 
-        // 3. Fall back to baked-in category
+        // 4. Fall back to baked-in category (only for apps not yet in cloud DB)
         return (session.App.Category.Productivity, session.App.Category.Subcategory);
     }
 }

@@ -222,6 +222,23 @@ public sealed class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Obtém resumo de hoje do usuário autenticado (mesma lógica e shape do endpoint de equipe)
+    /// </summary>
+    [HttpGet("me/summary")]
+    [Authorize]
+    [ProducesResponseType(typeof(TeamMemberSummaryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<TeamMemberSummaryResponse>> GetMySummary([FromQuery] string? timezone = null)
+    {
+        var orgId = _currentUserContext.OrgId
+            ?? throw new UnauthorizedAccessException("User not associated with an organization");
+        var userId = _currentUserContext.UserId!.Value;
+
+        var result = await _mediator.Send(new GetTeamMemberSummaryCommand(orgId, userId, timezone));
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Obtém resumo de hoje de um membro da equipe (mesma shape que TodaySummary do frontend)
     /// </summary>
     [HttpGet("team/members/{userId:guid}/summary")]
