@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Configuration;
 using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Application.Services;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Entities;
 using TimeTrack.AgentService.Configuration;
@@ -24,6 +25,7 @@ public sealed class SyncWorker : BackgroundService
     private readonly ICurrentUserContext _userContext;
     private readonly IDeviceActivationService _deviceActivationService;
     private readonly ITokenStore _tokenStore;
+    private readonly IAppCategorySyncService _categorySyncService;
     private readonly AgentStatusEventBroadcaster _statusBroadcaster;
 
     private int _consecutiveFailures;
@@ -42,6 +44,7 @@ public sealed class SyncWorker : BackgroundService
         ICurrentUserContext userContext,
         IDeviceActivationService deviceActivationService,
         ITokenStore tokenStore,
+        IAppCategorySyncService categorySyncService,
         AgentStatusEventBroadcaster statusBroadcaster)
     {
         _logger = logger;
@@ -55,6 +58,7 @@ public sealed class SyncWorker : BackgroundService
         _userContext = userContext;
         _deviceActivationService = deviceActivationService;
         _tokenStore = tokenStore;
+        _categorySyncService = categorySyncService;
         _statusBroadcaster = statusBroadcaster;
     }
 
@@ -177,6 +181,16 @@ public sealed class SyncWorker : BackgroundService
             {
                 _logger.LogDebug("Skipping sync cycle: user not authenticated or device not activated.");
                 return;
+            }
+
+            // Sync app category cache from cloud (every cycle, service handles staleness check)
+            try
+            {
+                await _categorySyncService.SyncIfNeededAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Category cache sync failed, will retry next cycle");
             }
 
             // Verificar se há itens pendentes

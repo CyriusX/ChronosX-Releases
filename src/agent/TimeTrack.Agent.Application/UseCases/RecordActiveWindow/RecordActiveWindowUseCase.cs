@@ -18,6 +18,7 @@ public sealed class RecordActiveWindowUseCase
 {
     private readonly IActivitySessionRepository _sessionRepository;
     private readonly ITrackingStateRepository _stateRepository;
+    private readonly IAppCategoryCacheRepository _categoryCacheRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly IIdempotencyKeyGenerator _idempotencyKeyGenerator;
     private readonly ILogger<RecordActiveWindowUseCase> _logger;
@@ -37,6 +38,7 @@ public sealed class RecordActiveWindowUseCase
     public RecordActiveWindowUseCase(
         IActivitySessionRepository sessionRepository,
         ITrackingStateRepository stateRepository,
+        IAppCategoryCacheRepository categoryCacheRepository,
         ICurrentUserContext userContext,
         IIdempotencyKeyGenerator idempotencyKeyGenerator,
         ILogger<RecordActiveWindowUseCase> logger,
@@ -44,6 +46,7 @@ public sealed class RecordActiveWindowUseCase
     {
         _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
         _stateRepository = stateRepository ?? throw new ArgumentNullException(nameof(stateRepository));
+        _categoryCacheRepository = categoryCacheRepository ?? throw new ArgumentNullException(nameof(categoryCacheRepository));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _idempotencyKeyGenerator = idempotencyKeyGenerator ?? throw new ArgumentNullException(nameof(idempotencyKeyGenerator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -85,8 +88,8 @@ public sealed class RecordActiveWindowUseCase
         // Extract site name from browser window title (e.g., "Telegram Web", "YouTube", "GitHub")
         var siteName = request.BrowserUrl; // BrowserUrl carries the extracted site name from title parsing
 
-        // Cria identidade da aplicação (uses site name for browser categorization when available)
-        var appIdentity = CreateAppIdentity(request, siteName);
+        // Cria identidade da aplicação (cloud cache first, hardcoded fallback)
+        var appIdentity = await CreateAppIdentityAsync(request, siteName);
 
         // Cria hash da janela para agrupamento
         var windowHash = ComputeWindowHash(request.WindowTitle);
@@ -178,35 +181,76 @@ public sealed class RecordActiveWindowUseCase
 
     /// <summary>
     /// Cria a identidade da aplicação a partir do request.
-    /// For browsers, uses the browser product name (e.g. "Google Chrome") as DisplayName
-    /// and classifies productivity by the extracted site name (priority) or full tab title (fallback).
-    /// Tab/site details are tracked separately via WindowTitle/Domain on the session.
+    /// Cloud cache is the single source of truth for categories — checks the synced
+    /// app_category_cache (from cloud DB) first. Falls back to hardcoded classifiers
+    /// only when no cache entry exists (e.g., for newly-seen apps not yet in the DB).
     /// </summary>
-    private static AppIdentity CreateAppIdentity(RecordActiveWindowRequest request, string? siteName)
+    private async Task<AppIdentity> CreateAppIdentityAsync(RecordActiveWindowRequest request, string? siteName)
     {
         var exePathHash = ComputeHash(request.ExecutablePath);
+        var exeName = Path.GetFileNameWithoutExtension(request.ExecutablePath)?.ToLowerInvariant();
 
         if (IsBrowser(request.ExecutablePath))
         {
-            // Classify by extracted site name first (e.g. "Telegram Web", "YouTube"),
-            // fall back to full tab title if no site name was extracted.
             var classifyTarget = !string.IsNullOrWhiteSpace(siteName)
                 ? siteName
                 : ExtractBrowserTabTitle(request.WindowTitle, request.ApplicationName);
 
-            var tabCategory = BrowserTabCategorizer.Classify(classifyTarget);
-
-            // DisplayName = "Browser - Site" (e.g. "Google Chrome - Telegram Web")
-            // Falls back to just the browser name if no site was extracted.
             var displayName = !string.IsNullOrWhiteSpace(siteName)
                 ? $"{request.ApplicationName} - {siteName}"
                 : request.ApplicationName;
 
+            // Cloud cache first: try domain lookup for browser tabs
+            var domain = request.BrowserUrl; // site name extracted from title
+            if (!string.IsNullOrWhiteSpace(domain))
+            {
+                var cacheEntry = await _categoryCacheRepository.FindByIdentifierAsync(domain);
+                if (cacheEntry != null)
+                {
+                    var cloudCategory = CacheEntryToCategory(cacheEntry);
+                    return new AppIdentity(exePathHash, displayName, cloudCategory);
+                }
+            }
+
+            // Fallback to hardcoded browser classifier
+            var tabCategory = BrowserTabCategorizer.Classify(classifyTarget);
             return new AppIdentity(exePathHash, displayName, tabCategory);
         }
 
+        // Regular app: cloud cache first by exe name
+        if (!string.IsNullOrWhiteSpace(exeName))
+        {
+            var cacheEntry = await _categoryCacheRepository.FindByIdentifierAsync(exeName);
+            if (cacheEntry != null)
+            {
+                var cloudCategory = CacheEntryToCategory(cacheEntry);
+                return new AppIdentity(exePathHash, request.ApplicationName, cloudCategory);
+            }
+        }
+
+        // Fallback to hardcoded app classifier (for apps not yet in cloud DB)
         var appCategory = AppCategorizer.Classify(request.ExecutablePath, request.ApplicationName);
         return new AppIdentity(exePathHash, request.ApplicationName, appCategory);
+    }
+
+    /// <summary>
+    /// Converts a cloud-synced cache entry to an AppCategory value object.
+    /// </summary>
+    private static AppCategory CacheEntryToCategory(Domain.Entities.AppCategoryCache entry)
+    {
+        var productivity = entry.Productivity switch
+        {
+            Domain.ValueObjects.AppProductivityCategory.Productive => "productive",
+            Domain.ValueObjects.AppProductivityCategory.Distraction => "distraction",
+            _ => "neutral"
+        };
+        var source = entry.Source switch
+        {
+            Domain.ValueObjects.CategorySource.OrgOverride => "org_override",
+            Domain.ValueObjects.CategorySource.Global => "global",
+            _ => "cloud"
+        };
+        return new AppCategory(productivity, entry.Subcategory ?? "unknown", source);
     }
 
     /// <summary>

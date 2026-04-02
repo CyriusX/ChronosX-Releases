@@ -32,6 +32,14 @@ export async function getTeamStatus(): Promise<TeamStatusResponse> {
 }
 
 /**
+ * Get current user's today summary (same logic as team member summary)
+ */
+export async function getMySummary(): Promise<MemberSummaryResponse> {
+  const params = new URLSearchParams({ timezone: getUserTimezone() });
+  return api.get<MemberSummaryResponse>(`/auth/me/summary?${params.toString()}`);
+}
+
+/**
  * Get a specific member's today summary (admin/manager view)
  */
 export async function getMemberSummary(userId: string): Promise<MemberSummaryResponse> {

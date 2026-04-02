@@ -50,9 +50,10 @@ public sealed class BackendReportsClient : IBackendReportsClient
     public async Task<DailyReportResult?> GetDailySummaryAsync(DateTime date, CancellationToken cancellationToken = default)
     {
         var cacheKey = date.ToString("yyyy-MM-dd");
+        var isToday = date.Date == DateTime.Today;
 
-        // Return cached result if still valid
-        if (_cache.TryGetValue(cacheKey, out var cached) && (DateTime.UtcNow - cached.fetchedAt) < CacheDuration)
+        // Only cache past days — today's data changes with new sessions and category overrides.
+        if (!isToday && _cache.TryGetValue(cacheKey, out var cached) && (DateTime.UtcNow - cached.fetchedAt) < CacheDuration)
         {
             return cached.result;
         }
