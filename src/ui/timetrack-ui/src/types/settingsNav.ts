@@ -4,6 +4,7 @@ export type SettingsSection =
   | 'profile'
   | 'general'
   | 'notifications'
+  | 'timeline'
   | 'focus-timer'
   | 'team'
   | 'organization'
