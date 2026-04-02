@@ -7,9 +7,11 @@
  * session list, and a mini calendar in the right panel.
  */
 
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Sidebar } from '../components/dashboard';
 import { BottomCards, ActivitySection } from '../components/dashboard';
+import { useIpc } from '../hooks/useIpc';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { formatDuration } from '../lib/utils';
 import { useActivitiesData } from '../hooks/useActivitiesData';
@@ -38,6 +40,17 @@ import { cardBase } from '../components/dashboard/shared/styles';
 export default function Activities() {
   const data = useActivitiesData();
   const { summary, activities, isLoading } = data;
+  const { sendQuery } = useIpc();
+  const [workGoalSeconds, setWorkGoalSeconds] = useState(28800);
+
+  useEffect(() => {
+    sendQuery('getSettings').then((res) => {
+      if (res.success && res.data) {
+        const d = res.data as { workGoalSeconds?: number | null };
+        if (d.workGoalSeconds) setWorkGoalSeconds(d.workGoalSeconds);
+      }
+    });
+  }, [sendQuery]);
 
   return (
     <div className="flex h-screen bg-[#0b0d14] overflow-hidden">
@@ -76,7 +89,7 @@ export default function Activities() {
             />
 
             {/* Top Cards: Tempo Rastreado + Produtividade + Resumo */}
-            <ActivitiesTopCards summary={summary} />
+            <ActivitiesTopCards summary={summary} workGoalSeconds={workGoalSeconds} />
 
             {/* Activity Timeline */}
             <ActivitySection
@@ -116,9 +129,15 @@ export default function Activities() {
 // TOP CARDS (Tempo Rastreado + Produtividade + Resumo do dia)
 // ============================================================================
 
-function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivitiesData>['summary'] }) {
+function ActivitiesTopCards({ summary, workGoalSeconds = 28800 }: { summary: ReturnType<typeof useActivitiesData>['summary']; workGoalSeconds?: number }) {
   const totalSeconds = summary?.totalDuration ?? 0;
   const idleSeconds = summary?.idleTime ?? 0;
+
+  // Ring progress — Apple Health style
+  const progressRatio = workGoalSeconds > 0 ? totalSeconds / workGoalSeconds : 0;
+  const progressPercentage = Math.round(progressRatio * 100);
+  const ringDash = Math.min(progressRatio, 1) * 264;
+  const overflowDash = Math.min(Math.max(0, progressRatio - 1), 1) * 264;
 
   // Focus Score = average from Pomodoro/Ultradian focus sessions (timer store)
   const timerSessions = useTimerStore(selectCurrentUserSessions);
@@ -186,12 +205,19 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
               <div className="relative w-[100px] h-[100px]">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="url(#actGrad1)" strokeWidth="8" strokeDasharray="264 264" strokeLinecap="round" opacity="0.3" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="url(#actGrad1)" strokeWidth="8" strokeDasharray={`${ringDash} 264`} strokeLinecap="round" />
+                  {overflowDash > 0 && (
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="url(#actGrad1)" strokeWidth="8" strokeDasharray={`${overflowDash} 264`} strokeLinecap="round" filter="url(#actGlow)" />
+                  )}
                   <defs>
                     <linearGradient id="actGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
                       <stop offset="0%" stopColor="#8B5CF6" />
                       <stop offset="100%" stopColor="#22D3EE" />
                     </linearGradient>
+                    <filter id="actGlow">
+                      <feGaussianBlur stdDeviation="2" result="blur" />
+                      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                    </filter>
                   </defs>
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -199,7 +225,10 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
                 </div>
               </div>
               <div className="mt-3 text-center">
-                <div className="flex items-center justify-center gap-1">
+                <p className="text-[16px] font-semibold" style={{ color: progressRatio >= 1 ? '#05df72' : 'rgba(245,247,251,0.9)' }}>
+                  {progressPercentage}%
+                </p>
+                <div className="flex items-center justify-center gap-1 mt-1">
                   <Clock className="w-3 h-3 text-[rgba(245,247,251,0.35)]" />
                   <span className="text-[10px] text-[rgba(245,247,251,0.45)]">Ocioso: {formatDuration(idleSeconds)}</span>
                 </div>

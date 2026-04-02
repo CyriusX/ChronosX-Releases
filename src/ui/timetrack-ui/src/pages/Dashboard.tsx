@@ -40,10 +40,21 @@ export default function Dashboard() {
   const [memberLoading, setMemberLoading] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
   const memberPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const { sendCommand } = useIpc();
+  const { sendCommand, sendQuery } = useIpc();
   const { todaySummary, weeklyHistory, isPaused, isTracking, refreshData } = useDashboardData();
   const { canManageTeam } = usePermissions();
   const { focusModePolicy } = useFocusModePolicy();
+  const [workGoalSeconds, setWorkGoalSeconds] = useState<number>(28800);
+
+  // Fetch work goal setting once
+  useEffect(() => {
+    sendQuery('getSettings').then((res) => {
+      if (res.success && res.data) {
+        const data = res.data as { workGoalSeconds?: number | null };
+        if (data.workGoalSeconds) setWorkGoalSeconds(data.workGoalSeconds);
+      }
+    });
+  }, [sendQuery]);
 
   // Fetch selected member's summary
   const fetchMemberSummary = useCallback(async (userId: string, isInitial = false) => {
@@ -191,6 +202,7 @@ export default function Dashboard() {
                   onStopTracking={onStopTracking}
                   isTeamTab={false}
                   weeklyHistory={weeklyHistory}
+                  workGoalSeconds={workGoalSeconds}
                 />
                 <ActivitySection />
                 <BottomCards summary={displaySummary} />
@@ -217,6 +229,7 @@ export default function Dashboard() {
                   isPaused={false}
                   isTracking={false}
                   isTeamTab={true}
+                  workGoalSeconds={workGoalSeconds}
                 />
                 <BottomCards summary={displaySummary} />
               </>
