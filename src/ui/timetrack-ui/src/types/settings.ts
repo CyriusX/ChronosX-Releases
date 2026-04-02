@@ -26,6 +26,9 @@ export interface LocalSettings {
   /** Limiar de inatividade em segundos (60–3600). null = padrão do Agent (300s) */
   idleThresholdSeconds: number | null;
 
+  /** Meta diária de trabalho em segundos (1800–86400). null = padrão 28800 (8h) */
+  workGoalSeconds: number | null;
+
   /** Timestamp da última atualização */
   updatedAt: string;
 }
@@ -38,6 +41,7 @@ export interface UpdateLocalSettingsRequest {
   notificationSoundsEnabled?: boolean;
   language?: 'pt-BR' | 'en-US';
   idleThresholdSeconds?: number;
+  workGoalSeconds?: number;
 }
 
 // ============================================================================
@@ -250,6 +254,7 @@ export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
   notificationSoundsEnabled: true,
   language: 'pt-BR',
   idleThresholdSeconds: null,
+  workGoalSeconds: null,
   updatedAt: new Date().toISOString(),
 };
 

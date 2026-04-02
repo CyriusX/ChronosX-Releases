@@ -37,6 +37,7 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
                 notification_sounds_enabled,
                 language,
                 idle_threshold_seconds,
+                work_goal_seconds,
                 updated_at
             FROM local_settings
             LIMIT 1";
@@ -57,7 +58,8 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
                 autoResumeNotification: dto.AutoResumeNotificationEnabled == 1,
                 notificationSounds: dto.NotificationSoundsEnabled == 1,
                 language: dto.Language,
-                idleThresholdSeconds: dto.IdleThresholdSeconds);
+                idleThresholdSeconds: dto.IdleThresholdSeconds,
+                workGoalSeconds: dto.WorkGoalSeconds);
     }
 
     public async Task SaveAsync(LocalSettings settings, CancellationToken cancellationToken = default)
@@ -69,9 +71,9 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
         // SQLite UPSERT usando INSERT OR REPLACE
         const string sql = @"
             INSERT OR REPLACE INTO local_settings
-                (id, auto_resume_notification_enabled, notification_sounds_enabled, language, idle_threshold_seconds, updated_at)
+                (id, auto_resume_notification_enabled, notification_sounds_enabled, language, idle_threshold_seconds, work_goal_seconds, updated_at)
             VALUES
-                (@Id, @AutoResumeNotificationEnabled, @NotificationSoundsEnabled, @Language, @IdleThresholdSeconds, @UpdatedAt)";
+                (@Id, @AutoResumeNotificationEnabled, @NotificationSoundsEnabled, @Language, @IdleThresholdSeconds, @WorkGoalSeconds, @UpdatedAt)";
 
         await connection.ExecuteAsync(sql, new
         {
@@ -80,6 +82,7 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
             NotificationSoundsEnabled = settings.NotificationSoundsEnabled ? 1 : 0,
             Language = settings.Language,
             IdleThresholdSeconds = settings.IdleThresholdSeconds,
+            WorkGoalSeconds = settings.WorkGoalSeconds,
             UpdatedAt = settings.UpdatedAt.ToString("O")
         });
 
@@ -99,6 +102,7 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
         public int NotificationSoundsEnabled { get; set; }
         public string Language { get; set; } = "pt-BR";
         public int? IdleThresholdSeconds { get; set; }
+        public int? WorkGoalSeconds { get; set; }
         public string? UpdatedAt { get; set; }
     }
 }
