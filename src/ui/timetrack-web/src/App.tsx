@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import Activities from './pages/Activities';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Maintenance from './pages/Maintenance';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function AnimatedRoutes() {
           <Route path="/activities" element={<ProtectedRoute><Activities /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/maintenance" element={<ProtectedRoute><Maintenance /></ProtectedRoute>} />
         </Routes>
       </AnimatedPage>
     </AnimatePresence>

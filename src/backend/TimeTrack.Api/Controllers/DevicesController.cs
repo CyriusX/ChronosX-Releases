@@ -56,8 +56,47 @@ public sealed class DevicesController : ControllerBase
     {
         var result = await _mediator.Send(new HeartbeatCommand(
             deviceId,
-            request?.AgentVersion));
+            request?.AgentVersion,
+            request?.OsVersion,
+            request?.IpAddress,
+            request?.UptimeSeconds,
+            request?.TrackingState));
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Get pending remote commands for this device (agent polls this)
+    /// </summary>
+    [HttpGet("{deviceId:guid}/pending-commands")]
+    [ProducesResponseType(typeof(Backend.Application.Maintenance.DTOs.PendingCommandsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<Backend.Application.Maintenance.DTOs.PendingCommandsResponse>> GetPendingCommands(
+        Guid deviceId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new Backend.Application.Maintenance.Queries.GetPendingCommandsQuery(deviceId),
+            cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Acknowledge a remote command (agent calls this after execution)
+    /// </summary>
+    [HttpPost("{deviceId:guid}/commands/{commandId:guid}/ack")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AcknowledgeCommand(
+        Guid deviceId,
+        Guid commandId,
+        [FromBody] Backend.Application.Maintenance.DTOs.AcknowledgeCommandRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _mediator.Send(
+            new Backend.Application.Maintenance.Commands.AcknowledgeCommandCommand(commandId, request.Status, request.ResultJson),
+            cancellationToken);
+        return Ok();
     }
 
     /// <summary>

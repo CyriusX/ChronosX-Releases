@@ -4,7 +4,10 @@ import { useIpc } from '../hooks/useIpc';
 import { usePermissions } from '../hooks/usePermissions';
 import { useFocusModePolicy } from '../hooks/useFocusModePolicy';
 import { getMemberSummary } from '../services/memberApi';
+import { getDailyActivities } from '../services/reportApi';
+import { useHiddenAppsStore } from '../stores/hiddenAppsStore';
 import type { MemberSummaryResponse } from '../types/member';
+import type { ActivityBlock } from '../hooks/useActivitiesData';
 import {
   Sidebar,
   DashboardHeader,
@@ -39,28 +42,71 @@ export default function Dashboard() {
   const [memberLastSyncAt, setMemberLastSyncAt] = useState<string | null>(null);
   const [memberLoading, setMemberLoading] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
+  const [memberActivities, setMemberActivities] = useState<ActivityBlock[]>([]);
   const memberPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const { sendCommand } = useIpc();
+  const hiddenApps = useHiddenAppsStore(s => s.hiddenApps);
+  const { sendCommand, sendQuery } = useIpc();
   const { todaySummary, weeklyHistory, isPaused, isTracking, refreshData } = useDashboardData();
   const { canManageTeam } = usePermissions();
   const { focusModePolicy } = useFocusModePolicy();
+  const [workGoalSeconds, setWorkGoalSeconds] = useState<number>(28800);
+
+  // Fetch work goal setting once
+  useEffect(() => {
+    sendQuery('getSettings').then((res) => {
+      if (res.success && res.data) {
+        const data = res.data as { workGoalSeconds?: number | null };
+        if (data.workGoalSeconds) setWorkGoalSeconds(data.workGoalSeconds);
+      }
+    });
+  }, [sendQuery]);
 
   // Fetch selected member's summary
   const fetchMemberSummary = useCallback(async (userId: string, isInitial = false) => {
     if (isInitial) {
       setMemberLoading(true);
       setMemberError(null);
-      setMemberSummary(null); // Clear stale data so UI doesn't show previous member's data
+      setMemberSummary(null);
+      setMemberActivities([]);
     }
     try {
-      console.log('[Dashboard] Fetching member summary for:', userId);
-      const data = await getMemberSummary(userId);
+      const today = new Date().toISOString().split('T')[0];
+      const [data, activitiesData] = await Promise.all([
+        getMemberSummary(userId),
+        getDailyActivities(today, userId).catch(() => null),
+      ]);
       const raw = data as MemberSummaryResponse;
       setMemberSummary(raw as unknown as TodaySummaryResponse);
       setMemberLastSyncAt(raw.lastSyncAt ?? null);
       setMemberError(null);
+
+      if (activitiesData?.sessions) {
+        const hiddenSet = new Set(hiddenApps.map(a => a.toLowerCase()));
+        const APP_PALETTE = ['#8B5CF6','#22D3EE','#F59E0B','#10B981','#F472B6','#6366F1','#EF4444','#14B8A6','#E879F9','#84CC16'];
+        const colorMap = new Map<string, string>();
+        let ci = 0;
+        const blocks: ActivityBlock[] = [];
+        for (const s of activitiesData.sessions) {
+          if (hiddenSet.has(s.processName.toLowerCase())) continue;
+          if (!colorMap.has(s.processName)) {
+            colorMap.set(s.processName, APP_PALETTE[ci % APP_PALETTE.length]);
+            ci++;
+          }
+          blocks.push({
+            id: `${s.processName}-${s.startedAt}`,
+            name: s.processName,
+            startUtc: s.startedAt,
+            endUtc: s.endedAt,
+            duration: s.durationSeconds,
+            productivity: s.appCategory ?? 'neutral',
+            subcategory: s.appCategory ?? 'unknown',
+            color: colorMap.get(s.processName) ?? '#94a3b8',
+          });
+        }
+        setMemberActivities(blocks);
+      }
     } catch (err) {
-      console.error('[Dashboard] Error fetching member summary:', err);
+      console.error('[Dashboard] Error fetching member data:', err);
       if (isInitial) {
         setMemberSummary(null);
         setMemberError(err instanceof Error ? err.message : 'Erro ao carregar dados do membro');
@@ -68,7 +114,7 @@ export default function Dashboard() {
     } finally {
       if (isInitial) setMemberLoading(false);
     }
-  }, []);
+  }, [hiddenApps]);
 
   // Fetch on member selection + start polling
   useEffect(() => {
@@ -97,6 +143,7 @@ export default function Dashboard() {
       setMemberLastSyncAt(null);
       setMemberError(null);
       setMemberLoading(false);
+      setMemberActivities([]);
     }
   }, [activeTab]);
 
@@ -191,6 +238,7 @@ export default function Dashboard() {
                   onStopTracking={onStopTracking}
                   isTeamTab={false}
                   weeklyHistory={weeklyHistory}
+                  workGoalSeconds={workGoalSeconds}
                 />
                 <ActivitySection />
                 <BottomCards summary={displaySummary} />
@@ -217,7 +265,9 @@ export default function Dashboard() {
                   isPaused={false}
                   isTracking={false}
                   isTeamTab={true}
+                  workGoalSeconds={workGoalSeconds}
                 />
+                <ActivitySection activities={memberActivities} />
                 <BottomCards summary={displaySummary} />
               </>
             )}

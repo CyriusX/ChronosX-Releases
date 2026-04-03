@@ -145,6 +145,17 @@ public sealed class SqliteContext : IAsyncDisposable
                 date TEXT NOT NULL
             );
 
+            -- Tabela de eventos do agent (ações do usuário, eventos de sistema, erros)
+            CREATE TABLE IF NOT EXISTS agent_event_log (
+                id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                category TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                message TEXT NOT NULL,
+                metadata_json TEXT,
+                timestamp_utc TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             -- CX-143: Tabela de cache de categorias de apps
             CREATE TABLE IF NOT EXISTS app_category_cache (
                 id TEXT PRIMARY KEY,
@@ -227,6 +238,16 @@ public sealed class SqliteContext : IAsyncDisposable
         {
             _logger.LogInformation("Adding idle_threshold_seconds column to local_settings");
             await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN idle_threshold_seconds INTEGER");
+        }
+
+        // Add work_goal_seconds column to local_settings
+        var workGoalExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('local_settings') WHERE name = 'work_goal_seconds'");
+
+        if (workGoalExists == 0)
+        {
+            _logger.LogInformation("Adding work_goal_seconds column to local_settings");
+            await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN work_goal_seconds INTEGER");
         }
     }
 

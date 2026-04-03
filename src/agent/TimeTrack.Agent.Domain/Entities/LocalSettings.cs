@@ -36,6 +36,11 @@ public sealed class LocalSettings
     public int? IdleThresholdSeconds { get; private set; }
 
     /// <summary>
+    /// Meta diária de trabalho em segundos (1800–86400). Null = sem meta (padrão 28800 = 8h).
+    /// </summary>
+    public int? WorkGoalSeconds { get; private set; }
+
+    /// <summary>
     /// Timestamp da última atualização
     /// </summary>
     public DateTime UpdatedAt { get; private set; }
@@ -111,7 +116,8 @@ public sealed class LocalSettings
         bool? autoResumeNotification = null,
         bool? notificationSounds = null,
         string? language = null,
-        int? idleThresholdSeconds = null)
+        int? idleThresholdSeconds = null,
+        int? workGoalSeconds = null)
     {
         var settings = Clone();
 
@@ -135,6 +141,13 @@ public sealed class LocalSettings
             settings.IdleThresholdSeconds = idleThresholdSeconds.Value;
         }
 
+        if (workGoalSeconds.HasValue)
+        {
+            if (workGoalSeconds.Value < 1800 || workGoalSeconds.Value > 86400)
+                throw new ArgumentOutOfRangeException(nameof(workGoalSeconds), "Work goal must be between 1800 and 86400 seconds (30min–24h)");
+            settings.WorkGoalSeconds = workGoalSeconds.Value;
+        }
+
         settings.UpdatedAt = DateTime.UtcNow;
         return settings;
     }
@@ -148,6 +161,7 @@ public sealed class LocalSettings
             NotificationSoundsEnabled = this.NotificationSoundsEnabled,
             Language = this.Language,
             IdleThresholdSeconds = this.IdleThresholdSeconds,
+            WorkGoalSeconds = this.WorkGoalSeconds,
             UpdatedAt = this.UpdatedAt
         };
     }

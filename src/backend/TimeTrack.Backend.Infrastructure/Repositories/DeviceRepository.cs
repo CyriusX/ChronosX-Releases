@@ -16,7 +16,9 @@ public sealed class DeviceRepository : IDeviceRepository
 
     public async Task<Device?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await _context.Devices.FindAsync([id], cancellationToken);
+        return await _context.Devices
+            .Include(d => d.User)
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
     }
 
     public async Task<Device?> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -28,6 +30,7 @@ public sealed class DeviceRepository : IDeviceRepository
     public async Task<IEnumerable<Device>> GetActiveByOrgIdAsync(Guid orgId, CancellationToken cancellationToken = default)
     {
         return await _context.Devices
+            .Include(d => d.User)
             .Where(d => d.OrgId == orgId && d.Status == Domain.ValueObjects.DeviceStatus.Active)
             .ToListAsync(cancellationToken);
     }

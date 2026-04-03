@@ -12,6 +12,7 @@ import { AboutSection } from './AboutSection';
 import { MembersSection } from './MembersSection';
 import { OrganizationSection } from './OrganizationSection';
 import { AgentStatusSection } from './AgentStatusSection';
+import { TimelineSection } from './TimelineSection';
 import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -146,6 +147,8 @@ export function SettingsPage() {
         return settings ? (
           <NotificationsSection settings={settings} onUpdate={handleUpdateSettings} />
         ) : null;
+      case 'timeline':
+        return <TimelineSection />;
       case 'focus-timer':
         return <FocusTimerSection />;
       case 'team':

@@ -30,7 +30,9 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         "Microsoft Edge WebView2",
         "Microsoft® Windows® Operating System",
         "Sistema operacional Microsoft® Windows®",
-        "Tracking Stopped",
+        // "Tracking Stopped" is intentionally NOT filtered here — it must appear in the
+        // activity timeline so the UI can display paused periods as red blocks.
+        // The 1-second placeholder is stretched to "now" by ActivitySection when rawDuration < 10s.
     };
 
     public GetRecentActivitiesQueryHandler(

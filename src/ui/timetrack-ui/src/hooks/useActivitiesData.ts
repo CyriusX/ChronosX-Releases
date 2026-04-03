@@ -8,9 +8,12 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useIpc } from './useIpc';
+import { useAuthStore } from '../stores/authStore';
+import { useHiddenAppsStore } from '../stores/hiddenAppsStore';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../types/ipc';
 import { formatDuration } from '../lib/utils';
 import { getDailySummaryRange, getDailyActivities, getTopApps } from '../services/reportApi';
+import { getMySummary } from '../services/memberApi';
 
 // ============================================================================
 // TYPES
@@ -78,6 +81,8 @@ function formatDatePayload(date: Date): string {
 
 export function useActivitiesData(): ActivitiesData {
   const { sendQuery, isConnected } = useIpc();
+  const currentUser = useAuthStore(s => s.user);
+  const hiddenApps = useHiddenAppsStore(s => s.hiddenApps);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Initialize from URL ?date= parameter (e.g., /activities?date=2026-03-25)
@@ -95,7 +100,7 @@ export function useActivitiesData(): ActivitiesData {
 
   const [summary, setSummary] = useState<TodaySummaryResponse | null>(null);
   const [activities, setActivities] = useState<ActivityBlock[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const isFetchingRef = useRef(false);
 
   const isToday = isSameDay(selectedDate, new Date());
@@ -125,20 +130,24 @@ export function useActivitiesData(): ActivitiesData {
       const calendarPromise = getDailySummaryRange(calStart, calEnd, userId).catch(() => null);
 
       if (isToday && !userId) {
-        // Today + own data: fetch from agent via IPC (fast, real-time)
-        if (!isConnected) return;
-        const [summaryRes, activitiesRes, calResult] = await Promise.all([
-          sendQuery('getTodaySummary', { date: datePayload }),
-          sendQuery('getRecentActivities', { date: datePayload }),
+        // Today + own data: fetch EVERYTHING from cloud in parallel for speed + consistency
+        const summaryPromise = currentUser?.id
+          ? getMySummary().catch(() => null)
+          : Promise.resolve(null);
+        const activitiesPromise = getDailyActivities(datePayload).catch(() => null);
+
+        const [cloudSummary, cloudActivities, calResult] = await Promise.all([
+          summaryPromise,
+          activitiesPromise,
           calendarPromise,
         ]);
 
-        if (summaryRes.success && summaryRes.data) {
-          const summaryData = summaryRes.data as TodaySummaryResponse;
-          // Enrich weeklyHistory with backend data for full calendar coverage
+        // Set summary from cloud (or fallback to IPC)
+        if (cloudSummary) {
+          const summary = cloudSummary as unknown as TodaySummaryResponse;
           if (calResult?.days?.length) {
             const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-            summaryData.weeklyHistory = calResult.days.map(d => {
+            summary.weeklyHistory = calResult.days.map(d => {
               const dt = new Date(d.date + 'T00:00:00');
               return {
                 date: d.date,
@@ -148,12 +157,24 @@ export function useActivitiesData(): ActivitiesData {
               };
             });
           }
-          setSummary(summaryData);
+          setSummary(summary);
+        } else if (isConnected) {
+          const summaryRes = await sendQuery('getTodaySummary', { date: datePayload });
+          if (summaryRes.success && summaryRes.data) {
+            setSummary(summaryRes.data as TodaySummaryResponse);
+          }
         }
-        if (activitiesRes.success && activitiesRes.data) {
-          setActivities(
-            ((activitiesRes.data as unknown as { activities: ActivityBlock[] }).activities) ?? [],
-          );
+
+        // Set activities from cloud (or fallback to IPC)
+        if (cloudActivities?.sessions?.length) {
+          setActivities(convertSessionsToBlocks(cloudActivities.sessions, hiddenApps));
+        } else if (isConnected) {
+          const activitiesRes = await sendQuery('getRecentActivities', { date: datePayload });
+          if (activitiesRes.success && activitiesRes.data) {
+            setActivities(
+              ((activitiesRes.data as unknown as { activities: ActivityBlock[] }).activities) ?? [],
+            );
+          }
         }
       } else {
         // Past days OR viewing other user's data: fetch from backend API (authoritative cloud data)
@@ -231,7 +252,7 @@ export function useActivitiesData(): ActivitiesData {
         }
 
         if (activitiesResult?.sessions) {
-          setActivities(convertSessionsToBlocks(activitiesResult.sessions));
+          setActivities(convertSessionsToBlocks(activitiesResult.sessions, hiddenApps));
         }
       }
     } catch {
@@ -240,7 +261,7 @@ export function useActivitiesData(): ActivitiesData {
       isFetchingRef.current = false;
       setIsLoading(false);
     }
-  }, [sendQuery, isConnected, datePayload, isToday, userId]);
+  }, [sendQuery, isConnected, datePayload, isToday, userId, currentUser?.id]);
 
   // Re-fetch when date changes or connection established
   useEffect(() => {
@@ -336,8 +357,14 @@ const APP_PALETTE = [
 ];
 
 function convertSessionsToBlocks(
-  sessions: Array<{ processName: string; windowTitle?: string; appCategory?: string; startedAt: string; endedAt: string; durationSeconds: number }>
+  sessions: Array<{ processName: string; windowTitle?: string; appCategory?: string; startedAt: string; endedAt: string; durationSeconds: number }>,
+  hiddenApps: string[] = []
 ): ActivityBlock[] {
+  if (sessions.length === 0) return [];
+
+  // Filter out hidden apps (user-configurable from Settings)
+  const hiddenSet = new Set(hiddenApps.map(a => a.toLowerCase()));
+  sessions = sessions.filter(s => !hiddenSet.has(s.processName.toLowerCase()));
   if (sessions.length === 0) return [];
 
   // Assign colors per process

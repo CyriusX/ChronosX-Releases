@@ -24,6 +24,7 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
     private readonly IActivitySessionRepository _sessionRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly IIpcServer _ipcServer;
+    private readonly IAgentEventLogger _eventLogger;
     private readonly ILogger<PauseTrackingCommandHandler> _logger;
 
     /// <summary>
@@ -39,12 +40,14 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         IActivitySessionRepository sessionRepository,
         ICurrentUserContext userContext,
         IIpcServer ipcServer,
+        IAgentEventLogger eventLogger,
         ILogger<PauseTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
         _sessionRepository = sessionRepository;
         _userContext = userContext;
         _ipcServer = ipcServer;
+        _eventLogger = eventLogger;
         _logger = logger;
     }
 
@@ -76,6 +79,9 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
                 EventType = "trackingStateChanged",
                 Payload = new { isTracking = true, isPaused = true }
             }, ct);
+
+            await _eventLogger.LogAsync("tracking.paused", AgentEventCategory.UserAction, AgentEventSeverity.Info,
+                "Monitoramento pausado pelo usuário", new { reason = reason ?? "User requested" }, ct);
 
             return SuccessResponse(request.RequestId, result);
         }

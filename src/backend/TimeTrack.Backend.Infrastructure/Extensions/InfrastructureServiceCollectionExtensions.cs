@@ -54,6 +54,15 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAppCategoryGlobalRepository, AppCategoryGlobalRepository>();
         services.AddScoped<IAppCategoryOverrideRepository, AppCategoryOverrideRepository>();
 
+        // Machine Metrics
+        services.AddScoped<IMachineMetricsRepository, MachineMetricsRepository>();
+
+        // Agent Event Logs
+        services.AddScoped<IAgentEventLogRepository, AgentEventLogRepository>();
+
+        // Remote Commands
+        services.AddScoped<IRemoteCommandRepository, RemoteCommandRepository>();
+
         // Focus Score Services
         services.AddSingleton<AppProductivityClassifier>();
 

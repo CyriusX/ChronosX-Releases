@@ -57,6 +57,21 @@ internal sealed class DeviceConfiguration : IEntityTypeConfiguration<Device>
         builder.Property(d => d.LastHeartbeatAt)
             .HasColumnName("last_heartbeat_at");
 
+        builder.Property(d => d.OsVersion)
+            .HasColumnName("os_version")
+            .HasMaxLength(200);
+
+        builder.Property(d => d.IpAddress)
+            .HasColumnName("ip_address")
+            .HasMaxLength(45);
+
+        builder.Property(d => d.UptimeSeconds)
+            .HasColumnName("uptime_seconds");
+
+        builder.Property(d => d.TrackingState)
+            .HasColumnName("tracking_state")
+            .HasMaxLength(20);
+
         builder.Property(d => d.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()");

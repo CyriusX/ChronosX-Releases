@@ -261,6 +261,13 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
               <div className="relative w-[100px] h-[100px]">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
+                  <circle
+                    cx="50" cy="50" r="42" fill="none"
+                    stroke={scoreColor}
+                    strokeWidth="9"
+                    strokeDasharray={`${productivityScore * 2.64} 264`}
+                    strokeLinecap="round"
+                  />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-[26px] font-bold" style={{ color: scoreColor }}>{productivityScore}</span>
@@ -306,9 +313,7 @@ function ActivitiesTopCards({ summary }: { summary: ReturnType<typeof useActivit
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Focus Score</span>
-                <span className="text-[16px] font-bold" style={{
-                  color: (summary?.focusScore ?? 0) >= 80 ? '#4ade80' : (summary?.focusScore ?? 0) >= 50 ? '#fbbf24' : '#f87171'
-                }}>{summary?.focusScore ?? 0}</span>
+                <span className="text-[16px] font-bold" style={{ color: scoreColor }}>{productivityScore}</span>
               </div>
             </div>
           </CardContent>

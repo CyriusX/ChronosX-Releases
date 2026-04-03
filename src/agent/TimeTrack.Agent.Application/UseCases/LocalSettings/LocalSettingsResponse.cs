@@ -26,6 +26,11 @@ public sealed class LocalSettingsResponse
     public int? IdleThresholdSeconds { get; init; }
 
     /// <summary>
+    /// Meta diária de trabalho em segundos (null = padrão 28800 = 8h)
+    /// </summary>
+    public int? WorkGoalSeconds { get; init; }
+
+    /// <summary>
     /// Timestamp da última atualização
     /// </summary>
     public DateTime UpdatedAt { get; init; }

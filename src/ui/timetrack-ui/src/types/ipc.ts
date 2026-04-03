@@ -234,6 +234,7 @@ export interface UpdateSettingsPayload {
   notificationSoundsEnabled?: boolean;
   language?: 'pt-BR' | 'en-US';
   idleThresholdSeconds?: number;
+  workGoalSeconds?: number;
 }
 
 export interface SetWorkHoursPayload {
@@ -489,6 +490,8 @@ export interface LocalSettingsResponse {
   autoResumeNotificationEnabled: boolean;
   notificationSoundsEnabled: boolean;
   language: 'pt-BR' | 'en-US';
+  idleThresholdSeconds: number | null;
+  workGoalSeconds: number | null;
   updatedAt: string;
 }
 

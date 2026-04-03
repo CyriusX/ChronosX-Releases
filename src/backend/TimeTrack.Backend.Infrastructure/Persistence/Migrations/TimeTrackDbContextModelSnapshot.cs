@@ -104,6 +104,88 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.ToTable("activity_sessions", (string)null);
                 });
 
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.AgentEventLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("message");
+
+                    b.Property<string>("MetadataJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("metadata_json");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("severity");
+
+                    b.Property<DateTime>("TimestampUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("timestamp_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrgId")
+                        .HasDatabaseName("ix_agent_event_logs_org_id");
+
+                    b.HasIndex("Severity")
+                        .HasDatabaseName("ix_agent_event_logs_severity");
+
+                    b.HasIndex("TimestampUtc")
+                        .HasDatabaseName("ix_agent_event_logs_timestamp");
+
+                    b.HasIndex("Category", "EventType")
+                        .HasDatabaseName("ix_agent_event_logs_category_type");
+
+                    b.HasIndex("DeviceId", "TimestampUtc")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_agent_event_logs_device_timestamp");
+
+                    b.ToTable("agent_event_logs", (string)null);
+                });
+
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.AppCategoryGlobal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -500,6 +582,11 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("hostname");
 
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)")
+                        .HasColumnName("ip_address");
+
                     b.Property<DateTime?>("LastHeartbeatAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_heartbeat_at");
@@ -511,11 +598,25 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("OrganizationId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("OsVersion")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("os_version");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
+
+                    b.Property<string>("TrackingState")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tracking_state");
+
+                    b.Property<int?>("UptimeSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("uptime_seconds");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -704,6 +805,73 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.HasIndex("OrgId", "UserId", "StartedAt");
 
                     b.ToTable("idle_periods", (string)null);
+                });
+
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.MachineMetrics", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<double>("CpuPercent")
+                        .HasColumnType("double precision")
+                        .HasColumnName("cpu_percent");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<double>("DiskTotalGb")
+                        .HasColumnType("double precision")
+                        .HasColumnName("disk_total_gb");
+
+                    b.Property<double>("DiskUsedGb")
+                        .HasColumnType("double precision")
+                        .HasColumnName("disk_used_gb");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<long>("MemoryTotalMb")
+                        .HasColumnType("bigint")
+                        .HasColumnName("memory_total_mb");
+
+                    b.Property<long>("MemoryUsedMb")
+                        .HasColumnType("bigint")
+                        .HasColumnName("memory_used_mb");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<DateTime>("SampledAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sampled_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrgId")
+                        .HasDatabaseName("ix_machine_metrics_org_id");
+
+                    b.HasIndex("SampledAtUtc")
+                        .HasDatabaseName("ix_machine_metrics_sampled_at");
+
+                    b.HasIndex("DeviceId", "SampledAtUtc")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_machine_metrics_device_sampled");
+
+                    b.ToTable("machine_metrics", (string)null);
                 });
 
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.OrgPolicy", b =>
@@ -1023,6 +1191,74 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.RemoteCommand", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime?>("AcknowledgedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("acknowledged_at");
+
+                    b.Property<string>("CommandType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("command_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("PayloadJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("payload_json");
+
+                    b.Property<string>("ResultJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("result_json");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeviceId", "Status")
+                        .HasDatabaseName("ix_remote_commands_device_status");
+
+                    b.HasIndex("OrgId", "DeviceId", "CreatedAt")
+                        .IsDescending(false, false, true)
+                        .HasDatabaseName("ix_remote_commands_org_device_created");
+
+                    b.ToTable("remote_commands", (string)null);
+                });
+
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1110,6 +1346,17 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.Navigation("Device");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.AgentEventLog", b =>
+                {
+                    b.HasOne("TimeTrack.Backend.Domain.Entities.Device", "Device")
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Device");
                 });
 
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.AppCategoryOverride", b =>
@@ -1209,6 +1456,17 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.MachineMetrics", b =>
+                {
+                    b.HasOne("TimeTrack.Backend.Domain.Entities.Device", "Device")
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Device");
+                });
+
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.PasswordResetToken", b =>
                 {
                     b.HasOne("TimeTrack.Backend.Domain.Entities.User", "User")
@@ -1249,6 +1507,17 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.RemoteCommand", b =>
+                {
+                    b.HasOne("TimeTrack.Backend.Domain.Entities.Device", "Device")
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Device");
                 });
 
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.User", b =>

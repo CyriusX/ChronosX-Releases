@@ -53,6 +53,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IFocusCycleRepository, FocusCycleRepository>();
         services.AddSingleton<IIdempotencyKeyGenerator, IdempotencyKeyGenerator>();
         services.AddSingleton<IAppCategoryCacheRepository, AppCategoryCacheRepository>();
+        services.AddSingleton<IAgentEventLogRepository, AgentEventLogRepository>();
+        services.AddSingleton<IAgentEventLogger, AgentEventLogger>();
 
         return services;
     }
@@ -79,6 +81,9 @@ public static class InfrastructureServiceCollectionExtensions
 
         // IdleDetector - Singleton para eficiência
         services.AddSingleton<IIdleDetector, WindowsIdleDetector>();
+
+        // MachineMetricsProvider - Singleton para coleta de CPU/Memória/Disco
+        services.AddSingleton<IMachineMetricsProvider, WindowsMachineMetricsProvider>();
 
         // Configuração padrão ActiveWindow
         services.Configure<ActiveWindowProviderOptions>(options =>

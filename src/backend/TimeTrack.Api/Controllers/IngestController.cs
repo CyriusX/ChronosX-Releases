@@ -126,4 +126,68 @@ public sealed class IngestController : ControllerBase
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Ingest agent events (user actions, system events, errors)
+    /// </summary>
+    [HttpPost("agent-events")]
+    [ProducesResponseType(typeof(IngestResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
+    public async Task<ActionResult<IngestResponse>> IngestAgentEvents(
+        [FromBody] AgentEventIngestRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (Request.ContentLength > 2 * 1024 * 1024)
+        {
+            return StatusCode(StatusCodes.Status413PayloadTooLarge, new
+            {
+                error = "PayloadTooLarge",
+                message = "Payload size cannot exceed 2MB"
+            });
+        }
+
+        var command = new IngestAgentEventsCommand
+        {
+            Items = request.Items
+        };
+
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Ingest machine metrics from the agent
+    /// </summary>
+    /// <param name="request">Batch of machine metrics</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Processing result</returns>
+    [HttpPost("machine-metrics")]
+    [ProducesResponseType(typeof(IngestResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
+    public async Task<ActionResult<IngestResponse>> IngestMachineMetrics(
+        [FromBody] MachineMetricsIngestRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Payload size check (2MB limit)
+        if (Request.ContentLength > 2 * 1024 * 1024)
+        {
+            return StatusCode(StatusCodes.Status413PayloadTooLarge, new
+            {
+                error = "PayloadTooLarge",
+                message = "Payload size cannot exceed 2MB"
+            });
+        }
+
+        var command = new IngestMachineMetricsCommand
+        {
+            Items = request.Items
+        };
+
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
 }

@@ -36,6 +36,15 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<DailySummary> DailySummaries => Set<DailySummary>();
     public DbSet<DailyFocusScore> DailyFocusScores => Set<DailyFocusScore>();
 
+    // Machine Metrics
+    public DbSet<MachineMetrics> MachineMetrics => Set<MachineMetrics>();
+
+    // Agent Event Logs
+    public DbSet<AgentEventLog> AgentEventLogs => Set<AgentEventLog>();
+
+    // Remote Commands
+    public DbSet<RemoteCommand> RemoteCommands => Set<RemoteCommand>();
+
     // App Categories (CX-143)
     public DbSet<AppCategoryGlobal> AppCategoryGlobals => Set<AppCategoryGlobal>();
     public DbSet<AppCategoryOverride> AppCategoryOverrides => Set<AppCategoryOverride>();
@@ -108,6 +117,18 @@ public sealed class TimeTrackDbContext : DbContext
         // App Category Overrides (CX-143)
         modelBuilder.Entity<AppCategoryOverride>()
             .HasQueryFilter(o => !_currentUser.IsAuthenticated || o.OrgId == _currentUser.OrgId);
+
+        // Machine Metrics
+        modelBuilder.Entity<MachineMetrics>()
+            .HasQueryFilter(m => !_currentUser.IsAuthenticated || m.OrgId == _currentUser.OrgId);
+
+        // Agent Event Logs
+        modelBuilder.Entity<AgentEventLog>()
+            .HasQueryFilter(e => !_currentUser.IsAuthenticated || e.OrgId == _currentUser.OrgId);
+
+        // Remote Commands
+        modelBuilder.Entity<RemoteCommand>()
+            .HasQueryFilter(rc => !_currentUser.IsAuthenticated || rc.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()
