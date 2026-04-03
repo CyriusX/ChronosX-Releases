@@ -59,6 +59,7 @@ public static class HangfireConfiguration
         services.AddScoped<ICleanupJob, CleanupJob>();
         services.AddScoped<IFocusScoreJob, FocusScoreJob>();
         services.AddScoped<IActivitySessionConsolidationJob, ActivitySessionConsolidationJob>();
+        services.AddScoped<IMachineMetricsCleanupJob, MachineMetricsCleanupJob>();
 
         return services;
     }
@@ -104,6 +105,17 @@ public static class HangfireConfiguration
             "focus-score-daily",
             job => job.ExecuteForRecentDaysAsync(1), // Process yesterday's data
             "5 0 * * *", // Daily at 00:05 UTC
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Machine Metrics Cleanup job - runs every 6 hours
+        // Removes metrics older than 24h (real-time monitoring only)
+        RecurringJob.AddOrUpdate<IMachineMetricsCleanupJob>(
+            "machine-metrics-cleanup",
+            job => job.ExecuteAsync(),
+            "30 */6 * * *", // Every 6 hours at :30
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc

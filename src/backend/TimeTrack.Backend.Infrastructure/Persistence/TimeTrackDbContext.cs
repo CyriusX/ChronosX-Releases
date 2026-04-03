@@ -36,6 +36,9 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<DailySummary> DailySummaries => Set<DailySummary>();
     public DbSet<DailyFocusScore> DailyFocusScores => Set<DailyFocusScore>();
 
+    // Machine Metrics
+    public DbSet<MachineMetrics> MachineMetrics => Set<MachineMetrics>();
+
     // App Categories (CX-143)
     public DbSet<AppCategoryGlobal> AppCategoryGlobals => Set<AppCategoryGlobal>();
     public DbSet<AppCategoryOverride> AppCategoryOverrides => Set<AppCategoryOverride>();
@@ -108,6 +111,10 @@ public sealed class TimeTrackDbContext : DbContext
         // App Category Overrides (CX-143)
         modelBuilder.Entity<AppCategoryOverride>()
             .HasQueryFilter(o => !_currentUser.IsAuthenticated || o.OrgId == _currentUser.OrgId);
+
+        // Machine Metrics
+        modelBuilder.Entity<MachineMetrics>()
+            .HasQueryFilter(m => !_currentUser.IsAuthenticated || m.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()

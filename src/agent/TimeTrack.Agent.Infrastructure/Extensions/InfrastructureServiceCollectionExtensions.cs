@@ -80,6 +80,9 @@ public static class InfrastructureServiceCollectionExtensions
         // IdleDetector - Singleton para eficiência
         services.AddSingleton<IIdleDetector, WindowsIdleDetector>();
 
+        // MachineMetricsProvider - Singleton para coleta de CPU/Memória/Disco
+        services.AddSingleton<IMachineMetricsProvider, WindowsMachineMetricsProvider>();
+
         // Configuração padrão ActiveWindow
         services.Configure<ActiveWindowProviderOptions>(options =>
         {

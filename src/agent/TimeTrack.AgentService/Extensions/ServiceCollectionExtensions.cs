@@ -157,6 +157,7 @@ public static class ServiceCollectionExtensions
 
         services.AddHostedService<TrackingWorker>();
         services.AddHostedService<SyncWorker>();
+        services.AddHostedService<MachineMetricsWorker>();
         services.AddHostedService<FocusModeEventBroadcaster>();
         services.AddSingleton<ActivityResumeState>();
         services.AddHostedService<ActivityResumeDetector>();
