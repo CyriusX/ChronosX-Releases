@@ -143,13 +143,31 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
     {
         _logger.LogWarning("Agent restart requested by remote admin command. Shutting down...");
 
-        // StopApplication triggers graceful shutdown.
-        // Windows Service Controller will restart the service if configured with recovery options.
-        // The ack is sent by RemoteCommandService BEFORE this method returns to the caller,
-        // because ExecuteAsync returns the result, then the caller acks, then we schedule the stop.
         Task.Run(async () =>
         {
             await Task.Delay(2000, CancellationToken.None); // Give time for ack to be sent
+
+            // Start a new instance of ourselves before stopping
+            try
+            {
+                var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                if (!string.IsNullOrEmpty(exePath))
+                {
+                    var startInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = exePath,
+                        WorkingDirectory = AppContext.BaseDirectory,
+                        UseShellExecute = true
+                    };
+                    System.Diagnostics.Process.Start(startInfo);
+                    _logger.LogInformation("New agent process started: {Path}", exePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to start new agent process");
+            }
+
             _hostLifetime.StopApplication();
         });
 
