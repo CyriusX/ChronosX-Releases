@@ -135,6 +135,44 @@ public sealed class MaintenanceController : ControllerBase
     }
 
     /// <summary>
+    /// Clear event logs for a specific device
+    /// </summary>
+    [HttpDelete("devices/{deviceId:guid}/events")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<int>> ClearDeviceEvents(
+        Guid orgId,
+        Guid deviceId,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.OrgId != orgId) return Forbid();
+
+        var deleted = await _mediator.Send(
+            new ClearDeviceEventsCommand(orgId, deviceId), cancellationToken);
+
+        return Ok(new { deleted });
+    }
+
+    /// <summary>
+    /// Clear event logs for all devices in the org
+    /// </summary>
+    [HttpDelete("events")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<int>> ClearAllEvents(
+        Guid orgId,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.OrgId != orgId) return Forbid();
+
+        var deleted = await _mediator.Send(
+            new ClearDeviceEventsCommand(orgId, null), cancellationToken);
+
+        return Ok(new { deleted });
+    }
+
+    /// <summary>
     /// Get command history for a device
     /// </summary>
     [HttpGet("devices/{deviceId:guid}/commands")]

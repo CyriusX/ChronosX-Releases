@@ -43,6 +43,7 @@ public sealed class ListDevicesCommandHandler : IRequestHandler<ListDevicesComma
             AgentVersion = d.AgentVersion,
             DisplayMode = d.DisplayMode.ToString(),
             Status = CalculateStatus(d, now),
+            TrackingState = d.TrackingState,
             LastSeenAt = d.LastHeartbeatAt,
             ActivatedAt = d.ActivatedAt,
             UserDisplayName = d.User?.DisplayName

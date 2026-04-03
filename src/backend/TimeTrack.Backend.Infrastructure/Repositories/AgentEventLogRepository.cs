@@ -76,4 +76,28 @@ public sealed class AgentEventLogRepository : IAgentEventLogRepository
             .Where(e => e.TimestampUtc < cutoff)
             .ExecuteDeleteAsync(cancellationToken);
     }
+
+    public async Task<int> DeleteByDeviceIdAsync(
+        Guid deviceId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.AgentEventLogs
+            .Where(e => e.DeviceId == deviceId)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
+    public async Task<int> DeleteByOrgIdAsync(
+        Guid orgId,
+        CancellationToken cancellationToken = default)
+    {
+        // AgentEventLog -> Device -> OrgId via EF navigation or raw filter on DeviceId set
+        var deviceIds = await _context.Devices
+            .Where(d => d.OrgId == orgId)
+            .Select(d => d.Id)
+            .ToListAsync(cancellationToken);
+
+        return await _context.AgentEventLogs
+            .Where(e => deviceIds.Contains(e.DeviceId))
+            .ExecuteDeleteAsync(cancellationToken);
+    }
 }

@@ -2,7 +2,7 @@ import { HashRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { AnimatePresence } from "motion/react";
 import { useIpc } from "./hooks/useIpc";
-import { useTrackingStore } from "./stores/trackingStore";
+import { useTrackingStore, handleTrackingStateChanged } from "./stores/trackingStore";
 import { useAuthStore } from "./stores/authStore";
 import { getIpcService } from "./services";
 import Dashboard from "./pages/Dashboard";
@@ -86,6 +86,16 @@ function App() {
     setConnected(isConnected);
     setReady(isReady);
   }, [isConnected, isReady, setConnected, setReady]);
+
+  // Global subscription: update tracking store whenever agent broadcasts state change.
+  // This must live in App (always mounted) so it works regardless of current page.
+  const { subscribeToEvent } = useIpc();
+  useEffect(() => {
+    const unsub = subscribeToEvent('trackingStateChanged', (payload) => {
+      handleTrackingStateChanged(payload);
+    });
+    return unsub;
+  }, [subscribeToEvent]);
 
   // Re-send tokens to agent whenever connection is (re)established
   useEffect(() => {

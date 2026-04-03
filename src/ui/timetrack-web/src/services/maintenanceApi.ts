@@ -11,6 +11,7 @@ export interface DeviceListItem {
   agentVersion: string;
   displayMode: string;
   status: string; // "active" | "offline" | "inactive"
+  trackingState: string | null; // "running" | "paused" | "stopped" | null
   lastSeenAt: string | null;
   activatedAt: string;
   userDisplayName: string | null;
@@ -135,6 +136,21 @@ export async function getCommandHistory(
 ): Promise<CommandHistoryResponse> {
   return api.get<CommandHistoryResponse>(
     `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}/commands`
+  );
+}
+
+export async function clearDeviceEvents(
+  orgId: string,
+  deviceId: string
+): Promise<{ deleted: number }> {
+  return api.delete<{ deleted: number }>(
+    `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}/events`
+  );
+}
+
+export async function clearAllEvents(orgId: string): Promise<{ deleted: number }> {
+  return api.delete<{ deleted: number }>(
+    `/orgs/${encodeURIComponent(orgId)}/maintenance/events`
   );
 }
 
