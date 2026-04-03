@@ -53,6 +53,36 @@ export interface DeviceEventsResponse {
   totalCount: number;
 }
 
+export interface DeviceInfoResponse {
+  deviceId: string;
+  hostname: string;
+  deviceName: string | null;
+  agentVersion: string;
+  osVersion: string | null;
+  ipAddress: string | null;
+  uptimeSeconds: number | null;
+  trackingState: string | null;
+  lastHeartbeatAt: string | null;
+  activatedAt: string;
+  status: string;
+  displayMode: string;
+  userDisplayName: string | null;
+}
+
+export interface CommandHistoryItem {
+  id: string;
+  commandType: string;
+  status: string;
+  payloadJson: string | null;
+  resultJson: string | null;
+  createdAt: string;
+  acknowledgedAt: string | null;
+}
+
+export interface CommandHistoryResponse {
+  commands: CommandHistoryItem[];
+}
+
 // ============================================================================
 // API FUNCTIONS
 // ============================================================================
@@ -75,6 +105,36 @@ export async function getDeviceEvents(
 
   return api.get<DeviceEventsResponse>(
     `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}/events?${params.toString()}`
+  );
+}
+
+export async function getDeviceInfo(
+  orgId: string,
+  deviceId: string
+): Promise<DeviceInfoResponse> {
+  return api.get<DeviceInfoResponse>(
+    `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}/info`
+  );
+}
+
+export async function sendRemoteCommand(
+  orgId: string,
+  deviceId: string,
+  commandType: string,
+  payload?: object
+): Promise<{ commandId: string }> {
+  return api.post<{ commandId: string }>(
+    `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}/commands`,
+    { commandType, payload }
+  );
+}
+
+export async function getCommandHistory(
+  orgId: string,
+  deviceId: string
+): Promise<CommandHistoryResponse> {
+  return api.get<CommandHistoryResponse>(
+    `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}/commands`
   );
 }
 

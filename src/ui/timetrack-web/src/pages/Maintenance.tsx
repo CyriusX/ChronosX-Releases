@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Monitor, ChevronDown, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight } from 'lucide-react';
+import { Monitor, ChevronDown, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
 import { useAuthStore } from '../stores/authStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -16,10 +16,15 @@ import {
   listOrgDevices,
   getDeviceMetrics,
   getDeviceEvents,
+  getDeviceInfo,
+  sendRemoteCommand,
+  getCommandHistory,
   type DeviceListItem,
   type DeviceMetricsResponse,
   type MetricsHistoryPoint,
   type DeviceEventItem,
+  type DeviceInfoResponse,
+  type CommandHistoryItem,
 } from '../services/maintenanceApi';
 import { LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
@@ -36,6 +41,15 @@ function formatLastSeen(isoString: string | null): string {
   const diffHours = Math.floor(diffMin / 60);
   if (diffHours < 24) return `ha ${diffHours}h`;
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
 function getStatusColor(status: string): string {
@@ -151,6 +165,13 @@ export default function Maintenance() {
   const [events, setEvents] = useState<DeviceEventItem[]>([]);
   const [eventFilter, setEventFilter] = useState<string | null>(null);
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const [deviceInfo, setDeviceInfo] = useState<DeviceInfoResponse | null>(null);
+  const [commandHistory, setCommandHistory] = useState<CommandHistoryItem[]>([]);
+  const [sendingCommand, setSendingCommand] = useState<string | null>(null);
+  const [showNotifModal, setShowNotifModal] = useState(false);
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifBody, setNotifBody] = useState('');
+  const [confirmRestart, setConfirmRestart] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -218,20 +239,58 @@ export default function Maintenance() {
     }
   }, [user?.orgId]);
 
+  // Fetch device info + command history
+  const fetchDeviceInfo = useCallback(async (deviceId: string) => {
+    if (!user?.orgId) return;
+    try {
+      const [info, history] = await Promise.all([
+        getDeviceInfo(user.orgId, deviceId),
+        getCommandHistory(user.orgId, deviceId),
+      ]);
+      setDeviceInfo(info);
+      setCommandHistory(history.commands);
+    } catch { /* non-critical */ }
+  }, [user?.orgId]);
+
+  // Send remote command
+  const handleSendCommand = useCallback(async (commandType: string, payload?: object) => {
+    if (!user?.orgId || !selectedDeviceId) return;
+    setSendingCommand(commandType);
+    try {
+      await sendRemoteCommand(user.orgId, selectedDeviceId, commandType, payload);
+      // Refresh command history immediately
+      fetchDeviceInfo(selectedDeviceId);
+    } catch (err) {
+      console.error('Failed to send command:', err);
+    } finally {
+      setSendingCommand(null);
+      setConfirmRestart(false);
+      setShowNotifModal(false);
+      setNotifTitle('');
+      setNotifBody('');
+    }
+  }, [user?.orgId, selectedDeviceId, fetchDeviceInfo]);
+
   // Poll metrics on device selection
   useEffect(() => {
     if (selectedDeviceId) {
       fetchMetrics(selectedDeviceId, true);
-      pollRef.current = setInterval(() => fetchMetrics(selectedDeviceId), METRICS_POLL_INTERVAL_MS);
+      fetchDeviceInfo(selectedDeviceId);
+      pollRef.current = setInterval(() => {
+        fetchMetrics(selectedDeviceId);
+        fetchDeviceInfo(selectedDeviceId);
+      }, METRICS_POLL_INTERVAL_MS);
     } else {
       setMetrics(null);
       setMetricsError(null);
       setEvents([]);
+      setDeviceInfo(null);
+      setCommandHistory([]);
     }
     return () => {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     };
-  }, [selectedDeviceId, fetchMetrics]);
+  }, [selectedDeviceId, fetchMetrics, fetchDeviceInfo]);
 
   // Poll events separately (so filter changes don't reload metrics)
   const eventPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -312,7 +371,7 @@ export default function Maintenance() {
               ) : (
                 <>
                   <Monitor className="w-4 h-4 text-[#8B5CF6] flex-shrink-0" />
-                  <span className="text-[13px] text-[rgba(245,247,251,0.6)]">Selecionar dispositivo</span>
+                  <span className="text-[13px] text-[rgba(245,247,251,0.6)]">Selecionar usuario</span>
                 </>
               )}
               <motion.div animate={{ rotate: showDropdown ? 180 : 0 }} transition={{ duration: 0.2 }} className="ml-auto">
@@ -378,9 +437,9 @@ export default function Maintenance() {
                 <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[rgba(139,92,246,0.08)] border border-[rgba(139,92,246,0.15)] flex items-center justify-center">
                   <Monitor className="w-7 h-7 text-[rgba(139,92,246,0.5)]" />
                 </div>
-                <p className="text-[15px] font-medium text-[rgba(245,247,251,0.6)]">Selecione um dispositivo</p>
+                <p className="text-[15px] font-medium text-[rgba(245,247,251,0.6)]">Selecione um usuario</p>
                 <p className="text-[12px] text-[rgba(245,247,251,0.3)] mt-1 max-w-[280px] mx-auto">
-                  Escolha um dispositivo acima para monitorar CPU, memoria e disco em tempo real
+                  Escolha um usuario acima para monitorar o dispositivo em tempo real
                 </p>
               </div>
             </div>
@@ -409,6 +468,28 @@ export default function Maintenance() {
                   Tentar novamente
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Device Info Card */}
+          {selectedDeviceId && !metricsLoading && deviceInfo && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-4">
+              {[
+                { icon: Globe, label: 'OS', value: deviceInfo.osVersion?.replace('Microsoft ', '') || 'N/A' },
+                { icon: Monitor, label: 'Versao', value: `v${deviceInfo.agentVersion}` },
+                { icon: Wifi, label: 'IP', value: deviceInfo.ipAddress || 'N/A' },
+                { icon: Clock, label: 'Uptime', value: deviceInfo.uptimeSeconds ? formatUptime(deviceInfo.uptimeSeconds) : 'N/A' },
+                { icon: RefreshCw, label: 'Heartbeat', value: formatLastSeen(deviceInfo.lastHeartbeatAt) },
+                { icon: Play, label: 'Tracking', value: deviceInfo.trackingState || 'N/A' },
+              ].map((item) => (
+                <div key={item.label} className="bg-gradient-to-r from-[rgba(26,29,46,0.6)] to-[rgba(17,19,28,0.6)] border border-[rgba(255,255,255,0.06)] rounded-xl px-3 py-2">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <item.icon className="w-3 h-3 text-[rgba(139,92,246,0.6)]" />
+                    <span className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase tracking-wider">{item.label}</span>
+                  </div>
+                  <p className="text-[11px] text-[rgba(245,247,251,0.8)] font-medium truncate">{item.value}</p>
+                </div>
+              ))}
             </div>
           )}
 
@@ -472,6 +553,163 @@ export default function Maintenance() {
               )}
             </>
           )}
+
+          {/* Remote Commands */}
+          {selectedDeviceId && !metricsLoading && (
+            <div className="mt-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Zap className="w-4 h-4 text-[#8B5CF6]" />
+                <h2 className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Comandos Remotos</h2>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                {/* Stop Tracking */}
+                <button
+                  onClick={() => handleSendCommand('stop_tracking')}
+                  disabled={sendingCommand !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-[rgba(248,113,113,0.3)] text-[#f87171] bg-[rgba(248,113,113,0.06)] hover:bg-[rgba(248,113,113,0.12)] transition-colors disabled:opacity-40"
+                >
+                  {sendingCommand === 'stop_tracking' ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Square className="w-3 h-3" />}
+                  Parar Tracking
+                </button>
+
+                {/* Resume Tracking */}
+                <button
+                  onClick={() => handleSendCommand('resume_tracking')}
+                  disabled={sendingCommand !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-[rgba(5,223,114,0.3)] text-[#05df72] bg-[rgba(5,223,114,0.06)] hover:bg-[rgba(5,223,114,0.12)] transition-colors disabled:opacity-40"
+                >
+                  {sendingCommand === 'resume_tracking' ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Play className="w-3 h-3" />}
+                  Retomar Tracking
+                </button>
+
+                {/* Force Sync */}
+                <button
+                  onClick={() => handleSendCommand('force_sync')}
+                  disabled={sendingCommand !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-[rgba(139,92,246,0.3)] text-[#8B5CF6] bg-[rgba(139,92,246,0.06)] hover:bg-[rgba(139,92,246,0.12)] transition-colors disabled:opacity-40"
+                >
+                  {sendingCommand === 'force_sync' ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  Forcar Sync
+                </button>
+
+                {/* Send Notification */}
+                <button
+                  onClick={() => setShowNotifModal(true)}
+                  disabled={sendingCommand !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-[rgba(56,189,248,0.3)] text-[#38bdf8] bg-[rgba(56,189,248,0.06)] hover:bg-[rgba(56,189,248,0.12)] transition-colors disabled:opacity-40"
+                >
+                  <Bell className="w-3 h-3" />
+                  Notificar Usuario
+                </button>
+
+                {/* Restart Agent */}
+                {!confirmRestart ? (
+                  <button
+                    onClick={() => setConfirmRestart(true)}
+                    disabled={sendingCommand !== null}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-[rgba(248,113,113,0.3)] text-[#f87171] bg-[rgba(248,113,113,0.06)] hover:bg-[rgba(248,113,113,0.12)] transition-colors disabled:opacity-40"
+                  >
+                    <Power className="w-3 h-3" />
+                    Reiniciar Agent
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleSendCommand('restart')}
+                      disabled={sendingCommand !== null}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-[rgba(248,113,113,0.2)] text-[#f87171] border border-[rgba(248,113,113,0.4)] hover:bg-[rgba(248,113,113,0.3)] transition-colors"
+                    >
+                      {sendingCommand === 'restart' ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Power className="w-3 h-3" />}
+                      Confirmar
+                    </button>
+                    <button
+                      onClick={() => setConfirmRestart(false)}
+                      className="px-2 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Command History */}
+              {commandHistory.length > 0 && (
+                <div className="bg-gradient-to-r from-[rgba(26,29,46,0.6)] to-[rgba(17,19,28,0.6)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden mb-4">
+                  <div className="px-4 py-2 border-b border-[rgba(255,255,255,0.04)]">
+                    <span className="text-[10px] text-[rgba(245,247,251,0.4)] uppercase tracking-wider">Historico de Comandos</span>
+                  </div>
+                  <div className="divide-y divide-[rgba(255,255,255,0.04)] max-h-[200px] overflow-y-auto">
+                    {commandHistory.slice(0, 10).map((cmd) => {
+                      const statusStyle = cmd.status === 'completed' ? 'bg-[rgba(5,223,114,0.12)] text-[#05df72]'
+                        : cmd.status === 'failed' ? 'bg-[rgba(248,113,113,0.12)] text-[#f87171]'
+                        : cmd.status === 'expired' ? 'bg-[rgba(245,247,251,0.08)] text-[rgba(245,247,251,0.4)]'
+                        : 'bg-[rgba(251,191,36,0.12)] text-[#fbbf24] animate-pulse';
+                      return (
+                        <div key={cmd.id} className="flex items-center gap-3 px-4 py-2">
+                          <span className="text-[10px] font-mono text-[rgba(245,247,251,0.6)]">{cmd.commandType}</span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${statusStyle}`}>{cmd.status}</span>
+                          <span className="text-[9px] text-[rgba(245,247,251,0.3)] ml-auto">{formatLastSeen(cmd.createdAt)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Notification Modal */}
+          <AnimatePresence>
+            {showNotifModal && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+                  onClick={() => setShowNotifModal(false)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                  className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] max-w-[90vw] bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-2xl p-5"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[14px] font-medium text-[#f5f7fb]">Enviar Notificacao</h3>
+                    <button onClick={() => setShowNotifModal(false)} className="p-1 rounded-lg hover:bg-[rgba(255,255,255,0.06)]">
+                      <X className="w-4 h-4 text-[rgba(245,247,251,0.5)]" />
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Titulo"
+                    value={notifTitle}
+                    onChange={(e) => setNotifTitle(e.target.value)}
+                    maxLength={100}
+                    className="w-full px-3 py-2 mb-3 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[rgba(139,92,246,0.4)]"
+                  />
+                  <textarea
+                    placeholder="Mensagem"
+                    value={notifBody}
+                    onChange={(e) => setNotifBody(e.target.value)}
+                    maxLength={500}
+                    rows={3}
+                    className="w-full px-3 py-2 mb-4 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[rgba(139,92,246,0.4)] resize-none"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setShowNotifModal(false)} className="px-4 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.06)]">
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => handleSendCommand('send_notification', { title: notifTitle, body: notifBody })}
+                      disabled={!notifTitle.trim() || sendingCommand !== null}
+                      className="px-4 py-1.5 rounded-lg text-[11px] font-medium bg-[rgba(139,92,246,0.2)] text-[#8B5CF6] border border-[rgba(139,92,246,0.3)] hover:bg-[rgba(139,92,246,0.3)] disabled:opacity-40 transition-colors"
+                    >
+                      {sendingCommand === 'send_notification' ? 'Enviando...' : 'Enviar'}
+                    </button>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
 
           {/* Event Log */}
           {selectedDeviceId && !metricsLoading && (

@@ -17,6 +17,10 @@ public sealed class Device
     public DeviceStatus Status { get; private set; }
     public DateTime ActivatedAt { get; private set; }
     public DateTime? LastHeartbeatAt { get; private set; }
+    public string? OsVersion { get; private set; }
+    public string? IpAddress { get; private set; }
+    public int? UptimeSeconds { get; private set; }
+    public string? TrackingState { get; private set; }
     public DateTime CreatedAt { get; private set; }
 
     // Navigation properties
@@ -54,13 +58,24 @@ public sealed class Device
         };
     }
 
-    public void RecordHeartbeat(string? newAgentVersion = null)
+    public void RecordHeartbeat(
+        string? newAgentVersion = null,
+        string? osVersion = null,
+        string? ipAddress = null,
+        int? uptimeSeconds = null,
+        string? trackingState = null)
     {
         LastHeartbeatAt = DateTime.UtcNow;
         if (!string.IsNullOrWhiteSpace(newAgentVersion))
-        {
             AgentVersion = newAgentVersion;
-        }
+        if (osVersion != null)
+            OsVersion = osVersion;
+        if (ipAddress != null)
+            IpAddress = ipAddress;
+        if (uptimeSeconds.HasValue)
+            UptimeSeconds = uptimeSeconds;
+        if (trackingState != null)
+            TrackingState = trackingState;
     }
 
     public void UpdateDisplayMode(DisplayMode newDisplayMode)

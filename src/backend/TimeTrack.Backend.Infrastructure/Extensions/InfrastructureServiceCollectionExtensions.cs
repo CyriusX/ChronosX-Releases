@@ -60,6 +60,9 @@ public static class InfrastructureServiceCollectionExtensions
         // Agent Event Logs
         services.AddScoped<IAgentEventLogRepository, AgentEventLogRepository>();
 
+        // Remote Commands
+        services.AddScoped<IRemoteCommandRepository, RemoteCommandRepository>();
+
         // Focus Score Services
         services.AddSingleton<AppProductivityClassifier>();
 

@@ -129,6 +129,24 @@ public static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 
+        // Heartbeat service
+        services.AddHttpClient<IHeartbeatService, Agent.Infrastructure.Services.HeartbeatService>(client =>
+        {
+            client.BaseAddress = new Uri(backendUrl);
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+
+        // Remote command executor + service
+        services.AddSingleton<Agent.Infrastructure.Services.IRemoteCommandExecutor, RemoteCommands.RemoteCommandExecutor>();
+        services.AddSingleton<Func<Agent.Infrastructure.Services.IRemoteCommandExecutor>>(sp =>
+            () => sp.GetRequiredService<Agent.Infrastructure.Services.IRemoteCommandExecutor>());
+
+        services.AddHttpClient<IRemoteCommandService, Agent.Infrastructure.Services.RemoteCommandService>(client =>
+        {
+            client.BaseAddress = new Uri(backendUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
         return services;
     }
 
