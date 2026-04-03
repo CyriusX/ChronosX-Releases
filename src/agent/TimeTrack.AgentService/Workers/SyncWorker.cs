@@ -29,6 +29,8 @@ public sealed class SyncWorker : BackgroundService
     private readonly IAppCategorySyncService _categorySyncService;
     private readonly AgentStatusEventBroadcaster _statusBroadcaster;
     private readonly IAgentEventLogger _eventLogger;
+    private readonly IHeartbeatService _heartbeatService;
+    private readonly IRemoteCommandService _remoteCommandService;
 
     private int _consecutiveFailures;
     private DateTime? _lastSuccessfulSync;
@@ -49,7 +51,9 @@ public sealed class SyncWorker : BackgroundService
         ITokenStore tokenStore,
         IAppCategorySyncService categorySyncService,
         AgentStatusEventBroadcaster statusBroadcaster,
-        IAgentEventLogger eventLogger)
+        IAgentEventLogger eventLogger,
+        IHeartbeatService heartbeatService,
+        IRemoteCommandService remoteCommandService)
     {
         _logger = logger;
         _settings = settings;
@@ -66,6 +70,8 @@ public sealed class SyncWorker : BackgroundService
         _categorySyncService = categorySyncService;
         _statusBroadcaster = statusBroadcaster;
         _eventLogger = eventLogger;
+        _heartbeatService = heartbeatService;
+        _remoteCommandService = remoteCommandService;
     }
 
     /// <summary>
@@ -204,6 +210,26 @@ public sealed class SyncWorker : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Category cache sync failed, will retry next cycle");
+            }
+
+            // Send heartbeat to backend (device info + check for pending commands)
+            try
+            {
+                await _heartbeatService.SendHeartbeatAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Heartbeat failed, will retry next cycle");
+            }
+
+            // Poll and execute remote commands from admin
+            try
+            {
+                await _remoteCommandService.PollAndExecuteAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Remote command poll failed, will retry next cycle");
             }
 
             // Verificar se há itens pendentes

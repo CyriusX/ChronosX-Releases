@@ -42,6 +42,9 @@ public sealed class TimeTrackDbContext : DbContext
     // Agent Event Logs
     public DbSet<AgentEventLog> AgentEventLogs => Set<AgentEventLog>();
 
+    // Remote Commands
+    public DbSet<RemoteCommand> RemoteCommands => Set<RemoteCommand>();
+
     // App Categories (CX-143)
     public DbSet<AppCategoryGlobal> AppCategoryGlobals => Set<AppCategoryGlobal>();
     public DbSet<AppCategoryOverride> AppCategoryOverrides => Set<AppCategoryOverride>();
@@ -122,6 +125,10 @@ public sealed class TimeTrackDbContext : DbContext
         // Agent Event Logs
         modelBuilder.Entity<AgentEventLog>()
             .HasQueryFilter(e => !_currentUser.IsAuthenticated || e.OrgId == _currentUser.OrgId);
+
+        // Remote Commands
+        modelBuilder.Entity<RemoteCommand>()
+            .HasQueryFilter(rc => !_currentUser.IsAuthenticated || rc.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()

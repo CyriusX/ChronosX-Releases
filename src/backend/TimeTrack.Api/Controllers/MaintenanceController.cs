@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
 using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Common.Interfaces;
+using TimeTrack.Backend.Application.Maintenance.Commands;
 using TimeTrack.Backend.Application.Maintenance.DTOs;
 using TimeTrack.Backend.Application.Maintenance.Queries;
 
@@ -91,5 +92,63 @@ public sealed class MaintenanceController : ControllerBase
         }
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Get device info (OS, IP, uptime, tracking state, etc.)
+    /// </summary>
+    [HttpGet("devices/{deviceId:guid}/info")]
+    [ProducesResponseType(typeof(DeviceInfoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DeviceInfoResponse>> GetDeviceInfo(
+        Guid orgId,
+        Guid deviceId,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.OrgId != orgId) return Forbid();
+
+        var result = await _mediator.Send(
+            new GetDeviceInfoQuery(orgId, deviceId), cancellationToken);
+
+        return result == null ? NotFound() : Ok(result);
+    }
+
+    /// <summary>
+    /// Send a remote command to a device
+    /// </summary>
+    [HttpPost("devices/{deviceId:guid}/commands")]
+    [ProducesResponseType(typeof(CreateRemoteCommandResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CreateRemoteCommandResponse>> CreateCommand(
+        Guid orgId,
+        Guid deviceId,
+        [FromBody] CreateRemoteCommandRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.OrgId != orgId) return Forbid();
+
+        var result = await _mediator.Send(
+            new CreateRemoteCommandCommand(orgId, deviceId, request.CommandType, request.Payload),
+            cancellationToken);
+
+        return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    /// <summary>
+    /// Get command history for a device
+    /// </summary>
+    [HttpGet("devices/{deviceId:guid}/commands")]
+    [ProducesResponseType(typeof(CommandHistoryResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<CommandHistoryResponse>> GetCommandHistory(
+        Guid orgId,
+        Guid deviceId,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.OrgId != orgId) return Forbid();
+
+        var result = await _mediator.Send(
+            new GetDeviceCommandsQuery(orgId, deviceId), cancellationToken);
+
+        return result == null ? NotFound() : Ok(result);
     }
 }
