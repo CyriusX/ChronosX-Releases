@@ -90,6 +90,17 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
 
     private async Task HandleShowNotificationAsync(JsonElement payload)
     {
+        // Remote admin notifications: bypass AgentNotification validation (body may be empty)
+        // and show a centered modal instead of a toast.
+        if (payload.TryGetProperty("tag", out var tagEl) && tagEl.GetString() == "remote-notification")
+        {
+            var title = payload.TryGetProperty("title", out var t) ? t.GetString() ?? string.Empty : string.Empty;
+            var body = payload.TryGetProperty("body", out var b) ? b.GetString() ?? string.Empty : string.Empty;
+            _logger.LogInformation("Showing remote admin notification modal: {Title}", title);
+            ShowRemoteNotificationModal(title, body);
+            return;
+        }
+
         var notification = ParseNotification(payload);
         if (notification == null)
         {
@@ -102,6 +113,23 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
             notification.Title, notification.Kind, notification.Tag);
 
         await _notificationService.SendAsync(notification);
+    }
+
+    private void ShowRemoteNotificationModal(string title, string body)
+    {
+        if (System.Windows.Forms.Application.OpenForms.Count > 0)
+        {
+            var mainForm = System.Windows.Forms.Application.OpenForms[0];
+            mainForm?.BeginInvoke(() =>
+            {
+                var form = new RemoteNotificationForm(title, body);
+                form.Show();
+            });
+        }
+        else
+        {
+            _logger.LogWarning("No open forms — cannot show remote notification modal");
+        }
     }
 
     private async Task HandleClearNotificationAsync(JsonElement payload)

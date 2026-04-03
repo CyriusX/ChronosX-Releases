@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
@@ -70,7 +71,7 @@ public sealed class HeartbeatService : IHeartbeatService
             var payload = new
             {
                 agentVersion = GetAgentVersion(),
-                osVersion = Environment.OSVersion.VersionString,
+                osVersion = GetFriendlyOsVersion(),
                 ipAddress = GetLocalIpAddress(),
                 uptimeSeconds = GetUptimeSeconds(),
                 trackingState
@@ -147,6 +148,26 @@ public sealed class HeartbeatService : IHeartbeatService
     private static string GetAgentVersion()
     {
         return typeof(HeartbeatService).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+    }
+
+    private static string GetFriendlyOsVersion()
+    {
+        try
+        {
+            // Registry gives "Windows 11 Home", "Windows 10 Pro", etc.
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+            if (key != null)
+            {
+                var productName = key.GetValue("ProductName") as string;
+                var displayVersion = key.GetValue("DisplayVersion") as string; // e.g. "23H2"
+                if (!string.IsNullOrEmpty(productName))
+                    return string.IsNullOrEmpty(displayVersion) ? productName : $"{productName} {displayVersion}";
+            }
+        }
+        catch { }
+
+        return Environment.OSVersion.VersionString;
     }
 
     private static int GetUptimeSeconds()
