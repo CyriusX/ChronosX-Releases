@@ -19,6 +19,8 @@ import {
   getDeviceInfo,
   sendRemoteCommand,
   getCommandHistory,
+  clearDeviceEvents,
+  clearAllEvents,
   type DeviceListItem,
   type DeviceMetricsResponse,
   type MetricsHistoryPoint,
@@ -26,6 +28,7 @@ import {
   type DeviceInfoResponse,
   type CommandHistoryItem,
 } from '../services/maintenanceApi';
+import { getMaintenanceLogPrefs } from './Settings';
 import { LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
 const METRICS_POLL_INTERVAL_MS = 10_000;
@@ -58,6 +61,34 @@ function getStatusColor(status: string): string {
     case 'offline': return 'bg-[rgba(245,247,251,0.3)]';
     default: return 'bg-[rgba(248,113,113,0.6)]';
   }
+}
+
+function TrackingStateLed({ state }: { state: string | null }) {
+  if (!state || state === 'stopped' || state === 'idle') {
+    return (
+      <span className="flex items-center gap-1">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-[rgba(248,113,113,0.7)]" />
+        <span className="text-[8px] text-[rgba(248,113,113,0.7)]">parado</span>
+      </span>
+    );
+  }
+  if (state === 'running') {
+    return (
+      <span className="flex items-center gap-1">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#05df72] animate-pulse" />
+        <span className="text-[8px] text-[#05df72]">tracking</span>
+      </span>
+    );
+  }
+  if (state === 'paused') {
+    return (
+      <span className="flex items-center gap-1">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#fbbf24]" />
+        <span className="text-[8px] text-[#fbbf24]">pausado</span>
+      </span>
+    );
+  }
+  return null;
 }
 
 function getBarColor(percent: number): string {
@@ -228,11 +259,19 @@ export default function Maintenance() {
     }
   }, [user?.orgId]);
 
-  // Fetch events for selected device
+  // Fetch events for selected device — respects maintenance log preferences from Settings
   const fetchEvents = useCallback(async (deviceId: string, category?: string | null) => {
     if (!user?.orgId) return;
     try {
-      const data = await getDeviceEvents(user.orgId, deviceId, category ?? undefined);
+      const prefs = getMaintenanceLogPrefs();
+      const effectiveCategory = category ?? (prefs.categories.length === 1 ? prefs.categories[0] : undefined);
+      const effectiveSeverity = prefs.severities.length === 1 ? prefs.severities[0] : undefined;
+      const data = await getDeviceEvents(
+        user.orgId, deviceId,
+        effectiveCategory,
+        effectiveSeverity,
+        prefs.limit
+      );
       setEvents(data.events);
     } catch {
       // Non-critical — don't block UI
@@ -361,10 +400,11 @@ export default function Maintenance() {
                     <p className="text-[13px] font-medium text-[rgba(245,247,251,0.9)] truncate">
                       {selectedDevice.userDisplayName || selectedDevice.hostname}
                     </p>
-                    <p className="text-[10px] text-[rgba(245,247,251,0.4)]">
+                    <p className="text-[10px] text-[rgba(245,247,251,0.4)] flex items-center gap-1.5">
                       {selectedDevice.hostname} · v{selectedDevice.agentVersion}
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full ml-2 mr-1 ${getStatusColor(selectedDevice.status)}`} />
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${getStatusColor(selectedDevice.status)}`} />
                       {selectedDevice.status === 'active' ? 'Online' : 'Offline'}
+                      <TrackingStateLed state={selectedDevice.trackingState} />
                     </p>
                   </div>
                 </>
@@ -413,11 +453,14 @@ export default function Maintenance() {
                             <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.9)]'}`}>
                               {device.userDisplayName || device.hostname}
                             </p>
-                            <p className="text-[9px] text-[rgba(245,247,251,0.4)]">
+                            <p className="text-[9px] text-[rgba(245,247,251,0.4)] flex items-center gap-1">
                               {device.hostname} · v{device.agentVersion} · Visto {formatLastSeen(device.lastSeenAt)}
                             </p>
                           </div>
-                          <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor(device.status)}`} />
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <TrackingStateLed state={device.trackingState} />
+                            <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor(device.status)}`} />
+                          </div>
                         </button>
                       );
                     })
@@ -718,6 +761,25 @@ export default function Maintenance() {
                 <ScrollText className="w-4 h-4 text-[#8B5CF6]" />
                 <h2 className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Event Log</h2>
                 <span className="text-[10px] text-[rgba(245,247,251,0.3)] ml-1">({events.length})</span>
+                <div className="ml-auto flex items-center gap-2">
+                  <ClearLogsButton
+                    label="Limpar usuario"
+                    onClear={async () => {
+                      if (!user?.orgId || !selectedDeviceId) return;
+                      await clearDeviceEvents(user.orgId, selectedDeviceId);
+                      setEvents([]);
+                    }}
+                  />
+                  <ClearLogsButton
+                    label="Limpar todos"
+                    variant="danger"
+                    onClear={async () => {
+                      if (!user?.orgId) return;
+                      await clearAllEvents(user.orgId);
+                      setEvents([]);
+                    }}
+                  />
+                </div>
               </div>
 
               {/* Category filter chips */}
@@ -802,6 +864,43 @@ export default function Maintenance() {
         </div>
       </main>
     </div>
+  );
+}
+
+// ── Clear logs button ────────────────────────────────────────────────────────
+
+function ClearLogsButton({
+  label,
+  onClear,
+  variant = 'default',
+}: {
+  label: string;
+  onClear: () => Promise<void>;
+  variant?: 'default' | 'danger';
+}) {
+  const [confirm, setConfirm] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  const handleClick = async () => {
+    if (!confirm) { setConfirm(true); setTimeout(() => setConfirm(false), 3000); return; }
+    setClearing(true);
+    try { await onClear(); } finally { setClearing(false); setConfirm(false); }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={clearing}
+      className={`px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-colors ${
+        confirm
+          ? 'bg-[rgba(239,68,68,0.15)] border-[rgba(239,68,68,0.4)] text-[#f87171]'
+          : variant === 'danger'
+            ? 'bg-[rgba(239,68,68,0.06)] border-[rgba(239,68,68,0.15)] text-[rgba(248,113,113,0.6)] hover:text-[#f87171] hover:border-[rgba(239,68,68,0.3)]'
+            : 'bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.7)]'
+      }`}
+    >
+      {clearing ? 'Limpando...' : confirm ? 'Confirmar?' : label}
+    </button>
   );
 }
 

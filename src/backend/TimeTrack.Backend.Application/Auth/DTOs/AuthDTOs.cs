@@ -128,6 +128,7 @@ public sealed class DeviceListItem
     public string AgentVersion { get; init; } = string.Empty;
     public string DisplayMode { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
+    public string? TrackingState { get; init; }
     public DateTime? LastSeenAt { get; init; }
     public DateTime ActivatedAt { get; init; }
     public string? UserDisplayName { get; init; }

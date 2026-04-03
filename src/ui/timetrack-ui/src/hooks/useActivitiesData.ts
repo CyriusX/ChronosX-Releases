@@ -13,7 +13,7 @@ import { useHiddenAppsStore } from '../stores/hiddenAppsStore';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../types/ipc';
 import { formatDuration } from '../lib/utils';
 import { getDailySummaryRange, getDailyActivities, getTopApps } from '../services/reportApi';
-import { getMemberSummary } from '../services/memberApi';
+import { getMySummary } from '../services/memberApi';
 
 // ============================================================================
 // TYPES
@@ -132,7 +132,7 @@ export function useActivitiesData(): ActivitiesData {
       if (isToday && !userId) {
         // Today + own data: fetch EVERYTHING from cloud in parallel for speed + consistency
         const summaryPromise = currentUser?.id
-          ? getMemberSummary(currentUser.id).catch(() => null)
+          ? getMySummary().catch(() => null)
           : Promise.resolve(null);
         const activitiesPromise = getDailyActivities(datePayload).catch(() => null);
 

@@ -185,23 +185,8 @@ function ActivitiesTopCards({ summary, workGoalSeconds = 28800 }: { summary: Ret
     : productivityScore >= 20 ? '#fb923c'
     : '#f87171';
 
-  // Ring chart segments
   const ringRadius = 42;
   const circumference = 2 * Math.PI * ringRadius;
-  const sortedCategories = [...categories].sort((a, b) => b.duration - a.duration);
-  let accumulatedOffset = 0;
-  const ringSegments = sortedCategories.map((cat) => {
-    const fraction = totalSeconds > 0 ? cat.duration / totalSeconds : 0;
-    const arcLen = fraction * circumference;
-    const gap = sortedCategories.length > 1 ? 2 : 0;
-    const segment = {
-      color: cat.color,
-      dasharray: `${Math.max(0, arcLen - gap)} ${circumference - Math.max(0, arcLen - gap)}`,
-      offset: -accumulatedOffset,
-    };
-    accumulatedOffset += arcLen;
-    return segment;
-  });
 
   return (
     <motion.div

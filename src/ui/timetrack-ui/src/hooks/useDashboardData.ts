@@ -11,7 +11,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useTrackingStore, handleTrackingStateChanged, handleSessionUpdated } from '../stores/trackingStore';
 import { useAuthStore } from '../stores/authStore';
 import { useIpc } from './useIpc';
-import { getMemberSummary } from '../services/memberApi';
+import { getMySummary } from '../services/memberApi';
 import type { TodaySummaryResponse, TrackingStateResponse, SyncStateResponse } from '../types/ipc';
 
 const POLLING_INTERVAL_MS = 5000; // 5 seconds — keeps dashboard live without waiting for sessionUpdated events
@@ -61,11 +61,10 @@ export function useDashboardData() {
         setTrackingState(stateResponse.data as TrackingStateResponse);
       }
 
-      // Fetch today's summary from cloud API — same endpoint as Teams tab
-      // Uses getMemberSummary(currentUserId) which resolves categories from cloud DB
+      // Fetch today's summary from cloud API using the current-user endpoint (no role restriction)
       if (currentUser?.id) {
         try {
-          const cloudSummary = await getMemberSummary(currentUser.id);
+          const cloudSummary = await getMySummary();
           setTodaySummary(cloudSummary as unknown as TodaySummaryResponse);
         } catch {
           // Fallback to IPC if REST API fails

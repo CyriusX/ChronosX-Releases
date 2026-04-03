@@ -15,4 +15,12 @@ public interface IAgentEventLogRepository : IRepository<AgentEventLog>
     Task<int> DeleteOlderThanAsync(
         DateTime cutoff,
         CancellationToken cancellationToken = default);
+
+    Task<int> DeleteByDeviceIdAsync(
+        Guid deviceId,
+        CancellationToken cancellationToken = default);
+
+    Task<int> DeleteByOrgIdAsync(
+        Guid orgId,
+        CancellationToken cancellationToken = default);
 }
