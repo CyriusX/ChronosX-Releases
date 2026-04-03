@@ -445,7 +445,11 @@
       "Bash(cmd.exe /c \"sc query TimeTrack\")",
       "Bash(cmd.exe /c \"sc query TimeTrackAgent\")",
       "Bash(ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/agent/TimeTrack.AgentService)",
-      "Bash(grep -r \"28800\\\\|480\\\\|8.*hour\\\\|8.*3600\" /c/Users/jr_ju/Repo/Cyrius/TimeTracking --include=*.json --include=*.config)"
+      "Bash(grep -r \"28800\\\\|480\\\\|8.*hour\\\\|8.*3600\" /c/Users/jr_ju/Repo/Cyrius/TimeTracking --include=*.json --include=*.config)",
+      "Bash(cmd /c \"taskkill /F /IM node.exe /T\")",
+      "Bash(cmd /c \"taskkill /F /IM dotnet.exe /T\")",
+      "Bash(powershell -Command \"Get-Process node,dotnet -ErrorAction SilentlyContinue | Stop-Process -Force; Write-Host ''Done''\")",
+      "Bash(powershell -Command \"Start-Process ''http://localhost:5173''\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",

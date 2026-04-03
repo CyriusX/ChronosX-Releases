@@ -176,7 +176,6 @@ export function TopCards({
                     stroke="url(#gradient1)" strokeWidth="8"
                     strokeDasharray={`${ringDash} 264`}
                     strokeLinecap="round"
-                    opacity="0.3"
                   />
                   {/* Overflow arc (>100%) — brighter second lap like Apple Health */}
                   {overflowDash > 0 && (
