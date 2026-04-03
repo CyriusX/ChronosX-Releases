@@ -9,7 +9,9 @@
 
 import { useEffect, useCallback, useRef } from 'react';
 import { useTrackingStore, handleTrackingStateChanged, handleSessionUpdated } from '../stores/trackingStore';
+import { useAuthStore } from '../stores/authStore';
 import { useIpc } from './useIpc';
+import { getMySummary } from '../services/memberApi';
 import type { TodaySummaryResponse, TrackingStateResponse, SyncStateResponse } from '../types/ipc';
 
 const POLLING_INTERVAL_MS = 5000; // 5 seconds — keeps dashboard live without waiting for sessionUpdated events
@@ -25,6 +27,7 @@ const POLLING_INTERVAL_MS = 5000; // 5 seconds — keeps dashboard live without 
  */
 export function useDashboardData() {
   const { isConnected, sendQuery, subscribeToEvent, sendCommand } = useIpc();
+  const currentUser = useAuthStore(s => s.user);
 
   const {
     setTrackingState,
@@ -58,10 +61,24 @@ export function useDashboardData() {
         setTrackingState(stateResponse.data as TrackingStateResponse);
       }
 
-      // Fetch today's summary
-      const summaryResponse = await sendQuery('getTodaySummary');
-      if (summaryResponse.success && summaryResponse.data) {
-        setTodaySummary(summaryResponse.data as TodaySummaryResponse);
+      // Fetch today's summary from cloud API using the current-user endpoint (no role restriction)
+      if (currentUser?.id) {
+        try {
+          const cloudSummary = await getMySummary();
+          setTodaySummary(cloudSummary as unknown as TodaySummaryResponse);
+        } catch {
+          // Fallback to IPC if REST API fails
+          const summaryResponse = await sendQuery('getTodaySummary');
+          if (summaryResponse.success && summaryResponse.data) {
+            setTodaySummary(summaryResponse.data as TodaySummaryResponse);
+          }
+        }
+      } else {
+        // Not authenticated yet — use IPC
+        const summaryResponse = await sendQuery('getTodaySummary');
+        if (summaryResponse.success && summaryResponse.data) {
+          setTodaySummary(summaryResponse.data as TodaySummaryResponse);
+        }
       }
 
       // Fetch sync state

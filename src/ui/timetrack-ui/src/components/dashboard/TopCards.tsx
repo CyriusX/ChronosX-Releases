@@ -33,6 +33,7 @@ interface TopCardsProps {
   onStopTracking?: () => void;
   isTeamTab?: boolean;
   weeklyHistory?: WeeklyHistoryItem[];
+  workGoalSeconds?: number;
 }
 
 export function TopCards({
@@ -45,6 +46,7 @@ export function TopCards({
   onStopTracking: _onStopTracking,
   isTeamTab = false,
   weeklyHistory = [],
+  workGoalSeconds = 28800,
 }: TopCardsProps) {
   const totalSeconds = summary?.totalDuration ?? 0;
   const idleSeconds = summary?.idleTime ?? 0;
@@ -113,6 +115,15 @@ export function TopCards({
     ? `${deltaPositive ? '+' : '-'}${formatDuration(Math.abs(deltaSeconds))}`
     : '—';
 
+  // Ring progress — Apple Health style: continues past 100%
+  const progressRatio = workGoalSeconds > 0 ? totalSeconds / workGoalSeconds : 0;
+  const progressPercentage = Math.round(progressRatio * 100);
+  // Ring: full circle = 264 (2*PI*42). If over 100%, the arc wraps around (overlap).
+  const ringDash = Math.min(progressRatio, 1) * 264;
+  // Overflow arc: the portion beyond 100%, shown as a brighter second lap
+  const overflowRatio = Math.max(0, progressRatio - 1);
+  const overflowDash = Math.min(overflowRatio, 1) * 264;
+
   // Animated counters
   const animatedScore = useAnimatedCounter(productivityScore);
 
@@ -157,19 +168,38 @@ export function TopCards({
             <div className="flex flex-col items-center">
               <div className="relative w-[100px] h-[100px]">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  {/* Track */}
                   <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
+                  {/* Main arc (0–100%) */}
                   <circle
                     cx="50" cy="50" r="42" fill="none"
                     stroke="url(#gradient1)" strokeWidth="8"
-                    strokeDasharray="264 264"
+                    strokeDasharray={`${ringDash} 264`}
                     strokeLinecap="round"
                     opacity="0.3"
                   />
+                  {/* Overflow arc (>100%) — brighter second lap like Apple Health */}
+                  {overflowDash > 0 && (
+                    <circle
+                      cx="50" cy="50" r="42" fill="none"
+                      stroke="url(#gradient1)" strokeWidth="8"
+                      strokeDasharray={`${overflowDash} 264`}
+                      strokeLinecap="round"
+                      filter="url(#glow)"
+                    />
+                  )}
                   <defs>
                     <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
                       <stop offset="0%" stopColor="#8B5CF6" />
                       <stop offset="100%" stopColor="#22D3EE" />
                     </linearGradient>
+                    <filter id="glow">
+                      <feGaussianBlur stdDeviation="2" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
                   </defs>
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -178,8 +208,13 @@ export function TopCards({
               </div>
 
               <div className="mt-3 text-center">
+                {/* Progress percentage */}
+                <p className="text-[16px] font-semibold" style={{ color: progressRatio >= 1 ? '#05df72' : 'rgba(245,247,251,0.9)' }}>
+                  {progressPercentage}%
+                </p>
+
                 {/* Idle time label */}
-                <div className="flex items-center justify-center gap-1">
+                <div className="flex items-center justify-center gap-1 mt-1">
                   <Clock className="w-3 h-3 text-[rgba(245,247,251,0.35)]" />
                   <span className="text-[10px] text-[rgba(245,247,251,0.45)]">Ocioso: {formatDuration(idleSeconds)}</span>
                 </div>
@@ -214,20 +249,23 @@ export function TopCards({
             <div className="flex flex-col items-center">
               <div className="relative w-[100px] h-[100px]">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  {/* Track */}
                   <circle cx="50" cy="50" r={ringRadius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="9" />
-                  {ringSegments.map((seg, i) => (
-                    <circle
-                      key={i}
-                      ref={(el) => { segmentRefs.current[i] = el; }}
-                      cx="50" cy="50" r={ringRadius}
-                      fill="none"
-                      stroke={seg.color}
-                      strokeWidth="9"
-                      strokeDasharray={`0 ${circumference}`}
-                      strokeDashoffset={0}
-                      strokeLinecap="butt"
-                    />
-                  ))}
+                  {/* Gradient arc — same as Tempo Rastreado */}
+                  <circle
+                    cx="50" cy="50" r={ringRadius}
+                    fill="none"
+                    stroke="url(#gradientFoco)"
+                    strokeWidth="9"
+                    strokeDasharray={`${(productivityScore / 100) * circumference} ${circumference}`}
+                    strokeLinecap="round"
+                  />
+                  <defs>
+                    <linearGradient id="gradientFoco" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#8B5CF6" />
+                      <stop offset="100%" stopColor="#22D3EE" />
+                    </linearGradient>
+                  </defs>
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-[26px] font-bold" style={{ color: scoreColor }}>{animatedScore}</span>

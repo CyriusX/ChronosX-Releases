@@ -99,6 +99,19 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     return () => clearInterval(id);
   }, []);
 
+  // Controlled vs uncontrolled mode — must be defined before any effects that use them
+  const isControlled = controlledActivities !== undefined;
+  const activities = isControlled ? controlledActivities : internalActivities;
+
+  const dayStart = useMemo(() => {
+    const d = selectedDate ? new Date(selectedDate) : new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, [selectedDate]);
+  const dayMs = TOTAL_HOURS * 3600000;
+
+  const isViewingToday = !selectedDate || isSameDay(selectedDate, new Date());
+
   // Track pause/resume gap — initialized from module-level var so it survives page navigation.
   const [localGap, setLocalGap] = useState<{ start: number; end: number | null } | null>(_persistedGap);
   const prevIsActiveRef = useRef(isActive);
@@ -123,15 +136,34 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
   // Clear local gap once poll data includes a real "Tracking Stopped" block
   useEffect(() => {
     if (!localGap) return;
-    const hasRealBlock = internalActivities.some(a => a.name === TRACKING_STOPPED_NAME);
+    // In uncontrolled mode: check IPC-polled activities (now includes "Tracking Stopped" sessions)
+    // In controlled mode: check the passed-in activities from the parent
+    const dataToCheck = isControlled ? activities : internalActivities;
+    const hasRealBlock = dataToCheck.some(a => a.name === TRACKING_STOPPED_NAME);
     if (hasRealBlock) {
       setLocalGap(null);
       _persistedGap = null;
     }
-  }, [internalActivities, localGap]);
+  }, [internalActivities, activities, localGap, isControlled]);
 
-  const isControlled = controlledActivities !== undefined;
-  const activities = isControlled ? controlledActivities : internalActivities;
+  // Controlled mode: if tracking is stopped and no gap is set yet, infer gap start
+  // from the last activity's end time. This handles the case where the app starts
+  // with tracking already paused (no isActive transition detected during this session).
+  useEffect(() => {
+    if (!isControlled || !isViewingToday || isActive || localGap) return;
+    if (activities.length === 0) return;
+    const hasStopBlock = activities.some(a => a.name === TRACKING_STOPPED_NAME);
+    if (hasStopBlock) return;
+    // Find the last activity's end time as an approximation of when tracking stopped
+    const lastEnd = activities.reduce((max, a) => {
+      const t = new Date(a.endUtc).getTime();
+      return t > max ? t : max;
+    }, 0);
+    if (!lastEnd || lastEnd >= Date.now()) return;
+    const gap = { start: lastEnd, end: null };
+    setLocalGap(gap);
+    _persistedGap = gap;
+  }, [isControlled, isViewingToday, isActive, localGap, activities]);
 
   const fetchActivities = useCallback(async () => {
     if (isControlled) return;
@@ -150,15 +182,6 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     const interval = setInterval(fetchActivities, POLL_INTERVAL);
     return () => clearInterval(interval);
   }, [isConnected, fetchActivities, isControlled]);
-
-  const dayStart = useMemo(() => {
-    const d = selectedDate ? new Date(selectedDate) : new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.getTime();
-  }, [selectedDate]);
-  const dayMs = TOTAL_HOURS * 3600000;
-
-  const isViewingToday = !selectedDate || isSameDay(selectedDate, new Date());
 
   // Build display blocks — extends or injects a live "Tracking Stopped" block when paused
   const blocks = useMemo(() => {
@@ -339,7 +362,6 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                           left: `${block.left}%`,
                           width: `${block.width}%`,
                           backgroundColor: block.color,
-                          boxShadow: `0 0 6px ${block.color}25`,
                           minWidth: '1px',
                         }}
                         className={`absolute top-[2px] bottom-[2px] rounded-[3px] cursor-pointer hover:brightness-125 ${

@@ -24,4 +24,9 @@ public sealed class UpdateLocalSettingsRequest
     /// Novo limiar de inatividade em segundos (null = não alterar, 60–3600)
     /// </summary>
     public int? IdleThresholdSeconds { get; init; }
+
+    /// <summary>
+    /// Meta diária de trabalho em segundos (null = não alterar, 1800–86400)
+    /// </summary>
+    public int? WorkGoalSeconds { get; init; }
 }

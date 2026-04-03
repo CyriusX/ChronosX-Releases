@@ -87,3 +87,49 @@ public sealed class FocusSessionItem
     public int? FocusScore { get; init; }
     public required string IdempotencyKey { get; init; }
 }
+
+/// <summary>
+/// Request para ingestão de eventos do agent
+/// </summary>
+public sealed class AgentEventIngestRequest
+{
+    public required IEnumerable<AgentEventItem> Items { get; init; }
+}
+
+/// <summary>
+/// Item de evento do agent para ingestão
+/// </summary>
+public sealed class AgentEventItem
+{
+    public required Guid Id { get; init; }
+    public required string EventType { get; init; }
+    public required string Category { get; init; }
+    public required string Severity { get; init; }
+    public required string Message { get; init; }
+    public string? MetadataJson { get; init; }
+    public required DateTime Timestamp { get; init; }
+    public required string IdempotencyKey { get; init; }
+}
+
+/// <summary>
+/// Request para ingestão de métricas de máquina
+/// </summary>
+public sealed class MachineMetricsIngestRequest
+{
+    public required IEnumerable<MachineMetricsItem> Items { get; init; }
+}
+
+/// <summary>
+/// Item de métrica de máquina para ingestão
+/// </summary>
+public sealed class MachineMetricsItem
+{
+    public required Guid Id { get; init; }
+    public required double CpuPercent { get; init; }
+    public required long MemoryUsedMb { get; init; }
+    public required long MemoryTotalMb { get; init; }
+    public required double DiskUsedGb { get; init; }
+    public required double DiskTotalGb { get; init; }
+    public required DateTime SampledAt { get; init; }
+    public required string IdempotencyKey { get; init; }
+}

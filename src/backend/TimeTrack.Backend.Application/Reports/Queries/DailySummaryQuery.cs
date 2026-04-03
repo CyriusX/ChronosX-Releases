@@ -55,7 +55,8 @@ public sealed class DailySummaryQueryHandler : IRequestHandler<DailySummaryQuery
                 DisplayName = a.DisplayName ?? a.ProcessName,
                 TotalSeconds = a.TotalSeconds,
                 SessionCount = a.SessionCount,
-                AppCategory = a.Subcategory ?? a.Productivity
+                AppCategory = a.Subcategory ?? a.Productivity,
+                Productivity = a.Productivity
             }).ToList()
         };
     }

@@ -40,6 +40,10 @@ public sealed class DailyReportApp
     public long TotalSeconds { get; init; }
     public int SessionCount { get; init; }
     public string? AppCategory { get; init; }
+    /// <summary>
+    /// Resolved productivity from cloud DB: "productive", "neutral", "distraction"
+    /// </summary>
+    public string? Productivity { get; init; }
 }
 
 /// <summary>

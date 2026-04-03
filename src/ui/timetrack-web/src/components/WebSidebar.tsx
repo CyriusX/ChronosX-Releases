@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, Activity, CalendarDays, Cog, LogOut, Shield, Menu, X } from 'lucide-react';
+import { BarChart3, Activity, CalendarDays, Cog, LogOut, Shield, Menu, X, Wrench } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavItem } from '@desktop/components/dashboard/shared/NavItem';
@@ -28,6 +28,9 @@ export function WebSidebar() {
     { icon: <Activity className="w-[16px] h-[16px]" />, label: 'Atividade', path: '/activities' },
     { icon: <CalendarDays className="w-[16px] h-[16px]" />, label: 'Relatorios', path: '/reports' },
     { icon: <Cog className="w-[16px] h-[16px]" />, label: 'Configuracoes', path: '/settings' },
+    ...(user?.role === 'Admin' ? [
+      { icon: <Wrench className="w-[16px] h-[16px]" />, label: 'Manutencao', path: '/maintenance' },
+    ] : []),
   ];
 
   const sidebarContent = (

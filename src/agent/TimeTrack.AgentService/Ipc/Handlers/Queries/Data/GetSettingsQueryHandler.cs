@@ -35,6 +35,7 @@ public sealed class GetSettingsQueryHandler : IpcHandlerBase, IIpcQueryHandler
                 notificationSoundsEnabled = settings.NotificationSoundsEnabled,
                 language = settings.Language,
                 idleThresholdSeconds = settings.IdleThresholdSeconds,
+                workGoalSeconds = settings.WorkGoalSeconds,
                 updatedAt = settings.UpdatedAt.ToString("O")
             });
         }

@@ -49,7 +49,8 @@ public sealed class LocalSettingsUseCase
             autoResumeNotification: request.AutoResumeNotificationEnabled,
             notificationSounds: request.NotificationSoundsEnabled,
             language: request.Language,
-            idleThresholdSeconds: request.IdleThresholdSeconds
+            idleThresholdSeconds: request.IdleThresholdSeconds,
+            workGoalSeconds: request.WorkGoalSeconds
         );
 
         // Persistir
@@ -66,6 +67,7 @@ public sealed class LocalSettingsUseCase
             NotificationSoundsEnabled = settings.NotificationSoundsEnabled,
             Language = settings.Language,
             IdleThresholdSeconds = settings.IdleThresholdSeconds,
+            WorkGoalSeconds = settings.WorkGoalSeconds,
             UpdatedAt = settings.UpdatedAt
         };
     }

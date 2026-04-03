@@ -31,6 +31,7 @@ public sealed class UpdateSettingsCommandHandler : IpcHandlerBase, IIpcCommandHa
             bool? notificationSounds = null;
             string? language = null;
             int? idleThresholdSeconds = null;
+            int? workGoalSeconds = null;
 
             if (request.Payload.HasValue && request.Payload.Value.ValueKind == JsonValueKind.Object)
             {
@@ -47,6 +48,9 @@ public sealed class UpdateSettingsCommandHandler : IpcHandlerBase, IIpcCommandHa
 
                 if (payload.TryGetProperty("idleThresholdSeconds", out var idleProp))
                     idleThresholdSeconds = idleProp.GetInt32();
+
+                if (payload.TryGetProperty("workGoalSeconds", out var goalProp))
+                    workGoalSeconds = goalProp.GetInt32();
             }
 
             var updateRequest = new UpdateLocalSettingsRequest
@@ -54,7 +58,8 @@ public sealed class UpdateSettingsCommandHandler : IpcHandlerBase, IIpcCommandHa
                 AutoResumeNotificationEnabled = autoResumeNotification,
                 NotificationSoundsEnabled = notificationSounds,
                 Language = language,
-                IdleThresholdSeconds = idleThresholdSeconds
+                IdleThresholdSeconds = idleThresholdSeconds,
+                WorkGoalSeconds = workGoalSeconds
             };
 
             var result = await _localSettings.UpdateAsync(updateRequest, ct);

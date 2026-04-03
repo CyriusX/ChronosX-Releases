@@ -44,16 +44,10 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         try
         {
             var targetDate = ExtractDateOrToday(request);
-            var isToday = targetDate.Date == DateTime.Today;
 
-            if (isToday)
-            {
-                return await BuildFromLocalDashboard(request.RequestId, targetDate, ct);
-            }
-            else
-            {
-                return await BuildFromBackendApi(request.RequestId, targetDate, ct);
-            }
+            // Always use backend API as the single source of truth for categories.
+            // Fall back to local SQLite only when the backend is unreachable.
+            return await BuildFromBackendApi(request.RequestId, targetDate, ct);
         }
         catch (Exception ex)
         {
@@ -147,9 +141,11 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
 
                 var totalActiveSeconds = filteredApps.Sum(a => a.TotalSeconds);
 
-                // Classify productivity from AppCategory
+                // Use cloud-resolved productivity directly (falls back to subcategory mapping)
+                string resolveProductivity(DailyReportApp a) => a.Productivity ?? MapCategoryToProductivity(a.AppCategory);
+
                 var productiveSeconds = filteredApps
-                    .Where(a => MapCategoryToProductivity(a.AppCategory) == "productive")
+                    .Where(a => resolveProductivity(a) == "productive")
                     .Sum(a => a.TotalSeconds);
 
                 var summary = new
@@ -174,7 +170,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                             name        = a.DisplayName,
                             duration    = a.TotalSeconds,
                             percentage  = pct,
-                            productivity = MapCategoryToProductivity(a.AppCategory),
+                            productivity = resolveProductivity(a),
                             subcategory = a.AppCategory ?? "unknown"
                         };
                     }).OrderByDescending(a => a.duration).Take(10).ToArray(),
@@ -184,7 +180,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                         {
                             var cat = a.AppCategory;
                             if (string.IsNullOrEmpty(cat) || cat == "unknown")
-                                return MapCategoryToProductivity(cat);
+                                return resolveProductivity(a);
                             if (cat == "browser_general")
                                 return "other";
                             return cat;
@@ -197,7 +193,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                                 ? Math.Round(g.Sum(a => (double)a.TotalSeconds) / totalActiveSeconds * 100, 1)
                                 : 0.0,
                             color       = GetCategoryColor(g.Key),
-                            productivity = MapCategoryToProductivity(g.First().AppCategory)
+                            productivity = resolveProductivity(g.First())
                         })
                         .OrderByDescending(c => c.duration)
                         .ToArray(),
@@ -212,7 +208,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                             name        = a.DisplayName,
                             duration    = a.TotalSeconds,
                             percentage  = pct,
-                            productivity = MapCategoryToProductivity(a.AppCategory),
+                            productivity = resolveProductivity(a),
                             subcategory = a.AppCategory ?? "unknown"
                         };
                     }).OrderByDescending(a => a.duration).Take(10).ToArray(),
