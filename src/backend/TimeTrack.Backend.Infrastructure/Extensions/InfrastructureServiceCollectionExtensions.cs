@@ -57,6 +57,9 @@ public static class InfrastructureServiceCollectionExtensions
         // Machine Metrics
         services.AddScoped<IMachineMetricsRepository, MachineMetricsRepository>();
 
+        // Agent Event Logs
+        services.AddScoped<IAgentEventLogRepository, AgentEventLogRepository>();
+
         // Focus Score Services
         services.AddSingleton<AppProductivityClassifier>();
 

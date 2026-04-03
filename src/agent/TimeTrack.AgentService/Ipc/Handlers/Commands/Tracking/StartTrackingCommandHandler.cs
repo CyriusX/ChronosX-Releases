@@ -24,6 +24,7 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
     private readonly ICurrentUserContext _userContext;
     private readonly IIdempotencyKeyGenerator _idempotencyKeyGenerator;
     private readonly IIpcServer _ipcServer;
+    private readonly IAgentEventLogger _eventLogger;
     private readonly ILogger<StartTrackingCommandHandler> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -38,6 +39,7 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         ICurrentUserContext userContext,
         IIdempotencyKeyGenerator idempotencyKeyGenerator,
         IIpcServer ipcServer,
+        IAgentEventLogger eventLogger,
         ILogger<StartTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
@@ -46,6 +48,7 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         _userContext = userContext;
         _idempotencyKeyGenerator = idempotencyKeyGenerator;
         _ipcServer = ipcServer;
+        _eventLogger = eventLogger;
         _logger = logger;
     }
 
@@ -82,6 +85,9 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
                 EventType = "trackingStateChanged",
                 Payload = new { isTracking = true, isPaused = false }
             }, ct);
+
+            await _eventLogger.LogAsync("tracking.started", AgentEventCategory.UserAction, AgentEventSeverity.Info,
+                "Monitoramento iniciado pelo usuário", cancellationToken: ct);
 
             return SuccessResponse(request.RequestId, result);
         }

@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Monitor, ChevronDown, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert } from 'lucide-react';
+import { Monitor, ChevronDown, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
 import { useAuthStore } from '../stores/authStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -15,9 +15,11 @@ import { Navigate } from 'react-router-dom';
 import {
   listOrgDevices,
   getDeviceMetrics,
+  getDeviceEvents,
   type DeviceListItem,
   type DeviceMetricsResponse,
   type MetricsHistoryPoint,
+  type DeviceEventItem,
 } from '../services/maintenanceApi';
 import { LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
@@ -146,6 +148,9 @@ export default function Maintenance() {
   const [metrics, setMetrics] = useState<DeviceMetricsResponse | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [events, setEvents] = useState<DeviceEventItem[]>([]);
+  const [eventFilter, setEventFilter] = useState<string | null>(null);
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -202,7 +207,18 @@ export default function Maintenance() {
     }
   }, [user?.orgId]);
 
-  // Poll metrics
+  // Fetch events for selected device
+  const fetchEvents = useCallback(async (deviceId: string, category?: string | null) => {
+    if (!user?.orgId) return;
+    try {
+      const data = await getDeviceEvents(user.orgId, deviceId, category ?? undefined);
+      setEvents(data.events);
+    } catch {
+      // Non-critical — don't block UI
+    }
+  }, [user?.orgId]);
+
+  // Poll metrics on device selection
   useEffect(() => {
     if (selectedDeviceId) {
       fetchMetrics(selectedDeviceId, true);
@@ -210,11 +226,26 @@ export default function Maintenance() {
     } else {
       setMetrics(null);
       setMetricsError(null);
+      setEvents([]);
     }
     return () => {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     };
   }, [selectedDeviceId, fetchMetrics]);
+
+  // Poll events separately (so filter changes don't reload metrics)
+  const eventPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (selectedDeviceId) {
+      fetchEvents(selectedDeviceId, eventFilter);
+      eventPollRef.current = setInterval(() => fetchEvents(selectedDeviceId, eventFilter), METRICS_POLL_INTERVAL_MS);
+    } else {
+      setEvents([]);
+    }
+    return () => {
+      if (eventPollRef.current) { clearInterval(eventPollRef.current); eventPollRef.current = null; }
+    };
+  }, [selectedDeviceId, fetchEvents, eventFilter]);
 
   const selectedDevice = useMemo(
     () => devices.find(d => d.deviceId === selectedDeviceId) ?? null,
@@ -441,8 +472,170 @@ export default function Maintenance() {
               )}
             </>
           )}
+
+          {/* Event Log */}
+          {selectedDeviceId && !metricsLoading && (
+            <div className="mt-6">
+              <div className="flex items-center gap-2 mb-3">
+                <ScrollText className="w-4 h-4 text-[#8B5CF6]" />
+                <h2 className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Event Log</h2>
+                <span className="text-[10px] text-[rgba(245,247,251,0.3)] ml-1">({events.length})</span>
+              </div>
+
+              {/* Category filter chips */}
+              <div className="flex gap-2 mb-3">
+                {[
+                  { value: null, label: 'Todos' },
+                  { value: 'user_action', label: 'Acoes' },
+                  { value: 'system', label: 'Sistema' },
+                  { value: 'error', label: 'Erros' },
+                ].map((f) => (
+                  <button
+                    key={f.value ?? 'all'}
+                    onClick={() => setEventFilter(f.value)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors ${
+                      eventFilter === f.value
+                        ? 'bg-[rgba(139,92,246,0.2)] text-[#8B5CF6] border border-[rgba(139,92,246,0.3)]'
+                        : 'bg-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.5)] border border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.08)]'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Event list */}
+              <div className="bg-gradient-to-r from-[rgba(26,29,46,0.6)] to-[rgba(17,19,28,0.6)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
+                {events.length === 0 ? (
+                  <div className="py-8 text-center">
+                    <ScrollText className="w-6 h-6 mx-auto text-[rgba(245,247,251,0.15)] mb-2" />
+                    <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Nenhum evento registrado</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[rgba(255,255,255,0.04)] max-h-[400px] overflow-y-auto">
+                    {events.map((event) => {
+                      const style = getEventStyle(event.eventType, event.severity);
+                      const isExpanded = expandedEventId === event.id;
+                      return (
+                        <button
+                          key={event.id}
+                          onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
+                          className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-[rgba(255,255,255,0.03)] transition-colors"
+                        >
+                          <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${style.dot}`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${style.badge}`}>
+                                {event.eventType}
+                              </span>
+                              <span className={`text-[9px] font-medium ${style.category}`}>
+                                {event.category === 'user_action' ? 'Acao' : event.category === 'error' ? 'Erro' : 'Sistema'}
+                              </span>
+                              <span className="text-[9px] text-[rgba(245,247,251,0.3)]">
+                                {formatLastSeen(event.timestamp)}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[rgba(245,247,251,0.7)] mt-0.5 truncate">
+                              {event.message}
+                            </p>
+                            {isExpanded && event.metadataJson && (
+                              <motion.pre
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="mt-2 p-2 rounded-lg bg-[rgba(0,0,0,0.3)] text-[9px] text-[rgba(245,247,251,0.5)] font-mono overflow-x-auto"
+                              >
+                                {JSON.stringify(JSON.parse(event.metadataJson), null, 2)}
+                              </motion.pre>
+                            )}
+                          </div>
+                          {event.metadataJson && (
+                            <motion.div animate={{ rotate: isExpanded ? 90 : 0 }} className="mt-1 flex-shrink-0">
+                              <ChevronRight className="w-3 h-3 text-[rgba(245,247,251,0.3)]" />
+                            </motion.div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
   );
+}
+
+// Red = needs attention / something bad happened
+// Yellow = noteworthy, keep an eye on it
+// Green = good / routine / resolved
+type AttentionLevel = 'red' | 'yellow' | 'green';
+
+const ATTENTION_MAP: Record<string, AttentionLevel> = {
+  // Red — bad, needs attention
+  'tracking.stopped': 'red',
+  'tracking.paused': 'red',
+  'sync.failed': 'red',
+  'sync.critical': 'red',
+  'backend.unreachable': 'red',
+  'worker.crash': 'red',
+  'token.refresh_failed': 'red',
+  'device.activation_failed': 'red',
+  'ipc.connection_lost': 'red',
+
+  // Yellow — noteworthy, monitor
+  'sync.partial': 'yellow',
+  'health.changed': 'yellow',
+  'outbox.stuck_reset': 'yellow',
+  'outbox.manual_reset': 'yellow',
+  'idle.detected': 'yellow',
+  'sync.retry': 'yellow',
+  'focus.stopped': 'yellow',
+  'focus.break_skipped': 'yellow',
+  'agent.stopped': 'yellow',
+
+  // Green — good, routine, resolved
+  'tracking.started': 'green',
+  'tracking.resumed': 'green',
+  'agent.started': 'green',
+  'sync.completed': 'green',
+  'backend.restored': 'green',
+  'device.activated': 'green',
+  'token.refreshed': 'green',
+  'worker.recovered': 'green',
+  'ipc.reconnected': 'green',
+  'focus.started': 'green',
+  'focus.paused': 'green',
+  'activity.resumed': 'green',
+  'settings.updated': 'green',
+  'settings.app_category_changed': 'green',
+  'sync.manual_triggered': 'green',
+};
+
+const ATTENTION_STYLES = {
+  red: {
+    dot: 'bg-[#f87171]',
+    badge: 'bg-[rgba(248,113,113,0.12)] text-[#f87171] border border-[rgba(248,113,113,0.2)]',
+    category: 'text-[#f87171]',
+  },
+  yellow: {
+    dot: 'bg-[#fbbf24]',
+    badge: 'bg-[rgba(251,191,36,0.12)] text-[#fbbf24] border border-[rgba(251,191,36,0.2)]',
+    category: 'text-[#fbbf24]',
+  },
+  green: {
+    dot: 'bg-[#05df72]',
+    badge: 'bg-[rgba(5,223,114,0.12)] text-[#05df72] border border-[rgba(5,223,114,0.2)]',
+    category: 'text-[#05df72]',
+  },
+};
+
+function getEventStyle(eventType: string, severity: string) {
+  // Critical severity always pulses red regardless of event type
+  if (severity === 'critical') {
+    return { ...ATTENTION_STYLES.red, dot: 'bg-[#f87171] animate-pulse' };
+  }
+  const level = ATTENTION_MAP[eventType] ?? (severity === 'error' ? 'red' : severity === 'warning' ? 'yellow' : 'green');
+  return ATTENTION_STYLES[level];
 }

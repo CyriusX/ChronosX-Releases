@@ -59,4 +59,37 @@ public sealed class MaintenanceController : ControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    /// Get agent event logs for a specific device
+    /// </summary>
+    [HttpGet("devices/{deviceId:guid}/events")]
+    [ProducesResponseType(typeof(DeviceEventsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DeviceEventsResponse>> GetDeviceEvents(
+        Guid orgId,
+        Guid deviceId,
+        [FromQuery] string? category = null,
+        [FromQuery] string? severity = null,
+        [FromQuery] int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        if (_currentUser.OrgId != orgId)
+        {
+            return Forbid();
+        }
+
+        var result = await _mediator.Send(
+            new GetDeviceEventsQuery(orgId, deviceId, category, severity, Limit: limit),
+            cancellationToken);
+
+        if (result == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(result);
+    }
 }

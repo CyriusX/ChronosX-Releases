@@ -39,6 +39,9 @@ public sealed class TimeTrackDbContext : DbContext
     // Machine Metrics
     public DbSet<MachineMetrics> MachineMetrics => Set<MachineMetrics>();
 
+    // Agent Event Logs
+    public DbSet<AgentEventLog> AgentEventLogs => Set<AgentEventLog>();
+
     // App Categories (CX-143)
     public DbSet<AppCategoryGlobal> AppCategoryGlobals => Set<AppCategoryGlobal>();
     public DbSet<AppCategoryOverride> AppCategoryOverrides => Set<AppCategoryOverride>();
@@ -115,6 +118,10 @@ public sealed class TimeTrackDbContext : DbContext
         // Machine Metrics
         modelBuilder.Entity<MachineMetrics>()
             .HasQueryFilter(m => !_currentUser.IsAuthenticated || m.OrgId == _currentUser.OrgId);
+
+        // Agent Event Logs
+        modelBuilder.Entity<AgentEventLog>()
+            .HasQueryFilter(e => !_currentUser.IsAuthenticated || e.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()

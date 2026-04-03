@@ -317,6 +317,79 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task<SyncResult> SendAgentEventsAsync(
+        IEnumerable<OutboxItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        var itemList = items.ToList();
+        if (!itemList.Any())
+        {
+            return SyncResult.Success(0, 0, Array.Empty<Guid>());
+        }
+
+        try
+        {
+            if (!await EnsureValidTokenAsync(cancellationToken))
+            {
+                return SyncResult.Failure("Authentication failed - user may be deactivated", 401);
+            }
+
+            var payload = BuildAgentEventsPayload(itemList);
+            var content = new StringContent(
+                JsonSerializer.Serialize(payload, _jsonOptions),
+                Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient.PostAsync(
+                "/api/v1/ingest/agent-events",
+                content,
+                cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized && _tokenStore is not null)
+            {
+                _logger.LogWarning("Received 401, attempting token refresh and retry");
+
+                if (await _tokenStore.RefreshAsync(cancellationToken))
+                {
+                    var jwt = await _tokenStore.GetJwtAsync(cancellationToken);
+                    if (!string.IsNullOrEmpty(jwt))
+                    {
+                        _httpClient.DefaultRequestHeaders.Authorization =
+                            new AuthenticationHeaderValue("Bearer", jwt);
+                    }
+
+                    var retryContent = new StringContent(
+                        JsonSerializer.Serialize(payload, _jsonOptions),
+                        Encoding.UTF8,
+                        "application/json");
+
+                    response = await _httpClient.PostAsync(
+                        "/api/v1/ingest/agent-events",
+                        retryContent,
+                        cancellationToken);
+                }
+            }
+
+            return await ProcessResponseAsync(response, itemList);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error sending agent events");
+            return SyncResult.Failure($"HTTP error: {ex.Message}");
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Timeout sending agent events");
+            return SyncResult.Failure("Request timeout");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending agent events");
+            return SyncResult.Failure($"Unexpected error: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<SyncResult> SendMachineMetricsAsync(
         IEnumerable<OutboxItem> items,
         CancellationToken cancellationToken = default)
@@ -491,6 +564,35 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
         return new { Items = focusItems };
     }
 
+    private object BuildAgentEventsPayload(IEnumerable<OutboxItem> items)
+    {
+        var itemList = items.ToList();
+        var eventItems = new List<object>(itemList.Count);
+
+        foreach (var item in itemList)
+        {
+            var payload = JsonSerializer.Deserialize<AgentEventPayload>(
+                item.PayloadJson, _jsonOptions);
+
+            if (payload != null)
+            {
+                eventItems.Add(new
+                {
+                    Id = item.EntityId,
+                    payload.EventType,
+                    payload.Category,
+                    payload.Severity,
+                    payload.Message,
+                    payload.MetadataJson,
+                    payload.Timestamp,
+                    item.IdempotencyKey
+                });
+            }
+        }
+
+        return new { Items = eventItems };
+    }
+
     private object BuildMachineMetricsPayload(IEnumerable<OutboxItem> items)
     {
         var itemList = items.ToList();
@@ -609,6 +711,17 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
         public int? ActualDurationMinutes { get; set; }
         public string Status { get; set; } = "InProgress";
         public int? FocusScore { get; set; }
+    }
+
+    private sealed class AgentEventPayload
+    {
+        public Guid Id { get; set; }
+        public string EventType { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string Severity { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public string? MetadataJson { get; set; }
+        public DateTime Timestamp { get; set; }
     }
 
     private sealed class MachineMetricsPayload

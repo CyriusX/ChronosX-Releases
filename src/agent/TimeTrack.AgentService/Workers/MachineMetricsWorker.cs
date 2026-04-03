@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Contracts.Repositories;
+using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Entities;
 using TimeTrack.Agent.Domain.Services;
 
@@ -25,6 +26,7 @@ public sealed class MachineMetricsWorker : BackgroundService
     private readonly IMachineMetricsProvider _metricsProvider;
     private readonly IOutboxRepository _outboxRepository;
     private readonly IIdempotencyKeyGenerator _idempotencyKeyGenerator;
+    private readonly IAgentEventLogger _eventLogger;
 
     private readonly MachineMetricsReading[] _buffer = new MachineMetricsReading[BufferSize];
     private int _bufferIndex;
@@ -34,12 +36,14 @@ public sealed class MachineMetricsWorker : BackgroundService
         ILogger<MachineMetricsWorker> logger,
         IMachineMetricsProvider metricsProvider,
         IOutboxRepository outboxRepository,
-        IIdempotencyKeyGenerator idempotencyKeyGenerator)
+        IIdempotencyKeyGenerator idempotencyKeyGenerator,
+        IAgentEventLogger eventLogger)
     {
         _logger = logger;
         _metricsProvider = metricsProvider;
         _outboxRepository = outboxRepository;
         _idempotencyKeyGenerator = idempotencyKeyGenerator;
+        _eventLogger = eventLogger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -91,6 +95,9 @@ public sealed class MachineMetricsWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Erro ao coletar métricas de máquina");
+            await _eventLogger.LogAsync("worker.crash", AgentEventCategory.Error, AgentEventSeverity.Error,
+                $"MachineMetricsWorker exception: {ex.Message}",
+                new { worker = "MachineMetricsWorker", error = ex.Message }, cancellationToken);
         }
     }
 
