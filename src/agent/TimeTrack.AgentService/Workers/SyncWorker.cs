@@ -228,11 +228,16 @@ public sealed class SyncWorker : BackgroundService
                 .Where(i => i.EntityType == "focus_session")
                 .ToList();
 
+            var machineMetrics = pendingItems
+                .Where(i => i.EntityType == "machine_metrics")
+                .ToList();
+
             _logger.LogInformation(
-                "Processando batch: {ActivityCount} activity sessions, {IdleCount} idle periods, {FocusCount} focus sessions",
+                "Processando batch: {ActivityCount} activity sessions, {IdleCount} idle periods, {FocusCount} focus sessions, {MetricsCount} machine metrics",
                 activitySessions.Count,
                 idlePeriods.Count,
-                focusSessions.Count);
+                focusSessions.Count,
+                machineMetrics.Count);
 
             var totalSentIds = new List<Guid>();
             var hasFailures = false;
@@ -292,6 +297,28 @@ public sealed class SyncWorker : BackgroundService
                 var result = await ProcessBatchAsync(
                     focusSessions,
                     batch => _syncTransport.SendFocusSessionsAsync(batch, cancellationToken),
+                    cancellationToken);
+
+                if (result.IsSuccess)
+                {
+                    await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
+                    totalSentIds.AddRange(result.ProcessedIds);
+                }
+                else
+                {
+                    hasFailures = true;
+                }
+            }
+
+            // Processar machine metrics
+            if (machineMetrics.Any())
+            {
+                var progress = (int)((double)totalSentIds.Count / totalItems * 100);
+                await _statusBroadcaster.BroadcastSyncProgressAsync("in_progress", progress, "Sincronizando métricas de máquina...", cancellationToken);
+
+                var result = await ProcessBatchAsync(
+                    machineMetrics,
+                    batch => _syncTransport.SendMachineMetricsAsync(batch, cancellationToken),
                     cancellationToken);
 
                 if (result.IsSuccess)

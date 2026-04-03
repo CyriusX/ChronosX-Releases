@@ -317,6 +317,80 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task<SyncResult> SendMachineMetricsAsync(
+        IEnumerable<OutboxItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        var itemList = items.ToList();
+        if (!itemList.Any())
+        {
+            return SyncResult.Success(0, 0, Array.Empty<Guid>());
+        }
+
+        try
+        {
+            if (!await EnsureValidTokenAsync(cancellationToken))
+            {
+                return SyncResult.Failure("Authentication failed - user may be deactivated", 401);
+            }
+
+            var payload = BuildMachineMetricsPayload(itemList);
+            var content = new StringContent(
+                JsonSerializer.Serialize(payload, _jsonOptions),
+                Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient.PostAsync(
+                "/api/v1/ingest/machine-metrics",
+                content,
+                cancellationToken);
+
+            // Handle 401 - try refresh and retry once
+            if (response.StatusCode == HttpStatusCode.Unauthorized && _tokenStore is not null)
+            {
+                _logger.LogWarning("Received 401, attempting token refresh and retry");
+
+                if (await _tokenStore.RefreshAsync(cancellationToken))
+                {
+                    var jwt = await _tokenStore.GetJwtAsync(cancellationToken);
+                    if (!string.IsNullOrEmpty(jwt))
+                    {
+                        _httpClient.DefaultRequestHeaders.Authorization =
+                            new AuthenticationHeaderValue("Bearer", jwt);
+                    }
+
+                    var retryContent = new StringContent(
+                        JsonSerializer.Serialize(payload, _jsonOptions),
+                        Encoding.UTF8,
+                        "application/json");
+
+                    response = await _httpClient.PostAsync(
+                        "/api/v1/ingest/machine-metrics",
+                        retryContent,
+                        cancellationToken);
+                }
+            }
+
+            return await ProcessResponseAsync(response, itemList);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error sending machine metrics");
+            return SyncResult.Failure($"HTTP error: {ex.Message}");
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Timeout sending machine metrics");
+            return SyncResult.Failure("Request timeout");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending machine metrics");
+            return SyncResult.Failure($"Unexpected error: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<bool> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -417,6 +491,35 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
         return new { Items = focusItems };
     }
 
+    private object BuildMachineMetricsPayload(IEnumerable<OutboxItem> items)
+    {
+        var itemList = items.ToList();
+        var metricsItems = new List<object>(itemList.Count);
+
+        foreach (var item in itemList)
+        {
+            var payload = JsonSerializer.Deserialize<MachineMetricsPayload>(
+                item.PayloadJson, _jsonOptions);
+
+            if (payload != null)
+            {
+                metricsItems.Add(new
+                {
+                    Id = item.EntityId,
+                    payload.CpuPercent,
+                    payload.MemoryUsedMb,
+                    payload.MemoryTotalMb,
+                    payload.DiskUsedGb,
+                    payload.DiskTotalGb,
+                    payload.SampledAt,
+                    item.IdempotencyKey
+                });
+            }
+        }
+
+        return new { Items = metricsItems };
+    }
+
     private async Task<SyncResult> ProcessResponseAsync(
         HttpResponseMessage response,
         List<OutboxItem> items)
@@ -506,6 +609,17 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
         public int? ActualDurationMinutes { get; set; }
         public string Status { get; set; } = "InProgress";
         public int? FocusScore { get; set; }
+    }
+
+    private sealed class MachineMetricsPayload
+    {
+        public Guid Id { get; set; }
+        public double CpuPercent { get; set; }
+        public long MemoryUsedMb { get; set; }
+        public long MemoryTotalMb { get; set; }
+        public double DiskUsedGb { get; set; }
+        public double DiskTotalGb { get; set; }
+        public DateTime SampledAt { get; set; }
     }
 
     private sealed class IngestResponseDto

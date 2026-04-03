@@ -54,6 +54,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAppCategoryGlobalRepository, AppCategoryGlobalRepository>();
         services.AddScoped<IAppCategoryOverrideRepository, AppCategoryOverrideRepository>();
 
+        // Machine Metrics
+        services.AddScoped<IMachineMetricsRepository, MachineMetricsRepository>();
+
         // Focus Score Services
         services.AddSingleton<AppProductivityClassifier>();
 

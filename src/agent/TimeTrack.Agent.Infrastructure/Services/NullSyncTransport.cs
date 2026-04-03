@@ -62,6 +62,21 @@ public sealed class NullSyncTransport : ISyncTransport
             itemList.Select(i => i.Id).ToList()));
     }
 
+    public Task<SyncResult> SendMachineMetricsAsync(
+        IEnumerable<OutboxItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        var itemList = items.ToList();
+        _logger.LogDebug(
+            "[NullSyncTransport] Pretending to sync {Count} machine metrics",
+            itemList.Count);
+
+        return Task.FromResult(SyncResult.Success(
+            itemList.Count,
+            0,
+            itemList.Select(i => i.Id).ToList()));
+    }
+
     public Task<bool> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("[NullSyncTransport] Health check - returning true (local mode)");

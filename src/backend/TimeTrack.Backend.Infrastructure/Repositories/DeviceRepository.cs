@@ -28,6 +28,7 @@ public sealed class DeviceRepository : IDeviceRepository
     public async Task<IEnumerable<Device>> GetActiveByOrgIdAsync(Guid orgId, CancellationToken cancellationToken = default)
     {
         return await _context.Devices
+            .Include(d => d.User)
             .Where(d => d.OrgId == orgId && d.Status == Domain.ValueObjects.DeviceStatus.Active)
             .ToListAsync(cancellationToken);
     }

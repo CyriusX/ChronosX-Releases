@@ -44,7 +44,8 @@ public sealed class ListDevicesCommandHandler : IRequestHandler<ListDevicesComma
             DisplayMode = d.DisplayMode.ToString(),
             Status = CalculateStatus(d, now),
             LastSeenAt = d.LastHeartbeatAt,
-            ActivatedAt = d.ActivatedAt
+            ActivatedAt = d.ActivatedAt,
+            UserDisplayName = d.User?.DisplayName
         }).ToList();
 
         return new ListDevicesResponse
