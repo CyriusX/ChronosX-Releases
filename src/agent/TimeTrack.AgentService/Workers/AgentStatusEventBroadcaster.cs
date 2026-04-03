@@ -2,6 +2,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
+using static TimeTrack.Agent.Contracts.Services.AgentEventCategory;
+using static TimeTrack.Agent.Contracts.Services.AgentEventSeverity;
 using TimeTrack.AgentService.Ipc;
 
 namespace TimeTrack.AgentService.Workers;
@@ -22,6 +24,7 @@ public sealed class AgentStatusEventBroadcaster : BackgroundService
     private readonly ISyncTransport _syncTransport;
     private readonly ITrackingStateRepository _trackingStateRepository;
     private readonly ICurrentUserContext _userContext;
+    private readonly IAgentEventLogger _eventLogger;
     private readonly ILogger<AgentStatusEventBroadcaster> _logger;
 
     private readonly TimeSpan _checkInterval = TimeSpan.FromSeconds(30);
@@ -36,6 +39,7 @@ public sealed class AgentStatusEventBroadcaster : BackgroundService
         ISyncTransport syncTransport,
         ITrackingStateRepository trackingStateRepository,
         ICurrentUserContext userContext,
+        IAgentEventLogger eventLogger,
         ILogger<AgentStatusEventBroadcaster> logger)
     {
         _ipcServer = ipcServer;
@@ -44,6 +48,7 @@ public sealed class AgentStatusEventBroadcaster : BackgroundService
         _syncTransport = syncTransport;
         _trackingStateRepository = trackingStateRepository;
         _userContext = userContext;
+        _eventLogger = eventLogger;
         _logger = logger;
     }
 
@@ -107,10 +112,42 @@ public sealed class AgentStatusEventBroadcaster : BackgroundService
                               backendReachable != _lastBackendReachable ||
                               pendingItems != _lastPendingCount;
 
+        // Log backend connectivity transitions
+        if (backendReachable != _lastBackendReachable)
+        {
+            if (!backendReachable)
+            {
+                await _eventLogger.LogAsync("backend.unreachable", AgentEventCategory.System, AgentEventSeverity.Error,
+                    "Backend inacessível", cancellationToken: cancellationToken);
+            }
+            else if (_lastHealthStatus != "unknown") // Don't log on first check
+            {
+                await _eventLogger.LogAsync("backend.restored", AgentEventCategory.System, AgentEventSeverity.Info,
+                    "Conectividade com backend restaurada", cancellationToken: cancellationToken);
+            }
+        }
+
+        // Log health status transitions
+        if (healthStatus != _lastHealthStatus && _lastHealthStatus != "unknown")
+        {
+            var severity = healthStatus == "unhealthy" ? AgentEventSeverity.Error
+                         : healthStatus == "degraded" ? AgentEventSeverity.Warning
+                         : AgentEventSeverity.Info;
+            await _eventLogger.LogAsync("health.changed", AgentEventCategory.System, severity,
+                $"Status de saúde alterado: {_lastHealthStatus} → {healthStatus}",
+                new { from = _lastHealthStatus, to = healthStatus }, cancellationToken);
+        }
+
         if (shouldBroadcast && _ipcServer.IsClientConnected)
         {
             await BroadcastHealthChangedAsync(healthStatus, backendReachable, pendingItems, failedItems, cancellationToken);
 
+            _lastHealthStatus = healthStatus;
+            _lastBackendReachable = backendReachable;
+            _lastPendingCount = pendingItems;
+        }
+        else
+        {
             _lastHealthStatus = healthStatus;
             _lastBackendReachable = backendReachable;
             _lastPendingCount = pendingItems;

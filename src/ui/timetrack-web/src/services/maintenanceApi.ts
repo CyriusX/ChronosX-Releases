@@ -38,12 +38,44 @@ export interface DeviceMetricsResponse {
   recentHistory: MetricsHistoryPoint[];
 }
 
+export interface DeviceEventItem {
+  id: string;
+  eventType: string;
+  category: string;
+  severity: string;
+  message: string;
+  metadataJson: string | null;
+  timestamp: string;
+}
+
+export interface DeviceEventsResponse {
+  events: DeviceEventItem[];
+  totalCount: number;
+}
+
 // ============================================================================
 // API FUNCTIONS
 // ============================================================================
 
 export async function listOrgDevices(orgId: string): Promise<ListDevicesResponse> {
   return api.get<ListDevicesResponse>(`/orgs/${encodeURIComponent(orgId)}/devices`);
+}
+
+export async function getDeviceEvents(
+  orgId: string,
+  deviceId: string,
+  category?: string,
+  severity?: string,
+  limit: number = 100
+): Promise<DeviceEventsResponse> {
+  const params = new URLSearchParams();
+  if (category) params.set('category', category);
+  if (severity) params.set('severity', severity);
+  params.set('limit', limit.toString());
+
+  return api.get<DeviceEventsResponse>(
+    `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}/events?${params.toString()}`
+  );
 }
 
 export async function getDeviceMetrics(

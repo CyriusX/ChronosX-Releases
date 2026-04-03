@@ -22,6 +22,7 @@ public sealed class StopTrackingCommandHandler : IpcHandlerBase, IIpcCommandHand
     private readonly IActivitySessionRepository _sessionRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly IIpcServer _ipcServer;
+    private readonly IAgentEventLogger _eventLogger;
     private readonly ILogger<StopTrackingCommandHandler> _logger;
 
     public StopTrackingCommandHandler(
@@ -29,12 +30,14 @@ public sealed class StopTrackingCommandHandler : IpcHandlerBase, IIpcCommandHand
         IActivitySessionRepository sessionRepository,
         ICurrentUserContext userContext,
         IIpcServer ipcServer,
+        IAgentEventLogger eventLogger,
         ILogger<StopTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
         _sessionRepository = sessionRepository;
         _userContext = userContext;
         _ipcServer = ipcServer;
+        _eventLogger = eventLogger;
         _logger = logger;
     }
 
@@ -64,6 +67,9 @@ public sealed class StopTrackingCommandHandler : IpcHandlerBase, IIpcCommandHand
                 EventType = "trackingStateChanged",
                 Payload = new { isTracking = false, isPaused = false }
             }, ct);
+
+            await _eventLogger.LogAsync("tracking.stopped", AgentEventCategory.UserAction, AgentEventSeverity.Info,
+                "Monitoramento parado pelo usuário", new { reason }, ct);
 
             return SuccessResponse(request.RequestId, result);
         }

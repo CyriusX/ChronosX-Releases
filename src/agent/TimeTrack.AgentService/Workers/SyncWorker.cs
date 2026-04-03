@@ -22,11 +22,13 @@ public sealed class SyncWorker : BackgroundService
     private readonly IFocusCycleRepository _focusCycleRepository;
     private readonly ISyncErrorRepository _syncErrorRepository;
     private readonly ISyncTransport _syncTransport;
+    private readonly IAgentEventLogRepository _agentEventLogRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly IDeviceActivationService _deviceActivationService;
     private readonly ITokenStore _tokenStore;
     private readonly IAppCategorySyncService _categorySyncService;
     private readonly AgentStatusEventBroadcaster _statusBroadcaster;
+    private readonly IAgentEventLogger _eventLogger;
 
     private int _consecutiveFailures;
     private DateTime? _lastSuccessfulSync;
@@ -41,11 +43,13 @@ public sealed class SyncWorker : BackgroundService
         IFocusCycleRepository focusCycleRepository,
         ISyncErrorRepository syncErrorRepository,
         ISyncTransport syncTransport,
+        IAgentEventLogRepository agentEventLogRepository,
         ICurrentUserContext userContext,
         IDeviceActivationService deviceActivationService,
         ITokenStore tokenStore,
         IAppCategorySyncService categorySyncService,
-        AgentStatusEventBroadcaster statusBroadcaster)
+        AgentStatusEventBroadcaster statusBroadcaster,
+        IAgentEventLogger eventLogger)
     {
         _logger = logger;
         _settings = settings;
@@ -55,11 +59,13 @@ public sealed class SyncWorker : BackgroundService
         _focusCycleRepository = focusCycleRepository;
         _syncErrorRepository = syncErrorRepository;
         _syncTransport = syncTransport;
+        _agentEventLogRepository = agentEventLogRepository;
         _userContext = userContext;
         _deviceActivationService = deviceActivationService;
         _tokenStore = tokenStore;
         _categorySyncService = categorySyncService;
         _statusBroadcaster = statusBroadcaster;
+        _eventLogger = eventLogger;
     }
 
     /// <summary>
@@ -84,6 +90,9 @@ public sealed class SyncWorker : BackgroundService
             _settings.Sync.SyncIntervalSeconds,
             _settings.Sync.MaxBatchSize);
 
+        await _eventLogger.LogAsync("agent.started", AgentEventCategory.System, AgentEventSeverity.Info,
+            "Agent service iniciado", cancellationToken: stoppingToken);
+
         using var periodicTimer = new PeriodicTimer(
             TimeSpan.FromSeconds(_settings.Sync.SyncIntervalSeconds));
 
@@ -96,6 +105,10 @@ public sealed class SyncWorker : BackgroundService
                 _logger.LogInformation(
                     "SyncWorker: {Count} itens do outbox presos foram redefinidos na inicialização.",
                     resetCount);
+
+                await _eventLogger.LogAsync("outbox.stuck_reset", AgentEventCategory.Error, AgentEventSeverity.Warning,
+                    $"{resetCount} itens do outbox presos foram redefinidos na inicialização",
+                    new { resetCount }, stoppingToken);
             }
 
             // Cleanup old data on startup — SQLite should only hold today's data + cache.
@@ -232,12 +245,17 @@ public sealed class SyncWorker : BackgroundService
                 .Where(i => i.EntityType == "machine_metrics")
                 .ToList();
 
+            var agentEvents = pendingItems
+                .Where(i => i.EntityType == "agent_event")
+                .ToList();
+
             _logger.LogInformation(
-                "Processando batch: {ActivityCount} activity sessions, {IdleCount} idle periods, {FocusCount} focus sessions, {MetricsCount} machine metrics",
+                "Processando batch: {ActivityCount} activity sessions, {IdleCount} idle periods, {FocusCount} focus sessions, {MetricsCount} machine metrics, {EventCount} agent events",
                 activitySessions.Count,
                 idlePeriods.Count,
                 focusSessions.Count,
-                machineMetrics.Count);
+                machineMetrics.Count,
+                agentEvents.Count);
 
             var totalSentIds = new List<Guid>();
             var hasFailures = false;
@@ -332,6 +350,28 @@ public sealed class SyncWorker : BackgroundService
                 }
             }
 
+            // Processar agent events
+            if (agentEvents.Any())
+            {
+                var progress = (int)((double)totalSentIds.Count / totalItems * 100);
+                await _statusBroadcaster.BroadcastSyncProgressAsync("in_progress", progress, "Sincronizando eventos do agent...", cancellationToken);
+
+                var result = await ProcessBatchAsync(
+                    agentEvents,
+                    batch => _syncTransport.SendAgentEventsAsync(batch, cancellationToken),
+                    cancellationToken);
+
+                if (result.IsSuccess)
+                {
+                    await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
+                    totalSentIds.AddRange(result.ProcessedIds);
+                }
+                else
+                {
+                    hasFailures = true;
+                }
+            }
+
             // Atualizar estado
             if (totalSentIds.Any())
             {
@@ -342,6 +382,12 @@ public sealed class SyncWorker : BackgroundService
                     "Sync concluído. {Count} itens sincronizados{Partial}",
                     totalSentIds.Count,
                     hasFailures ? " (parcial — alguns tipos falharam)" : string.Empty);
+
+                var syncEventType = hasFailures ? "sync.partial" : "sync.completed";
+                var syncSeverity = hasFailures ? AgentEventSeverity.Warning : AgentEventSeverity.Info;
+                await _eventLogger.LogAsync(syncEventType, AgentEventCategory.System, syncSeverity,
+                    $"{totalSentIds.Count} itens sincronizados{(hasFailures ? " (parcial)" : "")}",
+                    new { itemCount = totalSentIds.Count, hasFailures }, cancellationToken);
 
                 var statusMsg = hasFailures
                     ? $"{totalSentIds.Count} itens sincronizados (parcial)"
@@ -364,6 +410,15 @@ public sealed class SyncWorker : BackgroundService
                     _logger.LogCritical(
                         "ALERTA: {Count} falhas consecutivas de sync. Verificar conectividade.",
                         _consecutiveFailures);
+
+                    await _eventLogger.LogAsync("sync.critical", AgentEventCategory.Error, AgentEventSeverity.Critical,
+                        $"{_consecutiveFailures} falhas consecutivas de sync",
+                        new { consecutiveFailures = _consecutiveFailures }, cancellationToken);
+                }
+                else
+                {
+                    await _eventLogger.LogAsync("sync.failed", AgentEventCategory.Error, AgentEventSeverity.Error,
+                        "Falha na sincronização", new { consecutiveFailures = _consecutiveFailures }, cancellationToken);
                 }
             }
         }
@@ -374,6 +429,10 @@ public sealed class SyncWorker : BackgroundService
 
             // Emit sync failed event
             await _statusBroadcaster.BroadcastSyncProgressAsync("failed", 0, ex.Message, cancellationToken);
+
+            await _eventLogger.LogAsync("worker.crash", AgentEventCategory.Error, AgentEventSeverity.Error,
+                $"SyncWorker exception: {ex.Message}",
+                new { worker = "SyncWorker", error = ex.Message }, cancellationToken);
         }
     }
 
@@ -525,6 +584,10 @@ public sealed class SyncWorker : BackgroundService
 
             // 5. Remove sync errors older than 30 days
             await _syncErrorRepository.CleanupOldErrorsAsync(30, cancellationToken);
+
+            // 6. Remove agent event logs older than 7 days
+            var eventLogRemoved = await _agentEventLogRepository.DeleteOlderThanAsync(
+                DateTime.UtcNow.AddDays(-7), cancellationToken);
 
             _lastCleanup = DateTime.UtcNow;
 

@@ -145,6 +145,17 @@ public sealed class SqliteContext : IAsyncDisposable
                 date TEXT NOT NULL
             );
 
+            -- Tabela de eventos do agent (ações do usuário, eventos de sistema, erros)
+            CREATE TABLE IF NOT EXISTS agent_event_log (
+                id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                category TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                message TEXT NOT NULL,
+                metadata_json TEXT,
+                timestamp_utc TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             -- CX-143: Tabela de cache de categorias de apps
             CREATE TABLE IF NOT EXISTS app_category_cache (
                 id TEXT PRIMARY KEY,

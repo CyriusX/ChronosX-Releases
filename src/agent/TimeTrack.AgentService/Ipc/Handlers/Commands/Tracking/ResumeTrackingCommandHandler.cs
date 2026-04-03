@@ -23,6 +23,7 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
     private readonly ICurrentUserContext _userContext;
     private readonly IIdempotencyKeyGenerator _idempotencyKeyGenerator;
     private readonly IIpcServer _ipcServer;
+    private readonly IAgentEventLogger _eventLogger;
     private readonly ILogger<ResumeTrackingCommandHandler> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -37,6 +38,7 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
         ICurrentUserContext userContext,
         IIdempotencyKeyGenerator idempotencyKeyGenerator,
         IIpcServer ipcServer,
+        IAgentEventLogger eventLogger,
         ILogger<ResumeTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
@@ -45,6 +47,7 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
         _userContext = userContext;
         _idempotencyKeyGenerator = idempotencyKeyGenerator;
         _ipcServer = ipcServer;
+        _eventLogger = eventLogger;
         _logger = logger;
     }
 
@@ -66,6 +69,9 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
                 EventType = "trackingStateChanged",
                 Payload = new { isTracking = true, isPaused = false }
             }, ct);
+
+            await _eventLogger.LogAsync("tracking.resumed", AgentEventCategory.UserAction, AgentEventSeverity.Info,
+                "Monitoramento retomado pelo usuário", cancellationToken: ct);
 
             return SuccessResponse(request.RequestId, result);
         }

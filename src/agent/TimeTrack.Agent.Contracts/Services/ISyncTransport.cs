@@ -87,6 +87,13 @@ public interface ISyncTransport
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Envia um batch de agent events para o backend
+    /// </summary>
+    Task<SyncResult> SendAgentEventsAsync(
+        IEnumerable<OutboxItem> items,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Envia um batch de machine metrics para o backend
     /// </summary>
     Task<SyncResult> SendMachineMetricsAsync(
