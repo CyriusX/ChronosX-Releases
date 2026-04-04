@@ -449,7 +449,18 @@
       "Bash(cmd /c \"taskkill /F /IM node.exe /T\")",
       "Bash(cmd /c \"taskkill /F /IM dotnet.exe /T\")",
       "Bash(powershell -Command \"Get-Process node,dotnet -ErrorAction SilentlyContinue | Stop-Process -Force; Write-Host ''Done''\")",
-      "Bash(powershell -Command \"Start-Process ''http://localhost:5173''\")"
+      "Bash(powershell -Command \"Start-Process ''http://localhost:5173''\")",
+      "Bash(grep -E \"\\\\.\\(bat|ps1|sh|yaml|yml\\)$|scripts|tools\")",
+      "Bash(timeout 60)",
+      "Read(//c/Program Files \\(x86\\)/Inno Setup 6/**)",
+      "Read(//c/Program Files/Inno Setup 6/**)",
+      "Bash(choco --version)",
+      "Bash(choco install:*)",
+      "Bash(powershell:*)",
+      "Bash(winget list:*)",
+      "Bash(where.exe ISCC)",
+      "Bash(C:/Users/Usuario/AppData/Local/Temp/innosetup-6.exe:*)",
+      "Bash(sc query:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
