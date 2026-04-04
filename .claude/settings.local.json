@@ -472,7 +472,9 @@
       "Bash(docker stop:*)",
       "Bash(powershell -Command \"Get-Process dotnet -ErrorAction SilentlyContinue | Select-Object Id,CPU,WorkingSet | Format-Table -AutoSize\")",
       "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Select-Object Id | Format-Table -AutoSize\")",
-      "Bash(powershell -Command \"Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -in @\\(18800,21396\\) } | Select-Object ProcessId,CommandLine | Format-List\")"
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -in @\\(18800,21396\\) } | Select-Object ProcessId,CommandLine | Format-List\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker run --rm -e PGPASSWORD=chronos postgres:17-alpine psql -h 5.189.168.51 -p 4003 -U chronos -d chronosx -c \"SELECT id, hostname, status, tracking_state, last_heartbeat_at, NOW\\(\\) - last_heartbeat_at AS age FROM devices ORDER BY last_heartbeat_at DESC NULLS LAST;\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker run --rm -e PGPASSWORD=chronos postgres:17-alpine psql -h 5.189.168.51 -p 4003 -U chronos -d chronosx -c \"SELECT hostname, tracking_state, last_heartbeat_at, NOW\\(\\) - last_heartbeat_at AS age FROM devices WHERE hostname = ''JUNIOR-LAPTOP'';\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
