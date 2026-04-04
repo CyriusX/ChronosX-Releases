@@ -101,11 +101,14 @@ public sealed class HeartbeatService : IHeartbeatService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogDebug("Heartbeat failed with status {Status}", response.StatusCode);
+                _logger.LogWarning("Heartbeat failed with HTTP {Status} for device {DeviceId}", response.StatusCode, deviceId);
                 return new HeartbeatResult { Success = false };
             }
 
             var result = await response.Content.ReadFromJsonAsync<HeartbeatResponse>(JsonReadOptions, cancellationToken);
+
+            _logger.LogDebug("Heartbeat sent: device={DeviceId}, trackingState={TrackingState}, hasPendingCommands={HasPending}",
+                deviceId, trackingState, result?.HasPendingCommands ?? false);
 
             return new HeartbeatResult
             {
@@ -115,7 +118,7 @@ public sealed class HeartbeatService : IHeartbeatService
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Heartbeat failed");
+            _logger.LogWarning(ex, "Heartbeat failed (network/timeout). Will retry next cycle.");
             return new HeartbeatResult { Success = false };
         }
     }
@@ -125,10 +128,18 @@ public sealed class HeartbeatService : IHeartbeatService
         try
         {
             var userId = _userContext.UserId;
-            if (!userId.HasValue) return "stopped";
+            if (!userId.HasValue)
+            {
+                _logger.LogWarning("GetTrackingStateAsync: no userId in context — reporting 'unknown'");
+                return "unknown";
+            }
 
             var state = await _trackingStateRepository.GetAsync(userId.Value, ct);
-            if (state == null) return "stopped";
+            if (state == null)
+            {
+                _logger.LogWarning("GetTrackingStateAsync: no tracking_state row found for user {UserId} — reporting 'unknown'", userId.Value);
+                return "unknown";
+            }
 
             return state.Status switch
             {
@@ -139,8 +150,9 @@ public sealed class HeartbeatService : IHeartbeatService
                 _ => "idle"
             };
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "GetTrackingStateAsync failed — reporting 'unknown'");
             return "unknown";
         }
     }
