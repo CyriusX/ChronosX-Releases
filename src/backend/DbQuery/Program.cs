@@ -5,7 +5,7 @@ using System;
 // Database diagnostic script
 // Pass "cleanup" argument to delete orphaned idempotency_keys
 
-var connectionString = "Host=ep-billowing-snow-adnjkioj-pooler.c-2.us-east-1.aws.neon.tech;Database=neondb;Username=neondb_owner;Password=npg_y6PlhoBZJ9QS;sslmode=require";
+var connectionString = "Host=cyriusx.com;Port=4003;Database=chronosx;Username=chronos;Password=chronos;SSL Mode=Disable";
 var shouldCleanup = args.Length > 0 && args[0].Equals("cleanup", StringComparison.OrdinalIgnoreCase);
 
 Console.WriteLine("=== DIAGNOSTIC CHECK ===");

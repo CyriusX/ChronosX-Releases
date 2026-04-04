@@ -166,7 +166,9 @@ public static class HangfireConfiguration
             Database = uri.AbsolutePath.TrimStart('/'),
             SslMode = uri.Query.Contains("sslmode=require")
                 ? Npgsql.SslMode.Require
-                : Npgsql.SslMode.Prefer
+                : uri.Query.Contains("sslmode=disable")
+                    ? Npgsql.SslMode.Disable
+                    : Npgsql.SslMode.Prefer
         };
 
         return builder.ToString();
