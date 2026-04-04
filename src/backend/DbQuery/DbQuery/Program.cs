@@ -7,7 +7,7 @@ using System;
 // Pass "reset" to delete all data before today
 // Pass "nuke" to delete ALL data (for clean slate)
 
-var connectionString = "Host=ep-billowing-snow-adnjkioj-pooler.c-2.us-east-1.aws.neon.tech;Database=neondb;Username=neondb_owner;Password=npg_y6PlhoBZJ9QS;sslmode=require";
+var connectionString = "Host=cyriusx.com;Port=4003;Database=chronosx;Username=chronos;Password=chronos;SSL Mode=Disable";
 var shouldCleanup = args.Length > 0 && args[0].Equals("cleanup", StringComparison.OrdinalIgnoreCase);
 var shouldReset = args.Length > 0 && args[0].Equals("reset", StringComparison.OrdinalIgnoreCase);
 var shouldNuke = args.Length > 0 && args[0].Equals("nuke", StringComparison.OrdinalIgnoreCase);
