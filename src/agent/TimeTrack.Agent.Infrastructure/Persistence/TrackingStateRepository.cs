@@ -26,16 +26,31 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
     {
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
+        // Prefer the record for this userId; fall back to NULL user_id (not yet migrated via orphan migration)
+        // or Guid.Empty user_id (saved before user logged in — pre-login placeholder).
+        // This prevents HeartbeatService from incorrectly reporting "stopped" when tracking is active
+        // but the state row hasn't been migrated to the real userId yet.
         const string sql = @"
             SELECT id, user_id, status, reason, paused_at, resumed_at, updated_at, last_modified_by
             FROM tracking_state
-            WHERE user_id = @UserId
+            WHERE user_id = @UserId OR user_id IS NULL OR user_id = @GuidEmpty
+            ORDER BY
+                CASE
+                    WHEN user_id = @UserId  THEN 0
+                    WHEN user_id IS NULL    THEN 1
+                    ELSE                        2
+                END
             LIMIT 1";
 
-        var dto = await connection.QueryFirstOrDefaultAsync<DapperTrackingStateDto>(sql, new { UserId = userId.ToString() });
+        var dto = await connection.QueryFirstOrDefaultAsync<DapperTrackingStateDto>(
+            sql,
+            new { UserId = userId.ToString(), GuidEmpty = Guid.Empty.ToString() });
 
         if (dto == null)
             return null;
+
+        _logger.LogDebug("Tracking state loaded for user {UserId}: status={Status} (row user_id={RowUserId})",
+            userId, dto.Status, dto.User_Id);
 
         return MapToDomain(dto);
     }

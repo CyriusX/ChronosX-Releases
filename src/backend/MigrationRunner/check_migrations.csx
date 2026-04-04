@@ -2,7 +2,7 @@ using Npgsql;
 using System;
 using System.Threading.Tasks;
 
-var connectionString = "Host=ep-billowing-snow-adnjkioj-pooler.c-2.us-east-1.aws.neon.tech;Database=neondb;Username=neondb_owner;Password=npg_y6PlhoBZJ9QS;sslmode=require";
+var connectionString = "Host=cyriusx.com;Port=4003;Database=chronosx;Username=chronos;Password=chronos;SSL Mode=Disable";
 
 await using var conn = new NpgsqlConnection(connectionString);
 await conn.OpenAsync();
