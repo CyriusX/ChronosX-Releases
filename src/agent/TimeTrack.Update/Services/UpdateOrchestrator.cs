@@ -43,7 +43,8 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
         string targetVersion,
         bool verifySignature,
         IProgress<UpdateProgress>? progress,
-        CancellationToken cancellationToken)
+        string? installerPath = null,
+        CancellationToken cancellationToken = default)
     {
         var backupPath = string.Empty;
 
@@ -68,15 +69,32 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
                 };
             }
 
-            // Step 1: Download
-            progress?.Report(new UpdateProgress
+            // Step 1: Get installer (download or use provided path)
+            if (string.IsNullOrEmpty(installerPath))
             {
-                Stage = UpdateStage.Downloading,
-                Message = "Downloading update...",
-                TargetVersion = targetVersion
-            });
+                progress?.Report(new UpdateProgress
+                {
+                    Stage = UpdateStage.Downloading,
+                    Message = "Downloading update...",
+                    TargetVersion = targetVersion
+                });
 
-            var installerPath = await DownloadInstallerAsync(downloadUrl, targetVersion, progress, cancellationToken);
+                installerPath = await DownloadInstallerAsync(downloadUrl, targetVersion, progress, cancellationToken);
+            }
+            else
+            {
+                // Verify the provided installer exists
+                if (!File.Exists(installerPath))
+                {
+                    return new UpdateResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Installer not found at: {installerPath}"
+                    };
+                }
+
+                _logger.LogInformation("Using pre-downloaded installer: {Path}", installerPath);
+            }
 
             // Step 2: Verify checksum
             progress?.Report(new UpdateProgress

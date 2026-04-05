@@ -40,14 +40,22 @@ public sealed class SignatureVerificationResult
 public interface IUpdateOrchestrator
 {
     /// <summary>
-    /// Install an update from the specified URL
+    /// Install an update from the specified URL or pre-downloaded installer path
     /// </summary>
+    /// <param name="downloadUrl">URL to download installer (ignored if installerPath is provided)</param>
+    /// <param name="checksum">SHA256 checksum of the installer</param>
+    /// <param name="targetVersion">Target version to install</param>
+    /// <param name="verifySignature">Whether to verify Authenticode signature</param>
+    /// <param name="progress">Progress reporter</param>
+    /// <param name="installerPath">Optional pre-downloaded installer path (skips download)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     Task<UpdateResult> InstallUpdateAsync(
         string downloadUrl,
         string checksum,
         string targetVersion,
         bool verifySignature,
         IProgress<UpdateProgress>? progress = null,
+        string? installerPath = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
