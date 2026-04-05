@@ -27,6 +27,11 @@ Source: "{#ProjectRoot}\build\publish\DesktopHost\TimeTrack.DesktopHost.exe"; De
 Source: "{#ProjectRoot}\build\publish\DesktopHost\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 Source: "{#ProjectRoot}\build\publish\DesktopHost\appsettings.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ProjectRoot}\build\publish\DesktopHost\Resources\*"; DestDir: "{app}\Resources"; Flags: ignoreversion recursesubdirs
+
+; Update.exe - Auto-update utility
+Source: "{#ProjectRoot}\build\publish\Update\update.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#ProjectRoot}\build\publish\Update\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+
 ; WebView2 Runtime (bootstrapper - will be downloaded if not present)
 Source: "resources\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: not IsWebView2Installed
 
