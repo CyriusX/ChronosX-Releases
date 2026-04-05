@@ -6,7 +6,9 @@ using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Infrastructure.Extensions;
+using TimeTrack.Agent.Infrastructure.Services;
 using TimeTrack.AgentService.Configuration;
+using TimeTrack.AgentService.Events;
 using TimeTrack.AgentService.Health;
 using TimeTrack.AgentService.Workers;
 using TimeTrack.AgentService.Ipc;
@@ -33,6 +35,13 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<AgentSettings>(sp =>
             sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AgentSettings>>().Value);
+
+        // Update settings
+        services.Configure<UpdateSettings>(
+            configuration.GetSection(UpdateSettings.SectionName));
+
+        services.AddSingleton<UpdateSettings>(sp =>
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<UpdateSettings>>().Value);
 
         return services;
     }
@@ -179,6 +188,40 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<FocusModeEventBroadcaster>();
         services.AddSingleton<ActivityResumeState>();
         services.AddHostedService<ActivityResumeDetector>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adiciona serviços de atualização automática
+    /// </summary>
+    public static IServiceCollection AddUpdateServices(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var updateSettings = configuration.GetSection(UpdateSettings.SectionName).Get<UpdateSettings>()
+            ?? new UpdateSettings();
+
+        // HTTP Client for updates
+        services.AddHttpClient<IUpdateHttpClient, UpdateHttpClient>(client =>
+        {
+            var uri = new Uri(updateSettings.UpdateUrl);
+            var baseUrl = $"{uri.Scheme}://{uri.Host}";
+            client.BaseAddress = new Uri(baseUrl);
+            client.Timeout = TimeSpan.FromMinutes(updateSettings.DownloadTimeoutMinutes);
+        });
+
+        // Update service
+        services.AddSingleton<IUpdateService, UpdateService>();
+
+        // Event broadcaster
+        services.AddSingleton<UpdateEventBroadcaster>();
+
+        // Background worker (only if enabled)
+        if (updateSettings.Enabled)
+        {
+            services.AddHostedService<UpdateWorker>();
+        }
 
         return services;
     }

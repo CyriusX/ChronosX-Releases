@@ -634,6 +634,53 @@ public sealed class MainForm : Form
         }
     }
 
+    /// <summary>
+    /// Shows update progress in the WebView2 UI by dispatching a custom event.
+    /// Called by NotificationEventHandler when updateProgress events are received.
+    /// </summary>
+    public void ShowUpdateProgress(string? stage, int percentage, string? message, string? targetVersion)
+    {
+        if (_webView?.CoreWebView2 == null)
+        {
+            _logger.LogWarning("Cannot show update progress: WebView not ready");
+            return;
+        }
+
+        try
+        {
+            var payload = new
+            {
+                stage,
+                percentage,
+                message,
+                targetVersion,
+                timestamp = DateTime.UtcNow.ToString("O")
+            };
+
+            var payloadJson = JsonSerializer.Serialize(payload);
+            var script = $"window.timeTrackHandleEvent?.('updateProgress', '{EscapeJavaScriptString(payloadJson)}')";
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(async () =>
+                {
+                    try { await _webView.CoreWebView2.ExecuteScriptAsync(script); }
+                    catch (Exception ex) { _logger.LogError(ex, "Error sending update progress to WebView"); }
+                }));
+            }
+            else
+            {
+                _ = _webView.CoreWebView2.ExecuteScriptAsync(script);
+            }
+
+            _logger.LogDebug("Update progress sent to UI: Stage={Stage}, Percentage={Percentage}%", stage, percentage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error showing update progress");
+        }
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)

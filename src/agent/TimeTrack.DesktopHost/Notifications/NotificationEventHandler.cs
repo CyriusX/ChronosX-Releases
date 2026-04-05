@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Notifications;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.DesktopHost.Ipc;
+using TimeTrack.DesktopHost.UI;
 
 namespace TimeTrack.DesktopHost.Notifications;
 
@@ -79,6 +80,22 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
 
                 case "showActivityResumePrompt":
                     HandleActivityResumePrompt(e.Payload);
+                    break;
+
+                case "updateAvailable":
+                    HandleUpdateAvailableAsync(e.Payload);
+                    break;
+
+                case "updateProgress":
+                    HandleUpdateProgress(e.Payload);
+                    break;
+
+                case "updateComplete":
+                    HandleUpdateComplete(e.Payload);
+                    break;
+
+                case "updateFailed":
+                    HandleUpdateFailed(e.Payload);
                     break;
             }
         }
@@ -301,6 +318,138 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
         catch
         {
             return null;
+        }
+    }
+
+    private async Task HandleUpdateAvailableAsync(JsonElement payload)
+    {
+        var version = payload.TryGetProperty("latestVersion", out var v) ? v.GetString() : "unknown";
+        var fileSizeBytes = payload.TryGetProperty("fileSizeBytes", out var size) ? size.GetInt64() : 0;
+        var releaseNotes = payload.TryGetProperty("releaseNotes", out var notes) ? notes.GetString() : null;
+
+        var fileSizeMb = fileSizeBytes / (1024.0 * 1024.0);
+
+        _logger.LogInformation(
+            "Update available: Version={Version}, Size={Size:F1}MB",
+            version, fileSizeMb);
+
+        // Show notification to user (forced update - no option to defer)
+        var notification = new AgentNotification(
+            "Update Available",
+            $"A new version ({version}) is available. The update will be installed automatically.",
+            NotificationKind.System)
+        {
+            Tag = "update-available"
+        };
+
+        await _notificationService.SendAsync(notification);
+
+        // Start the update automatically after a brief delay
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(3000);
+            _logger.LogInformation("Auto-starting update to version {Version}", version);
+            await _ipcClient.SendCommandAsync("StartUpdate");
+        });
+    }
+
+    private void HandleUpdateProgress(JsonElement payload)
+    {
+        var stage = payload.TryGetProperty("stage", out var s) ? s.GetString() : "unknown";
+        var percentage = payload.TryGetProperty("percentage", out var p) ? p.GetInt32() : 0;
+        var message = payload.TryGetProperty("message", out var m) ? m.GetString() : string.Empty;
+        var targetVersion = payload.TryGetProperty("targetVersion", out var v) ? v.GetString() : null;
+
+        _logger.LogDebug(
+            "Update progress: Stage={Stage}, Percentage={Percentage}%, Message={Message}",
+            stage, percentage, message);
+
+        // Forward to WebView2 UI for UpdateModal display
+        ForwardUpdateProgressToWebView(stage, percentage, message, targetVersion);
+    }
+
+    private void ForwardUpdateProgressToWebView(string? stage, int percentage, string? message, string? targetVersion)
+    {
+        if (System.Windows.Forms.Application.OpenForms.Count > 0)
+        {
+            var mainForm = System.Windows.Forms.Application.OpenForms[0];
+            mainForm?.BeginInvoke(() =>
+            {
+                // Notify WebView2 to show/update the update modal
+                // This is handled by MainForm which forwards to WebView2
+                if (mainForm is UI.MainForm form)
+                {
+                    form.ShowUpdateProgress(stage, percentage, message, targetVersion);
+                }
+            });
+        }
+    }
+
+    private void HandleUpdateComplete(JsonElement payload)
+    {
+        var version = payload.TryGetProperty("version", out var v) ? v.GetString() : "unknown";
+        var restartRequired = payload.TryGetProperty("restartRequired", out var r) && r.GetBoolean();
+
+        _logger.LogInformation(
+            "Update complete: Version={Version}, RestartRequired={RestartRequired}",
+            version, restartRequired);
+
+        // Show completion notification
+        _ = Task.Run(async () =>
+        {
+            var notification = new AgentNotification(
+                "Update Complete",
+                $"ChronosX has been updated to version {version}. The application will restart.",
+                NotificationKind.System)
+            {
+                Tag = "update-complete"
+            };
+
+            await _notificationService.SendAsync(notification);
+
+            // Restart the application after a short delay
+            await Task.Delay(2000);
+            RestartApplication();
+        });
+    }
+
+    private void HandleUpdateFailed(JsonElement payload)
+    {
+        var error = payload.TryGetProperty("error", out var e) ? e.GetString() : "Unknown error";
+        var canRollback = payload.TryGetProperty("canRollback", out var rb) && rb.GetBoolean();
+
+        _logger.LogError(
+            "Update failed: Error={Error}, CanRollback={CanRollback}",
+            error, canRollback);
+
+        // Show error notification
+        _ = Task.Run(async () =>
+        {
+            var notification = new AgentNotification(
+                "Update Failed",
+                $"Failed to update: {error}. {(canRollback ? "Attempting rollback..." : "Please try again later.")}",
+                NotificationKind.Error)
+            {
+                Tag = "update-failed"
+            };
+
+            await _notificationService.SendAsync(notification);
+        });
+    }
+
+    private static void RestartApplication()
+    {
+        if (System.Windows.Forms.Application.OpenForms.Count > 0)
+        {
+            var mainForm = System.Windows.Forms.Application.OpenForms[0];
+            mainForm?.BeginInvoke(() =>
+            {
+                System.Windows.Forms.Application.Restart();
+            });
+        }
+        else
+        {
+            System.Windows.Forms.Application.Restart();
         }
     }
 

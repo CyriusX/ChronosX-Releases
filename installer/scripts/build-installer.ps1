@@ -57,6 +57,22 @@ Pop-Location
 
 Write-Host "[2/5] DesktopHost built successfully" -ForegroundColor Green
 
+# Step 2.5: Build Update.exe
+Write-Host "[2.5/5] Building Update.exe..." -ForegroundColor Yellow
+
+$UpdateProject = Join-Path $ProjectRoot "src\agent\TimeTrack.Update"
+$UpdateOutput = Join-Path $PublishOutput "Update"
+
+Push-Location $UpdateProject
+dotnet publish -c $Configuration -r win-x64 --self-contained true -o $UpdateOutput /p:PublishSingleFile=true
+if ($LASTEXITCODE -ne 0) {
+    Pop-Location
+    throw "Failed to build Update.exe"
+}
+Pop-Location
+
+Write-Host "[2.5/5] Update.exe built successfully" -ForegroundColor Green
+
 # Step 3: Build React UI
 Write-Host "[3/5] Building React UI..." -ForegroundColor Yellow
 
