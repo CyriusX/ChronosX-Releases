@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TimeTrack.Agent.Contracts.Updates;
 using TimeTrack.Update.Services;
 
 namespace TimeTrack.Update;
@@ -150,9 +151,10 @@ internal class Program
 
     private static async Task<int> InstallUpdateAsync(UpdateOptions options, IUpdateOrchestrator orchestrator, ILogger logger)
     {
-        if (string.IsNullOrEmpty(options.DownloadUrl))
+        // Accept either --installer-path (pre-downloaded) or --url (will download)
+        if (string.IsNullOrEmpty(options.InstallerPath) && string.IsNullOrEmpty(options.DownloadUrl))
         {
-            logger.LogError("--url is required for installation");
+            logger.LogError("Either --installer-path or --url is required for installation");
             return 1;
         }
 
@@ -176,11 +178,12 @@ internal class Program
         });
 
         var result = await orchestrator.InstallUpdateAsync(
-            options.DownloadUrl,
+            options.DownloadUrl ?? string.Empty,
             options.Checksum,
             options.Version,
             options.VerifySignature,
-            progress);
+            progress,
+            options.InstallerPath);
 
         if (result.Success)
         {
@@ -283,6 +286,7 @@ ChronosX Update Installer
 
 Usage:
   update.exe --install --url <url> --checksum <sha256> --version <version>
+  update.exe --install --installer-path <path> --checksum <sha256> --version <version>
   update.exe --rollback [--backup-path <path>]
   update.exe --verify --installer-path <path> --checksum <sha256>
 
@@ -291,10 +295,10 @@ Options:
   --rollback, -r             Rollback to previous version
   --verify, -v               Verify installer integrity only
 
-  --url, -u <url>            Download URL for the installer
+  --url, -u <url>            Download URL for the installer (will download)
+  --installer-path <path>    Path to pre-downloaded installer (skips download)
   --checksum, -c <sha256>    SHA256 checksum of the installer
   --version <version>        Target version to install
-  --installer-path <path>    Path to installer file (for verify)
   --backup-path <path>       Path to backup directory (for rollback)
 
   --no-signature-verify      Skip Authenticode signature verification
@@ -303,6 +307,7 @@ Options:
   --help, -h                 Show this help message
 
 Examples:
+  update.exe --install --installer-path C:\Temp\ChronosX-Setup-1.2.0.exe --checksum abc123 --version 1.2.0
   update.exe --install --url https://cdn.example.com/ChronosX-Setup-1.2.0.exe --checksum abc123 --version 1.2.0
   update.exe --rollback
   update.exe --verify --installer-path C:\Temp\ChronosX-Setup-1.2.0.exe --checksum abc123

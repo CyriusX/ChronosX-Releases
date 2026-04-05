@@ -242,7 +242,9 @@ public sealed class UpdateService : IUpdateService, IDisposable
             return false;
         }
 
-        var arguments = $"--install --url \"{updateInfo.DownloadUrl}\" --checksum \"{updateInfo.ChecksumSha256}\" --version \"{updateInfo.LatestVersion}\"";
+        // Use --installer-path since we already downloaded the installer
+        // This avoids duplicate download and leverages our progress reporting
+        var arguments = $"--install --installer-path \"{installerPath}\" --checksum \"{updateInfo.ChecksumSha256}\" --version \"{updateInfo.LatestVersion}\"";
 
         if (!_settings.VerifySignature)
         {
