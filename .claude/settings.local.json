@@ -449,7 +449,9 @@
       "Bash(cmd /c \"taskkill /F /IM node.exe /T\")",
       "Bash(cmd /c \"taskkill /F /IM dotnet.exe /T\")",
       "Bash(powershell -Command \"Get-Process node,dotnet -ErrorAction SilentlyContinue | Stop-Process -Force; Write-Host ''Done''\")",
-      "Bash(powershell -Command \"Start-Process ''http://localhost:5173''\")"
+      "Bash(powershell -Command \"Start-Process ''http://localhost:5173''\")",
+      "Bash(grep -r \"string.Format\\\\|StringBuilder\\\\|\\\\$\\\\\".*SELECT\\\\|CONCAT\\\\|string interpolation\" /c/Users/jr_ju/Repo/Cyrius/TimeTracking/src/backend/TimeTrack.Backend.Infrastructure/Repositories --include=\"*.cs\" -n)",
+      "Bash(grep -E \"\\\\.cs$\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
