@@ -37,6 +37,9 @@ IHost host = Host.CreateDefaultBuilder(args)
 
         // Workers
         services.AddAgentWorkers();
+
+        // Update Services
+        services.AddUpdateServices(context.Configuration);
     })
     .Build();
 
