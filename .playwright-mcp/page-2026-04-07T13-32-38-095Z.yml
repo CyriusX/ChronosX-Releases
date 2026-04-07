@@ -1,0 +1,252 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e6]:
+          - generic [ref=e7]:
+            - link "Home" [ref=e8] [cursor=pointer]:
+              - /url: /
+              - img "Home" [ref=e9]
+            - generic [ref=e10]:
+              - generic [ref=e11]: Easypanel
+              - generic [ref=e12]:
+                - generic [ref=e13]: v2.28.0
+                - button [ref=e14] [cursor=pointer]:
+                  - img [ref=e15]
+                - combobox [ref=e20]:
+                  - option "BR"
+                  - option "DA"
+                  - option "DE"
+                  - option "EN"
+                  - option "ES"
+                  - option "FA"
+                  - option "FR"
+                  - option "HI"
+                  - option "ID"
+                  - option "IT"
+                  - option "JA"
+                  - option "KA"
+                  - option "NL"
+                  - option "PL"
+                  - option "PT" [selected]
+                  - option "RO"
+                  - option "RU"
+                  - option "TH"
+                  - option "TR"
+                  - option "VI"
+                  - option "CN"
+          - generic [ref=e21]:
+            - link "Painel" [ref=e22] [cursor=pointer]:
+              - /url: /
+              - img [ref=e23]
+              - generic [ref=e26]: Painel
+            - link "Ações" [ref=e365] [cursor=pointer]:
+              - /url: /actions
+              - img [ref=e366]
+              - generic [ref=e30]: Ações
+            - link "Monitorar" [ref=e31] [cursor=pointer]:
+              - /url: /monitor
+              - img [ref=e32]
+              - generic [ref=e34]: Monitorar
+            - link "Domínios" [ref=e35] [cursor=pointer]:
+              - /url: /domains
+              - img [ref=e36]
+              - generic [ref=e39]: Domínios
+            - link "Configurações" [ref=e40] [cursor=pointer]:
+              - /url: /settings
+              - img [ref=e41]
+              - generic [ref=e44]: Configurações
+          - generic [ref=e46]:
+            - link "Documentação" [ref=e47] [cursor=pointer]:
+              - /url: https://easypanel.io/docs
+              - img [ref=e48]
+              - generic [ref=e50]: Documentação
+              - img [ref=e52]
+            - link "Discord Discord" [ref=e56] [cursor=pointer]:
+              - /url: https://discord.gg/9bcDSXcZQ7
+              - img "Discord" [ref=e57]
+              - generic [ref=e59]: Discord
+              - img [ref=e61]
+            - link "Feedback" [ref=e65] [cursor=pointer]:
+              - /url: https://my.easypanel.io/feedback
+              - img [ref=e66]
+              - generic [ref=e68]: Feedback
+              - img [ref=e70]
+            - link "Histórico de Alterações" [ref=e74] [cursor=pointer]:
+              - /url: https://my.easypanel.io/changelog
+              - img [ref=e75]
+              - generic [ref=e78]: Histórico de Alterações
+              - img [ref=e80]
+          - link "Comprar Licença" [ref=e85] [cursor=pointer]:
+            - /url: /buy-license
+            - img [ref=e86]
+            - generic [ref=e90]: Comprar Licença
+          - button "Busca Rápida ⌘ K" [ref=e91] [cursor=pointer]:
+            - img [ref=e92]
+            - generic [ref=e95]: Busca Rápida
+            - generic [ref=e97]: ⌘ K
+          - button "5.189.168.51" [ref=e98] [cursor=pointer]:
+            - img [ref=e99]
+            - generic [ref=e103]: 5.189.168.51
+            - img [ref=e105]
+          - generic [ref=e108]:
+            - img [ref=e109]
+            - generic [ref=e111]: Modo Escuro
+            - switch "Modo Escuro" [ref=e113] [cursor=pointer]
+          - button "Sair" [ref=e114] [cursor=pointer]:
+            - img [ref=e115]
+            - generic [ref=e118]: Sair
+        - generic [ref=e120]:
+          - generic [ref=e121]:
+            - button "chronosx" [ref=e123] [cursor=pointer]:
+              - img [ref=e124]
+              - generic [ref=e127]: chronosx
+              - img [ref=e128]
+            - generic [ref=e131]:
+              - generic [ref=e132]: Serviços
+              - link [ref=e133] [cursor=pointer]:
+                - /url: /projects/chronosx/create
+                - img [ref=e134]
+            - generic [ref=e138]:
+              - link "chronosxcontainer" [ref=e140] [cursor=pointer]:
+                - /url: /projects/chronosx/postgres/chronosxcontainer
+                - generic [ref=e143]: chronosxcontainer
+              - link "timetrack" [ref=e145] [cursor=pointer]:
+                - /url: /projects/chronosx/box/timetrack
+                - generic [ref=e148]: timetrack
+              - link "timetrack-api" [ref=e150] [cursor=pointer]:
+                - /url: /projects/chronosx/app/timetrack-api
+                - generic [ref=e153]: timetrack-api
+          - generic [ref=e159]:
+            - link "Visão Geral" [ref=e160] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api
+              - generic [ref=e162]:
+                - img [ref=e164]
+                - text: Visão Geral
+            - link "Fonte" [ref=e165] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/source
+              - generic [ref=e167]:
+                - img [ref=e169]
+                - text: Fonte
+            - link "Implantações" [ref=e172] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/deployments
+              - generic [ref=e174]:
+                - img [ref=e176]
+                - text: Implantações
+            - link "Ambiente" [ref=e181] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/environment
+              - generic [ref=e183]:
+                - img [ref=e185]
+                - text: Ambiente
+            - link "Domínios" [ref=e188] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/domains
+              - generic [ref=e190]:
+                - img [ref=e192]
+                - text: Domínios
+            - link "Redirecionamentos" [ref=e195] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/redirects
+              - generic [ref=e197]:
+                - img [ref=e199]
+                - text: Redirecionamentos
+            - link "Scripts" [ref=e201] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/scripts
+              - generic [ref=e203]:
+                - img [ref=e205]
+                - text: Scripts
+            - link "Segurança" [ref=e208] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/security
+              - generic [ref=e210]:
+                - img [ref=e212]
+                - text: Segurança
+            - link "Recursos" [ref=e216] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/resources
+              - generic [ref=e218]:
+                - img [ref=e220]
+                - text: Recursos
+            - link "Manutenção" [ref=e223] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/maintenance
+              - generic [ref=e225]:
+                - img [ref=e227]
+                - text: Manutenção
+            - link "Armazenamento" [ref=e229] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/storage
+              - generic [ref=e231]:
+                - img [ref=e233]
+                - text: Armazenamento
+            - link "Avançado" [ref=e235] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/advanced
+              - generic [ref=e237]:
+                - img [ref=e239]
+                - text: Avançado
+      - generic [ref=e243]:
+        - generic [ref=e244]:
+          - generic [ref=e245]:
+            - link "chronosx" [ref=e246] [cursor=pointer]:
+              - /url: /projects/chronosx
+            - paragraph [ref=e247]: /
+            - paragraph [ref=e248]: timetrack-api
+            - generic [ref=e249]: app
+            - button "Rename" [ref=e251] [cursor=pointer]:
+              - img [ref=e252]
+          - generic [ref=e255]:
+            - link "Serviço" [ref=e256] [cursor=pointer]:
+              - /url: /projects/chronosx/create
+              - img [ref=e258]
+              - text: Serviço
+            - link "Modelos" [ref=e259] [cursor=pointer]:
+              - /url: /projects/chronosx/create?tab=templates
+              - img [ref=e261]
+              - text: Modelos
+            - link "Project Settings" [ref=e264] [cursor=pointer]:
+              - /url: /projects/chronosx/settings
+              - img [ref=e265]
+        - generic [ref=e271]:
+          - generic [ref=e273]:
+            - generic [ref=e274]:
+              - button "Implantar" [ref=e368] [cursor=pointer]
+              - button "Stop" [ref=e276] [cursor=pointer]:
+                - img [ref=e277]
+              - button "restart" [ref=e279] [cursor=pointer]:
+                - img [ref=e280]
+              - button "Logs" [ref=e284] [cursor=pointer]:
+                - img [ref=e285]
+              - button "Console" [ref=e288] [cursor=pointer]:
+                - img [ref=e289]
+              - link "Open" [ref=e292] [cursor=pointer]:
+                - /url: https://chronosx-timetrack-api.gpoda0.easypanel.host/
+                - img [ref=e293]
+              - button "restart" [ref=e297] [cursor=pointer]:
+                - img [ref=e298]
+              - button "Destroy" [ref=e302] [cursor=pointer]:
+                - img [ref=e303]
+            - generic [ref=e306]:
+              - generic [ref=e307]:
+                - text: CPU
+                - generic [ref=e308]: 10.5%
+              - generic [ref=e309]: Memória 94.9 MB
+              - generic [ref=e310]:
+                - text: I/O da Rede
+                - generic [ref=e311]: 67.7 KB / 75.5 KB
+          - generic [ref=e314]:
+            - img [ref=e315]
+            - generic [ref=e318]: Editar para fixar uma mensagem para este serviço
+            - button "Editar" [ref=e319] [cursor=pointer]
+          - generic [ref=e320]:
+            - generic [ref=e321]:
+              - paragraph [ref=e322]: Logs
+              - generic [ref=e323]:
+                - button "Adicionar Divisor" [ref=e324] [cursor=pointer]:
+                  - img [ref=e325]
+                - button "Atualizar" [ref=e326] [cursor=pointer]:
+                  - img [ref=e327]
+                - button "Toggle" [ref=e333] [cursor=pointer]:
+                  - img [ref=e334]
+            - textbox "Terminal input" [ref=e345]
+    - region "Notifications alt+T"
+  - generic:
+    - region "Notifications-top"
+    - region "Notifications-top-left"
+    - region "Notifications-top-right"
+    - region "Notifications-bottom-left"
+    - region "Notifications-bottom"
+    - region "Notifications-bottom-right"

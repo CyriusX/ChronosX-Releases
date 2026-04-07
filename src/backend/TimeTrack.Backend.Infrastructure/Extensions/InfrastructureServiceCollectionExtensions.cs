@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Http;
 using Resend;
 using TimeTrack.Backend.Application.Common.Interfaces;
@@ -93,8 +94,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpContextAccessor();
 
         // Health checks
+        // Simple liveness check (always healthy if app is running)
+        // Database check is tagged as "ready" for more granular health monitoring
         services.AddHealthChecks()
-            .AddNpgSql(connectionString, name: "database", tags: new[] { "ready" });
+            .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("OK"), tags: new[] { "live" })
+            .AddNpgSql(connectionString, name: "database", tags: new[] { "ready" }, failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
 
         // Database initialization (seeds, migrations)
         services.AddDatabaseInitializer();

@@ -452,7 +452,18 @@
       "Bash(powershell -Command \"Start-Process ''http://localhost:5173''\")",
       "Bash(grep -r \"string.Format\\\\|StringBuilder\\\\|\\\\$\\\\\".*SELECT\\\\|CONCAT\\\\|string interpolation\" /c/Users/jr_ju/Repo/Cyrius/TimeTracking/src/backend/TimeTrack.Backend.Infrastructure/Repositories --include=\"*.cs\" -n)",
       "Bash(grep -E \"\\\\.cs$\")",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_press_key",
+      "mcp__playwright__browser_tabs",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_close"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",

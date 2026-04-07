@@ -1,0 +1,339 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e6]:
+          - generic [ref=e7]:
+            - link "Home" [ref=e8] [cursor=pointer]:
+              - /url: /
+              - img "Home" [ref=e9]
+            - generic [ref=e10]:
+              - generic [ref=e11]: Easypanel
+              - generic [ref=e12]:
+                - generic [ref=e13]: v2.28.0
+                - button [ref=e14] [cursor=pointer]:
+                  - img [ref=e15]
+                - combobox [ref=e20]:
+                  - option "BR"
+                  - option "DA"
+                  - option "DE"
+                  - option "EN"
+                  - option "ES"
+                  - option "FA"
+                  - option "FR"
+                  - option "HI"
+                  - option "ID"
+                  - option "IT"
+                  - option "JA"
+                  - option "KA"
+                  - option "NL"
+                  - option "PL"
+                  - option "PT" [selected]
+                  - option "RO"
+                  - option "RU"
+                  - option "TH"
+                  - option "TR"
+                  - option "VI"
+                  - option "CN"
+          - generic [ref=e21]:
+            - link "Painel" [ref=e22] [cursor=pointer]:
+              - /url: /
+              - img [ref=e23]
+              - generic [ref=e26]: Painel
+            - link "Ações" [ref=e365] [cursor=pointer]:
+              - /url: /actions
+              - img [ref=e366]
+              - generic [ref=e30]: Ações
+            - link "Monitorar" [ref=e31] [cursor=pointer]:
+              - /url: /monitor
+              - img [ref=e32]
+              - generic [ref=e34]: Monitorar
+            - link "Domínios" [ref=e35] [cursor=pointer]:
+              - /url: /domains
+              - img [ref=e36]
+              - generic [ref=e39]: Domínios
+            - link "Configurações" [ref=e40] [cursor=pointer]:
+              - /url: /settings
+              - img [ref=e41]
+              - generic [ref=e44]: Configurações
+          - generic [ref=e46]:
+            - link "Documentação" [ref=e47] [cursor=pointer]:
+              - /url: https://easypanel.io/docs
+              - img [ref=e48]
+              - generic [ref=e50]: Documentação
+              - img [ref=e52]
+            - link "Discord Discord" [ref=e56] [cursor=pointer]:
+              - /url: https://discord.gg/9bcDSXcZQ7
+              - img "Discord" [ref=e57]
+              - generic [ref=e59]: Discord
+              - img [ref=e61]
+            - link "Feedback" [ref=e65] [cursor=pointer]:
+              - /url: https://my.easypanel.io/feedback
+              - img [ref=e66]
+              - generic [ref=e68]: Feedback
+              - img [ref=e70]
+            - link "Histórico de Alterações" [ref=e74] [cursor=pointer]:
+              - /url: https://my.easypanel.io/changelog
+              - img [ref=e75]
+              - generic [ref=e78]: Histórico de Alterações
+              - img [ref=e80]
+          - link "Comprar Licença" [ref=e85] [cursor=pointer]:
+            - /url: /buy-license
+            - img [ref=e86]
+            - generic [ref=e90]: Comprar Licença
+          - button "Busca Rápida ⌘ K" [ref=e91] [cursor=pointer]:
+            - img [ref=e92]
+            - generic [ref=e95]: Busca Rápida
+            - generic [ref=e97]: ⌘ K
+          - button "5.189.168.51" [ref=e98] [cursor=pointer]:
+            - img [ref=e99]
+            - generic [ref=e103]: 5.189.168.51
+            - img [ref=e105]
+          - generic [ref=e108]:
+            - img [ref=e109]
+            - generic [ref=e111]: Modo Escuro
+            - switch "Modo Escuro" [ref=e113] [cursor=pointer]
+          - button "Sair" [ref=e114] [cursor=pointer]:
+            - img [ref=e115]
+            - generic [ref=e118]: Sair
+        - generic [ref=e120]:
+          - generic [ref=e121]:
+            - button "chronosx" [ref=e123] [cursor=pointer]:
+              - img [ref=e124]
+              - generic [ref=e127]: chronosx
+              - img [ref=e128]
+            - generic [ref=e131]:
+              - generic [ref=e132]: Serviços
+              - link [ref=e133] [cursor=pointer]:
+                - /url: /projects/chronosx/create
+                - img [ref=e134]
+            - generic [ref=e138]:
+              - link "chronosxcontainer" [ref=e140] [cursor=pointer]:
+                - /url: /projects/chronosx/postgres/chronosxcontainer
+                - generic [ref=e143]: chronosxcontainer
+              - link "timetrack" [ref=e145] [cursor=pointer]:
+                - /url: /projects/chronosx/box/timetrack
+                - generic [ref=e148]: timetrack
+              - link "timetrack-api" [ref=e150] [cursor=pointer]:
+                - /url: /projects/chronosx/app/timetrack-api
+                - generic [ref=e153]: timetrack-api
+          - generic [ref=e159]:
+            - link "Visão Geral" [ref=e160] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api
+              - generic [ref=e162]:
+                - img [ref=e164]
+                - text: Visão Geral
+            - link "Fonte" [ref=e165] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/source
+              - generic [ref=e167]:
+                - img [ref=e169]
+                - text: Fonte
+            - link "Implantações" [ref=e172] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/deployments
+              - generic [ref=e174]:
+                - img [ref=e176]
+                - text: Implantações
+            - link "Ambiente" [ref=e181] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/environment
+              - generic [ref=e183]:
+                - img [ref=e185]
+                - text: Ambiente
+            - link "Domínios" [ref=e188] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/domains
+              - generic [ref=e190]:
+                - img [ref=e192]
+                - text: Domínios
+            - link "Redirecionamentos" [ref=e195] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/redirects
+              - generic [ref=e197]:
+                - img [ref=e199]
+                - text: Redirecionamentos
+            - link "Scripts" [ref=e201] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/scripts
+              - generic [ref=e203]:
+                - img [ref=e205]
+                - text: Scripts
+            - link "Segurança" [ref=e208] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/security
+              - generic [ref=e210]:
+                - img [ref=e212]
+                - text: Segurança
+            - link "Recursos" [ref=e216] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/resources
+              - generic [ref=e218]:
+                - img [ref=e220]
+                - text: Recursos
+            - link "Manutenção" [ref=e223] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/maintenance
+              - generic [ref=e225]:
+                - img [ref=e227]
+                - text: Manutenção
+            - link "Armazenamento" [ref=e229] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/storage
+              - generic [ref=e231]:
+                - img [ref=e233]
+                - text: Armazenamento
+            - link "Avançado" [ref=e235] [cursor=pointer]:
+              - /url: /projects/chronosx/app/timetrack-api/advanced
+              - generic [ref=e237]:
+                - img [ref=e239]
+                - text: Avançado
+      - generic [ref=e243]:
+        - generic [ref=e244]:
+          - generic [ref=e245]:
+            - link "chronosx" [ref=e246] [cursor=pointer]:
+              - /url: /projects/chronosx
+            - paragraph [ref=e247]: /
+            - paragraph [ref=e248]: timetrack-api
+            - generic [ref=e249]: app
+            - button "Rename" [ref=e251] [cursor=pointer]:
+              - img [ref=e252]
+          - generic [ref=e255]:
+            - link "Serviço" [ref=e256] [cursor=pointer]:
+              - /url: /projects/chronosx/create
+              - img [ref=e258]
+              - text: Serviço
+            - link "Modelos" [ref=e259] [cursor=pointer]:
+              - /url: /projects/chronosx/create?tab=templates
+              - img [ref=e261]
+              - text: Modelos
+            - link "Project Settings" [ref=e264] [cursor=pointer]:
+              - /url: /projects/chronosx/settings
+              - img [ref=e265]
+        - generic [ref=e271]:
+          - generic [ref=e372]:
+            - generic [ref=e373]:
+              - button "Implantar" [ref=e374] [cursor=pointer]
+              - button "Stop" [ref=e375] [cursor=pointer]:
+                - img [ref=e376]
+              - button "restart" [ref=e378] [cursor=pointer]:
+                - img [ref=e379]
+              - button "Logs" [ref=e383] [cursor=pointer]:
+                - img [ref=e384]
+              - button "Console" [ref=e387] [cursor=pointer]:
+                - img [ref=e388]
+              - link "Open" [ref=e391] [cursor=pointer]:
+                - /url: https://chronosx-timetrack-api.gpoda0.easypanel.host/
+                - img [ref=e392]
+              - button "restart" [ref=e396] [cursor=pointer]:
+                - img [ref=e397]
+              - button "Destroy" [ref=e401] [cursor=pointer]:
+                - img [ref=e402]
+            - generic [ref=e405]:
+              - generic [ref=e406]:
+                - text: CPU
+                - generic [ref=e407]: 0.8%
+              - generic [ref=e408]: Memória 95.7 MB
+              - generic [ref=e409]:
+                - text: I/O da Rede
+                - generic [ref=e410]: 94.7 KB / 121.1 KB
+          - generic [ref=e411]:
+            - paragraph [ref=e413]: Histórico de Implantação
+            - generic [ref=e415]:
+              - alert [ref=e416]:
+                - img [ref=e419]
+                - generic [ref=e421]: "Deploy service: fix: reorder middleware pipeline to ensure exception handling catches health check errors"
+                - generic [ref=e422]: 1 minuto
+                - generic [ref=e423]: /
+                - generic [ref=e424]: há 4 minutos
+                - button "User" [ref=e425] [cursor=pointer]:
+                  - img [ref=e426]
+                - button "Visualizar" [ref=e429] [cursor=pointer]
+              - alert [ref=e430]:
+                - img [ref=e433]
+                - generic [ref=e435]: "Deploy service: fix: re-enable Docker health check with adjusted timing for containerized environments"
+                - generic [ref=e436]: 3 segundos
+                - generic [ref=e437]: /
+                - generic [ref=e438]: há 9 minutos
+                - button "User" [ref=e439] [cursor=pointer]:
+                  - img [ref=e440]
+                - button "Visualizar" [ref=e443] [cursor=pointer]
+              - alert [ref=e444]:
+                - img [ref=e447]
+                - generic [ref=e449]: "Deploy service: fix: re-enable Docker health check with adjusted timing for containerized environments"
+                - generic [ref=e450]: 3 segundos
+                - generic [ref=e451]: /
+                - generic [ref=e452]: há 10 minutos
+                - button "User" [ref=e453] [cursor=pointer]:
+                  - img [ref=e454]
+                - button "Visualizar" [ref=e457] [cursor=pointer]
+              - alert [ref=e458]:
+                - img [ref=e461]
+                - generic [ref=e463]: "Deploy service: fix: re-enable Docker health check with adjusted timing for containerized environments"
+                - generic [ref=e464]: 4 segundos
+                - generic [ref=e465]: /
+                - generic [ref=e466]: há 11 minutos
+                - button "User" [ref=e467] [cursor=pointer]:
+                  - img [ref=e468]
+                - button "Visualizar" [ref=e471] [cursor=pointer]
+              - alert [ref=e472]:
+                - img [ref=e475]
+                - generic [ref=e477]: "Deploy service: fix: re-enable Docker health check with adjusted timing for containerized environments"
+                - generic [ref=e478]: 1 minuto
+                - generic [ref=e479]: /
+                - generic [ref=e480]: há 25 minutos
+                - button "User" [ref=e481] [cursor=pointer]:
+                  - img [ref=e482]
+                - button "Visualizar" [ref=e485] [cursor=pointer]
+              - alert [ref=e486]:
+                - img [ref=e489]
+                - generic [ref=e491]: "Deploy service: fix: disable HTTPS redirection for containerized environments"
+                - generic [ref=e492]: 4 segundos
+                - generic [ref=e493]: /
+                - generic [ref=e494]: há 55 minutos
+                - button "User" [ref=e495] [cursor=pointer]:
+                  - img [ref=e496]
+                - button "Visualizar" [ref=e499] [cursor=pointer]
+              - alert [ref=e500]:
+                - img [ref=e503]
+                - generic [ref=e505]: "Deploy service: fix: disable HTTPS redirection for containerized environments"
+                - generic [ref=e506]: 4 segundos
+                - generic [ref=e507]: /
+                - generic [ref=e508]: há 55 minutos
+                - button "User" [ref=e509] [cursor=pointer]:
+                  - img [ref=e510]
+                - button "Visualizar" [ref=e513] [cursor=pointer]
+              - alert [ref=e514]:
+                - img [ref=e517]
+                - generic [ref=e519]: "Deploy service: fix: disable HTTPS redirection for containerized environments"
+                - generic [ref=e520]: 4 segundos
+                - generic [ref=e521]: /
+                - generic [ref=e522]: há 11 horas
+                - button "User" [ref=e523] [cursor=pointer]:
+                  - img [ref=e524]
+                - button "Visualizar" [ref=e527] [cursor=pointer]
+              - alert [ref=e528]:
+                - img [ref=e531]
+                - generic [ref=e533]: "Deploy service: fix: disable HTTPS redirection for containerized environments"
+                - generic [ref=e534]: 4 segundos
+                - generic [ref=e535]: /
+                - generic [ref=e536]: há 11 horas
+                - button "User" [ref=e537] [cursor=pointer]:
+                  - img [ref=e538]
+                - button "Visualizar" [ref=e541] [cursor=pointer]
+              - alert [ref=e542]:
+                - img [ref=e545]
+                - generic [ref=e547]: "Deploy service: fix: disable HTTPS redirection for containerized environments"
+                - generic [ref=e548]: 3 segundos
+                - generic [ref=e549]: /
+                - generic [ref=e550]: há 11 horas
+                - button "User" [ref=e551] [cursor=pointer]:
+                  - img [ref=e552]
+                - button "Visualizar" [ref=e555] [cursor=pointer]
+              - button "Carregar Mais" [ref=e556] [cursor=pointer]
+          - generic [ref=e557]:
+            - paragraph [ref=e559]: Gatilho de Implantação
+            - generic [ref=e561]:
+              - button "http://5.189.168.51:3000/api/deploy/c3cbf7f8ff6e4290722520c129fcf7d381b719c2b5eab039" [ref=e563] [cursor=pointer]:
+                - generic [ref=e564]: http://5.189.168.51:3000/api/deploy/c3cbf7f8ff6e4290722520c129fcf7d381b719c2b5eab039
+                - img [ref=e566]
+              - generic [ref=e569]: Fazer uma requisição para esta URL acionará uma implantação para este serviço. Você pode usá-la para integrar serviços externos com o Easypanel.
+              - button "Atualizar Token de Implantação" [ref=e570] [cursor=pointer]
+    - region "Notifications alt+T"
+  - generic:
+    - region "Notifications-top"
+    - region "Notifications-top-left"
+    - region "Notifications-top-right"
+    - region "Notifications-bottom-left"
+    - region "Notifications-bottom"
+    - region "Notifications-bottom-right"
