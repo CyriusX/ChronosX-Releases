@@ -180,7 +180,8 @@ try
     app.UseMiddleware<SecurityHeadersMiddleware>();
 
     app.UseMiddleware<ExceptionHandlingMiddleware>();
-    app.UseHttpsRedirection();
+    // Note: HTTPS redirection disabled for containerized environments (EasyPanel handles SSL termination)
+    // app.UseHttpsRedirection();
 
     // Rate limiting (before authentication to protect unauthenticated endpoints)
     app.UseRateLimiter();
