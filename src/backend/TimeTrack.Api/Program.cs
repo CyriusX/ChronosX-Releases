@@ -191,10 +191,10 @@ try
         // Return 200 even if unhealthy (container stays running, logs show degraded status)
         ResultStatusCodes =
         {
-            [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy] = 200,
-            [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded] = 200,
-            [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy] = 200
-        }
+            [(HealthStatus)0] = 200,
+            [(HealthStatus)1] = 200,
+            [(HealthStatus)2] = 200
+        },
         ResponseWriter = async (context, report) =>
         {
             context.Response.ContentType = "application/json";
