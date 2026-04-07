@@ -158,7 +158,11 @@ try
     // Serilog request logging - capture all requests and their outcomes
     app.UseSerilogRequestLogging(options =>
     {
-        options.EnrichDiagnosticContext = true;
+        options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+        {
+            diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
+            diagnosticContext.Set("RequestScheme", httpContext.Request.Scheme);
+        };
         options.MessageTemplate = "HTTP {RequestMethod} {Path} responded {StatusCode} in {Elapsed:0.000} ms";
     });
 
@@ -209,14 +213,13 @@ try
             {
                 context.Response.ContentType = "application/json";
 
-                // Safely handle potential null entries
-                var checks = report.Entries?.Select(e => new
+                var checks = report.Entries.Select(e => new
                 {
-                    name = e.Key ?? "unknown",
-                    status = e.Value?.Status.ToString() ?? "Unknown",
-                    duration = e.Value?.Duration.TotalMilliseconds ?? 0,
-                    description = e.Value?.Description ?? e.Value?.Exception?.Message
-                }).ToArray() ?? Array.Empty<object>();
+                    name = e.Key,
+                    status = e.Value.Status.ToString(),
+                    duration = e.Value.Duration.TotalMilliseconds,
+                    description = e.Value.Description ?? e.Value.Exception?.Message
+                }).ToArray();
 
                 var response = new
                 {

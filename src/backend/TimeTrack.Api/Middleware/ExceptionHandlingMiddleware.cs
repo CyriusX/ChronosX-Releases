@@ -56,7 +56,7 @@ public class ExceptionHandlingMiddleware
             case ValidationException ex:
                 statusCode = (int)HttpStatusCode.BadRequest;
                 response = new ValidationErrorResponse("validation_failed", ex.Errors);
-                errorDetails = $"ValidationException: {string.Join(", ", ex.Errors.Select(e => $"{e.Key}: {string.Join(", ", e.Value)}")}";
+                errorDetails = $"ValidationException: {string.Join(", ", ex.Errors.Select(e => $"{e.Key}: {string.Join(", ", e.Value)}"))}";
                 break;
             case ConflictException ex:
                 statusCode = (int)HttpStatusCode.Conflict;
