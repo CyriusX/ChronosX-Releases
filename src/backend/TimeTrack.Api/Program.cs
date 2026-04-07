@@ -151,7 +151,24 @@ try
         app.MapScalarApiReference();
     }
 
-    // Health check endpoint
+    // CORS - Allow frontend to communicate with API
+    app.UseCors();
+
+    // Security headers (must be early in pipeline)
+    app.UseMiddleware<SecurityHeadersMiddleware>();
+
+    // Exception handling - must be early to catch all exceptions
+    app.UseMiddleware<ExceptionHandlingMiddleware>();
+    // Note: HTTPS redirection disabled for containerized environments (EasyPanel handles SSL termination)
+    // app.UseHttpsRedirection();
+
+    // Rate limiting (before authentication to protect unauthenticated endpoints)
+    app.UseRateLimiter();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    // Health check endpoint (must be after middleware to catch exceptions)
     app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
     {
         ResponseWriter = async (context, report) =>
@@ -172,22 +189,6 @@ try
             await context.Response.WriteAsJsonAsync(response);
         }
     });
-
-    // CORS - Allow frontend to communicate with API
-    app.UseCors();
-
-    // Security headers (must be early in pipeline)
-    app.UseMiddleware<SecurityHeadersMiddleware>();
-
-    app.UseMiddleware<ExceptionHandlingMiddleware>();
-    // Note: HTTPS redirection disabled for containerized environments (EasyPanel handles SSL termination)
-    // app.UseHttpsRedirection();
-
-    // Rate limiting (before authentication to protect unauthenticated endpoints)
-    app.UseRateLimiter();
-
-    app.UseAuthentication();
-    app.UseAuthorization();
 
     // Hangfire Dashboard - protected by Admin role
     app.MapHangfireDashboard("/hangfire", new DashboardOptions
