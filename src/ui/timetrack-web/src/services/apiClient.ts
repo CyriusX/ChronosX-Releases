@@ -87,6 +87,7 @@ async function refreshAccessToken(): Promise<boolean> {
       useAuthStore.getState().setTokens({
         accessToken: data.accessToken,
         refreshToken: data.refreshToken || tokens.refreshToken,
+        expiresAt: Date.now() + (data.expiresIn || 3600) * 1000,
       });
 
       // Process any failed requests that were waiting
@@ -186,3 +187,26 @@ export async function apiClient<T>(
     throw error;
   }
 }
+
+// ============================================================================
+// CONVENIENCE METHODS
+// ============================================================================
+
+export const api = {
+  get: <T>(endpoint: string, options?: Omit<ApiClientOptions, 'method' | 'body'>) =>
+    apiClient<T>(endpoint, { ...options, method: 'GET' }),
+
+  post: <T>(endpoint: string, body?: unknown, options?: Omit<ApiClientOptions, 'method' | 'body'>) =>
+    apiClient<T>(endpoint, { ...options, method: 'POST', body }),
+
+  put: <T>(endpoint: string, body?: unknown, options?: Omit<ApiClientOptions, 'method' | 'body'>) =>
+    apiClient<T>(endpoint, { ...options, method: 'PUT', body }),
+
+  patch: <T>(endpoint: string, body?: unknown, options?: Omit<ApiClientOptions, 'method' | 'body'>) =>
+    apiClient<T>(endpoint, { ...options, method: 'PATCH', body }),
+
+  delete: <T>(endpoint: string, options?: Omit<ApiClientOptions, 'method'>) =>
+    apiClient<T>(endpoint, { ...options, method: 'DELETE' }),
+};
+
+export type { ApiError };
