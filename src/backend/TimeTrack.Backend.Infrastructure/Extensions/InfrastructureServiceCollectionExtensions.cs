@@ -104,21 +104,29 @@ public static class InfrastructureServiceCollectionExtensions
 
     private static string GetConnectionString(IConfiguration configuration)
     {
-        // Support Neon DATABASE_URL format
+        // First check for explicit connection string (takes priority)
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (!string.IsNullOrEmpty(connectionString))
+        {
+            return connectionString;
+        }
+
+        // Support DATABASE_URL format (URI style)
         var databaseUrl = configuration["DATABASE_URL"];
         if (!string.IsNullOrEmpty(databaseUrl))
         {
-            return ConvertNeonUrlToConnectionString(databaseUrl);
+            // Check if it's a URI format (starts with postgres:// or postgresql://)
+            if (databaseUrl.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+                databaseUrl.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+            {
+                return ConvertNeonUrlToConnectionString(databaseUrl);
+            }
+            // Otherwise assume it's already a connection string format
+            return databaseUrl;
         }
 
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
-        if (string.IsNullOrEmpty(connectionString))
-        {
-            throw new InvalidOperationException(
-                "Database connection string not found. Set DATABASE_URL or ConnectionStrings:DefaultConnection");
-        }
-
-        return connectionString;
+        throw new InvalidOperationException(
+            "Database connection string not found. Set DATABASE_URL or ConnectionStrings:DefaultConnection");
     }
 
     private static string ConvertNeonUrlToConnectionString(string databaseUrl)
