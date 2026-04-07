@@ -34,6 +34,7 @@ import { useReportsData, useReportsSummary } from '../hooks/useReportsData';
 import { listMembers } from '../services/memberApi';
 import { exportReportsToCSV } from '../lib/exportReports';
 import { fadeUp, staggerContainer, STAGGER } from '../lib/animation';
+import { toLocalDateStr } from '../types/reports';
 import type { Member } from '../types/member';
 
 // Components (Composition Pattern)
@@ -78,6 +79,15 @@ export default function Reports() {
   const navigate = useNavigate();
   const { canManageTeam } = usePermissions();
   const user = useAuthStore((state) => state.user);
+
+  // Handler for heatmap cell click - navigates to activities page
+  const handleHeatmapCellClick = (date: Date, userId?: string) => {
+    const dateStr = toLocalDateStr(date);
+    const url = userId
+      ? `/activities?date=${dateStr}&userId=${userId}`
+      : `/activities?date=${dateStr}`;
+    navigate(url);
+  };
 
   // Team members for RBAC filter
   const [members, setMembers] = useState<Member[]>([]);
@@ -449,6 +459,7 @@ export default function Reports() {
                 isLoading={isLoading}
                 title="Mapa de Atividade"
                 userId={selectedUserId}
+                onCellClick={handleHeatmapCellClick}
               />
             </motion.div>
 

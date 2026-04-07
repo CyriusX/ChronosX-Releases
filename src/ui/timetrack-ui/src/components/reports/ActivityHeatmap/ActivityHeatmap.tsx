@@ -10,7 +10,6 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
@@ -24,10 +23,10 @@ export interface ActivityHeatmapProps {
   isLoading?: boolean;
   /** Date range title */
   title?: string;
-  /** Optional user ID to pass when navigating to Activities page */
+  /** Optional user ID - passed to onCellClick callback */
   userId?: string;
-  /** Optional callback when a cell is clicked. If not provided, navigates to /activities */
-  onCellClick?: (date: Date) => void;
+  /** Callback when a cell is clicked. Receives date and userId for navigation. */
+  onCellClick?: (date: Date, userId?: string) => void;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -66,7 +65,6 @@ export function ActivityHeatmap({
   userId,
   onCellClick,
 }: ActivityHeatmapProps) {
-  const navigate = useNavigate();
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
 
@@ -122,18 +120,10 @@ export function ActivityHeatmap({
   }, [currentYear, daysMap]);
 
   const handleCellClick = useCallback((date: Date) => {
-    // If custom handler provided, use it
     if (onCellClick) {
-      onCellClick(date);
-      return;
+      onCellClick(date, userId);
     }
-    // Otherwise, navigate to activities page with date
-    const dateStr = toLocalDateStr(date);
-    const url = userId
-      ? `/activities?date=${dateStr}&userId=${userId}`
-      : `/activities?date=${dateStr}`;
-    navigate(url);
-  }, [navigate, userId, onCellClick]);
+  }, [onCellClick, userId]);
 
   const handleCellHover = useCallback((date: Date, dayData: DailySummaryDayItem | undefined, e: React.MouseEvent) => {
     setTooltip({

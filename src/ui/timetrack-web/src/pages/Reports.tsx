@@ -4,7 +4,8 @@
  * Same as desktop but always API-based and member selector always visible.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Calendar,
@@ -59,6 +60,7 @@ function formatDuration(seconds: number): string {
 }
 
 export default function Reports() {
+  const navigate = useNavigate();
   const [members, setMembers] = useState<Member[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
@@ -138,6 +140,15 @@ export default function Reports() {
       userName: getSelectedUserName(),
     });
   };
+
+  // Handler for heatmap cell click - navigates to activities page
+  const handleHeatmapCellClick = useCallback((date: Date, userId?: string) => {
+    const dateStr = date.toISOString().split('T')[0];
+    const url = userId && userId !== 'all'
+      ? `/activities?date=${dateStr}&userId=${userId}`
+      : `/activities?date=${dateStr}`;
+    navigate(url);
+  }, [navigate]);
 
   return (
     <div className="flex h-screen bg-[#0b0d14]">
@@ -319,8 +330,13 @@ export default function Reports() {
 
             {/* Heatmap */}
             <motion.div variants={fadeUp} initial="hidden" animate="visible">
-              <ActivityHeatmap days={data.dailySummaryRange?.days ?? []} isLoading={isLoading}
-                title="Mapa de Atividade" userId={selectedUserId} />
+              <ActivityHeatmap
+                days={data.dailySummaryRange?.days ?? []}
+                isLoading={isLoading}
+                title="Mapa de Atividade"
+                userId={selectedUserId}
+                onCellClick={handleHeatmapCellClick}
+              />
             </motion.div>
 
             {/* Productivity Trend */}
