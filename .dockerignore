@@ -1,0 +1,49 @@
+# Dependencies
+**/node_modules/
+**/bin/
+**/obj/
+
+# Build outputs
+**/dist/
+**/build/
+**/.vite/
+
+# IDE
+**/.vs/
+**/.vscode/
+**/.idea/
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+*.md
+docs/
+
+# Tests
+**/tests/
+**/*.Tests/
+**/__tests__/
+**/*.test.ts
+**/*.spec.ts
+
+# Misc
+*.log
+*.env.local
+*.env.development
+.env
+!.env.example
+
+# Installer (desktop only)
+installer/
+
+# Temp files
+temp_check/
+*.tmp
+*.temp

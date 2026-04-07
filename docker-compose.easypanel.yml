@@ -1,0 +1,68 @@
+# Docker Compose for EasyPanel deployment
+# This file can be used with EasyPanel's "Docker Compose" template
+#
+# Alternative: Create separate "App" resources in EasyPanel for more control
+
+services:
+  # PostgreSQL Database
+  # Note: In EasyPanel, prefer using the built-in Database resource
+  # This is here for reference if using Docker Compose template
+  postgres:
+    image: postgres:16-alpine
+    container_name: timetrack-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-timetrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      POSTGRES_DB: ${POSTGRES_DB:-timetrack}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-timetrack}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # .NET API Backend
+  api:
+    build:
+      context: .
+      dockerfile: ops/docker/Dockerfile.api
+    container_name: timetrack-api
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=${POSTGRES_DB:-timetrack};Username=${POSTGRES_USER:-timetrack};Password=${POSTGRES_PASSWORD}
+      - Jwt__Secret=${JWT_SECRET:?JWT_SECRET required}
+      - Jwt__Issuer=${JWT_ISSUER:-TimeTrack}
+      - Jwt__Audience=${JWT_AUDIENCE:-TimeTrack.Api}
+      - Jwt__AccessTokenExpiryMinutes=${JWT_ACCESS_TOKEN_EXPI_MINUTES:-60}
+      - Jwt__RefreshTokenExpiryDays=${JWT_REFRESH_TOKEN_EXPI_DAYS:-90}
+      - Resend__ApiKey=${RESEND_API_KEY:-}
+      - Email__From=${EMAIL_FROM:-noreply@yourdomain.com}
+      - Email__FromName=${EMAIL_FROM_NAME:-TimeTrack}
+      - Frontend__BaseUrl=${FRONTEND_URL:?FRONTEND_URL required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # React Web Frontend
+  web:
+    build:
+      context: .
+      dockerfile: ops/docker/Dockerfile.web
+      args:
+        VITE_API_URL: ${VITE_API_URL:?VITE_API_URL required}
+    container_name: timetrack-web
+    restart: unless-stopped
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
