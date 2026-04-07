@@ -114,13 +114,13 @@ public sealed class UpdateWorker : BackgroundService
         }
     }
 
-    private void OnUpdateProgressChanged(object? sender, Contracts.Updates.UpdateProgress progress)
+    private void OnUpdateProgressChanged(object? sender, UpdateProgress progress)
     {
         // Broadcast progress to connected clients
         _ = _eventBroadcaster.BroadcastUpdateProgressAsync(progress);
     }
 
-    private void OnUpdateAvailable(object? sender, Contracts.Updates.UpdateCheckResponse update)
+    private void OnUpdateAvailable(object? sender, UpdateCheckResponse update)
     {
         _logger.LogInformation("Update available event: {Version}", update.LatestVersion);
     }

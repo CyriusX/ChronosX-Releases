@@ -41,11 +41,6 @@ public sealed class UpdateSettings
     public int DownloadTimeoutMinutes { get; set; } = 30;
 
     /// <summary>
-    /// Whether to verify Authenticode signatures
-    /// </summary>
-    public bool VerifySignature { get; set; } = true;
-
-    /// <summary>
     /// How many days to keep backup files
     /// </summary>
     public int BackupRetentionDays { get; set; } = 7;

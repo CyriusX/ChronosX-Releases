@@ -25,5 +25,15 @@ public enum NotificationKind
     /// <summary>
     /// Notificação genérica do sistema
     /// </summary>
-    Generic
+    Generic,
+
+    /// <summary>
+    /// Notificação de sistema (updates, alertas)
+    /// </summary>
+    System,
+
+    /// <summary>
+    /// Notificação de erro
+    /// </summary>
+    Error
 }

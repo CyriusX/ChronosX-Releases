@@ -203,7 +203,7 @@ public static class ServiceCollectionExtensions
             ?? new UpdateSettings();
 
         // HTTP Client for updates
-        services.AddHttpClient<IUpdateHttpClient, UpdateHttpClient>(client =>
+        services.AddHttpClient<UpdateHttpClient>(client =>
         {
             var uri = new Uri(updateSettings.UpdateUrl);
             var baseUrl = $"{uri.Scheme}://{uri.Host}";

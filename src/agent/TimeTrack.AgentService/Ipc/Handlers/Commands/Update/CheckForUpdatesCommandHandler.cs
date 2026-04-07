@@ -33,7 +33,7 @@ public sealed class CheckForUpdatesCommandHandler : IpcHandlerBase, IIpcCommandH
                 _logger.LogWarning("Update already in progress");
                 return SuccessResponse(request.RequestId, new
                 {
-                    checked = false,
+                    @checked = false,
                     reason = "update_in_progress",
                     currentProgress = _updateService.CurrentProgress
                 });
@@ -46,7 +46,7 @@ public sealed class CheckForUpdatesCommandHandler : IpcHandlerBase, IIpcCommandH
                 _logger.LogWarning("Update check returned null");
                 return SuccessResponse(request.RequestId, new
                 {
-                    checked = true,
+                    @checked = true,
                     hasUpdate = false,
                     error = "Failed to check for updates"
                 });
@@ -59,7 +59,7 @@ public sealed class CheckForUpdatesCommandHandler : IpcHandlerBase, IIpcCommandH
 
             return SuccessResponse(request.RequestId, new
             {
-                checked = true,
+                @checked = true,
                 hasUpdate = result.HasUpdate,
                 currentVersion = result.CurrentVersion,
                 latestVersion = result.LatestVersion,
