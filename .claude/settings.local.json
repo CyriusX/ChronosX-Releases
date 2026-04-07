@@ -450,17 +450,9 @@
       "Bash(cmd /c \"taskkill /F /IM dotnet.exe /T\")",
       "Bash(powershell -Command \"Get-Process node,dotnet -ErrorAction SilentlyContinue | Stop-Process -Force; Write-Host ''Done''\")",
       "Bash(powershell -Command \"Start-Process ''http://localhost:5173''\")",
-      "Bash(grep -E \"\\\\.\\(bat|ps1|sh|yaml|yml\\)$|scripts|tools\")",
-      "Bash(timeout 60)",
-      "Read(//c/Program Files \\(x86\\)/Inno Setup 6/**)",
-      "Read(//c/Program Files/Inno Setup 6/**)",
-      "Bash(choco --version)",
-      "Bash(choco install:*)",
-      "Bash(powershell:*)",
-      "Bash(winget list:*)",
-      "Bash(where.exe ISCC)",
-      "Bash(C:/Users/Usuario/AppData/Local/Temp/innosetup-6.exe:*)",
-      "Bash(sc query:*)"
+      "Bash(grep -r \"string.Format\\\\|StringBuilder\\\\|\\\\$\\\\\".*SELECT\\\\|CONCAT\\\\|string interpolation\" /c/Users/jr_ju/Repo/Cyrius/TimeTracking/src/backend/TimeTrack.Backend.Infrastructure/Repositories --include=\"*.cs\" -n)",
+      "Bash(grep -E \"\\\\.cs$\")",
+      "Bash(git merge:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
