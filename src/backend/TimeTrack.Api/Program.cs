@@ -188,8 +188,13 @@ try
     // Full health check - includes database (for Docker HEALTHCHECK)
     app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
     {
-        // Return 200 even if some checks fail (container stays running, but we can see degraded status)
-        ResultStatusCodes = Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResultStatusCodes.Unhealthy,
+        // Return 200 even if unhealthy (container stays running, logs show degraded status)
+        ResultStatusCodes =
+        {
+            [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy] = 200,
+            [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded] = 200,
+            [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy] = 200
+        }
         ResponseWriter = async (context, report) =>
         {
             context.Response.ContentType = "application/json";
