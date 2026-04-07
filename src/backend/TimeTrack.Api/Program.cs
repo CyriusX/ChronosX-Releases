@@ -65,7 +65,14 @@ try
         options.AddDefaultPolicy(policy =>
         {
             var frontendUrl = builder.Configuration["Frontend:BaseUrl"] ?? "http://localhost:5173";
-            policy.WithOrigins(frontendUrl, "http://localhost:5174", "http://localhost:3000", "https://app.local")
+            policy.WithOrigins(
+                    frontendUrl,
+                    "http://localhost:5173",
+                    "http://localhost:5174",
+                    "http://localhost:3000",
+                    "https://app.local",
+                    "https://chronosx-timetrack-web.gpoda0.easypanel.host"
+                )
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials();
