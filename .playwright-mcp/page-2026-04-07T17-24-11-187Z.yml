@@ -1,0 +1,145 @@
+- generic [ref=e2]:
+  - region "Skip to main content":
+    - link "Skip to main content" [ref=e3] [cursor=pointer]:
+      - /url: "#__docusaurus_skipToContent_fallback"
+  - navigation "Main" [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - link "Easypanel Logo" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img "Easypanel Logo" [ref=e9]
+        - link "Docs" [ref=e10] [cursor=pointer]:
+          - /url: /docs
+        - link "Templates" [ref=e11] [cursor=pointer]:
+          - /url: /templates
+        - link "Pricing" [ref=e12] [cursor=pointer]:
+          - /url: /pricing
+        - link "Blog" [ref=e13] [cursor=pointer]:
+          - /url: /blog
+        - link "Demo" [ref=e14] [cursor=pointer]:
+          - /url: https://demo.easypanel.io
+      - generic [ref=e15]:
+        - link "Dockerizer" [ref=e16] [cursor=pointer]:
+          - /url: https://easypanel.io/dockerizer
+        - button "Search" [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]:
+            - img [ref=e20]
+            - generic [ref=e22]: Search
+          - generic [ref=e23]:
+            - img [ref=e25]
+            - generic [ref=e27]: K
+  - main [ref=e29]:
+    - generic [ref=e31]:
+      - heading "Page Not Found" [level=1] [ref=e32]
+      - paragraph [ref=e33]: We could not find what you were looking for.
+      - paragraph [ref=e34]: Please contact the owner of the site that linked you to the original URL and let them know their link is broken.
+  - generic [ref=e36]:
+    - generic [ref=e37]:
+      - heading "Subscribe for product updates" [level=2] [ref=e38]
+      - generic [ref=e39]:
+        - text: By subscribing, you agree with our
+        - link "Terms" [ref=e40] [cursor=pointer]:
+          - /url: /terms
+        - text: and
+        - link "Privacy Policy" [ref=e41] [cursor=pointer]:
+          - /url: /privacy
+        - text: .
+    - generic [ref=e42]:
+      - textbox "Email address" [ref=e43] [cursor=pointer]
+      - button "Subscribe" [ref=e44] [cursor=pointer]
+  - contentinfo [ref=e45]:
+    - generic [ref=e46]:
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - generic [ref=e49]: Docs
+          - list [ref=e50]:
+            - listitem [ref=e51]:
+              - link "Get Started" [ref=e52] [cursor=pointer]:
+                - /url: /docs
+            - listitem [ref=e53]:
+              - link "Services" [ref=e54] [cursor=pointer]:
+                - /url: /docs/services
+            - listitem [ref=e55]:
+              - link "Builders" [ref=e56] [cursor=pointer]:
+                - /url: /docs/builders
+        - generic [ref=e57]:
+          - generic [ref=e58]: Templates
+          - list [ref=e59]:
+            - listitem [ref=e60]:
+              - link "Wordpress" [ref=e61] [cursor=pointer]:
+                - /url: /docs/templates/wordpress
+            - listitem [ref=e62]:
+              - link "Strapi" [ref=e63] [cursor=pointer]:
+                - /url: /docs/templates/strapi
+            - listitem [ref=e64]:
+              - link "Directus" [ref=e65] [cursor=pointer]:
+                - /url: /docs/templates/directus
+            - listitem [ref=e66]:
+              - link "Appsmith" [ref=e67] [cursor=pointer]:
+                - /url: /docs/templates/appsmith
+            - listitem [ref=e68]:
+              - link "More..." [ref=e69] [cursor=pointer]:
+                - /url: /templates
+        - generic [ref=e70]:
+          - generic [ref=e71]: Community
+          - list [ref=e72]:
+            - listitem [ref=e73]:
+              - link "Discord" [ref=e74] [cursor=pointer]:
+                - /url: https://discord.gg/9bcDSXcZQ7
+                - text: Discord
+                - img [ref=e75]
+            - listitem [ref=e77]:
+              - link "Twitter" [ref=e78] [cursor=pointer]:
+                - /url: https://twitter.com/easypanel_io
+                - text: Twitter
+                - img [ref=e79]
+            - listitem [ref=e81]:
+              - link "Feedback" [ref=e82] [cursor=pointer]:
+                - /url: https://my.easypanel.io/feedback
+                - text: Feedback
+                - img [ref=e83]
+        - generic [ref=e85]:
+          - generic [ref=e86]: More
+          - list [ref=e87]:
+            - listitem [ref=e88]:
+              - link "Blog" [ref=e89] [cursor=pointer]:
+                - /url: /blog
+            - listitem [ref=e90]:
+              - link "Changelog" [ref=e91] [cursor=pointer]:
+                - /url: https://my.easypanel.io/changelog
+                - text: Changelog
+                - img [ref=e92]
+            - listitem [ref=e94]:
+              - link "GitHub" [ref=e95] [cursor=pointer]:
+                - /url: https://github.com/easypanel-io
+                - text: GitHub
+                - img [ref=e96]
+            - listitem [ref=e98]:
+              - link "Branding" [ref=e99] [cursor=pointer]:
+                - /url: https://easypanel.io/brand
+                - text: Branding
+                - img [ref=e100]
+            - listitem [ref=e102]:
+              - link "Dockerizer" [ref=e103] [cursor=pointer]:
+                - /url: https://easypanel.io/dockerizer
+                - text: Dockerizer
+                - img [ref=e104]
+            - listitem [ref=e106]:
+              - link "Hub" [ref=e107] [cursor=pointer]:
+                - /url: https://hub.easypanel.io
+                - text: Hub
+                - img [ref=e108]
+        - generic [ref=e110]:
+          - generic [ref=e111]: Legal
+          - list [ref=e112]:
+            - listitem [ref=e113]:
+              - link "Terms Of Service" [ref=e114] [cursor=pointer]:
+                - /url: https://easypanel.io/terms
+                - text: Terms Of Service
+                - img [ref=e115]
+            - listitem [ref=e117]:
+              - link "Privacy Policy" [ref=e118] [cursor=pointer]:
+                - /url: https://easypanel.io/privacy
+                - text: Privacy Policy
+                - img [ref=e119]
+      - generic [ref=e122]: Copyright © 2026 Easypanel.

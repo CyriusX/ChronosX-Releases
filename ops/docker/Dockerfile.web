@@ -33,10 +33,15 @@ RUN apk add --no-cache curl
 # Copy custom nginx config
 COPY ops/nginx/ui-nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built files from builder
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy runtime config template
+COPY ops/docker/config.tmpl /usr/share/nginx/html/config.js
 
-# Copy runtime config loader
+# Health check using curl
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:80/ || exit 1
+
+# Start nginx with config generation
+CMD ["/bin/sh", "-c", "cp /docker-entrypoint.d/30-config-loader.js /usr/share/nginx/html/config.js && nginx -g 'daemon off;"]# Copy runtime config loader
 COPY src/ui/timetrack-web/public/config-loader.js /docker-entrypoint.d/30-config-loader.js
 
 # Expose port 80
