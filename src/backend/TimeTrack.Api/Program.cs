@@ -3,6 +3,7 @@ using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
@@ -191,9 +192,9 @@ try
         // Return 200 even if unhealthy (container stays running, logs show degraded status)
         ResultStatusCodes =
         {
-            [(HealthStatus)0] = 200,
-            [(HealthStatus)1] = 200,
-            [(HealthStatus)2] = 200
+            [HealthStatus.Unhealthy] = 200,
+            [HealthStatus.Degraded] = 200,
+            [HealthStatus.Healthy] = 200
         },
         ResponseWriter = async (context, report) =>
         {
