@@ -10,25 +10,12 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useNavigationType } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { toLocalDateStr } from '../../../types/reports';
 import type { DailySummaryDayItem } from '../../../types/reports';
-
-/**
- * Safe navigation hook that returns null if not within a Router context
- */
-function useSafeNavigate() {
-  try {
-    // This will throw if not within Router context
-    useNavigationType();
-    return useNavigate();
-  } catch {
-    return null;
-  }
-}
 
 export interface ActivityHeatmapProps {
   /** Daily summary data */
@@ -79,7 +66,7 @@ export function ActivityHeatmap({
   userId,
   onCellClick,
 }: ActivityHeatmapProps) {
-  const navigate = useSafeNavigate();
+  const navigate = useNavigate();
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
 
@@ -140,14 +127,12 @@ export function ActivityHeatmap({
       onCellClick(date);
       return;
     }
-    // Otherwise, navigate if router is available
-    if (navigate) {
-      const dateStr = toLocalDateStr(date);
-      const url = userId
-        ? `/activities?date=${dateStr}&userId=${userId}`
-        : `/activities?date=${dateStr}`;
-      navigate(url);
-    }
+    // Otherwise, navigate to activities page with date
+    const dateStr = toLocalDateStr(date);
+    const url = userId
+      ? `/activities?date=${dateStr}&userId=${userId}`
+      : `/activities?date=${dateStr}`;
+    navigate(url);
   }, [navigate, userId, onCellClick]);
 
   const handleCellHover = useCallback((date: Date, dayData: DailySummaryDayItem | undefined, e: React.MouseEvent) => {
