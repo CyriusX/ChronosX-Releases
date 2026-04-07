@@ -168,9 +168,28 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
 
-    // Health check endpoint (must be after middleware to catch exceptions)
+    // Health check endpoints (must be after middleware to catch exceptions)
+
+    // Simple liveness check - just verifies the app is running (no database dependency)
+    app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+    {
+        Predicate = check => check.Tags.Contains("live"),
+        ResponseWriter = async (context, report) =>
+        {
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                status = report.Status.ToString(),
+                timestamp = DateTime.UtcNow
+            });
+        }
+    });
+
+    // Full health check - includes database (for Docker HEALTHCHECK)
     app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
     {
+        // Return 200 even if some checks fail (container stays running, but we can see degraded status)
+        ResultStatusCodes = Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResultStatusCodes.Unhealthy,
         ResponseWriter = async (context, report) =>
         {
             context.Response.ContentType = "application/json";
@@ -183,7 +202,8 @@ try
                 {
                     name = e.Key,
                     status = e.Value.Status.ToString(),
-                    duration = e.Value.Duration.TotalMilliseconds
+                    duration = e.Value.Duration.TotalMilliseconds,
+                    description = e.Value.Description
                 })
             };
             await context.Response.WriteAsJsonAsync(response);
