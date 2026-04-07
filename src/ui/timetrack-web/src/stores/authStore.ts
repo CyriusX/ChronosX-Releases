@@ -52,17 +52,17 @@ interface AuthState {
 // API HELPERS
 // ============================================================================
 
-// Get API URL from runtime config (injected by nginx at container startup)
-declare global {
-  interface AppConfig {
-    VITE_API_URL: string;
+// Get API URL from runtime config (injected by config.js at container startup)
+const getApiBaseUrl = (): string => {
+  // Check for runtime config (injected by config.js)
+  if (typeof window !== 'undefined' && window.__APP_CONFIG__?.VITE_API_URL) {
+    return window.__APP_CONFIG__.VITE_API_URL;
   }
-}
+  // Fallback to build-time env var (for development)
+  return import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+};
 
-  const config: AppConfig | undefined;
-}
-
-const API_BASE = config?.VITE_API_URL || 'http://localhost:5000/api/v1';
+const API_BASE = getApiBaseUrl();
 
 async function loginApi(email: string, password: string) {
   const response = await fetch(`${API_BASE}/auth/login`, {
