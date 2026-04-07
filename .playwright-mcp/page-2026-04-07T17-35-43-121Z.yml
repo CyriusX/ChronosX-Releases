@@ -1,0 +1,1 @@
+- generic [ref=e2]: "{\"status\":\"Healthy\",\"version\":\"1.0.0\",\"timestamp\":\"2026-04-07T17:35:53.3725661Z\",\"checks\":[{\"name\":\"self\",\"status\":\"Healthy\",\"duration\":0.0134,\"description\":\"OK\"},{\"name\":\"database\",\"status\":\"Healthy\",\"duration\":1.5248,\"description\":null}]}"
