@@ -52,7 +52,17 @@ interface AuthState {
 // API HELPERS
 // ============================================================================
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+// Get API URL from runtime config (injected by nginx at container startup)
+declare global {
+  interface AppConfig {
+    VITE_API_URL: string;
+  }
+}
+
+  const config: AppConfig | undefined;
+}
+
+const API_BASE = config?.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 async function loginApi(email: string, password: string) {
   const response = await fetch(`${API_BASE}/auth/login`, {
