@@ -155,6 +155,13 @@ try
     // CORS - Allow frontend to communicate with API
     app.UseCors();
 
+    // Serilog request logging - capture all requests and their outcomes
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.EnrichDiagnosticContext = true;
+        options.MessageTemplate = "HTTP {RequestMethod} {Path} responded {StatusCode} in {Elapsed:0.000} ms";
+    });
+
     // Security headers (must be early in pipeline)
     app.UseMiddleware<SecurityHeadersMiddleware>();
 
@@ -198,21 +205,40 @@ try
         },
         ResponseWriter = async (context, report) =>
         {
-            context.Response.ContentType = "application/json";
-            var response = new
+            try
             {
-                status = report.Status.ToString(),
-                version = "1.0.0",
-                timestamp = DateTime.UtcNow,
-                checks = report.Entries.Select(e => new
+                context.Response.ContentType = "application/json";
+
+                // Safely handle potential null entries
+                var checks = report.Entries?.Select(e => new
                 {
-                    name = e.Key,
-                    status = e.Value.Status.ToString(),
-                    duration = e.Value.Duration.TotalMilliseconds,
-                    description = e.Value.Description
-                })
-            };
-            await context.Response.WriteAsJsonAsync(response);
+                    name = e.Key ?? "unknown",
+                    status = e.Value?.Status.ToString() ?? "Unknown",
+                    duration = e.Value?.Duration.TotalMilliseconds ?? 0,
+                    description = e.Value?.Description ?? e.Value?.Exception?.Message
+                }).ToArray() ?? Array.Empty<object>();
+
+                var response = new
+                {
+                    status = report.Status.ToString(),
+                    version = "1.0.0",
+                    timestamp = DateTime.UtcNow,
+                    checks
+                };
+
+                await context.Response.WriteAsJsonAsync(response);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Health check response writer failed");
+                context.Response.StatusCode = 500;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    status = "Error",
+                    error = ex.Message,
+                    timestamp = DateTime.UtcNow
+                });
+            }
         }
     });
 
