@@ -3,16 +3,19 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY src/ui/timetrack-web/package*.json ./
+# Copy package files for both projects
 COPY src/ui/timetrack-ui/package*.json ../timetrack-ui/
+COPY src/ui/timetrack-web/package*.json ./
+
+# Install dependencies for timetrack-ui first (shared components)
+RUN cd ../timetrack-ui && npm ci
 
 # Install dependencies for web
 RUN npm ci
 
 # Copy source code
-COPY src/ui/timetrack-web/ ./
 COPY src/ui/timetrack-ui/ ../timetrack-ui/
+COPY src/ui/timetrack-web/ ./
 
 # Build argument for API URL
 ARG VITE_API_URL
