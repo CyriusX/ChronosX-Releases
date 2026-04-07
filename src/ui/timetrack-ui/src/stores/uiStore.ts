@@ -32,12 +32,12 @@ export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
       theme: 'dark',
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme: Theme) => set({ theme }),
 
       notifications: [],
-      addNotification: (notification) => {
+      addNotification: (notification: Omit<Notification, 'id'>) => {
         const id = `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        set((state) => ({
+        set((state: UiState) => ({
           notifications: [
             ...state.notifications,
             { ...notification, id },
@@ -48,25 +48,25 @@ export const useUiStore = create<UiState>()(
         const duration = notification.duration ?? 5000;
         if (duration > 0) {
           setTimeout(() => {
-            set((state) => ({
-              notifications: state.notifications.filter((n) => n.id !== id),
+            set((state: UiState) => ({
+              notifications: state.notifications.filter((n: Notification) => n.id !== id),
             }));
           }, duration);
         }
       },
-      removeNotification: (id) =>
-        set((state) => ({
-          notifications: state.notifications.filter((n) => n.id !== id),
+      removeNotification: (id: string) =>
+        set((state: UiState) => ({
+          notifications: state.notifications.filter((n: Notification) => n.id !== id),
         })),
       clearNotifications: () => set({ notifications: [] }),
 
       activeModal: null,
-      openModal: (modalId) => set({ activeModal: modalId }),
+      openModal: (modalId: string) => set({ activeModal: modalId }),
       closeModal: () => set({ activeModal: null }),
     }),
     {
       name: 'timetrack-ui-storage',
-      partialize: (state) => ({ theme: state.theme }),
+      partialize: (state: UiState) => ({ theme: state.theme }),
     }
   )
 );
