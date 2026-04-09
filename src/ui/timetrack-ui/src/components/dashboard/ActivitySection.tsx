@@ -13,6 +13,8 @@ import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-rea
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { useIpc } from '../../hooks/useIpc';
 import { useTrackingStore } from '../../stores/trackingStore';
+import { getDailyActivities } from '../../services/reportApi';
+import { useHiddenAppsStore } from '../../stores/hiddenAppsStore';
 import { cardBase } from './shared/styles';
 
 interface TabDetail {
@@ -165,6 +167,50 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     _persistedGap = gap;
   }, [isControlled, isViewingToday, isActive, localGap, activities]);
 
+  const hiddenApps = useHiddenAppsStore(s => s.hiddenApps);
+
+  // ── Fast path: REST API fetch on mount (no IPC dependency) ──────────────────
+  // Fires immediately without waiting for the named pipe connection.
+  // Converts backend session DTOs to the same ActivityBlock shape IPC returns.
+  useEffect(() => {
+    if (isControlled) return;
+    const today = new Date().toISOString().split('T')[0];
+    getDailyActivities(today).then(result => {
+      if (!result?.sessions?.length) return;
+      const hiddenSet = new Set(hiddenApps.map(a => a.toLowerCase()));
+      const APP_PALETTE = [
+        '#38bdf8','#f472b6','#34d399','#fb923c','#a78bfa',
+        '#fbbf24','#22d3ee','#f87171','#4ade80','#e879f9',
+      ];
+      const colorMap = new Map<string, string>();
+      let ci = 0;
+      const blocks: ActivityBlock[] = [];
+      for (const s of result.sessions) {
+        if (hiddenSet.has(s.processName.toLowerCase())) continue;
+        if (!colorMap.has(s.processName)) {
+          colorMap.set(s.processName, APP_PALETTE[ci % APP_PALETTE.length]);
+          ci++;
+        }
+        blocks.push({
+          id: `${s.processName}-${s.startedAt}`,
+          name: s.processName,
+          startUtc: s.startedAt,
+          endUtc: s.endedAt,
+          duration: s.durationSeconds,
+          productivity: s.appCategory ?? 'neutral',
+          subcategory: s.appCategory ?? 'unknown',
+          color: colorMap.get(s.processName) ?? '#94a3b8',
+        });
+      }
+      setInternalActivities(blocks);
+    }).catch(() => { /* ignore — IPC will fill in once connected */ });
+  // Only run once on mount; IPC polling below keeps it fresh
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isControlled]);
+
+  // ── Real-time path: IPC poll (once connected) ────────────────────────────────
+  // The agent reads from local SQLite (most up-to-date, includes in-flight session).
+  // Replaces REST data as soon as the named pipe is ready.
   const fetchActivities = useCallback(async () => {
     if (isControlled) return;
     try {
@@ -185,22 +231,30 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
 
   // Build display blocks — extends or injects a live "Tracking Stopped" block when paused
   const blocks = useMemo(() => {
+    // Find the most recent "Tracking Stopped" start time so we only ever stretch
+    // the current placeholder (not historical short pauses from the same day).
+    const latestStoppedStart = activities.reduce((max, a) => {
+      if (a.name !== TRACKING_STOPPED_NAME) return max;
+      const t = new Date(a.startUtc).getTime();
+      return t > max ? t : max;
+    }, 0);
+
     const processed = activities.map(a => {
       const s = new Date(a.startUtc).getTime();
       let e = new Date(a.endUtc).getTime();
       let dur = a.duration;
       let color = a.color;
 
-      if (a.name === TRACKING_STOPPED_NAME && isViewingToday) {
-        const rawDurationMs = e - s;
-        // The backend saves a 1-second placeholder on pause. While it hasn't
-        // been extended yet (raw duration < 10s), stretch it to "now" so the
-        // block fills the gap in real-time. Once the backend returns the
-        // properly extended session (after resume + poll), the raw duration
-        // will be >> 10s and we show the final stored value instead.
-        if (rawDurationMs < 10000) {
-          e = now;
-          dur = Math.floor((e - s) / 1000);
+      if (a.name === TRACKING_STOPPED_NAME) {
+        if (isViewingToday && isTracking && isPaused && s === latestStoppedStart) {
+          // Only stretch the most recent placeholder while the user is currently paused.
+          // Historical short pauses (e.g. a 2-second pause from earlier) must NOT be
+          // stretched — they are finalized records, not live placeholders.
+          const rawDurationMs = e - s;
+          if (rawDurationMs < 10000) {
+            e = now;
+            dur = Math.floor((e - s) / 1000);
+          }
         }
         color = TRACKING_STOPPED_COLOR;
       }

@@ -1,10 +1,7 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Application.UseCases.TrackingControl;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
-using TimeTrack.Agent.Domain.Entities;
-using TimeTrack.Agent.Domain.Services;
 using TimeTrack.AgentService.Ipc.Handlers;
 
 namespace TimeTrack.AgentService.Ipc.Handlers.Commands.Tracking;
@@ -20,33 +17,22 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
 
     private readonly TrackingControlUseCase _trackingControl;
     private readonly IActivitySessionRepository _sessionRepository;
-    private readonly IOutboxRepository _outboxRepository;
     private readonly ICurrentUserContext _userContext;
-    private readonly IIdempotencyKeyGenerator _idempotencyKeyGenerator;
     private readonly IIpcServer _ipcServer;
     private readonly IAgentEventLogger _eventLogger;
     private readonly ILogger<StartTrackingCommandHandler> _logger;
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
     public StartTrackingCommandHandler(
         TrackingControlUseCase trackingControl,
         IActivitySessionRepository sessionRepository,
-        IOutboxRepository outboxRepository,
         ICurrentUserContext userContext,
-        IIdempotencyKeyGenerator idempotencyKeyGenerator,
         IIpcServer ipcServer,
         IAgentEventLogger eventLogger,
         ILogger<StartTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
         _sessionRepository = sessionRepository;
-        _outboxRepository = outboxRepository;
         _userContext = userContext;
-        _idempotencyKeyGenerator = idempotencyKeyGenerator;
         _ipcServer = ipcServer;
         _eventLogger = eventLogger;
         _logger = logger;
@@ -124,32 +110,9 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
             // Extend the session to cover the full gap (pause time → now)
             mostRecent.Extend(now);
 
-            // Update the session locally
+            // UpdateAsync saves the new end_utc locally AND creates/updates the outbox
+            // item so the extended session syncs to the backend on the next sync cycle.
             await _sessionRepository.UpdateAsync(mostRecent, ct);
-
-            // Create outbox item with the final duration so it syncs to the backend
-            var payloadJson = JsonSerializer.Serialize(new
-            {
-                id = mostRecent.Id,
-                exePathHash = mostRecent.App.ExePathHash,
-                displayName = mostRecent.App.DisplayName,
-                categoryProductivity = mostRecent.App.Category.Productivity,
-                categorySubcategory = mostRecent.App.Category.Subcategory,
-                categorySource = mostRecent.App.Category.Source,
-                startUtc = mostRecent.Period.StartUtc,
-                endUtc = mostRecent.Period.EndUtc,
-                windowHash = mostRecent.WindowHash,
-                windowTitle = mostRecent.WindowTitle,
-                filePath = mostRecent.FilePath
-            }, JsonOptions);
-
-            var idempotencyKey = _idempotencyKeyGenerator.Generate(
-                "activity_session", mostRecent.Id, mostRecent.Period.StartUtc);
-
-            var outboxItem = OutboxItem.Create(
-                "activity_session", mostRecent.Id, payloadJson, idempotencyKey);
-
-            await _outboxRepository.AddAsync(outboxItem, ct);
 
             _logger.LogInformation(
                 "Extended 'Tracking Stopped' session {SessionId} from {Start} to {End} ({Duration})",

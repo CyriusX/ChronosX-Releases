@@ -44,10 +44,11 @@ begin
 
   Log('CleanupPreviousInstallation: starting');
 
-  // 1. Stop the scheduled task (new architecture)
+  // 1. Stop the scheduled tasks (new architecture)
   RunHidden(Sys + '\WindowsPowerShell\v1.0\powershell.exe',
     '-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' +
-    '"Stop-ScheduledTask -TaskName ''ChronosX Agent'' -ErrorAction SilentlyContinue"');
+    '"Stop-ScheduledTask -TaskName ''ChronosX Agent'' -ErrorAction SilentlyContinue; ' +
+    'Stop-ScheduledTask -TaskName ''ChronosX Desktop'' -ErrorAction SilentlyContinue"');
 
   // 2. Stop and delete the legacy Windows Service (old architecture)
   RunHidden(Sys + '\sc.exe', 'stop ChronosXAgent');
@@ -94,6 +95,39 @@ begin
   end;
 end;
 
+// ── Desktop Task registration ───────────────────────────────────────────────
+// Registers DesktopHost as a Task Scheduler task that:
+//   - Runs at user logon (interactive session)
+//   - RunLevel Highest → silently elevated, no UAC prompt
+//   - 5-second start delay so the agent pipe is ready first
+// This replaces the HKCU\Run approach which cannot silently elevate.
+procedure RegisterDesktopTask(AppDir: String);
+var
+  ExePath, WorkDir, PsCmd: String;
+  ResultCode: Integer;
+begin
+  ExePath := AppDir + '\TimeTrack.DesktopHost.exe';
+  WorkDir := AppDir;
+
+  PsCmd :=
+    '$u = $env:USERNAME;' +
+    '$a = New-ScheduledTaskAction -Execute ''' + ExePath + ''' -Argument ''--start-minimized'' -WorkingDirectory ''' + WorkDir + ''';' +
+    '$t = New-ScheduledTaskTrigger -AtLogOn -User $u;' +
+    '$t.Delay = ''PT5S'';' +
+    '$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -MultipleInstances IgnoreNew -StartWhenAvailable -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1);' +
+    '$p = New-ScheduledTaskPrincipal -UserId $u -LogonType Interactive -RunLevel Highest;' +
+    'Register-ScheduledTask -TaskName ''ChronosX Desktop'' -Action $a -Trigger $t -Settings $s -Principal $p -Force | Out-Null';
+
+  if not ShellExec('open',
+    ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "' + PsCmd + '"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    Log('WARNING: Could not register desktop task. Code: ' + IntToStr(ResultCode))
+  else
+    Log('Desktop task registered. Exit: ' + IntToStr(ResultCode));
+end;
+// ────────────────────────────────────────────────────────────────────────────
+
 // ── Agent Task registration ─────────────────────────────────────────────────
 // Registers the agent as a Task Scheduler task that:
 //   - Runs at user logon (Session 1 — the interactive desktop)
@@ -114,7 +148,7 @@ begin
     '$a = New-ScheduledTaskAction -Execute ''' + ExePath + ''' -WorkingDirectory ''' + WorkDir + ''';' +
     '$t = New-ScheduledTaskTrigger -AtLogOn -User $u;' +
     '$t.Delay = ''PT10S'';' +
-    '$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -MultipleInstances IgnoreNew -StartWhenAvailable;' +
+    '$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -MultipleInstances IgnoreNew -StartWhenAvailable -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1);' +
     '$p = New-ScheduledTaskPrincipal -UserId $u -LogonType Interactive -RunLevel Highest;' +
     'Register-ScheduledTask -TaskName ''ChronosX Agent'' -Action $a -Trigger $t -Settings $s -Principal $p -Force | Out-Null;' +
     'Start-ScheduledTask -TaskName ''ChronosX Agent''';
@@ -142,6 +176,12 @@ begin
   begin
     RegisterAgentTask(ExpandConstant('{app}'));
     Log('ssPostInstall: agent task registered.');
+
+    if ShouldAutoStartDesktop then
+    begin
+      RegisterDesktopTask(ExpandConstant('{app}'));
+      Log('ssPostInstall: desktop task registered.');
+    end;
   end;
 end;
 
@@ -154,11 +194,13 @@ begin
   begin
     Sys := ExpandConstant('{sys}');
 
-    // Stop and remove scheduled task
+    // Stop and remove scheduled tasks
     Exec(Sys + '\WindowsPowerShell\v1.0\powershell.exe',
       '-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' +
       '"Stop-ScheduledTask -TaskName ''ChronosX Agent'' -ErrorAction SilentlyContinue; ' +
-      'Unregister-ScheduledTask -TaskName ''ChronosX Agent'' -Confirm:$false -ErrorAction SilentlyContinue"',
+      'Unregister-ScheduledTask -TaskName ''ChronosX Agent'' -Confirm:$false -ErrorAction SilentlyContinue; ' +
+      'Stop-ScheduledTask -TaskName ''ChronosX Desktop'' -ErrorAction SilentlyContinue; ' +
+      'Unregister-ScheduledTask -TaskName ''ChronosX Desktop'' -Confirm:$false -ErrorAction SilentlyContinue"',
       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
     // Also clean up legacy service just in case

@@ -33,6 +33,12 @@ public sealed class TrackingWorker : BackgroundService
     private bool _isIdle = false;
     private DateTime? _idleStartedAt;
 
+    // Sleep detection: track the wall-clock time of the last completed cycle.
+    // TickCount64 freezes during sleep so Task.Delay returns immediately on wake,
+    // but the wall-clock gap between cycles will be much larger than PollingIntervalMs.
+    private DateTime _lastCycleUtc = DateTime.UtcNow;
+    private const int SleepDetectionGapMs = 30_000; // Gap > 30s = assume sleep/resume
+
     public TrackingWorker(
         ILogger<TrackingWorker> logger,
         AgentSettings settings,
@@ -230,10 +236,48 @@ public sealed class TrackingWorker : BackgroundService
         if (!state.IsActive)
         {
             _logger.LogInformation("Tracking não está ativo (Status: {Status}). Pulando ciclo.", state.Status);
+            _lastCycleUtc = DateTime.UtcNow;
             return;
         }
 
         _logger.LogDebug("Tracking ativo. Executando ciclo de captura...");
+
+        // 2a. Sleep/wake detection — runs before idle check.
+        // TickCount64 (and Task.Delay) freeze during system sleep. When the machine
+        // wakes, the next cycle fires almost immediately but the wall-clock gap since
+        // the last cycle equals the full sleep duration. Record that gap as idle time
+        // so the absence shows up in the timeline, then reset idle state so normal
+        // idle detection resumes cleanly from this point forward.
+        var cycleNow = DateTime.UtcNow;
+        var cycleGap = cycleNow - _lastCycleUtc;
+        if (cycleGap.TotalMilliseconds > SleepDetectionGapMs)
+        {
+            _logger.LogInformation(
+                "Wake from sleep/long pause detected: {Gap:g} gap since last cycle. Recording as idle period.",
+                cycleGap);
+
+            try
+            {
+                await _recordIdlePeriodUseCase.ExecuteAsync(
+                    new RecordIdlePeriodRequest
+                    {
+                        StartedAt = _lastCycleUtc,
+                        EndedAt = cycleNow,
+                        ThresholdSeconds = _settings.IdleThresholdSeconds,
+                        IsSystemDetected = true
+                    },
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to record sleep idle period");
+            }
+
+            // Reset idle state so the first cycle after wake starts clean
+            _isIdle = false;
+            _idleStartedAt = null;
+        }
+        _lastCycleUtc = cycleNow;
 
         // 2. Verificar idle (user setting overrides agent default)
         var idleTime = await _idleDetector.GetIdleTimeAsync(cancellationToken);
