@@ -58,7 +58,7 @@ public sealed class GetLocalDashboardUseCase
             return new LocalDashboardResponse
             {
                 Date = date?.Date ?? DateTime.Today,
-                TrackingStatus = "NotAuthenticated",
+                TrackingStatus = "Active",
                 TotalWorkTime = TimeSpan.Zero,
                 TotalIdleTime = TimeSpan.Zero,
                 SessionCount = 0,
