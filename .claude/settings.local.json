@@ -465,7 +465,21 @@
       "mcp__playwright__browser_type",
       "mcp__playwright__browser_close",
       "mcp__playwright__browser_console_messages",
-      "mcp__playwright__browser_network_requests"
+      "mcp__playwright__browser_network_requests",
+      "Bash(grep -E \"\\\\.\\(csproj|xml\\)$\")",
+      "Bash(where iscc:*)",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Program Files*' -Recurse -Filter 'ISCC.exe' -ErrorAction SilentlyContinue | Select-Object -First 3 -ExpandProperty FullName\")",
+      "Bash(reg query:*)",
+      "Bash(dotnet publish:*)",
+      "Bash([ ! -f \"installer/resources/MicrosoftEdgeWebview2Setup.exe\" ])",
+      "Bash(powershell -Command \"Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile 'installer/resources/MicrosoftEdgeWebview2Setup.exe' -UseBasicParsing\")",
+      "Bash(mkdir -p build/installer)",
+      "Bash(\"/c/Users/jr_ju/AppData/Local/Programs/Inno Setup 6/ISCC.exe\" \"installer/timetrack-setup.iss\")",
+      "Bash(sc query:*)",
+      "Bash(ASPNETCORE_ENVIRONMENT=Development dotnet run)",
+      "Bash(grep -o \"chronosx-timetrack-api\\\\|localhost:5000\\\\|localhost:5001\" \"c:/Users/jr_ju/Repo/Cyrius/TimeTracking/src/ui/timetrack-ui/dist/assets/\"*.js)",
+      "Bash(grep -o \"chronosx-timetrack-api\\\\|localhost:5000\" \"c:/Users/jr_ju/Repo/Cyrius/TimeTracking/src/ui/timetrack-ui/dist/assets/\"*.js)",
+      "Bash(pkill -f \"TimeTrack.DesktopHost\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",

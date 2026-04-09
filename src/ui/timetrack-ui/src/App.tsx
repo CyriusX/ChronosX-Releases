@@ -56,11 +56,6 @@ function App() {
       // Ctrl+G / Ctrl+F — find (allow for inputs)
     };
 
-    // Prevent context menu (right-click) — desktop apps don't show browser context menu
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-    };
-
     // Prevent drag-and-drop of files into the webview
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
@@ -70,12 +65,10 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('dragover', handleDragOver);
     document.addEventListener('drop', handleDrop);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('dragover', handleDragOver);
       document.removeEventListener('drop', handleDrop);
     };

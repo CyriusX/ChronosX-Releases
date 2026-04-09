@@ -4,10 +4,10 @@
 #define ProjectRoot ".."
 
 ; AgentService - Windows Service
-Source: "C:\Projetos\TimeTracking\build\publish\AgentService\TimeTrack.AgentService.exe"; DestDir: "{app}\service"; Flags: ignoreversion
-Source: "C:\Projetos\TimeTracking\build\publish\AgentService\*.dll"; DestDir: "{app}\service"; Flags: ignoreversion recursesubdirs
-Source: "C:\Projetos\TimeTracking\build\publish\AgentService\*.json"; DestDir: "{app}\service"; Flags: ignoreversion
-Source: "C:\Projetos\TimeTracking\build\publish\AgentService\createdump.exe"; DestDir: "{app}\service"; Flags: ignoreversion
+Source: "{#ProjectRoot}\build\publish\AgentService\TimeTrack.AgentService.exe"; DestDir: "{app}\service"; Flags: ignoreversion
+Source: "{#ProjectRoot}\build\publish\AgentService\*.dll"; DestDir: "{app}\service"; Flags: ignoreversion recursesubdirs
+Source: "{#ProjectRoot}\build\publish\AgentService\*.json"; DestDir: "{app}\service"; Flags: ignoreversion
+Source: "{#ProjectRoot}\build\publish\AgentService\createdump.exe"; DestDir: "{app}\service"; Flags: ignoreversion
 
 ; Language folders
 Source: "{#ProjectRoot}\build\publish\AgentService\cs\*"; DestDir: "{app}\service\cs"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
