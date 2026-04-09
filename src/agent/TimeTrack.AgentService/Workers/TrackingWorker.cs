@@ -9,6 +9,7 @@ using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Enums;
 using TimeTrack.AgentService.Configuration;
 using TimeTrack.AgentService.Extensions;
+using TimeTrack.AgentService.Ipc;
 
 namespace TimeTrack.AgentService.Workers;
 
@@ -27,6 +28,7 @@ public sealed class TrackingWorker : BackgroundService
     private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
     private readonly RecordIdlePeriodUseCase _recordIdlePeriodUseCase;
     private readonly TrackingControlUseCase _trackingControl;
+    private readonly IIpcServer _ipcServer;
 
     private bool _isIdle = false;
     private DateTime? _idleStartedAt;
@@ -41,7 +43,8 @@ public sealed class TrackingWorker : BackgroundService
         ICurrentUserContext userContext,
         RecordActiveWindowUseCase recordActiveWindowUseCase,
         RecordIdlePeriodUseCase recordIdlePeriodUseCase,
-        TrackingControlUseCase trackingControl)
+        TrackingControlUseCase trackingControl,
+        IIpcServer ipcServer)
     {
         _logger = logger;
         _settings = settings;
@@ -53,6 +56,7 @@ public sealed class TrackingWorker : BackgroundService
         _recordActiveWindowUseCase = recordActiveWindowUseCase;
         _recordIdlePeriodUseCase = recordIdlePeriodUseCase;
         _trackingControl = trackingControl;
+        _ipcServer = ipcServer;
 
         // Configura prioridade do processo
         ServiceCollectionExtensions.ConfigureProcessPriority(_settings.ProcessPriority);
@@ -176,7 +180,7 @@ public sealed class TrackingWorker : BackgroundService
             e.PreviousUserId,
             e.NewUserId);
 
-        // If a new user is authenticated, try to auto-resume tracking
+        // If a new user is authenticated, try to auto-resume tracking and notify the UI
         if (e.NewUserId.HasValue)
         {
             _ = Task.Run(async () =>
@@ -184,6 +188,18 @@ public sealed class TrackingWorker : BackgroundService
                 try
                 {
                     await EnsureTrackingActiveAsync(CancellationToken.None);
+
+                    // Broadcast to the UI so it updates immediately without waiting for
+                    // the next poll cycle. Without this, the UI stays frozen on the
+                    // "paused" state it saw before tokens were received.
+                    if (_ipcServer.IsClientConnected)
+                    {
+                        await _ipcServer.SendEventAsync(new IpcEvent
+                        {
+                            EventType = "trackingStateChanged",
+                            Payload = new { isTracking = true, isPaused = false }
+                        }, CancellationToken.None);
+                    }
                 }
                 catch (Exception ex)
                 {

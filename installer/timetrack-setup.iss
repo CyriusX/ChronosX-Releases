@@ -78,21 +78,15 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: quicklaunchicon
 
 [Run]
-; Stop and remove any previous installation of the service (upgrade-safe)
-Filename: "{win}\system32\sc.exe"; Parameters: "stop ChronosXAgent"; Flags: runhidden waituntilterminated; StatusMsg: "Stopping existing ChronosX Agent service..."
-Filename: "{win}\system32\sc.exe"; Parameters: "delete ChronosXAgent"; Flags: runhidden waituntilterminated; StatusMsg: "Removing old service registration..."
-; Install and start service after file copy
-Filename: "{win}\system32\sc.exe"; Parameters: "create ChronosXAgent binPath= ""{app}\service\TimeTrack.AgentService.exe"" start= auto DisplayName= ""ChronosX Agent"""; Flags: runhidden waituntilterminated; StatusMsg: "Installing ChronosX Agent service..."
-Filename: "{win}\system32\sc.exe"; Parameters: "description ChronosXAgent ""ChronosX time tracking background service"""; Flags: runhidden waituntilterminated; StatusMsg: "Configuring service..."
-Filename: "{win}\system32\sc.exe"; Parameters: "failure ChronosXAgent reset= 86400 actions= restart/5000/restart/5000/restart/5000"; Flags: runhidden waituntilterminated; StatusMsg: "Configuring recovery..."
-Filename: "{win}\system32\sc.exe"; Parameters: "start ChronosXAgent"; Flags: runhidden waituntilterminated; StatusMsg: "Starting ChronosX Agent service..."
 ; Launch app after install (optional)
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-; Stop and delete service during uninstall
-Filename: "{win}\system32\sc.exe"; Parameters: "stop ChronosXAgent"; flags: runhidden waituntilterminated; RunOnceId: "StopService"
-Filename: "{win}\system32\sc.exe"; Parameters: "delete ChronosXAgent"; flags: runhidden waituntilterminated; RunOnceId: "DeleteService"
+; Kill running processes so Inno Setup can delete their files
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM TimeTrack.AgentService.exe /T"; Flags: runhidden waituntilterminated; RunOnceId: "KillAgent"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM TimeTrack.DesktopHost.exe /T"; Flags: runhidden waituntilterminated; RunOnceId: "KillDesktop"
+; Remove scheduled task
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""Unregister-ScheduledTask -TaskName 'ChronosX Agent' -Confirm:$false -ErrorAction SilentlyContinue"""; Flags: runhidden waituntilterminated; RunOnceId: "DeleteTask"
 
 [Registry]
 #include "includes\registry.iss"

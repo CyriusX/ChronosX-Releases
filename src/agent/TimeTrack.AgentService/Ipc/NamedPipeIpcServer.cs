@@ -1,4 +1,8 @@
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -76,12 +80,7 @@ public sealed class NamedPipeIpcServer : BackgroundService, IIpcServer, IDisposa
         SetClientConnected(false);
         _isListening = true;
 
-        _pipeServer = new NamedPipeServerStream(
-            "TimeTrack.Agent.IPC",
-            PipeDirection.InOut,
-            NamedPipeServerStream.MaxAllowedServerInstances,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous);
+        _pipeServer = CreateSecurePipeServer("TimeTrack.Agent.IPC");
 
         _logger.LogDebug("Waiting for DesktopHost connection...");
 
@@ -292,6 +291,88 @@ public sealed class NamedPipeIpcServer : BackgroundService, IIpcServer, IDisposa
         _reader = null;
         _pipeServer = null;
     }
+
+    /// <summary>
+    /// Creates the named pipe with explicit security so that:
+    /// - Any authenticated user can connect (cross-session, cross-integrity-level)
+    /// - A medium-integrity DesktopHost can connect to a high-integrity agent
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static NamedPipeServerStream CreateSecurePipeServer(string pipeName)
+    {
+        var security = new PipeSecurity();
+
+        // Allow any authenticated user to read/write the pipe
+        security.AddAccessRule(new PipeAccessRule(
+            new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
+            PipeAccessRights.ReadWrite | PipeAccessRights.CreateNewInstance,
+            AccessControlType.Allow));
+
+        // Full control for Administrators
+        security.AddAccessRule(new PipeAccessRule(
+            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+            PipeAccessRights.FullControl,
+            AccessControlType.Allow));
+
+        var pipe = NamedPipeServerStreamAcl.Create(
+            pipeName,
+            PipeDirection.InOut,
+            NamedPipeServerStream.MaxAllowedServerInstances,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous,
+            inBufferSize: 0,
+            outBufferSize: 0,
+            security);
+
+        // Set mandatory integrity label to Low so a medium-integrity DesktopHost
+        // can connect even when the agent runs elevated (high integrity).
+        SetLowIntegrityLabel(pipe.SafePipeHandle);
+
+        return pipe;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void SetLowIntegrityLabel(Microsoft.Win32.SafeHandles.SafePipeHandle handle)
+    {
+        // SDDL: SACL with low mandatory integrity label (NW = no write-up)
+        const string lowIntegritySddl = "S:(ML;;NW;;;LW)";
+
+        if (!ConvertStringSecurityDescriptorToSecurityDescriptor(
+                lowIntegritySddl, 1, out IntPtr pSd, out _))
+            return;
+
+        try
+        {
+            if (GetSecurityDescriptorSacl(pSd, out bool present, out IntPtr sacl, out _) && present)
+            {
+                SetSecurityInfo(
+                    handle.DangerousGetHandle(),
+                    6,           // SE_KERNEL_OBJECT
+                    0x00000010,  // LABEL_SECURITY_INFORMATION
+                    IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, sacl);
+            }
+        }
+        finally
+        {
+            LocalFree(pSd);
+        }
+    }
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(
+        string stringSd, uint revision, out IntPtr pSd, out uint sdSize);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetSecurityDescriptorSacl(
+        IntPtr pSd, out bool present, out IntPtr sacl, out bool defaulted);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern int SetSecurityInfo(
+        IntPtr handle, int objectType, uint si,
+        IntPtr owner, IntPtr group, IntPtr dacl, IntPtr sacl);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr hMem);
 
     public override void Dispose()
     {
