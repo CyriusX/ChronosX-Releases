@@ -71,7 +71,20 @@
       "Bash(powershell -Command \"sc.exe qc ChronosXAgent 2>&1\")",
       "Bash(powershell -Command 'Get-Process | Where-Object { $_.ProcessName -like '\\\\''*TimeTrack*'\\\\'' -or $_.ProcessName -like '\\\\''*Chrono*'\\\\'' } | Select-Object Id, Name, Path, SessionId')",
       "Bash(powershell -Command \"sc.exe qc ChronosXAgent 2>&1 | Select-String 'BINARY'\")",
-      "Bash(powershell -Command ':*)"
+      "Bash(powershell -Command ':*)",
+      "Bash(powershell -Command \"Start-Process 'C:\\\\Users\\\\jr_ju\\\\Repo\\\\Cyrius\\\\TimeTracking\\\\build\\\\publish\\\\AgentService\\\\TimeTrack.AgentService.exe'\")",
+      "Bash(powershell -Command \"Start-Sleep 2; Start-Process 'C:\\\\Users\\\\jr_ju\\\\Repo\\\\Cyrius\\\\TimeTracking\\\\build\\\\publish\\\\DesktopHost\\\\TimeTrack.DesktopHost.exe'\")",
+      "Bash(powershell -Command 'Get-Process | Where-Object { $_.ProcessName -like '\\\\''*TimeTrack*'\\\\'' } | Select-Object Id, ProcessName, SessionId')",
+      "Bash(powershell -Command \"Stop-Process -Id 13704 -Force; Write-Host 'Killed duplicate'\")",
+      "Bash(powershell -Command \"Start-Process powershell -ArgumentList '-ExecutionPolicy Bypass -File \\\\\"C:\\\\Users\\\\jr_ju\\\\Repo\\\\Cyrius\\\\TimeTracking\\\\update-service.ps1\\\\\"' -Verb RunAs -Wait\")",
+      "Bash(powershell -Command \"Get-Service -Name 'ChronosXAgent' | Select-Object Status, Name\")",
+      "Bash(powershell -Command \"Start-Service -Name 'ChronosXAgent'; Start-Sleep 2; Get-Service 'ChronosXAgent' | Select-Object Status\")",
+      "Bash(powershell -Command 'Stop-Process -Id 23276 -Force -ErrorAction SilentlyContinue; Start-Sleep 1; Get-Process | Where-Object { $_.ProcessName -like '\\\\''*TimeTrack*'\\\\'' } | Select-Object Id, ProcessName, SessionId')",
+      "Bash(powershell -Command \"Get-Item 'C:\\\\Users\\\\jr_ju\\\\AppData\\\\Local\\\\Temp\\\\agent.log' | Select-Object LastWriteTime, Length\")",
+      "Bash(powershell -Command \"Get-Item 'C:\\\\Users\\\\jr_ju\\\\AppData\\\\Local\\\\TimeTrack\\\\timetrack.db' | Select-Object LastWriteTime, Length\")",
+      "Read(//c/Temp/**)",
+      "Bash(mkdir -p \"C:/Temp\")",
+      "Bash(choco --version)"
     ],
     "additionalDirectories": [
       "C:\\Users\\jr_ju\\AppData\\Local\\TimeTrack"
