@@ -66,6 +66,14 @@ static class Program
 
     static IHostBuilder CreateHostBuilder(string[] args) =>
         Host.CreateDefaultBuilder(args)
+            .ConfigureLogging(logging =>
+            {
+                // Remove EventLog provider added by default builder — requires admin and
+                // throws "EventLog access is not supported on this platform" without it.
+                logging.ClearProviders();
+                logging.AddConsole();
+                logging.AddDebug();
+            })
             .ConfigureAppConfiguration(config =>
             {
                 config.AddJsonFile("appsettings.json", optional: true);

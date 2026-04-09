@@ -78,13 +78,16 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: quicklaunchicon
 
 [Run]
+; Stop and remove any previous installation of the service (upgrade-safe)
+Filename: "{win}\system32\sc.exe"; Parameters: "stop ChronosXAgent"; Flags: runhidden waituntilterminated; StatusMsg: "Stopping existing ChronosX Agent service..."
+Filename: "{win}\system32\sc.exe"; Parameters: "delete ChronosXAgent"; Flags: runhidden waituntilterminated; StatusMsg: "Removing old service registration..."
+; Install and start service after file copy
+Filename: "{win}\system32\sc.exe"; Parameters: "create ChronosXAgent binPath= ""{app}\service\TimeTrack.AgentService.exe"" start= auto DisplayName= ""ChronosX Agent"""; Flags: runhidden waituntilterminated; StatusMsg: "Installing ChronosX Agent service..."
+Filename: "{win}\system32\sc.exe"; Parameters: "description ChronosXAgent ""ChronosX time tracking background service"""; Flags: runhidden waituntilterminated; StatusMsg: "Configuring service..."
+Filename: "{win}\system32\sc.exe"; Parameters: "failure ChronosXAgent reset= 86400 actions= restart/5000/restart/5000/restart/5000"; Flags: runhidden waituntilterminated; StatusMsg: "Configuring recovery..."
+Filename: "{win}\system32\sc.exe"; Parameters: "start ChronosXAgent"; Flags: runhidden waituntilterminated; StatusMsg: "Starting ChronosX Agent service..."
 ; Launch app after install (optional)
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
-; Install and start service after file copy
-Filename: "{win}\system32\sc.exe"; Parameters: "create ChronosXAgent binPath= ""{app}\service\TimeTrack.AgentService.exe"" start= auto DisplayName= ChronosXAgent"; Flags: runhidden waituntilterminated; StatusMsg: "Installing ChronosX Agent service..."
-Filename: "{win}\system32\sc.exe"; Parameters: "description ChronosXAgent ChronosXAgent"; flags: runhidden waituntilterminated; StatusMsg: "Configuring service..."
-Filename: "{win}\system32\sc.exe"; Parameters: "failure ChronosXAgent reset= 86400 actions= restart/5000/restart/5000/restart/5000"; flags: runhidden waituntilterminated; StatusMsg: "Configuring recovery..."
-Filename: "{win}\system32\sc.exe"; Parameters: "start ChronosXAgent"; flags: runhidden waituntilterminated; StatusMsg: "Starting ChronosX Agent service..."
 
 [UninstallRun]
 ; Stop and delete service during uninstall
