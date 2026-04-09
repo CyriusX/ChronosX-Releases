@@ -99,8 +99,7 @@ public static class ServiceCollectionExtensions
         // Check if we have a valid backend URL configured
         var backendUrl = settings.Sync?.BackendUrl;
         var useNullTransport = string.IsNullOrWhiteSpace(backendUrl) ||
-                               backendUrl == "https://api.timetrack.local" ||
-                               backendUrl.Contains("localhost") == false && backendUrl.Contains("127.0.0.1") == false && !Uri.TryCreate(backendUrl, UriKind.Absolute, out _);
+                               !Uri.TryCreate(backendUrl, UriKind.Absolute, out _);
 
         Console.WriteLine($"[SyncServices] BackendUrl='{backendUrl}', useNullTransport={useNullTransport}");
         if (useNullTransport)
