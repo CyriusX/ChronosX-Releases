@@ -70,16 +70,11 @@ begin
   if CurUninstallStep = usPostUninstall then
   begin
     // Ask user if they want to remove data
-    if MsgBox('Do you want to remove all TimeTrack data including your local database and settings?',
+    if MsgBox('Do you want to remove all ChronosX data including your local database and settings?',
       mbConfirmation, MB_YESNO) = IDYES then
     begin
-      // Remove data directory
-      DataPath := ExpandConstant('{localappdata}\Cyrius\TimeTrack');
-      if DirExists(DataPath) then
-      DelTree(DataPath, True, True, True);
-
-      // Remove WebView2 cache
-      DataPath := ExpandConstant('{localappdata}\TimeTrack\WebView2Cache');
+      // Remove SQLite DB and settings (actual data directory used by the agent)
+      DataPath := ExpandConstant('{localappdata}\TimeTrack');
       if DirExists(DataPath) then
         DelTree(DataPath, True, True, True);
     end;
