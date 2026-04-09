@@ -202,8 +202,14 @@ public static class ServiceCollectionExtensions
         var updateSettings = configuration.GetSection(UpdateSettings.SectionName).Get<UpdateSettings>()
             ?? new UpdateSettings();
 
+        // Register Contracts.UpdateSettings required by UpdateService (Application layer)
+        services.Configure<Agent.Contracts.Configuration.UpdateSettings>(
+            configuration.GetSection(UpdateSettings.SectionName));
+        services.AddSingleton<Agent.Contracts.Configuration.UpdateSettings>(sp =>
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Agent.Contracts.Configuration.UpdateSettings>>().Value);
+
         // HTTP Client for updates
-        services.AddHttpClient<UpdateHttpClient>(client =>
+        services.AddHttpClient<IUpdateHttpClient, UpdateHttpClient>(client =>
         {
             var uri = new Uri(updateSettings.UpdateUrl);
             var baseUrl = $"{uri.Scheme}://{uri.Host}";

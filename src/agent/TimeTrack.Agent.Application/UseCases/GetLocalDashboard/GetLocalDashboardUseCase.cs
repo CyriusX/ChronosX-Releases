@@ -229,7 +229,7 @@ public sealed class GetLocalDashboardUseCase
         return new LocalDashboardResponse
         {
             Date = targetDate,
-            TrackingStatus = state?.Status.ToString() ?? "Unknown",
+            TrackingStatus = state?.Status.ToString() ?? "Active",
             TotalWorkTime = totalWorkTime,
             TotalIdleTime = totalIdleTime,
             FocusTimeMs = focusMetrics.FocusTimeMs,

@@ -199,7 +199,7 @@ export default function Register() {
               className="w-full px-4 py-3 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               placeholder="••••••••"
             />
-            <p className="text-xs text-zinc-500 mt-1">Minimo de 8 caracteres</p>
+            <p className="text-xs text-zinc-500 mt-1">Minimo 8 caracteres, 1 maiuscula e 1 numero</p>
           </motion.div>
 
           {/* Confirm Password Field */}
