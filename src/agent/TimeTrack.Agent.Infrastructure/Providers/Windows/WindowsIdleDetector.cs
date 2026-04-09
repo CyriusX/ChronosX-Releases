@@ -13,6 +13,13 @@ public sealed class WindowsIdleDetector : IIdleDetector
     private readonly ILogger<WindowsIdleDetector> _logger;
     private readonly IdleDetectorOptions _options;
 
+    // Sleep detection: compare wall clock advance vs tick count advance.
+    // TickCount64 does NOT advance during system sleep; DateTime.UtcNow does.
+    // If wall advanced significantly more than ticks, a sleep occurred.
+    private long _lastKnownTick = -1;
+    private DateTime _lastKnownWallTime = DateTime.MinValue;
+    private const long SleepDetectionThresholdMs = 30_000; // 30s discrepancy = sleep
+
     /// <summary>
     /// Fired when idle state changes
     /// </summary>
@@ -70,7 +77,9 @@ public sealed class WindowsIdleDetector : IIdleDetector
     }
 
     /// <summary>
-    /// Gets idle time using GetLastInputInfo
+    /// Gets idle time using GetLastInputInfo.
+    /// Returns null if a sleep/wake transition was just detected — the caller should
+    /// treat null as "state unknown" and handle the gap separately.
     /// </summary>
     private TimeSpan? GetIdleTimeInternal()
     {
@@ -86,26 +95,51 @@ public sealed class WindowsIdleDetector : IIdleDetector
             return null;
         }
 
-        // GetLastInputInfo returns ticks since system start (as uint)
-        // Environment.TickCount64 returns ticks since system start (as int, but can be negative
-        // Use unchecked subtraction to handle overflow correctly
-        var currentTick = (ulong)Environment.TickCount64;
+        var currentTick = Environment.TickCount64;
+        var nowWall = DateTime.UtcNow;
+
+        // Sleep detection: TickCount64 freezes during sleep; DateTime.UtcNow does not.
+        // If wall clock advanced significantly more than the tick counter since the last
+        // call, the system was suspended and just woke up. Return null so TrackingWorker
+        // can record the gap as an idle/sleep period instead of computing a garbage value.
+        if (_lastKnownTick >= 0)
+        {
+            var tickAdvanceMs = currentTick - _lastKnownTick;
+            var wallAdvanceMs = (long)(nowWall - _lastKnownWallTime).TotalMilliseconds;
+
+            if (wallAdvanceMs - tickAdvanceMs > SleepDetectionThresholdMs)
+            {
+                _logger.LogInformation(
+                    "Sleep/wake detected: wall advanced {Wall}ms but ticks only {Ticks}ms. Returning null to signal sleep.",
+                    wallAdvanceMs, tickAdvanceMs);
+
+                _lastKnownTick = currentTick;
+                _lastKnownWallTime = nowWall;
+                return null;
+            }
+        }
+
+        _lastKnownTick = currentTick;
+        _lastKnownWallTime = nowWall;
+
+        // GetLastInputInfo returns ticks since system start (as uint).
+        // Use unchecked subtraction to handle overflow correctly.
+        var currentTickU = (ulong)currentTick;
         var lastInputTick = (ulong)lastInputInfo.dwTime;
 
-        // Calculate idle time with proper overflow handling
         ulong idleMilliseconds;
-        if (currentTick >= lastInputTick)
+        if (currentTickU >= lastInputTick)
         {
-            idleMilliseconds = currentTick - lastInputTick;
+            idleMilliseconds = currentTickU - lastInputTick;
         }
         else
         {
             // Overflow: wrap around from max uint32 back to 0
-            idleMilliseconds = (uint.MaxValue - lastInputTick) + currentTick + 1;
+            idleMilliseconds = (uint.MaxValue - lastInputTick) + currentTickU + 1;
         }
 
         _logger.LogDebug("Idle calculation: current={Current}, lastInput={LastInput}, idle={Idle}ms",
-            currentTick, lastInputTick, idleMilliseconds);
+            currentTickU, lastInputTick, idleMilliseconds);
 
         return TimeSpan.FromMilliseconds(idleMilliseconds);
     }

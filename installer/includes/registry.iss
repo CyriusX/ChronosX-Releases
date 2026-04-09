@@ -4,8 +4,8 @@ Root: HKLM; Subkey: "Software\Cyrius\TimeTrack"; ValueType: string; ValueName: "
 Root: HKLM; Subkey: "Software\Cyrius\TimeTrack"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"
 Root: HKLM; Subkey: "Software\Cyrius\TimeTrack"; ValueType: string; ValueName: "ServicePath"; ValueData: "{app}\service\{#AgentServiceExe}"
 
-; Windows startup for DesktopHost (optional - user can configure)
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "ChronosX"; ValueData: """{app}\{#MyAppExeName}"" --start-minimized"; Flags: uninsdeletevalue; Check: ShouldAutoStartDesktop
+; Auto-start is handled by Task Scheduler (RunLevel Highest) in code.iss,
+; not via HKCU Run — Task Scheduler is the only way to silently elevate at logon.
 
 ; Uninstall information (already created by Inno Setup)
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppName}_is1"; ValueType: string; ValueName: "DisplayName"; ValueData: "{#MyAppName}"

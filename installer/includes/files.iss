@@ -7,7 +7,8 @@
 Source: "{#ProjectRoot}\build\publish\AgentService\TimeTrack.AgentService.exe"; DestDir: "{app}\service"; Flags: ignoreversion
 Source: "{#ProjectRoot}\build\publish\AgentService\*.dll"; DestDir: "{app}\service"; Flags: ignoreversion recursesubdirs
 Source: "{#ProjectRoot}\build\publish\AgentService\*.json"; DestDir: "{app}\service"; Flags: ignoreversion
-Source: "{#ProjectRoot}\build\publish\AgentService\createdump.exe"; DestDir: "{app}\service"; Flags: ignoreversion
+Source: "{#ProjectRoot}\build\publish\AgentService\createdump.exe"; DestDir: "{app}\service"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#ProjectRoot}\build\publish\AgentService\runtimes\*"; DestDir: "{app}\service\runtimes"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 
 ; Language folders
 Source: "{#ProjectRoot}\build\publish\AgentService\cs\*"; DestDir: "{app}\service\cs"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
