@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, FolderOpen, Archive } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/dashboard';
 import { useProjectStore, Project } from '../stores/projectStore';
 import { ProjectCard } from '../components/projects/ProjectCard';
@@ -9,6 +10,7 @@ import { SkeletonShimmer } from '../components/ui/SkeletonShimmer';
 import { fadeUp, staggerContainer, STAGGER, SPRING, TIMING } from '../lib/animation';
 
 export default function Projects() {
+  const navigate = useNavigate();
   const [showArchived, setShowArchived] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -219,6 +221,13 @@ export default function Projects() {
                   variants={fadeUp}
                   layout
                   transition={{ duration: TIMING.normal }}
+                  onClick={(e) => {
+                    // Only navigate when the click wasn't inside the card's menu/action buttons.
+                    const target = e.target as HTMLElement;
+                    if (target.closest('button')) return;
+                    navigate(`/projects/${project.id}/board`);
+                  }}
+                  className="cursor-pointer"
                 >
                   <ProjectCard
                     project={project}
