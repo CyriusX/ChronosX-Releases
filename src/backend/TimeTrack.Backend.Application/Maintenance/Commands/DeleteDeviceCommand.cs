@@ -5,9 +5,9 @@ using TimeTrack.Backend.Domain.Interfaces.Repositories;
 
 namespace TimeTrack.Backend.Application.Maintenance.Commands;
 
-public sealed record DeleteDeviceCommand(Guid OrgId, Guid DeviceId) : IRequest;
+public sealed record DeleteDeviceCommand(Guid OrgId, Guid DeviceId) : IRequest<Unit>;
 
-public sealed class DeleteDeviceCommandHandler : IRequestHandler<DeleteDeviceCommand>
+public sealed class DeleteDeviceCommandHandler : IRequestHandler<DeleteDeviceCommand, Unit>
 {
     private readonly IDeviceRepository _deviceRepository;
     private readonly ICurrentUserContext _currentUser;
@@ -20,12 +20,12 @@ public sealed class DeleteDeviceCommandHandler : IRequestHandler<DeleteDeviceCom
         _currentUser = currentUser;
     }
 
-    public async Task Handle(DeleteDeviceCommand request, CancellationToken cancellationToken)
+    public async Task<Unit> Handle(DeleteDeviceCommand request, CancellationToken cancellationToken)
     {
         if (_currentUser.OrgId != request.OrgId)
             throw new ForbiddenException("Access denied to this organization");
 
-        var device = await _deviceRepository.GetByIdAsync(request.DeviceId, cancellationToken);
+        var device = await _deviceRepository.GetByIdUnfilteredAsync(request.DeviceId, cancellationToken);
         if (device is null)
             throw new NotFoundException("Device", request.DeviceId);
 
@@ -33,5 +33,6 @@ public sealed class DeleteDeviceCommandHandler : IRequestHandler<DeleteDeviceCom
             throw new ForbiddenException("Device does not belong to this organization");
 
         await _deviceRepository.DeleteAsync(request.DeviceId, cancellationToken);
+        return Unit.Value;
     }
 }
