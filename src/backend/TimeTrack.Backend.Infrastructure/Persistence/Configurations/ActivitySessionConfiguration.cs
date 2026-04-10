@@ -73,8 +73,26 @@ internal sealed class ActivitySessionConfiguration : IEntityTypeConfiguration<Ac
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()");
 
+        builder.Property(a => a.ProjectId)
+            .HasColumnName("project_id");
+
+        builder.Property(a => a.TaskId)
+            .HasColumnName("task_id");
+
         // Indexes for queries
         builder.HasIndex(a => new { a.OrgId, a.UserId, a.StartedAt });
         builder.HasIndex(a => new { a.DeviceId, a.StartedAt });
+        builder.HasIndex(a => a.ProjectId);
+        builder.HasIndex(a => a.TaskId);
+
+        builder.HasOne(a => a.Project)
+            .WithMany()
+            .HasForeignKey(a => a.ProjectId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(a => a.Task)
+            .WithMany()
+            .HasForeignKey(a => a.TaskId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

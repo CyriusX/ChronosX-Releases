@@ -462,14 +462,14 @@ public sealed class ReportRepository : IReportRepository
         var rawSessionsForRange = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
-            .Select(a => new { a.StartedAt, a.EndedAt, a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .Select(a => new { a.StartedAt, a.EndedAt, a.ProcessName, a.AppCategory, a.AppSubcategory, a.TaskId })
             .ToListAsync(cancellationToken);
 
         // Compute duration from timestamps to avoid stale DurationSeconds
         var sessions = rawSessionsForRange.Select(a => new {
             a.StartedAt, a.EndedAt,
             DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds,
-            a.ProcessName, a.AppCategory, a.AppSubcategory
+            a.ProcessName, a.AppCategory, a.AppSubcategory, a.TaskId
         }).ToList();
 
         // Filter out internal/system apps in-memory (EF can't translate HashSet.Contains with OrdinalIgnoreCase)
@@ -524,9 +524,11 @@ public sealed class ReportRepository : IReportRepository
             var totalActive = daySessions.Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
             var totalIdle = dayIdle.Sum(i => ClipDuration(i.StartedAt, i.EndedAt, i.DurationSeconds));
 
-            // Calcular produtividade (using clipped durations + overrides)
+            // Calcular produtividade (using clipped durations + overrides).
+            // A session that ran while a kanban task was in progress (TaskId set) ALWAYS counts
+            // as productive — the user explicitly opted into focused work on a tracked task.
             var productiveSeconds = daySessions
-                .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
+                .Where(s => s.TaskId != null || ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
                 .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
 
             // DEBUG: Log productivity calculation
@@ -548,22 +550,23 @@ public sealed class ReportRepository : IReportRepository
 
             if (totalActive > 0)
             {
-                // Contar distrações (apps únicos de distração)
+                // Contar distrações (apps únicos de distração) — task-linked sessions never count.
                 distractionCount = daySessions
-                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
+                    .Where(s => s.TaskId == null && ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
                     .Select(s => s.ProcessName)
                     .Distinct()
                     .Count();
 
-                // Contar blocos de foco longo (>25min consecutivos em apps produtivos)
+                // Contar blocos de foco longo (>25min consecutivos em apps produtivos OU vinculados a tarefas)
                 // Use clipped durations for accurate day-level accounting
                 var currentFocusBlockSeconds = 0L;
                 foreach (var session in daySessions.OrderBy(s => s.StartedAt))
                 {
-                    var category = ResolveProductivityWithOverrides(session.ProcessName, session.AppCategory, overrides);
+                    var isProductive = session.TaskId != null
+                        || ResolveProductivityWithOverrides(session.ProcessName, session.AppCategory, overrides) == "productive";
                     var durationSeconds = ClipDuration(session.StartedAt, session.EndedAt, session.DurationSeconds);
 
-                    if (category == "productive")
+                    if (isProductive)
                     {
                         currentFocusBlockSeconds += durationSeconds;
                     }
@@ -580,7 +583,7 @@ public sealed class ReportRepository : IReportRepository
 
                 // Calcular Focus Score (using clipped durations)
                 var distractionMs = daySessions
-                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
+                    .Where(s => s.TaskId == null && ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
                     .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds) * 1000);
 
                 var input = FocusScoreInput.Create(

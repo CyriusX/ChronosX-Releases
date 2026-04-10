@@ -360,6 +360,7 @@ public sealed class TeamMemberSummaryResponse
     public int FocusScore { get; init; }
     public int SessionsCount { get; init; }
     public List<MemberProjectSummary> TopProjects { get; init; } = [];
+    public List<MemberTaskSummary> TopTasks { get; init; } = [];
     public List<MemberAppSummary> TopApplications { get; init; } = [];
     public List<MemberAppSummary>? TopAppsByExe { get; init; }
     public List<MemberCategorySummary> Categories { get; init; } = [];
@@ -372,9 +373,22 @@ public sealed class TeamMemberSummaryResponse
 
 public sealed class MemberProjectSummary
 {
+    public Guid? ProjectId { get; init; }
     public string Name { get; init; } = string.Empty;
+    public string? Color { get; init; }
     public long Duration { get; init; }
     public double Percentage { get; init; }
+}
+
+public sealed class MemberTaskSummary
+{
+    public Guid TaskId { get; init; }
+    public string Title { get; init; } = string.Empty;
+    public Guid ProjectId { get; init; }
+    public string ProjectName { get; init; } = string.Empty;
+    public string ProjectColor { get; init; } = "#4A9FFF";
+    public long Duration { get; init; }
+    public string Status { get; init; } = string.Empty;
 }
 
 public sealed class MemberAppSummary
