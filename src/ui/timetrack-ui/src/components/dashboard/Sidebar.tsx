@@ -175,7 +175,7 @@ export function Sidebar() {
 
         {/* Version */}
         <div className="px-4 pb-3">
-          <span className="text-[9px] text-[rgba(245,247,251,0.2)] select-none">v1.0.5</span>
+          <span className="text-[9px] text-[rgba(245,247,251,0.2)] select-none">v1.0.6</span>
         </div>
       </div>
     </aside>
