@@ -191,3 +191,9 @@ export async function getHealthSummary(orgId: string): Promise<HealthSummaryResp
     `/orgs/${encodeURIComponent(orgId)}/maintenance/health-summary`
   );
 }
+
+export async function deleteDevice(orgId: string, deviceId: string): Promise<void> {
+  return api.delete<void>(
+    `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}`
+  );
+}

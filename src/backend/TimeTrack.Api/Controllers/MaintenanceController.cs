@@ -205,4 +205,23 @@ public sealed class MaintenanceController : ControllerBase
 
         return result == null ? NotFound() : Ok(result);
     }
+
+    /// <summary>
+    /// Delete a device record permanently (Admin only)
+    /// </summary>
+    [HttpDelete("devices/{deviceId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteDevice(
+        Guid orgId,
+        Guid deviceId,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.OrgId != orgId) return Forbid();
+
+        await _mediator.Send(new DeleteDeviceCommand(orgId, deviceId), cancellationToken);
+        return NoContent();
+    }
 }

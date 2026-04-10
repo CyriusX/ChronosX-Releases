@@ -10,4 +10,5 @@ public interface IDeviceRepository
     Task<bool> IdExistsAsync(Guid deviceId, CancellationToken cancellationToken = default);
     Task AddAsync(Device device, CancellationToken cancellationToken = default);
     Task UpdateAsync(Device device, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 }

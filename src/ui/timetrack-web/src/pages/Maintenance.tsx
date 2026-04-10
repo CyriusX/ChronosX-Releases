@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Monitor, ChevronDown, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe } from 'lucide-react';
+import { Monitor, ChevronDown, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe, Trash2 } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
 import { useAuthStore } from '../stores/authStore';
 import { useHealthAlertStore } from '../stores/healthAlertStore';
@@ -23,6 +23,7 @@ import {
   clearDeviceEvents,
   clearAllEvents,
   getHealthSummary,
+  deleteDevice,
   type DeviceListItem,
   type DeviceMetricsResponse,
   type MetricsHistoryPoint,
@@ -287,6 +288,8 @@ export default function Maintenance() {
   const [notifBody, setNotifBody] = useState('');
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [deletingDeviceId, setDeletingDeviceId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -301,6 +304,7 @@ export default function Maintenance() {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
+        setConfirmDeleteId(null);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -425,6 +429,22 @@ export default function Maintenance() {
       setNotifBody('');
     }
   }, [user?.orgId, selectedDeviceId, fetchDeviceInfo]);
+
+  // Delete device
+  const handleDeleteDevice = useCallback(async (deviceId: string) => {
+    if (!user?.orgId) return;
+    setDeletingDeviceId(deviceId);
+    try {
+      await deleteDevice(user.orgId, deviceId);
+      if (selectedDeviceId === deviceId) setSelectedDeviceId(null);
+      setConfirmDeleteId(null);
+      fetchDevices();
+    } catch (err) {
+      console.error('Failed to delete device:', err);
+    } finally {
+      setDeletingDeviceId(null);
+    }
+  }, [user?.orgId, selectedDeviceId, fetchDevices]);
 
   // Poll metrics on device selection
   useEffect(() => {
@@ -594,31 +614,54 @@ export default function Maintenance() {
                   ) : (
                     devices.map((device) => {
                       const isSelected = device.deviceId === selectedDeviceId;
+                      const isConfirming = confirmDeleteId === device.deviceId;
+                      const isDeleting = deletingDeviceId === device.deviceId;
                       return (
-                        <button
+                        <div
                           key={device.deviceId}
-                          onClick={() => { setSelectedDeviceId(device.deviceId); setShowDropdown(false); }}
-                          className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[rgba(255,255,255,0.06)] transition-colors ${
+                          className={`group flex items-center gap-3 px-4 py-2.5 hover:bg-[rgba(255,255,255,0.06)] transition-colors ${
                             isSelected ? 'bg-[rgba(139,92,246,0.08)] border-l-2 border-l-[#8B5CF6]' : ''
                           }`}
                         >
-                          <div className="w-6 h-6 rounded-md bg-[rgba(139,92,246,0.08)] flex items-center justify-center flex-shrink-0">
-                            <Monitor className="w-3 h-3 text-[rgba(139,92,246,0.6)]" />
-                          </div>
-                          <div className="flex-1 min-w-0 text-left">
-                            <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.9)]'}`}>
-                              {device.userDisplayName || device.hostname}
-                            </p>
-                            <p className="text-[9px] text-[rgba(245,247,251,0.4)] flex items-center gap-1">
-                              {device.hostname} · v{device.agentVersion} · Visto {formatLastSeen(device.lastSeenAt)}
-                            </p>
-                          </div>
+                          <button
+                            onClick={() => { setSelectedDeviceId(device.deviceId); setShowDropdown(false); setConfirmDeleteId(null); }}
+                            className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                          >
+                            <div className="w-6 h-6 rounded-md bg-[rgba(139,92,246,0.08)] flex items-center justify-center flex-shrink-0">
+                              <Monitor className="w-3 h-3 text-[rgba(139,92,246,0.6)]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.9)]'}`}>
+                                {device.userDisplayName || device.hostname}
+                              </p>
+                              <p className="text-[9px] text-[rgba(245,247,251,0.4)] flex items-center gap-1">
+                                {device.hostname} · v{device.agentVersion} · Visto {formatLastSeen(device.lastSeenAt)}
+                              </p>
+                            </div>
+                          </button>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             <HealthBadge health={device.healthStatus} />
                             <TrackingStateLed state={device.trackingState} />
                             <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor(device.status)}`} />
+                            {isConfirming ? (
+                              <button
+                                onClick={() => handleDeleteDevice(device.deviceId)}
+                                disabled={isDeleting}
+                                className="ml-1 px-2 py-0.5 rounded text-[9px] font-semibold bg-[rgba(248,113,113,0.15)] text-[#f87171] border border-[rgba(248,113,113,0.3)] hover:bg-[rgba(248,113,113,0.25)] transition-colors"
+                              >
+                                {isDeleting ? '...' : 'Confirmar'}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(device.deviceId); }}
+                                className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[rgba(248,113,113,0.1)] text-[rgba(248,113,113,0.5)] hover:text-[#f87171]"
+                                title="Remover dispositivo"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
-                        </button>
+                        </div>
                       );
                     })
                   )}

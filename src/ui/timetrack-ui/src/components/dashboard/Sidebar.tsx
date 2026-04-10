@@ -163,7 +163,7 @@ export function Sidebar() {
         />
 
         {/* Logout */}
-        <div className="px-3 pb-3">
+        <div className="px-3 pb-1">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
@@ -171,6 +171,11 @@ export function Sidebar() {
             <LogOut className="w-[14px] h-[14px]" />
             Sair
           </button>
+        </div>
+
+        {/* Version */}
+        <div className="px-4 pb-3">
+          <span className="text-[9px] text-[rgba(245,247,251,0.2)] select-none">v1.0.5</span>
         </div>
       </div>
     </aside>
