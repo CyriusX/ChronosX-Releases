@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { BarChart3, Activity, CalendarDays, Cog, LogOut, Shield, Menu, X, Wrench, Bell, ChevronDown } from 'lucide-react';
+import { BarChart3, Activity, CalendarDays, Cog, LogOut, Shield, Menu, X, Wrench, Bell, ChevronDown, FolderKanban } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavItem } from '@desktop/components/dashboard/shared/NavItem';
@@ -71,10 +71,15 @@ export function WebSidebar() {
     setMobileOpen(false);
   };
 
+  const canManageProjects = user?.role === 'Admin' || user?.role === 'Gestor';
+
   const navItems = [
     { icon: <BarChart3 className="w-[16px] h-[16px]" />, label: 'Dashboard', path: '/' },
     { icon: <Activity className="w-[16px] h-[16px]" />, label: 'Atividade', path: '/activities' },
     { icon: <CalendarDays className="w-[16px] h-[16px]" />, label: 'Relatorios', path: '/reports' },
+    ...(canManageProjects ? [
+      { icon: <FolderKanban className="w-[16px] h-[16px]" />, label: 'Projetos', path: '/projects' },
+    ] : []),
     { icon: <Cog className="w-[16px] h-[16px]" />, label: 'Configuracoes', path: '/settings' },
     ...(user?.role === 'Admin' ? [
       { icon: <Wrench className="w-[16px] h-[16px]" />, label: 'Manutencao', path: '/maintenance' },
@@ -113,7 +118,7 @@ export function WebSidebar() {
             key={item.path}
             icon={item.icon}
             label={item.label}
-            active={location.pathname === item.path}
+            active={item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)}
             onClick={() => handleNav(item.path)}
           />
         ))}
