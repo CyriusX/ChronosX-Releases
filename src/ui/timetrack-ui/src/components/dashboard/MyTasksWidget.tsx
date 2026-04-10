@@ -13,6 +13,7 @@ import { PlayCircle, CheckCircle2, Pause, ListTodo, Loader2 } from 'lucide-react
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { cardBase as sharedCardBase } from './shared/styles';
+import { useIpc } from '../../hooks/useIpc';
 import {
   listMyTasks,
   moveTask,
@@ -32,6 +33,7 @@ function formatHms(seconds: number): string {
 
 export function MyTasksWidget() {
   const navigate = useNavigate();
+  const { subscribeToEvent } = useIpc();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
@@ -59,6 +61,21 @@ export function MyTasksWidget() {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     };
   }, [fetchTasks]);
+
+  // Refetch immediately when the agent pushes a change (manager assigned/updated/unassigned a task,
+  // or the task idle watcher auto-paused the timer)
+  useEffect(() => {
+    const unsubTasks = subscribeToEvent('myTasksChanged', () => {
+      fetchTasks();
+    });
+    const unsubIdle = subscribeToEvent('taskIdleAutoPaused', () => {
+      fetchTasks();
+    });
+    return () => {
+      unsubTasks();
+      unsubIdle();
+    };
+  }, [subscribeToEvent, fetchTasks]);
 
   // Tick every second for live running timer
   useEffect(() => {

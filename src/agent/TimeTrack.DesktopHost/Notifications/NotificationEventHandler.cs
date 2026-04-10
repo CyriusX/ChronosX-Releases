@@ -30,6 +30,7 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
     private readonly JsonSerializerOptions _jsonOptions;
     private bool _disposed;
     private ActivityResumeToastForm? _activeResumeToast;
+    private ActivityResumeToastForm? _activeTaskResumeToast;
 
     public NotificationEventHandler(
         IIpcClient ipcClient,
@@ -80,6 +81,10 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
 
                 case "showActivityResumePrompt":
                     HandleActivityResumePrompt(e.Payload);
+                    break;
+
+                case "showTaskResumePrompt":
+                    HandleTaskResumePrompt(e.Payload);
                     break;
 
                 case "updateAvailable":
@@ -219,6 +224,76 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending IPC command after activity resume prompt");
+            }
+        };
+
+        toast.Show();
+    }
+
+    private void HandleTaskResumePrompt(JsonElement payload)
+    {
+        var countdownSeconds = 30;
+        if (payload.TryGetProperty("countdownSeconds", out var cdEl) && cdEl.ValueKind == JsonValueKind.Number)
+            countdownSeconds = cdEl.GetInt32();
+
+        var taskTitle = payload.TryGetProperty("taskTitle", out var ttEl) ? ttEl.GetString() : null;
+        var projectName = payload.TryGetProperty("projectName", out var pnEl) ? pnEl.GetString() : null;
+
+        _logger.LogInformation(
+            "Received task resume prompt — showing toast for task {Task} (countdown {Countdown}s)",
+            taskTitle, countdownSeconds);
+
+        if (System.Windows.Forms.Application.OpenForms.Count > 0)
+        {
+            var mainForm = System.Windows.Forms.Application.OpenForms[0];
+            mainForm?.BeginInvoke(() => ShowTaskResumeToast(countdownSeconds, projectName, taskTitle));
+        }
+        else
+        {
+            _logger.LogWarning("No open forms — cannot show task resume toast");
+        }
+    }
+
+    private void ShowTaskResumeToast(int countdownSeconds, string? projectName, string? taskTitle)
+    {
+        if (_activeTaskResumeToast is { Visible: true })
+        {
+            _logger.LogDebug("Task resume toast already showing — skipping");
+            return;
+        }
+
+        var subtitle = !string.IsNullOrEmpty(taskTitle) && !string.IsNullOrEmpty(projectName)
+            ? $"{projectName} · {taskTitle}"
+            : (taskTitle ?? "Tarefa em andamento");
+
+        var toast = new ActivityResumeToastForm(
+            countdownSeconds,
+            titleOverride: "Ainda trabalhando nessa tarefa?",
+            subtitleOverride: subtitle,
+            yesButtonOverride: "\u25B6   Continuar",
+            noButtonOverride: "Encerrar tarefa");
+
+        _activeTaskResumeToast = toast;
+
+        toast.PromptResult += async (_, resume) =>
+        {
+            _activeTaskResumeToast = null;
+            try
+            {
+                if (resume)
+                {
+                    _logger.LogInformation("User accepted task resume — sending ResumeOpenTask command");
+                    await _ipcClient.SendCommandAsync("ResumeOpenTask");
+                }
+                else
+                {
+                    _logger.LogInformation("User rejected task resume — sending CloseOpenTask command");
+                    await _ipcClient.SendCommandAsync("CloseOpenTask");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending IPC command after task resume prompt");
             }
         };
 

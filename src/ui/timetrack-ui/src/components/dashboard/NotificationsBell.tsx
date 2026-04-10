@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, Check, Loader2 } from 'lucide-react';
+import { useIpc } from '../../hooks/useIpc';
 import {
   listMyNotifications,
   markNotificationRead,
@@ -35,6 +36,7 @@ function kindIcon(kind: string): string {
 }
 
 export function NotificationsBell() {
+  const { subscribeToEvent } = useIpc();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -59,6 +61,14 @@ export function NotificationsBell() {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     };
   }, [fetchNotifications]);
+
+  // Refetch immediately when the agent pushes a notification via IPC
+  useEffect(() => {
+    const unsub = subscribeToEvent('notificationReceived', () => {
+      fetchNotifications();
+    });
+    return unsub;
+  }, [subscribeToEvent, fetchNotifications]);
 
   // Close dropdown on outside click
   useEffect(() => {
