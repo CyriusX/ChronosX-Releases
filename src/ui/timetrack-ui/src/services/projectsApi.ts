@@ -49,8 +49,8 @@ export interface ListMembersResponse {
 // TYPES — Tasks
 // ============================================================================
 
-export type TaskStatus = 'Todo' | 'InProgress' | 'Done';
-export type TaskPriority = 'Low' | 'Medium' | 'High';
+export type TaskStatus = 'Todo' | 'InProgress' | 'InReview' | 'Done';
+export type TaskPriority = 'None' | 'Low' | 'Medium' | 'High' | 'Urgent';
 
 export interface Task {
   id: string;
@@ -139,6 +139,10 @@ export function listProjectMembers(projectId: string): Promise<ListMembersRespon
 
 export function moveTask(id: string, body: MoveTaskRequest): Promise<Task> {
   return api.patch<Task>(`/tasks/${encodeURIComponent(id)}/move`, body);
+}
+
+export function getTask(id: string): Promise<Task> {
+  return api.get<Task>(`/tasks/${encodeURIComponent(id)}`);
 }
 
 export function listMyTasks(includeDone: boolean = false): Promise<ListTasksResponse> {

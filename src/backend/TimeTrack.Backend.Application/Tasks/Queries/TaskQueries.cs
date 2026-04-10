@@ -160,6 +160,52 @@ public sealed class ListMyTasksQueryHandler : IRequestHandler<ListMyTasksQuery, 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// GET TASK BY ID (for the detail drawer)
+// ═══════════════════════════════════════════════════════════════════════════
+
+public sealed record GetTaskByIdQuery(Guid TaskId) : IRequest<TaskResponse>;
+
+public sealed class GetTaskByIdQueryHandler : IRequestHandler<GetTaskByIdQuery, TaskResponse>
+{
+    private readonly IProjectTaskRepository _tasks;
+    private readonly IProjectRepository _projects;
+    private readonly ITaskTimeEntryRepository _entries;
+    private readonly ICurrentUserContext _currentUser;
+
+    public GetTaskByIdQueryHandler(
+        IProjectTaskRepository tasks,
+        IProjectRepository projects,
+        ITaskTimeEntryRepository entries,
+        ICurrentUserContext currentUser)
+    {
+        _tasks = tasks;
+        _projects = projects;
+        _entries = entries;
+        _currentUser = currentUser;
+    }
+
+    public async Task<TaskResponse> Handle(GetTaskByIdQuery request, CancellationToken ct)
+    {
+        if (!_currentUser.UserId.HasValue) throw new UnauthorizedAccessException();
+
+        var task = await _tasks.GetByIdAsync(request.TaskId, ct)
+            ?? throw new NotFoundException("Task", request.TaskId);
+
+        var project = task.Project ?? await _projects.GetByIdAsync(task.ProjectId, ct);
+
+        Domain.Entities.TaskTimeEntry? openEntry = null;
+        if (task.AssignedUserId.HasValue)
+        {
+            var open = await _entries.GetOpenForUserAsync(task.AssignedUserId.Value, ct);
+            if (open is not null && open.TaskId == task.Id)
+                openEntry = open;
+        }
+
+        return ListProjectTasksQueryHandler.InternalMap(task, project?.Name ?? string.Empty, project?.Color ?? "#4A9FFF", openEntry);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // GET MY OPEN TASK (for floating bar polling)
 // ═══════════════════════════════════════════════════════════════════════════
 
