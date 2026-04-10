@@ -152,7 +152,8 @@ public sealed class HeartbeatService : IHeartbeatService
 
     private static string GetAgentVersion()
     {
-        return typeof(HeartbeatService).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+        return (System.Reflection.Assembly.GetEntryAssembly() ?? typeof(HeartbeatService).Assembly)
+            .GetName().Version?.ToString(3) ?? "0.0.0";
     }
 
     private static string GetFriendlyOsVersion()
