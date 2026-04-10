@@ -32,7 +32,10 @@ public sealed class DeleteDeviceCommandHandler : IRequestHandler<DeleteDeviceCom
         if (device.OrgId != request.OrgId)
             throw new ForbiddenException("Device does not belong to this organization");
 
-        await _deviceRepository.DeleteAsync(request.DeviceId, cancellationToken);
+        // Soft-delete: mark Inactive rather than hard-deleting.
+        // Hard-deleting cascades to activity_sessions and destroys the user's work history.
+        device.Deactivate();
+        await _deviceRepository.UpdateAsync(device, cancellationToken);
         return Unit.Value;
     }
 }

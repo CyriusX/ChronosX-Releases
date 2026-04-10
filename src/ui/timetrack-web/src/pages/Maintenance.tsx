@@ -817,20 +817,23 @@ export default function Maintenance() {
                             <TrackingStateLed state={device.trackingState} />
                             <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor(device.status)}`} />
                             {isConfirming ? (
-                              <button
-                                onClick={() => handleDeleteDevice(device.deviceId)}
-                                disabled={isDeleting}
-                                className="ml-1 px-2 py-0.5 rounded text-[9px] font-semibold bg-[rgba(248,113,113,0.15)] text-[#f87171] border border-[rgba(248,113,113,0.3)] hover:bg-[rgba(248,113,113,0.25)] transition-colors"
-                              >
-                                {isDeleting ? '...' : 'Confirmar'}
-                              </button>
+                              <div className="ml-1 flex flex-col items-end gap-0.5">
+                                <button
+                                  onClick={() => handleDeleteDevice(device.deviceId)}
+                                  disabled={isDeleting}
+                                  className="px-2 py-0.5 rounded text-[9px] font-semibold bg-[rgba(248,113,113,0.15)] text-[#f87171] border border-[rgba(248,113,113,0.3)] hover:bg-[rgba(248,113,113,0.25)] transition-colors"
+                                >
+                                  {isDeleting ? '...' : 'Remover'}
+                                </button>
+                                <span className="text-[8px] text-[rgba(245,247,251,0.3)]">historico preservado</span>
+                              </div>
                             ) : (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(device.deviceId); }}
                                 className={`ml-1 p-0.5 rounded hover:bg-[rgba(248,113,113,0.1)] text-[rgba(248,113,113,0.5)] hover:text-[#f87171] transition-opacity ${
                                   device.status === 'offline' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                                 }`}
-                                title="Remover dispositivo"
+                                title="Remover do painel (historico preservado)"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
