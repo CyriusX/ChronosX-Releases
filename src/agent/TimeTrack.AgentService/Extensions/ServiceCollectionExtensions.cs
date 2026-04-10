@@ -187,6 +187,7 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<FocusModeEventBroadcaster>();
         services.AddSingleton<ActivityResumeState>();
         services.AddHostedService<ActivityResumeDetector>();
+        services.AddHostedService<TaskIdleWatcher>();
 
         return services;
     }

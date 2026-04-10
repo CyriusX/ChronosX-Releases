@@ -48,6 +48,10 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
             "force_sync" => await ExecuteForceSyncAsync(ct),
             "send_notification" => await ExecuteSendNotificationAsync(payloadJson, ct),
             "restart" => await ExecuteRestartAsync(ct),
+            "task_assigned" => await ExecuteKanbanNotificationAsync("task_assigned", payloadJson, ct),
+            "task_unassigned" => await ExecuteKanbanNotificationAsync("task_unassigned", payloadJson, ct),
+            "task_updated" => await ExecuteKanbanNotificationAsync("task_updated", payloadJson, ct),
+            "project_membership_changed" => await ExecuteKanbanNotificationAsync("project_membership_changed", payloadJson, ct),
             _ => CommandResult.Failed($"Unknown command type: {commandType}")
         };
     }
@@ -172,6 +176,97 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
         });
 
         return Task.FromResult(CommandResult.Ok("Restart initiated"));
+    }
+
+    /// <summary>
+    /// Handles kanban notification commands pushed by the backend
+    /// (task_assigned, task_unassigned, task_updated, project_membership_changed).
+    /// Wraps the server-supplied notification payload and forwards it to the
+    /// desktop UI as a "showNotification" IPC event plus a "notificationReceived"
+    /// event so the bell icon refreshes.
+    /// </summary>
+    private async Task<CommandResult> ExecuteKanbanNotificationAsync(string kind, string? payloadJson, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(payloadJson))
+            return CommandResult.Failed($"{kind} payload is required");
+
+        try
+        {
+            using var doc = JsonDocument.Parse(payloadJson);
+            var root = doc.RootElement;
+
+            // The backend wraps the original metadata under `payload` when queuing.
+            var inner = root.TryGetProperty("payload", out var p) ? p : root;
+
+            string? taskTitle = inner.TryGetProperty("taskTitle", out var tt) ? tt.GetString() : null;
+            string? projectName = inner.TryGetProperty("projectName", out var pn) ? pn.GetString() : null;
+            string? projectColor = inner.TryGetProperty("projectColor", out var pc) ? pc.GetString() : null;
+            string? taskId = inner.TryGetProperty("taskId", out var ti) ? ti.GetString() : null;
+            string? projectId = inner.TryGetProperty("projectId", out var pi) ? pi.GetString() : null;
+
+            var (title, body) = kind switch
+            {
+                "task_assigned" => ($"Nova tarefa atribuída",
+                                    !string.IsNullOrEmpty(projectName) && !string.IsNullOrEmpty(taskTitle)
+                                        ? $"{projectName} · {taskTitle}"
+                                        : (taskTitle ?? "Você tem uma nova tarefa")),
+                "task_unassigned" => ("Tarefa removida",
+                                      !string.IsNullOrEmpty(projectName) && !string.IsNullOrEmpty(taskTitle)
+                                          ? $"{projectName} · {taskTitle}"
+                                          : (taskTitle ?? "Tarefa foi reatribuída")),
+                "task_updated" => ("Tarefa atualizada",
+                                   !string.IsNullOrEmpty(projectName) && !string.IsNullOrEmpty(taskTitle)
+                                       ? $"{projectName} · {taskTitle}"
+                                       : (taskTitle ?? "Detalhes atualizados")),
+                "project_membership_changed" => ("Participação em projeto",
+                                                 projectName ?? "Seus acessos de projeto mudaram"),
+                _ => ("Notificação", "")
+            };
+
+            if (_ipcServer.IsClientConnected)
+            {
+                // Visual toast in the desktop app
+                await _ipcServer.SendEventAsync(new IpcEvent
+                {
+                    EventType = "showNotification",
+                    Payload = new
+                    {
+                        title,
+                        body,
+                        kind,
+                        tag = $"kanban-{kind}-{taskId ?? projectId ?? Guid.NewGuid().ToString()}",
+                        taskId,
+                        projectId,
+                        projectColor,
+                    }
+                }, ct);
+
+                // Signal the NotificationsBell dropdown to refetch the inbox
+                await _ipcServer.SendEventAsync(new IpcEvent
+                {
+                    EventType = "notificationReceived",
+                    Payload = new { kind, taskId, projectId }
+                }, ct);
+
+                // Tell MyTasksWidget to refetch assigned tasks
+                if (kind is "task_assigned" or "task_unassigned" or "task_updated")
+                {
+                    await _ipcServer.SendEventAsync(new IpcEvent
+                    {
+                        EventType = "myTasksChanged",
+                        Payload = new { kind, taskId }
+                    }, ct);
+                }
+            }
+
+            _logger.LogInformation("Kanban notification dispatched: {Kind} — {Title}", kind, title);
+            return CommandResult.Ok($"{kind} processed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to process {Kind} payload", kind);
+            return CommandResult.Failed($"Failed to process {kind}: {ex.Message}");
+        }
     }
 
     private sealed class NotificationPayload
