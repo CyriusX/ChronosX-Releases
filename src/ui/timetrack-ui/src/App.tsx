@@ -10,6 +10,7 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Projects from "./pages/Projects";
+import ProjectBoard from "./pages/ProjectBoard";
 import Reports from "./pages/Reports";
 import TimerPage from "./pages/Timer";
 import Activities from "./pages/Activities";
@@ -173,6 +174,14 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute>
                 <Projects />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/projects/:projectId/board"
+            element={
+              <ProtectedRoute>
+                <ProjectBoard />
               </ProtectedRoute>
             }
           />

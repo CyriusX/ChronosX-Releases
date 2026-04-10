@@ -1,6 +1,7 @@
 import { Calendar, Search, SlidersHorizontal } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SPRING } from '../../lib/animation';
+import { NotificationsBell } from './NotificationsBell';
 
 interface DashboardHeaderProps {
   activeTab: 'meu-dia' | 'equipe';
@@ -53,6 +54,7 @@ export function DashboardHeader({ activeTab, onTabChange, showTeamTab = false }:
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2">
+        <NotificationsBell />
         {[Calendar, Search].map((Icon, i) => (
           <motion.button
             key={i}

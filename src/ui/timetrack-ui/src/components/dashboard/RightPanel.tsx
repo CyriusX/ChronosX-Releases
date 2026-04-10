@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { AppIcon } from './shared';
+import { MyTasksWidget } from './MyTasksWidget';
 import { useTeamStatus } from '../../hooks/useTeamStatus';
 import { useAuthStore } from '../../stores/authStore';
 import { formatDuration } from '../../lib/utils';
@@ -87,6 +88,9 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
       transition={{ type: 'spring', ...SPRING.gentle, delay: 0.2 }}
       className="flex flex-col gap-4"
     >
+      {/* Minhas Tarefas — only on meu-dia tab */}
+      {!showTeamCard && <MyTasksWidget />}
+
       {/* Equipe Agora */}
       {showTeamCard && (
         <Card className={cardBase}>
