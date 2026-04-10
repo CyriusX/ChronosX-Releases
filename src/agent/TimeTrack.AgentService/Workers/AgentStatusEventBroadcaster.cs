@@ -162,13 +162,20 @@ public sealed class AgentStatusEventBroadcaster : BackgroundService
 
     private static string DetermineHealthStatus(bool backendReachable, int pendingItems, int failedItems)
     {
+        // Backend unreachable = can't sync at all
         if (!backendReachable)
             return "unhealthy";
 
-        if (failedItems > 0)
+        // failedItems = errors since the last successful sync (resets to 0 on any success).
+        // 1-2 failures = degraded (transient issue, still recovering)
+        // 3+ failures   = unhealthy (persistent problem, needs attention)
+        // 0 failures    = healthy, regardless of items waiting in the outbox queue.
+        // Pending outbox items are intentionally NOT used here: they accumulate normally
+        // between sync cycles and would cause constant false-positive degraded status.
+        if (failedItems >= 3)
             return "unhealthy";
 
-        if (pendingItems > 0)
+        if (failedItems > 0)
             return "degraded";
 
         return "healthy";

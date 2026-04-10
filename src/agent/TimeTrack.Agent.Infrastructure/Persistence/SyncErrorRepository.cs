@@ -74,11 +74,17 @@ public sealed class SyncErrorRepository : ISyncErrorRepository
     {
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
-        // Count errors in the last hour as a proxy for consecutive failures
+        // Count only errors that occurred AFTER the most recent successful sync.
+        // When any sync succeeds, sent_at is stamped on outbox rows, so MAX(sent_at)
+        // moves forward and all older errors fall outside the window → count resets to 0.
+        // This correctly clears the failure count as soon as the agent recovers.
         const string sql = """
             SELECT COUNT(*)
             FROM sync_errors
-            WHERE timestamp_utc > datetime('now', '-1 hour')
+            WHERE timestamp_utc > COALESCE(
+                (SELECT MAX(sent_at) FROM sync_outbox WHERE sent_at IS NOT NULL),
+                '1970-01-01T00:00:00'
+            )
             """;
 
         var count = await connection.ExecuteScalarAsync<int>(sql);
