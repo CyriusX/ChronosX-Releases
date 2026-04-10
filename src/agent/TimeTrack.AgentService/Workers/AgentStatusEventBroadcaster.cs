@@ -32,6 +32,12 @@ public sealed class AgentStatusEventBroadcaster : BackgroundService
     private bool _lastBackendReachable = true;
     private int _lastPendingCount = 0;
 
+    /// <summary>Current health status for external consumption (e.g. heartbeat payload).</summary>
+    public string CurrentHealthStatus => _lastHealthStatus;
+
+    /// <summary>Whether the backend was reachable on the last check.</summary>
+    public bool CurrentBackendReachable => _lastBackendReachable;
+
     public AgentStatusEventBroadcaster(
         IIpcServer ipcServer,
         IOutboxRepository outboxRepository,

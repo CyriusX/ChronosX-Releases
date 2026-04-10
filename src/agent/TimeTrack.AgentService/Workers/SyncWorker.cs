@@ -6,6 +6,7 @@ using TimeTrack.Agent.Application.Services;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Entities;
 using TimeTrack.AgentService.Configuration;
+using TimeTrack.AgentService.Ipc;
 
 namespace TimeTrack.AgentService.Workers;
 
@@ -31,6 +32,7 @@ public sealed class SyncWorker : BackgroundService
     private readonly IAgentEventLogger _eventLogger;
     private readonly IHeartbeatService _heartbeatService;
     private readonly IRemoteCommandService _remoteCommandService;
+    private readonly IIpcServer _ipcServer;
 
     private int _consecutiveFailures;
     private DateTime? _lastSuccessfulSync;
@@ -53,7 +55,8 @@ public sealed class SyncWorker : BackgroundService
         AgentStatusEventBroadcaster statusBroadcaster,
         IAgentEventLogger eventLogger,
         IHeartbeatService heartbeatService,
-        IRemoteCommandService remoteCommandService)
+        IRemoteCommandService remoteCommandService,
+        IIpcServer ipcServer)
     {
         _logger = logger;
         _settings = settings;
@@ -72,6 +75,7 @@ public sealed class SyncWorker : BackgroundService
         _eventLogger = eventLogger;
         _heartbeatService = heartbeatService;
         _remoteCommandService = remoteCommandService;
+        _ipcServer = ipcServer;
     }
 
     /// <summary>
@@ -212,10 +216,17 @@ public sealed class SyncWorker : BackgroundService
                 _logger.LogWarning(ex, "Category cache sync failed, will retry next cycle");
             }
 
-            // Send heartbeat to backend (device info + check for pending commands)
+            // Send heartbeat to backend (device info + health snapshot)
             try
             {
-                await _heartbeatService.SendHeartbeatAsync(cancellationToken);
+                var snapshot = new AgentHealthSnapshot(
+                    HealthStatus: _statusBroadcaster.CurrentHealthStatus,
+                    BackendReachable: _statusBroadcaster.CurrentBackendReachable,
+                    ConsecutiveSyncFailures: _consecutiveFailures,
+                    LastSuccessfulSyncAt: _lastSuccessfulSync,
+                    IpcConnected: _ipcServer.IsClientConnected);
+
+                await _heartbeatService.SendHeartbeatAsync(snapshot, cancellationToken);
             }
             catch (Exception ex)
             {

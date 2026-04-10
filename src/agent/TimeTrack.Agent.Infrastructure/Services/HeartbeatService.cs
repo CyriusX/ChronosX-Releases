@@ -48,7 +48,7 @@ public sealed class HeartbeatService : IHeartbeatService
         _logger = logger;
     }
 
-    public async Task<HeartbeatResult> SendHeartbeatAsync(CancellationToken cancellationToken = default)
+    public async Task<HeartbeatResult> SendHeartbeatAsync(AgentHealthSnapshot snapshot, CancellationToken cancellationToken = default)
     {
         if (!_userContext.IsAuthenticated || !_userContext.DeviceId.HasValue)
             return new HeartbeatResult { Success = false };
@@ -74,7 +74,12 @@ public sealed class HeartbeatService : IHeartbeatService
                 osVersion = GetFriendlyOsVersion(),
                 ipAddress = GetLocalIpAddress(),
                 uptimeSeconds = GetUptimeSeconds(),
-                trackingState
+                trackingState,
+                healthStatus = snapshot.HealthStatus,
+                backendReachable = snapshot.BackendReachable,
+                consecutiveSyncFailures = snapshot.ConsecutiveSyncFailures,
+                lastSuccessfulSyncAt = snapshot.LastSuccessfulSyncAt,
+                ipcConnected = snapshot.IpcConnected
             };
 
             var deviceId = _userContext.DeviceId.Value;

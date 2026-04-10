@@ -10,8 +10,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Monitor, ChevronDown, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
 import { useAuthStore } from '../stores/authStore';
+import { useHealthAlertStore } from '../stores/healthAlertStore';
 import { usePermissions } from '../hooks/usePermissions';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import {
   listOrgDevices,
   getDeviceMetrics,
@@ -21,12 +22,15 @@ import {
   getCommandHistory,
   clearDeviceEvents,
   clearAllEvents,
+  getHealthSummary,
   type DeviceListItem,
   type DeviceMetricsResponse,
   type MetricsHistoryPoint,
   type DeviceEventItem,
   type DeviceInfoResponse,
   type CommandHistoryItem,
+  type HealthSummaryResponse,
+  type HealthAlertItem,
 } from '../services/maintenanceApi';
 import { getMaintenanceLogPrefs } from './Settings';
 import { LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
@@ -95,6 +99,81 @@ function getBarColor(percent: number): string {
   if (percent < 60) return '#05df72';
   if (percent < 80) return '#fbbf24';
   return '#f87171';
+}
+
+function HealthBadge({ health }: { health: string | null }) {
+  if (!health || health === 'healthy') return null;
+  if (health === 'offline' || health === 'unhealthy') {
+    return (
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[rgba(248,113,113,0.15)] text-[rgba(248,113,113,0.9)]" title={health}>
+        <span className="text-[9px] font-bold leading-none">✕</span>
+      </span>
+    );
+  }
+  if (health === 'degraded') {
+    return (
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[rgba(251,191,36,0.15)] text-[#fbbf24]" title="degraded">
+        <span className="text-[9px] font-bold leading-none">!</span>
+      </span>
+    );
+  }
+  return null;
+}
+
+function DeviceStatusStripe({ device, deviceInfo }: { device: DeviceListItem | null, deviceInfo: DeviceInfoResponse | null }) {
+  const hostname = deviceInfo?.hostname ?? device?.hostname ?? 'dispositivo';
+  const effectiveHealth = deviceInfo?.healthStatus ?? device?.healthStatus;
+  const isOffline = device?.status === 'offline' || effectiveHealth === 'offline';
+  const isUnhealthy = !isOffline && effectiveHealth === 'unhealthy';
+  const isDegraded = !isOffline && !isUnhealthy && (effectiveHealth === 'degraded' || deviceInfo?.ipcConnected === false);
+  const isCritical = isOffline || isUnhealthy;
+
+  if (!isCritical && !isDegraded) return null;
+
+  let message: string;
+  if (isOffline) {
+    message = `CRITICAL: Agent service on ${hostname} is OFFLINE`;
+    const lastSeen = device?.lastSeenAt;
+    if (lastSeen) {
+      const mins = Math.floor((Date.now() - new Date(lastSeen).getTime()) / 60000);
+      if (mins < 60) message += ` since ${mins}min ago`;
+      else message += ` since ${Math.floor(mins / 60)}h ago`;
+    }
+  } else if (isUnhealthy) {
+    const failures = deviceInfo?.consecutiveSyncFailures;
+    message = `CRITICAL: Agent service on ${hostname} is UNHEALTHY`;
+    if (failures && failures > 0) message += ` · ${failures} consecutive sync failures`;
+  } else if (effectiveHealth === 'degraded') {
+    const failures = deviceInfo?.consecutiveSyncFailures;
+    message = `WARNING: Agent on ${hostname} has sync issues`;
+    if (failures && failures > 0) message += ` · ${failures} consecutive failures`;
+  } else {
+    message = `WARNING: IPC connection on ${hostname} is disconnected`;
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl mb-4 border ${
+        isCritical
+          ? 'bg-[rgba(248,113,113,0.08)] border-[rgba(248,113,113,0.3)]'
+          : 'bg-[rgba(251,191,36,0.06)] border-[rgba(251,191,36,0.25)]'
+      }`}
+    >
+      <ShieldAlert className={`w-4 h-4 flex-shrink-0 ${isCritical ? 'text-[rgba(248,113,113,0.85)]' : 'text-[#fbbf24]'}`} />
+      <span className={`text-[12px] font-semibold ${isCritical ? 'text-[rgba(248,113,113,0.95)]' : 'text-[#fbbf24]'}`}>
+        {message}
+      </span>
+    </motion.div>
+  );
+}
+
+function deviceSortKey(d: DeviceListItem): number {
+  const h = d.healthStatus;
+  if (d.status === 'offline' || h === 'offline' || h === 'unhealthy') return 0;
+  if (h === 'degraded') return 1;
+  return 2;
 }
 
 function MetricCard({
@@ -186,9 +265,13 @@ function MetricCard({
 export default function Maintenance() {
   const user = useAuthStore((state) => state.user);
   const { isAdmin } = usePermissions();
+  const [searchParams] = useSearchParams();
+  const setGlobalAlerts = useHealthAlertStore((state) => state.setAlerts);
 
   const [devices, setDevices] = useState<DeviceListItem[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(true);
+  const [healthSummary, setHealthSummary] = useState<HealthSummaryResponse | null>(null);
+  const [alertDismissed, setAlertDismissed] = useState(false);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<DeviceMetricsResponse | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
@@ -224,21 +307,54 @@ export default function Maintenance() {
     return () => document.removeEventListener('mousedown', handler);
   }, [showDropdown]);
 
-  // Fetch devices
+  // Fetch devices + health summary
   const fetchDevices = useCallback(async () => {
     if (!user?.orgId) return;
     try {
-      const data = await listOrgDevices(user.orgId);
-      setDevices(data.devices);
+      const [devData, summary] = await Promise.all([
+        listOrgDevices(user.orgId),
+        getHealthSummary(user.orgId).catch(() => null),
+      ]);
+      const sorted = [...devData.devices].sort((a, b) => deviceSortKey(a) - deviceSortKey(b));
+      setDevices(sorted);
+
+      // Always derive alerts from device list — reliable even when health-summary fails
+      const derivedAlerts: HealthAlertItem[] = sorted
+        .filter(d => d.status === 'offline' || d.healthStatus === 'unhealthy' || d.healthStatus === 'degraded')
+        .map(d => ({
+          deviceId: d.deviceId,
+          hostname: d.hostname,
+          userDisplayName: d.userDisplayName,
+          issue: d.status === 'offline' ? 'offline' : (d.healthStatus ?? 'unhealthy'),
+          lastSeenAt: d.lastSeenAt,
+          healthStatus: d.status === 'offline' ? 'offline' : d.healthStatus,
+        }));
+      setGlobalAlerts(derivedAlerts);
+
+      if (summary) setHealthSummary(summary);
+      else {
+        // Synthesise summary counts from device list so the summary bar still renders
+        const onlineCount = sorted.filter(d => d.status === 'active').length;
+        const offlineCount = sorted.filter(d => d.status === 'offline').length;
+        const degradedCount = sorted.filter(d => d.status !== 'offline' && d.healthStatus === 'degraded').length;
+        const unhealthyCount = sorted.filter(d => d.status !== 'offline' && d.healthStatus === 'unhealthy').length;
+        setHealthSummary({ totalDevices: sorted.length, onlineCount, offlineCount, degradedCount, unhealthyCount, alerts: derivedAlerts });
+      }
     } catch (err) {
       console.error('[Maintenance] Error fetching devices:', err);
     } finally {
       setDevicesLoading(false);
     }
-  }, [user?.orgId]);
+  }, [user?.orgId, setGlobalAlerts]);
 
+  // Initial load + poll device list every 30s
+  const devicePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     fetchDevices();
+    devicePollRef.current = setInterval(fetchDevices, 30_000);
+    return () => {
+      if (devicePollRef.current) { clearInterval(devicePollRef.current); devicePollRef.current = null; }
+    };
   }, [fetchDevices]);
 
   // Fetch metrics for selected device
@@ -345,6 +461,12 @@ export default function Maintenance() {
     };
   }, [selectedDeviceId, fetchEvents, eventFilter]);
 
+  // Auto-select device from URL param (?device=deviceId — set by notification bell click)
+  useEffect(() => {
+    const deviceParam = searchParams.get('device');
+    if (deviceParam) setSelectedDeviceId(deviceParam);
+  }, [searchParams]);
+
   const selectedDevice = useMemo(
     () => devices.find(d => d.deviceId === selectedDeviceId) ?? null,
     [devices, selectedDeviceId]
@@ -374,7 +496,7 @@ export default function Maintenance() {
               </p>
             </div>
             <motion.button
-              onClick={() => { fetchDevices(); if (selectedDeviceId) fetchMetrics(selectedDeviceId, true); }}
+              onClick={() => { fetchDevices(); setAlertDismissed(false); if (selectedDeviceId) fetchMetrics(selectedDeviceId, true); }}
               whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
               className="w-9 h-9 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
             >
@@ -382,6 +504,40 @@ export default function Maintenance() {
             </motion.button>
           </header>
         </div>
+
+        {/* Health Summary Bar */}
+        {healthSummary && (
+          <div className="px-4 lg:px-5 pb-3 flex-shrink-0">
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: 'Online', count: healthSummary.onlineCount, color: '#05df72' },
+                { label: 'Offline', count: healthSummary.offlineCount, color: 'rgba(248,113,113,0.8)' },
+                { label: 'Degradado', count: healthSummary.degradedCount + healthSummary.unhealthyCount, color: '#fbbf24' },
+              ].map(({ label, count, color }) => (
+                <div key={label} className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl px-3 py-2 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                  <span className="text-[10px] text-[rgba(245,247,251,0.4)] flex-1 truncate">{label}</span>
+                  <span className="text-[15px] font-semibold" style={{ color }}>{count}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Alert banner */}
+            {!alertDismissed && healthSummary.alerts.length > 0 && (
+              <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.2)]">
+                <ShieldAlert className="w-4 h-4 text-[rgba(248,113,113,0.8)] flex-shrink-0" />
+                <span className="text-[11px] text-[rgba(248,113,113,0.9)] flex-1">
+                  {healthSummary.alerts.length === 1
+                    ? `1 dispositivo precisa de atencao · ${healthSummary.alerts[0].hostname}`
+                    : `${healthSummary.alerts.length} dispositivos precisam de atencao`}
+                </span>
+                <button onClick={() => setAlertDismissed(true)} className="text-[rgba(248,113,113,0.5)] hover:text-[rgba(248,113,113,0.9)] transition-colors flex-shrink-0">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Device Selector */}
         <div className="px-4 lg:px-5 pb-3 flex-shrink-0" ref={dropdownRef}>
@@ -458,6 +614,7 @@ export default function Maintenance() {
                             </p>
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <HealthBadge health={device.healthStatus} />
                             <TrackingStateLed state={device.trackingState} />
                             <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor(device.status)}`} />
                           </div>
@@ -512,6 +669,11 @@ export default function Maintenance() {
                 </button>
               </div>
             </div>
+          )}
+
+          {/* Device Status Stripe — shown when device has issues */}
+          {selectedDeviceId && !metricsLoading && (
+            <DeviceStatusStripe device={selectedDevice} deviceInfo={deviceInfo} />
           )}
 
           {/* Device Info Card */}

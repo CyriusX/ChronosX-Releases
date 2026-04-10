@@ -105,6 +105,11 @@ public sealed class HeartbeatRequest
     public string? IpAddress { get; init; }
     public int? UptimeSeconds { get; init; }
     public string? TrackingState { get; init; }
+    public string? HealthStatus { get; init; }
+    public bool? BackendReachable { get; init; }
+    public int? ConsecutiveSyncFailures { get; init; }
+    public DateTime? LastSuccessfulSyncAt { get; init; }
+    public bool? IpcConnected { get; init; }
 }
 
 /// <summary>
@@ -129,6 +134,7 @@ public sealed class DeviceListItem
     public string DisplayMode { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
     public string? TrackingState { get; init; }
+    public string? HealthStatus { get; init; }
     public DateTime? LastSeenAt { get; init; }
     public DateTime ActivatedAt { get; init; }
     public string? UserDisplayName { get; init; }
