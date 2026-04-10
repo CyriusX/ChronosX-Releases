@@ -702,10 +702,10 @@ export default function Maintenance() {
         )}
 
         {/* Two-column body: device card list (left) + detail panel (right) */}
-        <div className="flex-1 flex min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-y-auto md:overflow-hidden">
 
           {/* ── Left: device card list ─────────────────────────────────────── */}
-          <aside className="w-[260px] flex-shrink-0 border-r border-[rgba(255,255,255,0.04)] overflow-y-auto">
+          <aside className="w-full md:w-[260px] md:flex-shrink-0 border-b md:border-b-0 md:border-r border-[rgba(255,255,255,0.04)] overflow-y-auto max-h-[240px] md:max-h-none">
             {devicesLoading ? (
               <div className="flex items-center justify-center gap-2 py-8">
                 <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
@@ -840,7 +840,7 @@ export default function Maintenance() {
           </aside>
 
           {/* ── Right: device detail panel ─────────────────────────────────── */}
-          <div className="flex-1 overflow-y-auto min-h-0 px-4 lg:px-5 pb-4">
+          <div className="flex-1 md:overflow-y-auto md:min-h-0 px-4 lg:px-5 pb-4 pt-2 md:pt-0">
           {/* Empty state */}
           {!selectedDeviceId && (
             <div className="flex items-center justify-center py-16">
@@ -889,7 +889,7 @@ export default function Maintenance() {
 
           {/* Device Info Card */}
           {selectedDeviceId && !metricsLoading && deviceInfo && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
               {[
                 { icon: Globe, label: 'OS', value: deviceInfo.osVersion?.replace('Microsoft ', '') || 'N/A' },
                 { icon: Monitor, label: 'Versao', value: `v${deviceInfo.agentVersion}` },
@@ -1130,10 +1130,10 @@ export default function Maintenance() {
           {/* Event Log */}
           {selectedDeviceId && !metricsLoading && (
             <div className="mt-6">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
                 <ScrollText className="w-4 h-4 text-[#8B5CF6]" />
                 <h2 className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Event Log</h2>
-                <span className="text-[10px] text-[rgba(245,247,251,0.3)] ml-1">({events.length})</span>
+                <span className="text-[10px] text-[rgba(245,247,251,0.3)]">({events.length})</span>
                 <div className="ml-auto flex items-center gap-2">
                   <ClearLogsButton
                     label="Limpar usuario"
@@ -1156,7 +1156,7 @@ export default function Maintenance() {
               </div>
 
               {/* Category filter chips */}
-              <div className="flex gap-2 mb-3">
+              <div className="flex flex-wrap gap-2 mb-3">
                 {[
                   { value: null, label: 'Todos' },
                   { value: 'user_action', label: 'Acoes' },
