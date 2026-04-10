@@ -10,6 +10,8 @@ import Activities from './pages/Activities';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Maintenance from './pages/Maintenance';
+import Projects from './pages/Projects';
+import ProjectDetail from './pages/ProjectDetail';
 
 function App() {
   return (
@@ -39,6 +41,8 @@ function AnimatedRoutes() {
           <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="/maintenance" element={<ProtectedRoute><Maintenance /></ProtectedRoute>} />
+          <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+          <Route path="/projects/:projectId" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
         </Routes>
       </AnimatedPage>
     </AnimatePresence>
