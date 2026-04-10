@@ -20,6 +20,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { ListTodo, CircleDashed, CheckCircle2 } from 'lucide-react';
 import { TaskCard } from './TaskCard';
+import { TaskDetailDrawer } from './TaskDetailDrawer';
 import { moveTask, type Task, type TaskStatus } from '../../services/projectsApi';
 
 type ColumnDef = {
@@ -57,13 +58,14 @@ export function KanbanBoard({
   onConflict: () => void;
 }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
 
   const columns = useMemo(() => {
-    const byStatus: Record<TaskStatus, Task[]> = { Todo: [], InProgress: [], Done: [] };
+    const byStatus: Record<TaskStatus, Task[]> = { Todo: [], InProgress: [], InReview: [], Done: [] };
     tasks.forEach((t) => byStatus[t.status]?.push(t));
     (Object.keys(byStatus) as TaskStatus[]).forEach((k) =>
       byStatus[k].sort((a, b) => a.position - b.position),
@@ -151,7 +153,13 @@ export function KanbanBoard({
               <SortableContext items={colTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
                   {colTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} projectColor={projectColor} draggable={isMine(task)} />
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      projectColor={projectColor}
+                      draggable={isMine(task)}
+                      onOpen={setDrawerTaskId}
+                    />
                   ))}
                   {colTasks.length === 0 && (
                     <div className="text-center py-8 text-[10px] text-[rgba(245,247,251,0.25)] italic">
@@ -172,6 +180,8 @@ export function KanbanBoard({
           </div>
         ) : null}
       </DragOverlay>
+
+      <TaskDetailDrawer taskId={drawerTaskId} onClose={() => setDrawerTaskId(null)} />
     </DndContext>
   );
 }

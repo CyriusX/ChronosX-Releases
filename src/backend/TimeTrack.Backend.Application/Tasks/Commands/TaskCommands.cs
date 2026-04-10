@@ -93,8 +93,10 @@ public sealed class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand
 
     private static TaskPriority ParsePriority(string value) => value?.ToLowerInvariant() switch
     {
+        "none" => TaskPriority.None,
         "low" => TaskPriority.Low,
         "high" => TaskPriority.High,
+        "urgent" => TaskPriority.Urgent,
         _ => TaskPriority.Medium
     };
 }
@@ -174,8 +176,10 @@ public sealed class UpdateTaskCommandHandler : IRequestHandler<UpdateTaskCommand
 
     private static TaskPriority ParsePriority(string value) => value?.ToLowerInvariant() switch
     {
+        "none" => TaskPriority.None,
         "low" => TaskPriority.Low,
         "high" => TaskPriority.High,
+        "urgent" => TaskPriority.Urgent,
         _ => TaskPriority.Medium
     };
 }
@@ -291,6 +295,7 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
     {
         "todo" => ProjectTaskStatus.Todo,
         "inprogress" or "in_progress" => ProjectTaskStatus.InProgress,
+        "inreview" or "in_review" or "review" => ProjectTaskStatus.InReview,
         "done" => ProjectTaskStatus.Done,
         _ => throw new ValidationException("Status", $"Unknown status '{value}'")
     };

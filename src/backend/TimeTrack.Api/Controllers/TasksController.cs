@@ -57,9 +57,8 @@ public sealed class TasksController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<TaskResponse>> GetTask(Guid id)
     {
-        // For v1 we leverage the project list query path; a dedicated GET is added later if needed.
-        // The frontend always loads via the project board, so the create response is the only hit.
-        return NotFound();
+        var result = await _mediator.Send(new GetTaskByIdQuery(id));
+        return Ok(result);
     }
 
     [HttpPut("api/v1/tasks/{id:guid}")]
