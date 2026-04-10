@@ -121,51 +121,207 @@ function HealthBadge({ health }: { health: string | null }) {
   return null;
 }
 
+interface IssueSpec {
+  badge: string;           // short label shown inline
+  headline: string;        // one-line summary
+  subtext: string;         // secondary detail shown collapsed
+  component: string;       // which component is affected
+  what: string;            // plain-English explanation
+  steps: string[];         // ordered troubleshooting steps
+}
+
+function buildIssueSpec(
+  isOffline: boolean,
+  isUnhealthy: boolean,
+  isIpcOnly: boolean,
+  hostname: string,
+  device: DeviceListItem | null,
+  deviceInfo: DeviceInfoResponse | null,
+): IssueSpec {
+  if (isOffline) {
+    const lastSeen = device?.lastSeenAt;
+    let since = '';
+    if (lastSeen) {
+      const mins = Math.floor((Date.now() - new Date(lastSeen).getTime()) / 60000);
+      since = mins < 60 ? ` · last seen ${mins}min ago` : ` · last seen ${Math.floor(mins / 60)}h ago`;
+    }
+    return {
+      badge: 'OFFLINE',
+      headline: `${hostname} is not responding`,
+      subtext: `No heartbeat received${since}`,
+      component: 'Windows Service (background)',
+      what: 'The TimeTrack Agent service has not reported in over 10 minutes. Activity is NOT being recorded on this machine.',
+      steps: [
+        'Check that the computer is powered on and connected to the internet.',
+        'Open Windows Services (Win + R → services.msc) and look for "TimeTrack Agent".',
+        'If the service is Stopped: right-click → Start.',
+        'If it is Running but still offline: right-click → Restart.',
+        'If the service does not appear: re-run the ChronosX installer to reinstall it.',
+      ],
+    };
+  }
+
+  if (isUnhealthy) {
+    const failures = deviceInfo?.consecutiveSyncFailures ?? 0;
+    const lastSync = deviceInfo?.lastSuccessfulSyncAt
+      ? `last successful sync ${formatLastSeen(deviceInfo.lastSuccessfulSyncAt)}`
+      : 'no successful sync recorded';
+    return {
+      badge: 'UNHEALTHY',
+      headline: `${hostname} — agent cannot sync data`,
+      subtext: `${failures} consecutive failures · ${lastSync}`,
+      component: 'Windows Service (background)',
+      what: `The agent is running and recording activity locally, but it has failed to upload data to the server ${failures} times in a row. Recorded data is stored on-device and will sync once the connection is restored — nothing is lost yet.`,
+      steps: [
+        'Check internet connectivity on this computer.',
+        'The agent retries automatically every 60 s — wait 2–3 minutes before acting.',
+        'Open Windows Services → Restart "TimeTrack Agent" if failures keep growing.',
+        'Check the Event Logs tab below for specific error messages (look for "sync" or "http" errors).',
+        'If errors mention "401 Unauthorized": the agent token may have expired — re-install or re-activate the agent.',
+      ],
+    };
+  }
+
+  if (!isIpcOnly) {
+    // degraded
+    const failures = deviceInfo?.consecutiveSyncFailures ?? 0;
+    return {
+      badge: 'DEGRADED',
+      headline: `${hostname} — intermittent sync issues`,
+      subtext: `${failures} recent failure${failures !== 1 ? 's' : ''} · usually self-resolving`,
+      component: 'Windows Service (background)',
+      what: 'The agent had some recent sync failures. Activity recording is unaffected — data is queued locally. This is often caused by a brief network blip or a server restart.',
+      steps: [
+        'Wait 2–5 minutes — this usually clears on its own.',
+        'Check internet connectivity on this computer if it persists.',
+        'If it escalates to UNHEALTHY, check the Event Logs tab for error details.',
+      ],
+    };
+  }
+
+  // IPC only
+  return {
+    badge: 'UI DISCONNECTED',
+    headline: `${hostname} — desktop app not connected`,
+    subtext: 'Background service is running · tray app is disconnected',
+    component: 'Desktop Application (tray icon)',
+    what: 'The background Windows Service is running normally and recording activity. However, the TimeTrack desktop app (tray icon / overlay) is not connected to it. Manual timer controls and the tray UI are unavailable for this user.',
+    steps: [
+      'Ask the user to restart the TimeTrack desktop application from the Start menu or system tray.',
+      'If the tray icon is not visible, run "ChronosX" from the Start menu.',
+      'Activity recording by the background service is unaffected — no data is lost.',
+    ],
+  };
+}
+
 function DeviceStatusStripe({ device, deviceInfo }: { device: DeviceListItem | null, deviceInfo: DeviceInfoResponse | null }) {
+  const [expanded, setExpanded] = useState(false);
+
   const hostname = deviceInfo?.hostname ?? device?.hostname ?? 'dispositivo';
   const effectiveHealth = deviceInfo?.healthStatus ?? device?.healthStatus;
   const isOffline = device?.status === 'offline' || effectiveHealth === 'offline';
   const isUnhealthy = !isOffline && effectiveHealth === 'unhealthy';
+  const isIpcOnly = !isOffline && !isUnhealthy && deviceInfo?.ipcConnected === false && effectiveHealth !== 'degraded';
   const isDegraded = !isOffline && !isUnhealthy && (effectiveHealth === 'degraded' || deviceInfo?.ipcConnected === false);
   const isCritical = isOffline || isUnhealthy;
 
   if (!isCritical && !isDegraded) return null;
 
-  let message: string;
-  if (isOffline) {
-    message = `CRITICAL: Agent service on ${hostname} is OFFLINE`;
-    const lastSeen = device?.lastSeenAt;
-    if (lastSeen) {
-      const mins = Math.floor((Date.now() - new Date(lastSeen).getTime()) / 60000);
-      if (mins < 60) message += ` since ${mins}min ago`;
-      else message += ` since ${Math.floor(mins / 60)}h ago`;
-    }
-  } else if (isUnhealthy) {
-    const failures = deviceInfo?.consecutiveSyncFailures;
-    message = `CRITICAL: Agent service on ${hostname} is UNHEALTHY`;
-    if (failures && failures > 0) message += ` · ${failures} consecutive sync failures`;
-  } else if (effectiveHealth === 'degraded') {
-    const failures = deviceInfo?.consecutiveSyncFailures;
-    message = `WARNING: Agent on ${hostname} has sync issues`;
-    if (failures && failures > 0) message += ` · ${failures} consecutive failures`;
-  } else {
-    message = `WARNING: IPC connection on ${hostname} is disconnected`;
-  }
+  const spec = buildIssueSpec(isOffline, isUnhealthy, isIpcOnly, hostname, device, deviceInfo);
+  const accent = isCritical ? 'rgba(248,113,113' : '251,191,36';
+  const accentSolid = isCritical ? '#f87171' : '#fbbf24';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl mb-4 border ${
-        isCritical
-          ? 'bg-[rgba(248,113,113,0.08)] border-[rgba(248,113,113,0.3)]'
-          : 'bg-[rgba(251,191,36,0.06)] border-[rgba(251,191,36,0.25)]'
-      }`}
+      className="rounded-xl mb-4 border overflow-hidden"
+      style={{
+        background: `rgba(${isCritical ? '248,113,113' : '251,191,36'},0.05)`,
+        borderColor: `rgba(${accent},0.3)`,
+      }}
     >
-      <ShieldAlert className={`w-4 h-4 flex-shrink-0 ${isCritical ? 'text-[rgba(248,113,113,0.85)]' : 'text-[#fbbf24]'}`} />
-      <span className={`text-[12px] font-semibold ${isCritical ? 'text-[rgba(248,113,113,0.95)]' : 'text-[#fbbf24]'}`}>
-        {message}
-      </span>
+      {/* Header row — always visible */}
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+      >
+        <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accentSolid }} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded"
+              style={{ color: accentSolid, background: `rgba(${accent},0.15)` }}
+            >
+              {spec.badge}
+            </span>
+            <span className="text-[12px] font-semibold" style={{ color: accentSolid }}>
+              {spec.headline}
+            </span>
+          </div>
+          <p className="text-[11px] text-[rgba(245,247,251,0.45)] mt-0.5">{spec.subtext}</p>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+          <span className="text-[10px]" style={{ color: `rgba(${accent},0.6)` }}>
+            {expanded ? 'ocultar' : 'detalhes'}
+          </span>
+          <motion.div animate={{ rotate: expanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
+            <ChevronRight className="w-3.5 h-3.5" style={{ color: `rgba(${accent},0.6)` }} />
+          </motion.div>
+        </div>
+      </button>
+
+      {/* Expandable details */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div
+              className="px-4 pb-4 pt-1 border-t"
+              style={{ borderColor: `rgba(${accent},0.15)` }}
+            >
+              {/* Affected component */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[9px] text-[rgba(245,247,251,0.35)] uppercase tracking-wider">Componente afetado</span>
+                <span
+                  className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                  style={{ color: accentSolid, background: `rgba(${accent},0.1)` }}
+                >
+                  {spec.component}
+                </span>
+              </div>
+
+              {/* What it means */}
+              <p className="text-[11px] text-[rgba(245,247,251,0.65)] leading-relaxed mb-3">
+                {spec.what}
+              </p>
+
+              {/* Troubleshooting steps */}
+              <div>
+                <p className="text-[9px] text-[rgba(245,247,251,0.35)] uppercase tracking-wider mb-2">O que fazer</p>
+                <ol className="space-y-1.5">
+                  {spec.steps.map((step, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span
+                        className="flex-shrink-0 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center mt-0.5"
+                        style={{ color: accentSolid, background: `rgba(${accent},0.15)` }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span className="text-[11px] text-[rgba(245,247,251,0.6)] leading-relaxed">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
