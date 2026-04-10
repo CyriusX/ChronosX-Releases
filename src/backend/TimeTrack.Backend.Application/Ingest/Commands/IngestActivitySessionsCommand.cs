@@ -22,6 +22,7 @@ public sealed class IngestActivitySessionsCommandHandler : IRequestHandler<Inges
 {
     private readonly IActivitySessionRepository _activitySessionRepository;
     private readonly IIdempotencyKeyRepository _idempotencyKeyRepository;
+    private readonly ITaskTimeEntryRepository _taskTimeEntryRepository;
     private readonly ICurrentUserContext _currentUser;
     private readonly ILogger<IngestActivitySessionsCommandHandler> _logger;
 
@@ -30,11 +31,13 @@ public sealed class IngestActivitySessionsCommandHandler : IRequestHandler<Inges
     public IngestActivitySessionsCommandHandler(
         IActivitySessionRepository activitySessionRepository,
         IIdempotencyKeyRepository idempotencyKeyRepository,
+        ITaskTimeEntryRepository taskTimeEntryRepository,
         ICurrentUserContext currentUser,
         ILogger<IngestActivitySessionsCommandHandler> logger)
     {
         _activitySessionRepository = activitySessionRepository;
         _idempotencyKeyRepository = idempotencyKeyRepository;
+        _taskTimeEntryRepository = taskTimeEntryRepository;
         _currentUser = currentUser;
         _logger = logger;
     }
@@ -69,6 +72,12 @@ public sealed class IngestActivitySessionsCommandHandler : IRequestHandler<Inges
             keysToCheck,
             EntityType,
             cancellationToken);
+
+        // Pre-load any active task time entries for the user that overlap this batch.
+        // This avoids one DB hit per session.
+        var batchStart = items.Min(i => i.StartedAt);
+        var batchEnd = items.Max(i => i.EndedAt);
+        var taskEntries = await _taskTimeEntryRepository.ListForUserInRangeAsync(userId, batchStart, batchEnd, cancellationToken);
 
         foreach (var item in items)
         {
@@ -122,6 +131,13 @@ public sealed class IngestActivitySessionsCommandHandler : IRequestHandler<Inges
                     item.IdempotencyKey,
                     item.FilePath,
                     item.AppSubcategory);
+
+                // Auto-link the session to a task if a TaskTimeEntry overlaps it.
+                var overlap = taskEntries.FirstOrDefault(e =>
+                    e.StartedAt <= item.EndedAt &&
+                    (e.EndedAt == null || e.EndedAt >= item.StartedAt));
+                if (overlap is not null && overlap.Task is not null)
+                    session.LinkToTask(overlap.Task.ProjectId, overlap.TaskId);
 
                 // Create idempotency key record
                 var idempotencyKey = IdempotencyKey.Create(

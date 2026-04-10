@@ -20,9 +20,14 @@ public sealed class ActivitySession
     public string IdempotencyKey { get; private set; } = string.Empty;
     public DateTime CreatedAt { get; private set; }
 
+    public Guid? ProjectId { get; private set; }
+    public Guid? TaskId { get; private set; }
+
     // Navigation properties
     public Device? Device { get; private set; }
     public User? User { get; private set; }
+    public Project? Project { get; private set; }
+    public ProjectTask? Task { get; private set; }
 
     private ActivitySession() { }
 
@@ -66,6 +71,16 @@ public sealed class ActivitySession
             IdempotencyKey = idempotencyKey,
             CreatedAt = DateTime.UtcNow
         };
+    }
+
+    /// <summary>
+    /// Stamps the session with the project/task that was in progress when it was recorded.
+    /// Called by the ingest pipeline when an open TaskTimeEntry overlaps the session.
+    /// </summary>
+    public void LinkToTask(Guid projectId, Guid taskId)
+    {
+        ProjectId = projectId;
+        TaskId = taskId;
     }
 
     /// <summary>

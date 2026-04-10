@@ -44,6 +44,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IIdempotencyKeyRepository, IdempotencyKeyRepository>();
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<IProjectMemberRepository, ProjectMemberRepository>();
+        services.AddScoped<IProjectTaskRepository, ProjectTaskRepository>();
+        services.AddScoped<ITaskTimeEntryRepository, TaskTimeEntryRepository>();
+        services.AddScoped<IAgentNotificationInboxRepository, AgentNotificationInboxRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.AddScoped<IOrgPolicyRepository, OrgPolicyRepository>();
         services.AddScoped<IReportRepository, ReportRepository>();

@@ -3,6 +3,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using TimeTrack.Backend.Application.AppCategories.Services;
+using TimeTrack.Backend.Application.Notifications;
 
 namespace TimeTrack.Backend.Application.Extensions;
 
@@ -26,6 +27,9 @@ public static class DependencyInjection
 
         // App Category Services (CX-143)
         services.AddScoped<AppCategoryResolver>();
+
+        // Notifications
+        services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
 
         return services;
     }
