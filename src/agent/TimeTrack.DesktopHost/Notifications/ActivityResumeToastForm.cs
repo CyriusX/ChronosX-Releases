@@ -35,7 +35,12 @@ public sealed class ActivityResumeToastForm : Form
     private readonly int _ringY;
     private readonly Label _countNum;
 
-    public ActivityResumeToastForm(int countdownSeconds = 20)
+    public ActivityResumeToastForm(
+        int countdownSeconds = 20,
+        string? titleOverride = null,
+        string? subtitleOverride = null,
+        string? yesButtonOverride = null,
+        string? noButtonOverride = null)
     {
         _totalTicks = countdownSeconds * 10;
 
@@ -66,7 +71,7 @@ public sealed class ActivityResumeToastForm : Form
 
         // --- Title (centered, auto-height) ---
         var titleFont = new Font("Segoe UI Semibold", 15f);
-        var titleText = "Retomar monitoramento?";
+        var titleText = titleOverride ?? "Retomar monitoramento?";
         var titleSize = TextRenderer.MeasureText(titleText, titleFont, new Size(cw, 0), TextFormatFlags.WordBreak);
         var title = new Label
         {
@@ -83,7 +88,7 @@ public sealed class ActivityResumeToastForm : Form
 
         // --- Subtitle (centered, auto-height) ---
         var subFont = new Font("Segoe UI", 10f);
-        var subText = "Voce esta usando o computador ha algum tempo.";
+        var subText = subtitleOverride ?? "Voce esta usando o computador ha algum tempo.";
         var subSize = TextRenderer.MeasureText(subText, subFont, new Size(cw, 0), TextFormatFlags.WordBreak);
         var sub = new Label
         {
@@ -101,7 +106,7 @@ public sealed class ActivityResumeToastForm : Form
         // --- Resume button ---
         var yesBtn = new Button
         {
-            Text = "\u25B6   Retomar tracking",
+            Text = yesButtonOverride ?? "\u25B6   Retomar tracking",
             Font = new Font("Segoe UI Semibold", 11f),
             Size = new Size(cw, BtnH),
             Location = new Point(SidePad, y),
@@ -119,7 +124,7 @@ public sealed class ActivityResumeToastForm : Form
         // --- Dismiss button ---
         var noBtn = new Button
         {
-            Text = "Manter pausado",
+            Text = noButtonOverride ?? "Manter pausado",
             Font = new Font("Segoe UI", 10f),
             Size = new Size(cw, BtnH - 6),
             Location = new Point(SidePad, y),

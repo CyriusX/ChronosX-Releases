@@ -40,6 +40,8 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcCommandHandler, ResetOutboxCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, AssignProjectCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, AssignTaskCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, ResumeOpenTaskCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, CloseOpenTaskCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, UpdateSettingsCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, SetWorkHoursCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, UpdateAppCategoryCommandHandler>();
@@ -59,6 +61,7 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcQueryHandler, GetFocusModeStateQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetProjectsQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetTasksQueryHandler>();
+        services.AddSingleton<IIpcQueryHandler, GetMyOpenTaskQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetErrorsQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetSettingsQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetUpdateProgressQueryHandler>();

@@ -132,11 +132,18 @@ public sealed class FloatingStatusBarManager : IDisposable
             int focusScore = 0;
             bool isTracking = false, isPaused = false;
 
+            // --- 1a. Kanban open task ---
+            string? taskTitle = null;
+            string? taskProjectName = null;
+            string? taskProjectColor = null;
+            long? taskElapsedSec = null;
+
             if (_ipcClient.IsConnected)
             {
                 var summaryTask = _ipcClient.SendQueryAsync("getTodaySummary");
                 var stateTask = _ipcClient.SendQueryAsync("getTrackingState");
-                await Task.WhenAll(summaryTask, stateTask);
+                var openTaskTask = _ipcClient.SendQueryAsync("GetMyOpenTask");
+                await Task.WhenAll(summaryTask, stateTask, openTaskTask);
 
                 if (summaryTask.Result.Success && summaryTask.Result.Data.HasValue)
                 {
@@ -144,6 +151,19 @@ public sealed class FloatingStatusBarManager : IDisposable
                     if (d.TryGetProperty("totalDuration", out var td)) activeSeconds = td.GetInt64();
                     if (d.TryGetProperty("productiveTime", out var pt)) productiveSeconds = pt.GetInt64();
                     if (d.TryGetProperty("focusScore", out var fs)) focusScore = fs.GetInt32();
+                }
+
+                if (openTaskTask.Result.Success && openTaskTask.Result.Data.HasValue)
+                {
+                    var t = openTaskTask.Result.Data.Value;
+                    if (t.TryGetProperty("taskTitle", out var tt) && tt.ValueKind == JsonValueKind.String)
+                        taskTitle = tt.GetString();
+                    if (t.TryGetProperty("projectName", out var pn) && pn.ValueKind == JsonValueKind.String)
+                        taskProjectName = pn.GetString();
+                    if (t.TryGetProperty("projectColor", out var pc) && pc.ValueKind == JsonValueKind.String)
+                        taskProjectColor = pc.GetString();
+                    if (t.TryGetProperty("elapsedSeconds", out var es) && es.ValueKind == JsonValueKind.Number)
+                        taskElapsedSec = es.GetInt64();
                 }
 
                 if (stateTask.Result.Success && stateTask.Result.Data.HasValue)
@@ -208,6 +228,7 @@ public sealed class FloatingStatusBarManager : IDisposable
                 _bar.UpdateTrackingState(isTracking, isPaused);
                 _bar.UpdateData(activeSeconds, productiveSeconds, focusScore,
                     focusState, focusMode, focusRemainingMs, cycleNumber);
+                _bar.UpdateTaskData(taskProjectName, taskTitle, taskElapsedSec, taskProjectColor);
             }
         }
         catch (Exception ex)

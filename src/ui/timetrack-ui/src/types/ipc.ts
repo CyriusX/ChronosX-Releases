@@ -157,6 +157,24 @@ export interface ConnectionStateChangedPayload {
   reconnectAttempts?: number;
 }
 
+// Kanban task events (Phase 4 integration)
+export interface NotificationReceivedPayload {
+  kind: string;
+  taskId?: string | null;
+  projectId?: string | null;
+}
+
+export interface MyTasksChangedPayload {
+  kind: string;
+  taskId?: string | null;
+}
+
+export interface TaskIdleAutoPausedPayload {
+  taskId: string;
+  taskTitle: string;
+  projectName: string;
+}
+
 // Event payload map for type-safe event handling
 export interface EventPayloadMap {
   trackingStarted: TrackingStartedPayload;
@@ -171,6 +189,9 @@ export interface EventPayloadMap {
   focusModeStateChanged: FocusModeStateChangedPayload;
   agentHealthChanged: AgentHealthChangedPayload;
   connectionStateChanged: ConnectionStateChangedPayload;
+  notificationReceived: NotificationReceivedPayload;
+  myTasksChanged: MyTasksChangedPayload;
+  taskIdleAutoPaused: TaskIdleAutoPausedPayload;
 }
 
 // ============================================================================
