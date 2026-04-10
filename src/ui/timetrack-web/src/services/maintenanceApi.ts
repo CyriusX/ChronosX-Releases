@@ -13,6 +13,7 @@ export interface DeviceListItem {
   status: string; // "active" | "offline" | "inactive"
   trackingState: string | null; // "running" | "paused" | "stopped" | null
   healthStatus: string | null; // "healthy" | "degraded" | "unhealthy" | "offline" | null
+  ipcConnected: boolean | null;
   lastSeenAt: string | null;
   activatedAt: string;
   userDisplayName: string | null;

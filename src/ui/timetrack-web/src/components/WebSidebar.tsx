@@ -35,12 +35,21 @@ export function WebSidebar() {
       try {
         const data = await listOrgDevices(orgId);
         const derived = data.devices
-          .filter(d => d.status === 'offline' || d.healthStatus === 'unhealthy' || d.healthStatus === 'degraded')
+          .filter(d =>
+            d.status === 'offline' ||
+            d.healthStatus === 'unhealthy' ||
+            d.healthStatus === 'degraded' ||
+            (d.status === 'active' && d.ipcConnected === false)
+          )
           .map(d => ({
             deviceId: d.deviceId,
             hostname: d.hostname,
             userDisplayName: d.userDisplayName,
-            issue: d.status === 'offline' ? 'offline' : (d.healthStatus ?? 'unhealthy'),
+            issue: d.status === 'offline'
+              ? 'offline'
+              : (d.healthStatus === 'unhealthy' || d.healthStatus === 'degraded')
+                ? d.healthStatus
+                : 'ipc_disconnected',
             lastSeenAt: d.lastSeenAt,
             healthStatus: d.status === 'offline' ? 'offline' : d.healthStatus,
           }));
@@ -156,20 +165,27 @@ export function WebSidebar() {
                   <div className="mt-1 space-y-0.5 max-h-[200px] overflow-y-auto">
                     {alerts.map((alert) => {
                       const isCritical = alert.issue === 'offline' || alert.issue === 'unhealthy';
+                      const isIpcOnly = alert.issue === 'ipc_disconnected';
+                      const dotColor = isCritical ? 'bg-[#f87171]' : isIpcOnly ? 'bg-[#a78bfa]' : 'bg-[#fbbf24]';
+                      const textColor = isCritical ? 'text-[rgba(248,113,113,0.85)]' : isIpcOnly ? 'text-[#a78bfa]' : 'text-[#fbbf24]';
+                      const label = alert.issue === 'offline' ? 'OFFLINE'
+                        : alert.issue === 'unhealthy' ? 'UNHEALTHY'
+                        : alert.issue === 'ipc_disconnected' ? 'UI DESCONECTADA'
+                        : 'DEGRADADO';
                       return (
                         <button
                           key={alert.deviceId}
                           onClick={() => { handleNav(`/maintenance?device=${encodeURIComponent(alert.deviceId)}`); setNotifOpen(false); }}
                           className="w-full flex items-start gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors text-left"
                         >
-                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${isCritical ? 'bg-[#f87171]' : 'bg-[#fbbf24]'}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${dotColor}`} />
                           <div className="flex-1 min-w-0">
                             <p className="text-[11px] font-medium text-[rgba(245,247,251,0.85)] truncate">
                               {alert.userDisplayName || alert.hostname}
                             </p>
                             <p className="text-[9px] text-[rgba(245,247,251,0.4)] truncate">{alert.hostname}</p>
-                            <p className={`text-[9px] font-bold uppercase mt-0.5 ${isCritical ? 'text-[rgba(248,113,113,0.85)]' : 'text-[#fbbf24]'}`}>
-                              {alert.issue === 'offline' ? 'OFFLINE' : alert.issue === 'unhealthy' ? 'UNHEALTHY' : 'DEGRADADO'}
+                            <p className={`text-[9px] font-bold uppercase mt-0.5 ${textColor}`}>
+                              {label}
                               <span className="font-normal normal-case">{fmtAgo(alert.lastSeenAt)}</span>
                             </p>
                           </div>

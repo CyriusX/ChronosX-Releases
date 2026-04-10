@@ -45,6 +45,7 @@ public sealed class ListDevicesCommandHandler : IRequestHandler<ListDevicesComma
             Status = CalculateStatus(d, now),
             TrackingState = d.TrackingState,
             HealthStatus = CalculateEffectiveHealth(d, now),
+            IpcConnected = d.IpcConnected,
             LastSeenAt = d.LastHeartbeatAt,
             ActivatedAt = d.ActivatedAt,
             UserDisplayName = d.User?.DisplayName
