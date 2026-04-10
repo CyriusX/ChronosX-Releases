@@ -483,12 +483,21 @@ export default function Maintenance() {
 
       // Always derive alerts from device list — reliable even when health-summary fails
       const derivedAlerts: HealthAlertItem[] = sorted
-        .filter(d => d.status === 'offline' || d.healthStatus === 'unhealthy' || d.healthStatus === 'degraded')
+        .filter(d =>
+          d.status === 'offline' ||
+          d.healthStatus === 'unhealthy' ||
+          d.healthStatus === 'degraded' ||
+          (d.status === 'active' && d.ipcConnected === false)
+        )
         .map(d => ({
           deviceId: d.deviceId,
           hostname: d.hostname,
           userDisplayName: d.userDisplayName,
-          issue: d.status === 'offline' ? 'offline' : (d.healthStatus ?? 'unhealthy'),
+          issue: d.status === 'offline'
+            ? 'offline'
+            : (d.healthStatus === 'unhealthy' || d.healthStatus === 'degraded')
+              ? d.healthStatus
+              : 'ipc_disconnected',
           lastSeenAt: d.lastSeenAt,
           healthStatus: d.status === 'offline' ? 'offline' : d.healthStatus,
         }));

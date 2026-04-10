@@ -135,6 +135,7 @@ public sealed class DeviceListItem
     public string Status { get; init; } = string.Empty;
     public string? TrackingState { get; init; }
     public string? HealthStatus { get; init; }
+    public bool? IpcConnected { get; init; }
     public DateTime? LastSeenAt { get; init; }
     public DateTime ActivatedAt { get; init; }
     public string? UserDisplayName { get; init; }
