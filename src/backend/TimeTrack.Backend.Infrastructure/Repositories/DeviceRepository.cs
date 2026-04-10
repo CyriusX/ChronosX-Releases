@@ -51,4 +51,14 @@ public sealed class DeviceRepository : IDeviceRepository
         _context.Devices.Update(device);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var device = await _context.Devices.FindAsync([id], cancellationToken);
+        if (device is not null)
+        {
+            _context.Devices.Remove(device);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
 }

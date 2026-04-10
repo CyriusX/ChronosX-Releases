@@ -1,15 +1,13 @@
 import { Info, Download, ExternalLink, HardDrive } from 'lucide-react';
+import { useAgentStatus } from '../../hooks/useAgentStatus';
+
+const APP_VERSION = '1.0.5';
 
 /**
  * AboutSection - Aba Sobre/Diagnóstico
- *
- * Exibe:
- * - Versão do Agent e DesktopHost
- * - Device ID (para suporte)
- * - Botão Exportar logs
- * - Link para tela de Status
  */
 export function AboutSection() {
+  const { status } = useAgentStatus();
 
   const handleExportLogs = async () => {
     // TODO: Implement export logs via IPC
@@ -17,14 +15,11 @@ export function AboutSection() {
   };
 
   const handleOpenStatus = () => {
-    // Navigate to /status
     window.location.href = '/status';
   };
 
-  // Mock data - will come from IPC in production
-  const agentVersion = '1.0.0';
-  const desktopHostVersion = '1.0.0';
-  const deviceId = 'DEV-XXXX-XXXX-XXXX';
+  const agentVersion = status.version !== '-' ? status.version : '—';
+  const desktopHostVersion = APP_VERSION;
 
   return (
     <div className="space-y-6">
@@ -57,7 +52,7 @@ export function AboutSection() {
           <div className="flex items-center justify-between py-2">
             <span className="text-[13px] text-[rgba(245,247,251,0.6)]">Device ID</span>
             <code className="text-[12px] font-mono text-[#8B5CF6] bg-[rgba(139,92,246,0.1)] px-2 py-0.5 rounded">
-              {deviceId}
+              ver Status do Agent
             </code>
           </div>
         </div>
