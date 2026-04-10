@@ -654,7 +654,9 @@ export default function Maintenance() {
                             ) : (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(device.deviceId); }}
-                                className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[rgba(248,113,113,0.1)] text-[rgba(248,113,113,0.5)] hover:text-[#f87171]"
+                                className={`ml-1 p-0.5 rounded hover:bg-[rgba(248,113,113,0.1)] text-[rgba(248,113,113,0.5)] hover:text-[#f87171] transition-opacity ${
+                                  device.status === 'offline' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                }`}
                                 title="Remover dispositivo"
                               >
                                 <Trash2 className="w-3 h-3" />

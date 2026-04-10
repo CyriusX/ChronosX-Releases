@@ -27,6 +27,13 @@ public sealed class DeviceRepository : IDeviceRepository
             .FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
     }
 
+    public async Task<IEnumerable<Device>> GetActiveByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Devices
+            .Where(d => d.UserId == userId && d.Status == Domain.ValueObjects.DeviceStatus.Active)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IEnumerable<Device>> GetActiveByOrgIdAsync(Guid orgId, CancellationToken cancellationToken = default)
     {
         return await _context.Devices
