@@ -27,6 +27,14 @@ public sealed class DeviceRepository : IDeviceRepository
             .FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
     }
 
+    public async Task<Device?> GetByIdUnfilteredAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _context.Devices
+            .IgnoreQueryFilters()
+            .Include(d => d.User)
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+    }
+
     public async Task<IEnumerable<Device>> GetActiveByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _context.Devices
