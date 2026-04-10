@@ -44,6 +44,7 @@ public sealed class ListDevicesCommandHandler : IRequestHandler<ListDevicesComma
             DisplayMode = d.DisplayMode.ToString(),
             Status = CalculateStatus(d, now),
             TrackingState = d.TrackingState,
+            HealthStatus = CalculateEffectiveHealth(d, now),
             LastSeenAt = d.LastHeartbeatAt,
             ActivatedAt = d.ActivatedAt,
             UserDisplayName = d.User?.DisplayName
@@ -69,5 +70,21 @@ public sealed class ListDevicesCommandHandler : IRequestHandler<ListDevicesComma
             return "active";
 
         return "offline";
+    }
+
+    /// <summary>
+    /// Returns effective health: "offline" if no recent heartbeat, otherwise
+    /// the agent-reported health status, defaulting to null if never reported.
+    /// </summary>
+    private static string? CalculateEffectiveHealth(Domain.Entities.Device device, DateTime now)
+    {
+        if (device.Status == DeviceStatus.Inactive)
+            return "inactive";
+
+        var lastSeen = device.LastHeartbeatAt ?? device.ActivatedAt;
+        if ((now - lastSeen).TotalMinutes > 10)
+            return "offline";
+
+        return device.HealthStatus; // healthy | degraded | unhealthy | null (never reported)
     }
 }

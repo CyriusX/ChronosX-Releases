@@ -21,6 +21,10 @@ public sealed class Device
     public string? IpAddress { get; private set; }
     public int? UptimeSeconds { get; private set; }
     public string? TrackingState { get; private set; }
+    public string? HealthStatus { get; private set; }
+    public int? ConsecutiveSyncFailures { get; private set; }
+    public DateTime? LastSuccessfulSyncAt { get; private set; }
+    public bool? IpcConnected { get; private set; }
     public DateTime CreatedAt { get; private set; }
 
     // Navigation properties
@@ -63,7 +67,12 @@ public sealed class Device
         string? osVersion = null,
         string? ipAddress = null,
         int? uptimeSeconds = null,
-        string? trackingState = null)
+        string? trackingState = null,
+        string? healthStatus = null,
+        bool? backendReachable = null,
+        int? consecutiveSyncFailures = null,
+        DateTime? lastSuccessfulSyncAt = null,
+        bool? ipcConnected = null)
     {
         LastHeartbeatAt = DateTime.UtcNow;
         if (!string.IsNullOrWhiteSpace(newAgentVersion))
@@ -76,6 +85,14 @@ public sealed class Device
             UptimeSeconds = uptimeSeconds;
         if (trackingState != null)
             TrackingState = trackingState;
+        if (healthStatus != null)
+            HealthStatus = healthStatus;
+        if (consecutiveSyncFailures.HasValue)
+            ConsecutiveSyncFailures = consecutiveSyncFailures;
+        if (lastSuccessfulSyncAt.HasValue)
+            LastSuccessfulSyncAt = lastSuccessfulSyncAt;
+        if (ipcConnected.HasValue)
+            IpcConnected = ipcConnected;
     }
 
     public void UpdateDisplayMode(DisplayMode newDisplayMode)

@@ -72,6 +72,19 @@ internal sealed class DeviceConfiguration : IEntityTypeConfiguration<Device>
             .HasColumnName("tracking_state")
             .HasMaxLength(20);
 
+        builder.Property(d => d.HealthStatus)
+            .HasColumnName("health_status")
+            .HasMaxLength(20);
+
+        builder.Property(d => d.ConsecutiveSyncFailures)
+            .HasColumnName("consecutive_sync_failures");
+
+        builder.Property(d => d.LastSuccessfulSyncAt)
+            .HasColumnName("last_successful_sync_at");
+
+        builder.Property(d => d.IpcConnected)
+            .HasColumnName("ipc_connected");
+
         builder.Property(d => d.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()");
