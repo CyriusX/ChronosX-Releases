@@ -115,44 +115,60 @@ public static class InfrastructureServiceCollectionExtensions
         // First check for explicit connection string (takes priority)
         var connectionString = configuration.GetConnectionString("DefaultConnection");
         if (!string.IsNullOrEmpty(connectionString))
-        {
-            return connectionString;
-        }
+            return NormalizeConnectionString(connectionString);
 
         // Support DATABASE_URL format (URI style)
         var databaseUrl = configuration["DATABASE_URL"];
         if (!string.IsNullOrEmpty(databaseUrl))
-        {
-            // Check if it's a URI format (starts with postgres:// or postgresql://)
-            if (databaseUrl.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
-                databaseUrl.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
-            {
-                return ConvertNeonUrlToConnectionString(databaseUrl);
-            }
-            // Otherwise assume it's already a connection string format
-            return databaseUrl;
-        }
+            return NormalizeConnectionString(databaseUrl);
 
         throw new InvalidOperationException(
             "Database connection string not found. Set DATABASE_URL or ConnectionStrings:DefaultConnection");
     }
 
-    private static string ConvertNeonUrlToConnectionString(string databaseUrl)
+    internal static string NormalizeConnectionString(string value)
     {
-        // Parse Neon URL format: postgres://user:password@host:port/database?sslmode=require
+        if (value.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConvertUriToConnectionString(value);
+        }
+        return value;
+    }
+
+    private static string ConvertUriToConnectionString(string databaseUrl)
+    {
+        // Parse URI format: postgres://user:password@host:port/database?sslmode=disable
         var uri = new Uri(databaseUrl);
         var userInfo = uri.UserInfo.Split(':');
+
+        // Parse sslmode query param
+        var query = uri.Query.TrimStart('?');
+        var sslMode = Npgsql.SslMode.Prefer;
+        foreach (var part in query.Split('&'))
+        {
+            if (part.StartsWith("sslmode=", StringComparison.OrdinalIgnoreCase))
+            {
+                var val = part.Substring("sslmode=".Length);
+                sslMode = val.ToLowerInvariant() switch
+                {
+                    "disable" => Npgsql.SslMode.Disable,
+                    "require" => Npgsql.SslMode.Require,
+                    "verify-ca" => Npgsql.SslMode.VerifyCA,
+                    "verify-full" => Npgsql.SslMode.VerifyFull,
+                    _ => Npgsql.SslMode.Prefer
+                };
+            }
+        }
 
         var builder = new Npgsql.NpgsqlConnectionStringBuilder
         {
             Host = uri.Host,
-            Port = uri.Port,
+            Port = uri.Port > 0 ? uri.Port : 5432,
             Username = userInfo[0],
-            Password = userInfo.Length > 1 ? userInfo[1] : string.Empty,
+            Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty,
             Database = uri.AbsolutePath.TrimStart('/'),
-            SslMode = uri.Query.Contains("sslmode=require")
-                ? Npgsql.SslMode.Require
-                : Npgsql.SslMode.Prefer
+            SslMode = sslMode
         };
 
         return builder.ToString();

@@ -2,6 +2,7 @@ using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using TimeTrack.Backend.Infrastructure.Extensions;
 using TimeTrack.Backend.Infrastructure.Jobs.Interfaces;
 using TimeTrack.Backend.Infrastructure.Jobs;
 
@@ -135,40 +136,15 @@ public static class HangfireConfiguration
 
     private static string GetConnectionString(IConfiguration configuration)
     {
-        // Support Neon DATABASE_URL format
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (!string.IsNullOrEmpty(connectionString))
+            return InfrastructureServiceCollectionExtensions.NormalizeConnectionString(connectionString);
+
         var databaseUrl = configuration["DATABASE_URL"];
         if (!string.IsNullOrEmpty(databaseUrl))
-        {
-            return ConvertNeonUrlToConnectionString(databaseUrl);
-        }
+            return InfrastructureServiceCollectionExtensions.NormalizeConnectionString(databaseUrl);
 
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
-        if (string.IsNullOrEmpty(connectionString))
-        {
-            throw new InvalidOperationException(
-                "Database connection string not found. Set DATABASE_URL or ConnectionStrings:DefaultConnection");
-        }
-
-        return connectionString;
-    }
-
-    private static string ConvertNeonUrlToConnectionString(string databaseUrl)
-    {
-        var uri = new Uri(databaseUrl);
-        var userInfo = uri.UserInfo.Split(':');
-
-        var builder = new Npgsql.NpgsqlConnectionStringBuilder
-        {
-            Host = uri.Host,
-            Port = uri.Port,
-            Username = userInfo[0],
-            Password = userInfo.Length > 1 ? userInfo[1] : string.Empty,
-            Database = uri.AbsolutePath.TrimStart('/'),
-            SslMode = uri.Query.Contains("sslmode=require")
-                ? Npgsql.SslMode.Require
-                : Npgsql.SslMode.Prefer
-        };
-
-        return builder.ToString();
+        throw new InvalidOperationException(
+            "Database connection string not found. Set DATABASE_URL or ConnectionStrings:DefaultConnection");
     }
 }
