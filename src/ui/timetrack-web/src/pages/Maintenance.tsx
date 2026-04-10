@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Monitor, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe, Trash2, User } from 'lucide-react';
+import { Monitor, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe, Trash2, User, AlertTriangle } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
 import { useAuthStore } from '../stores/authStore';
 import { useHealthAlertStore } from '../stores/healthAlertStore';
@@ -95,24 +95,6 @@ function getBarColor(percent: number): string {
   return '#f87171';
 }
 
-function HealthBadge({ health }: { health: string | null }) {
-  if (!health || health === 'healthy') return null;
-  if (health === 'offline' || health === 'unhealthy') {
-    return (
-      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[rgba(248,113,113,0.15)] text-[rgba(248,113,113,0.9)]" title={health}>
-        <span className="text-[9px] font-bold leading-none">✕</span>
-      </span>
-    );
-  }
-  if (health === 'degraded') {
-    return (
-      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[rgba(251,191,36,0.15)] text-[#fbbf24]" title="degraded">
-        <span className="text-[9px] font-bold leading-none">!</span>
-      </span>
-    );
-  }
-  return null;
-}
 
 interface IssueSpec {
   badge: string;           // short label shown inline
@@ -742,6 +724,7 @@ export default function Maintenance() {
                   const isDeleting = deletingDeviceId === device.deviceId;
                   const isOnline = device.status === 'active';
                   const hasIssue = device.healthStatus === 'unhealthy' || device.healthStatus === 'degraded' || (!isOnline && device.status === 'offline') || (isOnline && device.ipcConnected === false);
+                  const isCritical = !isOnline || device.healthStatus === 'unhealthy';
 
                   return (
                     <motion.div
@@ -769,7 +752,11 @@ export default function Maintenance() {
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-                            <HealthBadge health={device.healthStatus} />
+                            {hasIssue && (
+                              <AlertTriangle
+                                className={`w-3.5 h-3.5 flex-shrink-0 ${isCritical ? 'text-[#f87171]' : 'text-[#fbbf24]'}`}
+                              />
+                            )}
                             <span
                               className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-[#05df72]' : 'bg-[rgba(248,113,113,0.6)]'}`}
                               title={isOnline ? 'Online' : 'Offline'}
