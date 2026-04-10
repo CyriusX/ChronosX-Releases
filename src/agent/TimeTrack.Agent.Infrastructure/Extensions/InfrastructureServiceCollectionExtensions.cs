@@ -162,6 +162,13 @@ public static class InfrastructureServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
         });
 
+        // Kanban tasks + notifications client
+        services.AddHttpClient<IBackendTasksClient, BackendTasksClient>(client =>
+        {
+            client.BaseAddress = new Uri(settings.BackendUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
+        });
+
         return services;
     }
 
@@ -175,6 +182,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<ICurrentUserContext, JwtCurrentUserContext>();
         services.AddSingleton<IDeviceActivationService, NullDeviceActivationService>();
         services.AddSingleton<IBackendReportsClient, NullBackendReportsClient>();
+        services.AddSingleton<IBackendTasksClient, NullBackendTasksClient>();
         return services;
     }
 }
