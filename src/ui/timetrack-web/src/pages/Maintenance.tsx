@@ -272,7 +272,10 @@ export default function Maintenance() {
   const [devices, setDevices] = useState<DeviceListItem[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(true);
   const [healthSummary, setHealthSummary] = useState<HealthSummaryResponse | null>(null);
-  const [alertDismissed, setAlertDismissed] = useState(false);
+  // Track which device IDs were dismissed rather than a single boolean, so the banner
+  // re-appears automatically when new devices enter the alert list or existing ones recover
+  // and then break again.
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(new Set());
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<DeviceMetricsResponse | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
@@ -360,6 +363,17 @@ export default function Maintenance() {
       if (devicePollRef.current) { clearInterval(devicePollRef.current); devicePollRef.current = null; }
     };
   }, [fetchDevices]);
+
+  // Prune dismissed IDs when devices recover — ensures the banner re-appears
+  // if a previously-dismissed device breaks again after recovering.
+  useEffect(() => {
+    if (!healthSummary?.alerts) return;
+    const activeAlertIds = new Set(healthSummary.alerts.map(a => a.deviceId));
+    setDismissedAlertIds(prev => {
+      const pruned = new Set([...prev].filter(id => activeAlertIds.has(id)));
+      return pruned.size !== prev.size ? pruned : prev;
+    });
+  }, [healthSummary?.alerts]);
 
   // Fetch metrics for selected device
   const fetchMetrics = useCallback(async (deviceId: string, isInitial = false) => {
@@ -516,7 +530,7 @@ export default function Maintenance() {
               </p>
             </div>
             <motion.button
-              onClick={() => { fetchDevices(); setAlertDismissed(false); if (selectedDeviceId) fetchMetrics(selectedDeviceId, true); }}
+              onClick={() => { fetchDevices(); setDismissedAlertIds(new Set()); if (selectedDeviceId) fetchMetrics(selectedDeviceId, true); }}
               whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
               className="w-9 h-9 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
             >
@@ -542,8 +556,8 @@ export default function Maintenance() {
               ))}
             </div>
 
-            {/* Alert banner */}
-            {!alertDismissed && healthSummary.alerts.length > 0 && (
+            {/* Alert banner — visible when any alert device hasn't been dismissed */}
+            {healthSummary.alerts.length > 0 && healthSummary.alerts.some(a => !dismissedAlertIds.has(a.deviceId)) && (
               <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.2)]">
                 <ShieldAlert className="w-4 h-4 text-[rgba(248,113,113,0.8)] flex-shrink-0" />
                 <span className="text-[11px] text-[rgba(248,113,113,0.9)] flex-1">
@@ -551,7 +565,10 @@ export default function Maintenance() {
                     ? `1 dispositivo precisa de atencao · ${healthSummary.alerts[0].hostname}`
                     : `${healthSummary.alerts.length} dispositivos precisam de atencao`}
                 </span>
-                <button onClick={() => setAlertDismissed(true)} className="text-[rgba(248,113,113,0.5)] hover:text-[rgba(248,113,113,0.9)] transition-colors flex-shrink-0">
+                <button
+                  onClick={() => setDismissedAlertIds(new Set(healthSummary.alerts.map(a => a.deviceId)))}
+                  className="text-[rgba(248,113,113,0.5)] hover:text-[rgba(248,113,113,0.9)] transition-colors flex-shrink-0"
+                >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
