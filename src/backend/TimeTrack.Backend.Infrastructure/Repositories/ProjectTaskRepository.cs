@@ -61,4 +61,21 @@ public sealed class ProjectTaskRepository : IProjectTaskRepository
         _context.ProjectTasks.Update(task);
         await _context.SaveChangesAsync(ct);
     }
+
+    public async Task<IReadOnlyList<ProjectTask>> ListAssignedTasksDueOnAsync(DateTime utcDate, CancellationToken ct = default)
+    {
+        // Normalize to the start/end of the given calendar day in UTC.
+        var dayStart = new DateTime(utcDate.Year, utcDate.Month, utcDate.Day, 0, 0, 0, DateTimeKind.Utc);
+        var dayEnd = dayStart.AddDays(1);
+
+        return await _context.ProjectTasks
+            .Include(t => t.Project)
+            .Where(t =>
+                t.AssignedUserId != null &&
+                t.Status != ProjectTaskStatus.Done &&
+                t.DueDate != null &&
+                t.DueDate >= dayStart &&
+                t.DueDate < dayEnd)
+            .ToListAsync(ct);
+    }
 }

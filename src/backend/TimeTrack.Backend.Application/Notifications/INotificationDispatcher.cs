@@ -12,4 +12,5 @@ public interface INotificationDispatcher
     Task NotifyTaskAssignedAsync(Guid userId, ProjectTask task, Project project, CancellationToken cancellationToken = default);
     Task NotifyTaskUnassignedAsync(Guid userId, ProjectTask task, Project project, CancellationToken cancellationToken = default);
     Task NotifyMembershipChangedAsync(Guid userId, Project project, bool added, CancellationToken cancellationToken = default);
+    Task NotifyDeadlineTodayAsync(Guid userId, ProjectTask task, Project project, CancellationToken cancellationToken = default);
 }

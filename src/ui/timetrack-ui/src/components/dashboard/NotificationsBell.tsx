@@ -31,7 +31,15 @@ function kindIcon(kind: string): string {
     case 'TaskUnassigned': return '❌';
     case 'TaskUpdated': return '✏️';
     case 'ProjectMembershipChanged': return '👥';
+    case 'DeadlineToday': return '⏰';
     default: return '🔔';
+  }
+}
+
+function kindAccent(kind: string): string {
+  switch (kind) {
+    case 'DeadlineToday': return 'bg-[rgba(251,191,36,0.08)] hover:bg-[rgba(251,191,36,0.14)] border-l-2 border-l-[#fbbf24]';
+    default: return 'bg-[rgba(139,92,246,0.04)] hover:bg-[rgba(139,92,246,0.08)]';
   }
 }
 
@@ -161,7 +169,7 @@ export function NotificationsBell() {
                       onClick={() => isUnread && handleMarkRead(n.id)}
                       disabled={!isUnread}
                       className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-b border-[rgba(255,255,255,0.03)] last:border-b-0 ${
-                        isUnread ? 'bg-[rgba(139,92,246,0.04)] hover:bg-[rgba(139,92,246,0.08)]' : 'opacity-60'
+                        isUnread ? kindAccent(n.kind) : 'opacity-60'
                       }`}
                     >
                       <span className="text-[14px] flex-shrink-0 mt-0.5">{kindIcon(n.kind)}</span>
