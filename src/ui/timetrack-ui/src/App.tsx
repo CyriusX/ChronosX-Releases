@@ -17,6 +17,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Toaster } from "./components/Toaster";
 import { AnimatedPage } from "./components/ui/AnimatedPage";
 import { SessionExpiredNotifier } from "./components/SessionExpiredNotifier";
+import { MobileBottomNav } from "./components/navigation/MobileBottomNav";
 
 function App() {
   const { isConnected, isReady } = useIpc();
@@ -117,6 +118,7 @@ function App() {
         <Toaster />
         <TrackingStoppedOverlay />
         <SessionExpiredNotifier />
+        <MobileBottomNav />
       </div>
     </HashRouter>
   );

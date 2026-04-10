@@ -183,18 +183,18 @@ export default function Reports() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0b0d14]">
+    <div className="flex h-screen bg-[#0b0d14] pb-14 md:pb-0">
       <Sidebar />
 
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0 min-h-0">
         <div className="px-5 pt-4 pb-2 flex-shrink-0">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate(-1)}
-                className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors flex-shrink-0"
               >
                 <ArrowLeft className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
               </button>
@@ -207,7 +207,7 @@ export default function Reports() {
             </div>
 
             {/* Controls */}
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
               {/* Period Selector */}
               <div className="relative" ref={periodDropdownRef}>
                 <button
@@ -304,7 +304,7 @@ export default function Reports() {
                 className="flex items-center gap-2 px-3 py-2 bg-[rgba(139,92,246,0.15)] border border-[rgba(139,92,246,0.3)] rounded-lg text-[12px] text-[#8B5CF6] hover:bg-[rgba(139,92,246,0.2)] transition-colors disabled:opacity-50"
               >
                 <Download className="w-4 h-4" />
-                Exportar CSV
+                <span className="hidden sm:inline">Exportar CSV</span>
               </motion.button>
 
               {/* Refresh Button */}

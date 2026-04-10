@@ -47,7 +47,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-[180px] flex-shrink-0 glass-sidebar flex flex-col overflow-hidden">
+    <aside className="hidden md:flex w-[180px] flex-shrink-0 glass-sidebar flex-col overflow-hidden">
       {/* Logo + Tracking LED */}
       <div className="px-4 py-5 flex-shrink-0">
         <div className="flex items-center gap-2">

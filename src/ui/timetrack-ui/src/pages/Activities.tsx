@@ -53,13 +53,13 @@ export default function Activities() {
   }, [sendQuery]);
 
   return (
-    <div className="flex h-screen bg-[#0b0d14] overflow-hidden">
+    <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0">
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0 min-h-0">
         {/* Header with DateNavigator */}
         <div className="px-5 pt-4 pb-2 flex-shrink-0">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="text-[14px] font-medium text-[#f5f7fb]">Atividades</span>
               {isLoading && (
@@ -123,10 +123,20 @@ export default function Activities() {
 
             {/* Session List */}
             <SessionList activities={activities} />
+
+            {/* Right panel content — shown inline on mobile/tablet (< lg) */}
+            <div className="lg:hidden flex flex-col gap-4">
+              <MiniCalendar
+                selectedDate={data.selectedDate}
+                onDateSelect={data.setSelectedDate}
+                weeklyHistory={data.weeklyHistory}
+              />
+              <TopAppsPanel summary={summary} />
+            </div>
           </div>
 
-          {/* Right Panel */}
-          <div className="w-[280px] flex-shrink-0 flex flex-col gap-4 overflow-y-auto">
+          {/* Right Panel — desktop only */}
+          <div className="hidden lg:flex w-[280px] flex-shrink-0 flex-col gap-4 overflow-y-auto">
             {/* Mini Calendar */}
             <MiniCalendar
               selectedDate={data.selectedDate}
@@ -190,7 +200,7 @@ function ActivitiesTopCards({ summary, workGoalSeconds = 28800 }: { summary: Ret
 
   return (
     <motion.div
-      className="grid grid-cols-3 gap-4 flex-shrink-0"
+      className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-shrink-0"
       variants={staggerContainer(STAGGER.cards)}
       initial="hidden"
       animate="visible"

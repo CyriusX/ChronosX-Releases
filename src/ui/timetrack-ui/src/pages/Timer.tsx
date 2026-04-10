@@ -118,20 +118,20 @@ export default function Timer() {
   const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl";
 
   return (
-    <div className="flex h-screen bg-[#0b0d14] overflow-hidden">
+    <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0">
       <Sidebar />
 
-      <main className="flex-1 flex min-w-0 min-h-0">
+      <main className="flex-1 flex flex-col lg:flex-row min-w-0 min-h-0 overflow-y-auto lg:overflow-hidden">
         {/* Center — Timer */}
         <motion.div
-          className="flex-1 flex flex-col items-center justify-center p-8 min-w-0"
+          className="flex flex-col items-center justify-center p-4 sm:p-8 min-w-0 lg:flex-1"
           variants={fadeIn}
           initial="hidden"
           animate="visible"
           transition={{ duration: TIMING.normal }}
         >
           {/* Mode toggle */}
-          <div className="flex bg-[rgba(255,255,255,0.04)] rounded-full p-1 border border-[rgba(255,255,255,0.06)] mb-6">
+          <div className="flex bg-[rgba(255,255,255,0.04)] rounded-full p-1 border border-[rgba(255,255,255,0.06)] mb-4 sm:mb-6">
             <button
               onClick={() => setMode('pomodoro')}
               className={`relative px-5 py-1.5 rounded-full text-[12px] font-medium transition-all ${mode === 'pomodoro' ? 'text-[#0b0d14]' : 'text-[rgba(245,247,251,0.4)]'}`}
@@ -179,12 +179,14 @@ export default function Timer() {
             </motion.div>
           </AnimatePresence>
 
-          {/* Timer visualization */}
-          {mode === 'pomodoro' ? (
-            <LargePomodoroRing progress={progress} phase={phase} phaseColor={phaseColor} phaseGlow={phaseGlow} timeDisplay={timeDisplay} />
-          ) : (
-            <LargeUltradianWave progress={ultradianProgress} phase={phase} timeDisplay={timeDisplay} totalWaves={ultradianWaves} currentWave={cycle} />
-          )}
+          {/* Timer visualization — scales down on mobile */}
+          <div className="w-full flex justify-center" style={{ maxWidth: 'min(100%, 520px)' }}>
+            {mode === 'pomodoro' ? (
+              <LargePomodoroRing progress={progress} phase={phase} phaseColor={phaseColor} phaseGlow={phaseGlow} timeDisplay={timeDisplay} />
+            ) : (
+              <LargeUltradianWave progress={ultradianProgress} phase={phase} timeDisplay={timeDisplay} totalWaves={ultradianWaves} currentWave={cycle} />
+            )}
+          </div>
 
           {/* Cycle dots (pomodoro) */}
           {mode === 'pomodoro' && (
@@ -209,7 +211,7 @@ export default function Timer() {
           )}
 
           {/* Session name + Project selector */}
-          <div className="flex flex-col gap-2 mt-6 w-[220px]">
+          <div className="flex flex-col gap-2 mt-4 sm:mt-6 w-full max-w-[280px]">
             <input
               type="text"
               value={sessionName}
@@ -234,7 +236,7 @@ export default function Timer() {
           </div>
 
           {/* Controls */}
-          <div className="flex gap-3 mt-6">
+          <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center">
             {phase === 'idle' ? (
               <motion.button
                 onClick={start}
@@ -286,9 +288,61 @@ export default function Timer() {
           </div>
         </motion.div>
 
-        {/* Right — Session History */}
+        {/* Mobile inline session content — shown below timer controls on < lg */}
+        <div className="lg:hidden w-full max-w-md mx-auto px-4 pb-4">
+          <Card className={cardBase}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[12px] text-[rgba(245,247,251,0.4)] uppercase tracking-wider">Resumo da sessão</p>
+                {hasGroupData && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                    style={{
+                      backgroundColor: groupMode === 'pomodoro' ? 'rgba(139,92,246,0.12)' : 'rgba(194,122,255,0.12)',
+                      color: groupMode === 'pomodoro' ? '#8B5CF6' : '#c27aff',
+                    }}>
+                    {groupMode === 'pomodoro' ? 'Pomodoro' : 'Ultradian'}
+                  </span>
+                )}
+              </div>
+              {hasGroupData ? (
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center">
+                    <p className="text-[18px] font-bold text-[#f5f7fb]">{fmtShort(totalDurationMs)}</p>
+                    <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Duração</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[18px] font-bold text-[#f5f7fb]">{completedCycles}</p>
+                    <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Ciclos</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[18px] font-bold text-[#4ade80]">{fmtShort(focusTimeMs)}</p>
+                    <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Foco</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-[rgba(245,247,251,0.25)] text-center py-2">
+                  Inicie uma sessão para ver o resumo
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <div className="mt-4">
+            <FocusDayTimeline
+              sessions={sessions}
+              activities={activities}
+              currentPhase={phase}
+              currentMode={mode}
+              currentPhaseStartMs={phaseStartedAt}
+              currentCycle={cycle}
+              currentSessionName={sessionName}
+              sessionGroupStartedAt={sessionGroupStartedAt}
+            />
+          </div>
+        </div>
+
+        {/* Right — Session History (desktop only) */}
         <motion.div
-          className="w-[300px] flex-shrink-0 flex flex-col border-l border-[rgba(255,255,255,0.04)]"
+          className="hidden lg:flex w-[300px] flex-shrink-0 flex-col border-l border-[rgba(255,255,255,0.04)]"
           variants={slideLeft}
           initial="hidden"
           animate="visible"

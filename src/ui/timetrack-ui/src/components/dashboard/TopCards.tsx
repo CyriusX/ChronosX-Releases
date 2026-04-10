@@ -145,8 +145,8 @@ export function TopCards({
     });
   }, [ringSegments.length, totalSeconds]);
 
-  // Grid: 3-col on both tabs (Meu dia: Tempo + Produtividade + Timer; Team: Tempo + Produtividade + Resumo)
-  const gridCols = 'grid-cols-3';
+  // Grid: 1-col on mobile, 3-col on sm+ (Meu dia: Tempo + Produtividade + Timer; Team: Tempo + Produtividade + Resumo)
+  const gridCols = 'grid-cols-1 sm:grid-cols-3';
 
   return (
     <motion.div
