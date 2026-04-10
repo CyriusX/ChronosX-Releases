@@ -61,6 +61,7 @@ public static class HangfireConfiguration
         services.AddScoped<IFocusScoreJob, FocusScoreJob>();
         services.AddScoped<IActivitySessionConsolidationJob, ActivitySessionConsolidationJob>();
         services.AddScoped<IMachineMetricsCleanupJob, MachineMetricsCleanupJob>();
+        services.AddScoped<IDeadlineScanJob, DeadlineScanJob>();
 
         return services;
     }
@@ -128,6 +129,18 @@ public static class HangfireConfiguration
             "activity-session-consolidation",
             job => job.ExecuteConsolidationAsync(), // No optional parameters - Hangfire compatible
             "0 */6 * * *", // Every 6 hours
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Deadline scan job - runs hourly
+        // Drops a DeadlineToday notification into the inbox for every assigned,
+        // non-Done task whose DueDate lands on the current UTC day. Deduped per task per day.
+        RecurringJob.AddOrUpdate<IDeadlineScanJob>(
+            "deadline-scan",
+            job => job.ExecuteAsync(),
+            "0 * * * *", // Every hour on the :00
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc

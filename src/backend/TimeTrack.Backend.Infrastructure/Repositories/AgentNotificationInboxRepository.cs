@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTrack.Backend.Domain.Entities;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using TimeTrack.Backend.Domain.ValueObjects;
 using TimeTrack.Backend.Infrastructure.Persistence;
 
 namespace TimeTrack.Backend.Infrastructure.Repositories;
@@ -54,5 +55,21 @@ public sealed class AgentNotificationInboxRepository : IAgentNotificationInboxRe
         await _context.AgentNotificationInbox
             .Where(n => n.UserId == userId && n.ReadAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(n => n.ReadAt, now), ct);
+    }
+
+    public async Task<bool> HasNotificationForTaskOnDayAsync(Guid userId, AgentNotificationKind kind, Guid taskId, DateTime utcDate, CancellationToken ct = default)
+    {
+        var dayStart = new DateTime(utcDate.Year, utcDate.Month, utcDate.Day, 0, 0, 0, DateTimeKind.Utc);
+        var dayEnd = dayStart.AddDays(1);
+        var marker = $"\"taskId\":\"{taskId}\"";
+
+        return await _context.AgentNotificationInbox
+            .AnyAsync(n =>
+                n.UserId == userId &&
+                n.Kind == kind &&
+                n.CreatedAt >= dayStart &&
+                n.CreatedAt < dayEnd &&
+                n.MetadataJson != null &&
+                n.MetadataJson.Contains(marker), ct);
     }
 }

@@ -11,4 +11,10 @@ public interface IProjectTaskRepository
     Task<double> GetMaxPositionInColumnAsync(Guid projectId, ProjectTaskStatus status, CancellationToken cancellationToken = default);
     Task AddAsync(ProjectTask task, CancellationToken cancellationToken = default);
     Task UpdateAsync(ProjectTask task, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns every non-deleted, non-Done task whose DueDate falls on the given UTC calendar day
+    /// AND has an assignee. Used by DeadlineScanJob to send "due today" notifications.
+    /// </summary>
+    Task<IReadOnlyList<ProjectTask>> ListAssignedTasksDueOnAsync(DateTime utcDate, CancellationToken cancellationToken = default);
 }

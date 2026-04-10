@@ -73,6 +73,30 @@ public sealed class NotificationDispatcher : INotificationDispatcher
         await QueueAgentCommandAsync(userId, "task_unassigned", meta, notification.Id, ct);
     }
 
+    public async Task NotifyDeadlineTodayAsync(Guid userId, ProjectTask task, Project project, CancellationToken ct = default)
+    {
+        var meta = JsonSerializer.Serialize(new
+        {
+            taskId = task.Id,
+            projectId = project.Id,
+            projectName = project.Name,
+            projectColor = project.Color,
+            taskTitle = task.Title,
+            dueDate = task.DueDate
+        });
+
+        var notification = AgentNotificationInbox.Create(
+            project.OrgId,
+            userId,
+            AgentNotificationKind.DeadlineToday,
+            "Prazo é hoje",
+            $"{project.Name} · {task.Title}",
+            meta);
+
+        await _inbox.AddAsync(notification, ct);
+        await QueueAgentCommandAsync(userId, "deadline_today", meta, notification.Id, ct);
+    }
+
     public async Task NotifyMembershipChangedAsync(Guid userId, Project project, bool added, CancellationToken ct = default)
     {
         var meta = JsonSerializer.Serialize(new
