@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Monitor, ChevronDown, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe, Trash2 } from 'lucide-react';
+import { Monitor, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe, Trash2, User } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
 import { useAuthStore } from '../stores/authStore';
 import { useHealthAlertStore } from '../stores/healthAlertStore';
@@ -60,13 +60,6 @@ function formatUptime(seconds: number): string {
   return `${m}m`;
 }
 
-function getStatusColor(status: string): string {
-  switch (status) {
-    case 'active': return 'bg-[#05df72]';
-    case 'offline': return 'bg-[rgba(245,247,251,0.3)]';
-    default: return 'bg-[rgba(248,113,113,0.6)]';
-  }
-}
 
 function TrackingStateLed({ state }: { state: string | null }) {
   if (!state || state === 'stopped' || state === 'idle') {
@@ -446,29 +439,14 @@ export default function Maintenance() {
   const [notifTitle, setNotifTitle] = useState('');
   const [notifBody, setNotifBody] = useState('');
   const [confirmRestart, setConfirmRestart] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
   const [deletingDeviceId, setDeletingDeviceId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Admin guard
   if (!isAdmin) {
     return <Navigate to="/" replace />;
   }
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    if (!showDropdown) return;
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-        setConfirmDeleteId(null);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showDropdown]);
 
   // Fetch devices + health summary
   const fetchDevices = useCallback(async () => {
@@ -741,125 +719,141 @@ export default function Maintenance() {
           </div>
         )}
 
-        {/* Device Selector */}
-        <div className="px-4 lg:px-5 pb-3 flex-shrink-0" ref={dropdownRef}>
-          <div className="relative">
-            <motion.button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[rgba(26,29,46,0.6)] to-[rgba(17,19,28,0.6)] border border-[rgba(255,255,255,0.06)] rounded-xl hover:border-[rgba(255,255,255,0.1)] transition-colors"
-              whileHover={{ scale: 1.003 }} whileTap={{ scale: 0.997 }}
-            >
-              {selectedDevice ? (
-                <>
-                  <div className="w-7 h-7 rounded-lg bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.15)] flex items-center justify-center flex-shrink-0">
-                    <Monitor className="w-3.5 h-3.5 text-[#8B5CF6]" />
-                  </div>
-                  <div className="flex-1 min-w-0 text-left">
-                    <p className="text-[13px] font-medium text-[rgba(245,247,251,0.9)] truncate">
-                      {selectedDevice.userDisplayName || selectedDevice.hostname}
-                    </p>
-                    <p className="text-[10px] text-[rgba(245,247,251,0.4)] flex items-center gap-1.5">
-                      {selectedDevice.hostname} · v{selectedDevice.agentVersion}
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${getStatusColor(selectedDevice.status)}`} />
-                      {selectedDevice.status === 'active' ? 'Online' : 'Offline'}
-                      <TrackingStateLed state={selectedDevice.trackingState} />
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <Monitor className="w-4 h-4 text-[#8B5CF6] flex-shrink-0" />
-                  <span className="text-[13px] text-[rgba(245,247,251,0.6)]">Selecionar usuario</span>
-                </>
-              )}
-              <motion.div animate={{ rotate: showDropdown ? 180 : 0 }} transition={{ duration: 0.2 }} className="ml-auto">
-                <ChevronDown className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
-              </motion.div>
-            </motion.button>
+        {/* Two-column body: device card list (left) + detail panel (right) */}
+        <div className="flex-1 flex min-h-0 overflow-hidden">
 
-            <AnimatePresence>
-              {showDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full left-0 right-0 mt-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-2xl z-30 max-h-[300px] overflow-y-auto"
-                >
-                  {devicesLoading ? (
-                    <div className="flex items-center justify-center gap-2 py-4">
-                      <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
-                      <span className="text-[11px] text-[rgba(245,247,251,0.4)]">Carregando...</span>
-                    </div>
-                  ) : devices.length === 0 ? (
-                    <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-4">Nenhum dispositivo encontrado</p>
-                  ) : (
-                    devices.map((device) => {
-                      const isSelected = device.deviceId === selectedDeviceId;
-                      const isConfirming = confirmDeleteId === device.deviceId;
-                      const isDeleting = deletingDeviceId === device.deviceId;
-                      return (
-                        <div
-                          key={device.deviceId}
-                          className={`group flex items-center gap-3 px-4 py-2.5 hover:bg-[rgba(255,255,255,0.06)] transition-colors ${
-                            isSelected ? 'bg-[rgba(139,92,246,0.08)] border-l-2 border-l-[#8B5CF6]' : ''
-                          }`}
-                        >
-                          <button
-                            onClick={() => { setSelectedDeviceId(device.deviceId); setShowDropdown(false); setConfirmDeleteId(null); }}
-                            className="flex items-center gap-3 flex-1 min-w-0 text-left"
-                          >
-                            <div className="w-6 h-6 rounded-md bg-[rgba(139,92,246,0.08)] flex items-center justify-center flex-shrink-0">
-                              <Monitor className="w-3 h-3 text-[rgba(139,92,246,0.6)]" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.9)]'}`}>
-                                {device.userDisplayName || device.hostname}
-                              </p>
-                              <p className="text-[9px] text-[rgba(245,247,251,0.4)] flex items-center gap-1">
-                                {device.hostname} · v{device.agentVersion} · Visto {formatLastSeen(device.lastSeenAt)}
-                              </p>
-                            </div>
-                          </button>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* ── Left: device card list ─────────────────────────────────────── */}
+          <aside className="w-[260px] flex-shrink-0 border-r border-[rgba(255,255,255,0.04)] overflow-y-auto">
+            {devicesLoading ? (
+              <div className="flex items-center justify-center gap-2 py-8">
+                <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
+                <span className="text-[11px] text-[rgba(245,247,251,0.4)]">Carregando...</span>
+              </div>
+            ) : devices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <Monitor className="w-8 h-8 text-[rgba(245,247,251,0.15)] mb-2" />
+                <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Nenhum dispositivo</p>
+              </div>
+            ) : (
+              <div className="p-2 space-y-1">
+                {devices.map((device) => {
+                  const isSelected = device.deviceId === selectedDeviceId;
+                  const isConfirming = confirmDeleteId === device.deviceId;
+                  const isDeleting = deletingDeviceId === device.deviceId;
+                  const isOnline = device.status === 'active';
+                  const hasIssue = device.healthStatus === 'unhealthy' || device.healthStatus === 'degraded' || (!isOnline && device.status === 'offline') || (isOnline && device.ipcConnected === false);
+
+                  return (
+                    <motion.div
+                      key={device.deviceId}
+                      layout
+                      className={`group relative rounded-xl border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-[rgba(139,92,246,0.1)] border-[rgba(139,92,246,0.3)]'
+                          : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.09)]'
+                      }`}
+                      onClick={() => { setSelectedDeviceId(device.deviceId); setConfirmDeleteId(null); }}
+                    >
+                      {/* Selected left bar */}
+                      {isSelected && (
+                        <div className="absolute left-0 top-3 bottom-3 w-0.5 rounded-full bg-[#8B5CF6]" />
+                      )}
+
+                      <div className="px-3 pt-3 pb-2.5">
+                        {/* Row 1: user name + status LED */}
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <User className="w-3 h-3 text-[rgba(139,92,246,0.6)] flex-shrink-0" />
+                            <span className={`text-[12px] font-semibold truncate ${isSelected ? 'text-[#c4b5fd]' : 'text-[rgba(245,247,251,0.9)]'}`}>
+                              {device.userDisplayName || device.hostname}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
                             <HealthBadge health={device.healthStatus} />
-                            <TrackingStateLed state={device.trackingState} />
-                            <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor(device.status)}`} />
-                            {isConfirming ? (
-                              <div className="ml-1 flex flex-col items-end gap-0.5">
-                                <button
-                                  onClick={() => handleDeleteDevice(device.deviceId)}
-                                  disabled={isDeleting}
-                                  className="px-2 py-0.5 rounded text-[9px] font-semibold bg-[rgba(248,113,113,0.15)] text-[#f87171] border border-[rgba(248,113,113,0.3)] hover:bg-[rgba(248,113,113,0.25)] transition-colors"
-                                >
-                                  {isDeleting ? '...' : 'Remover'}
-                                </button>
-                                <span className="text-[8px] text-[rgba(245,247,251,0.3)]">historico preservado</span>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(device.deviceId); }}
-                                className={`ml-1 p-0.5 rounded hover:bg-[rgba(248,113,113,0.1)] text-[rgba(248,113,113,0.5)] hover:text-[#f87171] transition-opacity ${
-                                  device.status === 'offline' ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                                }`}
-                                title="Remover do painel (historico preservado)"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            )}
+                            <span
+                              className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-[#05df72]' : 'bg-[rgba(248,113,113,0.6)]'}`}
+                              title={isOnline ? 'Online' : 'Offline'}
+                            />
                           </div>
                         </div>
-                      );
-                    })
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto min-h-0 px-4 lg:px-5 pb-4">
+                        {/* Row 2: hostname + version badge */}
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Monitor className="w-3 h-3 text-[rgba(245,247,251,0.25)] flex-shrink-0" />
+                          <span className="text-[10px] text-[rgba(245,247,251,0.45)] truncate flex-1">
+                            {device.hostname}
+                          </span>
+                          <span className="text-[9px] font-mono text-[rgba(139,92,246,0.6)] bg-[rgba(139,92,246,0.08)] border border-[rgba(139,92,246,0.15)] px-1.5 py-0.5 rounded flex-shrink-0">
+                            v{device.agentVersion}
+                          </span>
+                        </div>
+
+                        {/* Row 3: tracking state + last seen */}
+                        <div className="flex items-center justify-between gap-2">
+                          <TrackingStateLed state={device.trackingState} />
+                          <span className="text-[9px] text-[rgba(245,247,251,0.3)] flex-shrink-0">
+                            {formatLastSeen(device.lastSeenAt)}
+                          </span>
+                        </div>
+
+                        {/* Row 4 (conditional): connection status pill */}
+                        {hasIssue && (
+                          <div className="mt-2 pt-2 border-t border-[rgba(255,255,255,0.05)]">
+                            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
+                              !isOnline
+                                ? 'text-[#f87171] bg-[rgba(248,113,113,0.1)]'
+                                : device.healthStatus === 'unhealthy'
+                                  ? 'text-[#f87171] bg-[rgba(248,113,113,0.1)]'
+                                  : device.ipcConnected === false
+                                    ? 'text-[#a78bfa] bg-[rgba(167,139,250,0.1)]'
+                                    : 'text-[#fbbf24] bg-[rgba(251,191,36,0.1)]'
+                            }`}>
+                              {!isOnline ? 'OFFLINE' : device.healthStatus === 'unhealthy' ? 'UNHEALTHY' : device.ipcConnected === false ? 'UI DESCONECTADA' : 'DEGRADADO'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Delete action */}
+                      <div className="px-3 pb-2.5">
+                        {isConfirming ? (
+                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => handleDeleteDevice(device.deviceId)}
+                              disabled={isDeleting}
+                              className="flex-1 py-1 rounded-lg text-[9px] font-semibold bg-[rgba(248,113,113,0.15)] text-[#f87171] border border-[rgba(248,113,113,0.3)] hover:bg-[rgba(248,113,113,0.25)] transition-colors text-center"
+                            >
+                              {isDeleting ? '...' : 'Confirmar remoção'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="px-2 py-1 rounded-lg text-[9px] text-[rgba(245,247,251,0.4)] hover:bg-[rgba(255,255,255,0.06)]"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(device.deviceId); }}
+                            className={`flex items-center gap-1 text-[9px] text-[rgba(248,113,113,0.5)] hover:text-[#f87171] transition-opacity ${
+                              !isOnline ? 'opacity-70' : 'opacity-0 group-hover:opacity-70'
+                            } hover:!opacity-100`}
+                            title="Remover dispositivo (historico preservado)"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Remover
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </aside>
+
+          {/* ── Right: device detail panel ─────────────────────────────────── */}
+          <div className="flex-1 overflow-y-auto min-h-0 px-4 lg:px-5 pb-4">
           {/* Empty state */}
           {!selectedDeviceId && (
             <div className="flex items-center justify-center py-16">
@@ -869,7 +863,7 @@ export default function Maintenance() {
                 </div>
                 <p className="text-[15px] font-medium text-[rgba(245,247,251,0.6)]">Selecione um usuario</p>
                 <p className="text-[12px] text-[rgba(245,247,251,0.3)] mt-1 max-w-[280px] mx-auto">
-                  Escolha um usuario acima para monitorar o dispositivo em tempo real
+                  Clique em um dispositivo na lista ao lado para monitorar em tempo real
                 </p>
               </div>
             </div>
@@ -1253,7 +1247,8 @@ export default function Maintenance() {
               </div>
             </div>
           )}
-        </div>
+          </div>{/* end right detail panel */}
+        </div>{/* end two-column body */}
       </main>
     </div>
   );
