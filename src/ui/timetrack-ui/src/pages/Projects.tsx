@@ -79,14 +79,14 @@ export default function Projects() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0b0d14]">
+    <div className="flex h-screen bg-[#0b0d14] pb-14 md:pb-0">
       <Sidebar />
 
       <main className="flex-1 overflow-auto bg-[#0b0d14] p-6">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <motion.div
-            className="flex items-center justify-between mb-8"
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 sm:mb-8"
             variants={fadeUp}
             initial="hidden"
             animate="visible"

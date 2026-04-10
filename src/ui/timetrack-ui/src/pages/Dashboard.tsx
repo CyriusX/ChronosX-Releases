@@ -172,7 +172,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-transparent overflow-hidden">
+    <div className="flex h-screen bg-transparent overflow-hidden pb-14 md:pb-0">
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -185,7 +185,7 @@ export default function Dashboard() {
         </div>
 
         <div className="flex-1 flex gap-5 px-5 pb-4 min-h-0">
-          {/* Left Content Area — scrollable */}
+          {/* Main Content Area — scrollable */}
           <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-0 pr-1">
             {/* Loading overlay for member data */}
             {isViewingMember && memberLoading && (
@@ -271,10 +271,21 @@ export default function Dashboard() {
                 <BottomCards summary={displaySummary} />
               </>
             )}
+
+            {/* Right panel content — shown inline on mobile/tablet (< lg) */}
+            <div className="lg:hidden">
+              <RightPanel
+                summary={displaySummary}
+                weeklyHistory={displayWeeklyHistory}
+                showTeamCard={isTeamTab}
+                selectedMemberId={selectedMemberId}
+                onMemberSelect={setSelectedMemberId}
+              />
+            </div>
           </div>
 
-          {/* Right Panel — fixed width, scrollable */}
-          <div className="w-[280px] flex-shrink-0 overflow-y-auto">
+          {/* Right Panel — fixed width, desktop only */}
+          <div className="hidden lg:flex w-[280px] flex-shrink-0 overflow-y-auto">
             <RightPanel
               summary={displaySummary}
               weeklyHistory={displayWeeklyHistory}
