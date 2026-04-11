@@ -15,13 +15,19 @@ public interface ILinearClient
     Task<IReadOnlyList<LinearProject>> GetProjectsForViewerAsync(string apiKey, CancellationToken cancellationToken = default);
 
     /// <summary>List open issues assigned to the viewer. Pagination handled internally.</summary>
-    Task<IReadOnlyList<LinearIssue>> GetMyIssuesAsync(string apiKey, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<LinearIssue>> GetMyIssuesAsync(string apiKeyOrAccessToken, CancellationToken cancellationToken = default);
 
     /// <summary>Fetch all workflow states for a given team (used for status push mapping).</summary>
-    Task<IReadOnlyList<LinearWorkflowState>> GetTeamStatesAsync(string apiKey, string teamId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<LinearWorkflowState>> GetTeamStatesAsync(string apiKeyOrAccessToken, string teamId, CancellationToken cancellationToken = default);
 
     /// <summary>Issue a mutation to move a Linear issue to a specific workflow state.</summary>
-    Task<bool> UpdateIssueStateAsync(string apiKey, string issueId, string stateId, CancellationToken cancellationToken = default);
+    Task<bool> UpdateIssueStateAsync(string apiKeyOrAccessToken, string issueId, string stateId, CancellationToken cancellationToken = default);
+
+    /// <summary>Exchange OAuth authorization code for access token.</summary>
+    Task<LinearOAuthTokenResponse> ExchangeCodeForTokenAsync(string code, string redirectUri, CancellationToken cancellationToken = default);
+
+    /// <summary>Refresh OAuth access token using refresh token.</summary>
+    Task<LinearOAuthTokenResponse> RefreshAccessTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

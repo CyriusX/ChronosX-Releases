@@ -6,13 +6,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { FolderKanban, Plus, Loader2, Archive, ArchiveRestore, Trash2, Users, ChevronRight } from 'lucide-react';
+import { FolderKanban, Plus, Loader2, Archive, ArchiveRestore, Trash2, Users, ChevronRight, DollarSign } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
 import { useAuthStore } from '../stores/authStore';
 import { usePermissions } from '../hooks/usePermissions';
 import {
   listProjects,
   createProject,
+  updateProject as updateProjectApi,
   archiveProject,
   reactivateProject,
   deleteProject,
@@ -33,6 +34,8 @@ export default function Projects() {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editingProject, setEditingProject] = useState<ProjectItem | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   if (!canManageTeam) {
@@ -77,6 +80,31 @@ export default function Projects() {
     try {
       await deleteProject(id);
       setConfirmDeleteId(null);
+      await fetchProjects();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleEdit = (project: ProjectItem) => {
+    setEditingProject(project);
+    setShowEdit(true);
+    setConfirmDeleteId(null);
+  };
+
+  const handleUpdate = async (name: string, description: string, color: string, isBillable: boolean, currency: string | null, hourlyRate: number | null) => {
+    if (!editingProject) return;
+    try {
+      await updateProjectApi(editingProject.id, {
+        name,
+        description: description || undefined,
+        color,
+        isBillable,
+        currency: isBillable ? (currency ?? undefined) : undefined,
+        hourlyRate: isBillable ? (hourlyRate ?? undefined) : undefined,
+      });
+      setShowEdit(false);
+      setEditingProject(null);
       await fetchProjects();
     } catch (err) {
       console.error(err);
@@ -226,6 +254,12 @@ export default function Projects() {
                       ) : tab === 'active' ? (
                         <>
                           <button
+                            onClick={(e) => { e.stopPropagation(); handleEdit(project); }}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
+                          >
+                            Editar
+                          </button>
+                          <button
                             onClick={(e) => { e.stopPropagation(); handleArchive(project.id); }}
                             className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
                           >
@@ -276,7 +310,194 @@ export default function Projects() {
           }}
         />
       )}
+
+      {showEdit && editingProject && (
+        <EditProjectModal
+          project={editingProject}
+          onClose={() => {
+            setShowEdit(false);
+            setEditingProject(null);
+          }}
+          onUpdated={handleUpdate}
+        />
+      )}
+
+      {showCreate && (
+        <CreateProjectModal
+          onClose={() => setShowCreate(false)}
+          onCreated={async () => {
+            setShowCreate(false);
+            await fetchProjects();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// ── Edit Project Modal ─────────────────────────────────────────────────────
+
+function EditProjectModal({ project, onClose, onUpdated }: { project: ProjectItem; onClose: () => void; onUpdated: (name: string, description: string, color: string, isBillable: boolean, currency: string | null, hourlyRate: number | null) => void }) {
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description || '');
+  const [color, setColor] = useState(project.color);
+  const [isBillable, setIsBillable] = useState(project.isBillable);
+  const [currency, setCurrency] = useState(project.currency || 'USD');
+  const [hourlyRate, setHourlyRate] = useState(project.hourlyRate?.toString() || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const CURRENCIES = ['USD', 'BRL', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY'] as const;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    if (isBillable && (!currency.trim() || !hourlyRate.trim() || parseFloat(hourlyRate) <= 0)) return;
+    setSaving(true);
+    setError(null);
+    try {
+      onUpdated(name.trim(), description.trim(), color, isBillable, isBillable ? currency : null, isBillable ? parseFloat(hourlyRate) : null);
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao atualizar projeto');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] max-w-[90vw] bg-[#0b0d14] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-2xl p-5"
+      >
+        <h3 className="text-[15px] font-semibold text-[#f5f7fb] mb-4">Editar Projeto</h3>
+        <form onSubmit={handleSubmit}>
+          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Nome</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={255}
+            placeholder="Ex: Website Redesign"
+            className="w-full px-3 py-2 mb-3 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[rgba(139,92,246,0.4)]"
+          />
+
+          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Descrição</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={1000}
+            rows={3}
+            placeholder="Opcional"
+            className="w-full px-3 py-2 mb-3 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[rgba(139,92,246,0.4)] resize-none"
+          />
+
+          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Cor</label>
+          <div className="flex flex-wrap gap-2 mb-5">
+            {PROJECT_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setColor(c)}
+                className={`w-8 h-8 rounded-lg transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-offset-[#0b0d14] scale-110' : 'hover:scale-105'}`}
+                style={{ backgroundColor: c, boxShadow: color === c ? `0 0 0 2px ${c}` : undefined }}
+              />
+            ))}
+          </div>
+
+          {/* Billable Toggle */}
+          <div className="flex items-center justify-between py-2 mb-4">
+            <label className="flex items-center gap-2 text-[12px] font-medium text-[rgba(245,247,251,0.7)] cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={isBillable}
+                  onChange={(e) => setIsBillable(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className={`w-9 h-5 rounded-full transition-colors ${
+                  isBillable ? 'bg-[#8B5CF6]' : 'bg-[rgba(255,255,255,0.1)]'
+                }`}>
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-all duration-200 ${
+                    isBillable ? 'translate-x-4 bg-white' : 'translate-x-0 bg-[rgba(255,255,255,0.4)]'
+                  }`} />
+                </div>
+              </div>
+              <span>Projeto faturável</span>
+            </label>
+          </div>
+
+          {/* Billable Fields */}
+          {isBillable && (
+            <>
+              {/* Currency */}
+              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Moeda</label>
+              <div className="grid grid-cols-4 gap-2 mb-5">
+                {CURRENCIES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCurrency(c)}
+                    className={`py-2 px-3 rounded-lg text-[12px] font-semibold transition-all ${
+                      currency === c
+                        ? 'bg-gradient-to-r from-[#8B5CF6] to-[#7c3aed] text-white'
+                        : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[rgba(245,247,251,0.6)] hover:text-[rgba(245,247,251,0.9)]'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+
+              {/* Hourly Rate */}
+              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Preço por hora</label>
+              <div className="relative mb-5">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center text-[rgba(245,247,251,0.4)]">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={hourlyRate}
+                  onChange={(e) => setHourlyRate(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[rgba(139,92,246,0.4)]"
+                  placeholder="40.00"
+                />
+              </div>
+            </>
+          )}
+
+          {error && <p className="text-[11px] text-[#f87171] mb-3">{error}</p>}
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg text-[12px] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.06)]"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !name.trim() || (isBillable && (!currency.trim() || !hourlyRate.trim() || parseFloat(hourlyRate) <= 0))}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-semibold bg-gradient-to-r from-[#8B5CF6] to-[#7c3aed] text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving && <Loader2 className="w-3 h-3 animate-spin" />}
+              Salvar
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </>
   );
 }
 
@@ -286,16 +507,29 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(PROJECT_COLORS[0]);
+  const [isBillable, setIsBillable] = useState(false);
+  const [currency, setCurrency] = useState('USD');
+  const [hourlyRate, setHourlyRate] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const CURRENCIES = ['USD', 'BRL', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY'] as const;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (isBillable && (!currency.trim() || !hourlyRate.trim() || parseFloat(hourlyRate) <= 0)) return;
     setSaving(true);
     setError(null);
     try {
-      await createProject({ name: name.trim(), description: description.trim() || undefined, color });
+      await createProject({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        color,
+        isBillable,
+        currency: isBillable ? currency : undefined,
+        hourlyRate: isBillable ? parseFloat(hourlyRate) : undefined,
+      });
       onCreated();
     } catch (err: any) {
       setError(err?.message || 'Falha ao criar projeto');
@@ -354,6 +588,69 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
             ))}
           </div>
 
+          {/* Billable Toggle */}
+          <div className="flex items-center justify-between py-2 mb-4">
+            <label className="flex items-center gap-2 text-[12px] font-medium text-[rgba(245,247,251,0.7)] cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={isBillable}
+                  onChange={(e) => setIsBillable(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className={`w-9 h-5 rounded-full transition-colors ${
+                  isBillable ? 'bg-[#8B5CF6]' : 'bg-[rgba(255,255,255,0.1)]'
+                }`}>
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-all duration-200 ${
+                    isBillable ? 'translate-x-4 bg-white' : 'translate-x-0 bg-[rgba(255,255,255,0.4)]'
+                  }`} />
+                </div>
+              </div>
+              <span>Projeto faturável</span>
+            </label>
+          </div>
+
+          {/* Billable Fields */}
+          {isBillable && (
+            <>
+              {/* Currency */}
+              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Moeda</label>
+              <div className="grid grid-cols-4 gap-2 mb-5">
+                {CURRENCIES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCurrency(c)}
+                    className={`py-2 px-3 rounded-lg text-[12px] font-semibold transition-all ${
+                      currency === c
+                        ? 'bg-gradient-to-r from-[#8B5CF6] to-[#7c3aed] text-white'
+                        : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[rgba(245,247,251,0.6)] hover:text-[rgba(245,247,251,0.9)]'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+
+              {/* Hourly Rate */}
+              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Preço por hora</label>
+              <div className="relative mb-5">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center text-[rgba(245,247,251,0.4)]">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={hourlyRate}
+                  onChange={(e) => setHourlyRate(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[rgba(139,92,246,0.4)]"
+                  placeholder="40.00"
+                />
+              </div>
+            </>
+          )}
+
           {error && <p className="text-[11px] text-[#f87171] mb-3">{error}</p>}
 
           <div className="flex justify-end gap-2">
@@ -366,7 +663,7 @@ function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCre
             </button>
             <button
               type="submit"
-              disabled={saving || !name.trim()}
+              disabled={saving || !name.trim() || (isBillable && (!currency.trim() || !hourlyRate.trim() || parseFloat(hourlyRate) <= 0))}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-semibold bg-gradient-to-r from-[#8B5CF6] to-[#7c3aed] text-white disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saving && <Loader2 className="w-3 h-3 animate-spin" />}

@@ -36,16 +36,16 @@ export default function Projects() {
   const archivedProjects = projects.filter(p => p.status === 'Archived');
   const displayedProjects = showArchived ? archivedProjects : activeProjects;
 
-  const handleCreateProject = async (name: string, description: string, color: string) => {
-    const result = await createProject(name, description || undefined, color);
+  const handleCreateProject = async (name: string, description: string, color: string, isBillable: boolean, currency: string | null, hourlyRate: number | null) => {
+    const result = await createProject(name, description || undefined, color, isBillable, currency, hourlyRate);
     if (result) {
       setIsModalOpen(false);
     }
   };
 
-  const handleUpdateProject = async (name: string, description: string, color: string) => {
+  const handleUpdateProject = async (name: string, description: string, color: string, isBillable: boolean, currency: string | null, hourlyRate: number | null) => {
     if (!editingProject) return;
-    const result = await updateProject(editingProject.id, name, description || undefined, color);
+    const result = await updateProject(editingProject.id, name, description || undefined, color, isBillable, currency, hourlyRate);
     if (result) {
       setEditingProject(null);
       setIsModalOpen(false);

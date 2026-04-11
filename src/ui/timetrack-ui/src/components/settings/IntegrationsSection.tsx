@@ -6,6 +6,7 @@ import {
   disconnectLinear,
   syncLinear,
   getLinearSyncHistory,
+  initiateLinearOAuth,
   type UserIntegration,
   type LinearSyncResult,
   type LinearSyncHistoryEntry,
@@ -83,6 +84,7 @@ function LinearCard({
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [lastSyncResult, setLastSyncResult] = useState<LinearSyncResult | null>(null);
+  const [oauthPolling, setOauthPolling] = useState(false);
 
   // Sync history (lazy-loaded when the panel is expanded for the first time)
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -117,6 +119,52 @@ function LinearCard({
       setFormError(message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleOAuthConnect = async () => {
+    setBusy(true);
+    setFormError(null);
+    setOauthPolling(true);
+    try {
+      const { authorizeUrl } = await initiateLinearOAuth();
+      window.open(authorizeUrl, '_blank');
+
+      const pollInterval = 2000;
+      const maxDuration = 60000;
+      const startTime = Date.now();
+
+      const poll = async (): Promise<void> => {
+        if (Date.now() - startTime > maxDuration) {
+          setOauthPolling(false);
+          setBusy(false);
+          setFormError('Tempo esgotado aguardando autorização. Tente novamente.');
+          return;
+        }
+
+        try {
+          const res = await listMyIntegrations();
+          const linearIntegration = res.integrations?.find((i) => i.provider === 'Linear') ?? null;
+          if (linearIntegration && linearIntegration.status === 'Active') {
+            setOauthPolling(false);
+            setBusy(false);
+            notify.success('Linear conectado com sucesso via OAuth');
+            await onChange();
+            return;
+          }
+        } catch {
+          // ignore poll errors, keep trying
+        }
+
+        await new Promise((r) => setTimeout(r, pollInterval));
+        return poll();
+      };
+
+      await poll();
+    } catch (err: unknown) {
+      setOauthPolling(false);
+      setBusy(false);
+      setFormError(extractMessage(err) ?? 'Não foi possível iniciar a conexão OAuth.');
     }
   };
 
@@ -306,6 +354,39 @@ function LinearCard({
       {/* Connect form */}
       {mode === 'connect' && (
         <form onSubmit={handleConnect} className="space-y-3">
+          {/* OAuth connect */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={handleOAuthConnect}
+              disabled={busy || oauthPolling}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-md bg-gradient-to-r from-[#5e6ad2] to-[#a78bfa] hover:from-[#4f5bc4] hover:to-[#9678f0] text-[12px] font-medium text-white disabled:opacity-40 transition-colors"
+            >
+              {oauthPolling ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Aguardando autorização no navegador…
+                </>
+              ) : (
+                <>
+                  <Zap className="w-3.5 h-3.5" />
+                  Conectar com OAuth (recomendado)
+                </>
+              )}
+            </button>
+            {oauthPolling && (
+              <p className="text-[10px] text-[rgba(245,247,251,0.45)] text-center">
+                Autorize o Linear no navegador que acabou de abrir. Esta página será atualizada automaticamente.
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
+            <span className="text-[10px] text-[rgba(245,247,251,0.35)]">ou use uma API key</span>
+            <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
+          </div>
+
           <div className="text-[11px] text-[rgba(245,247,251,0.65)] space-y-1.5">
             <p className="font-medium text-[rgba(245,247,251,0.85)]">Como obter a API key:</p>
             <ol className="list-decimal list-inside space-y-0.5 pl-1">

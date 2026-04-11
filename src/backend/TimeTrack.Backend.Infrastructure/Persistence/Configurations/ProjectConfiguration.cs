@@ -74,6 +74,20 @@ internal sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.Property(p => p.LastSyncedAt)
             .HasColumnName("last_synced_at");
 
+        // ── Billable project columns ──
+        builder.Property(p => p.IsBillable)
+            .HasColumnName("is_billable")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(p => p.Currency)
+            .HasColumnName("currency")
+            .HasMaxLength(3);
+
+        builder.Property(p => p.HourlyRate)
+            .HasColumnName("hourly_rate")
+            .HasColumnType("decimal(18,2)");
+
         builder.HasIndex(p => new { p.OrgId, p.LinearProjectId })
             .IsUnique()
             .HasFilter("linear_project_id IS NOT NULL");

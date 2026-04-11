@@ -12,6 +12,7 @@ public sealed class UserIntegrationResponse
     public DateTime ConnectedAt { get; set; }
     public DateTime? LastSyncAt { get; set; }
     public DateTime? LastUsedAt { get; set; }
+    public string AuthMethod { get; set; } = "ApiKey";
 }
 
 public sealed class ConnectLinearRequest
@@ -55,4 +56,25 @@ public sealed class ListLinearSyncHistoryResponse
 public sealed class ListUserIntegrationsResponse
 {
     public List<UserIntegrationResponse> Integrations { get; set; } = new();
+}
+
+/// <summary>Request to get OAuth authorize URL.</summary>
+public sealed class InitiateLinearOAuthRequest
+{
+    public string State { get; set; } = string.Empty;
+}
+
+/// <summary>Response containing OAuth authorize URL.</summary>
+public sealed class InitiateLinearOAuthResponse
+{
+    public string AuthorizeUrl { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+}
+
+/// <summary>Request to exchange OAuth code for access token.</summary>
+public sealed class ExchangeLinearOAuthCodeRequest
+{
+    public string Code { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string RedirectUri { get; set; } = string.Empty;
 }
