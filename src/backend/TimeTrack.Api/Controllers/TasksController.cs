@@ -101,6 +101,24 @@ public sealed class TasksController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // Admin/Manager: list tasks for a specific user or the whole team
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Lists tasks for a specific user. Admin/Gestor only.
+    /// Pass no userId (or "all") to list tasks for the entire org.
+    /// </summary>
+    [HttpGet("api/v1/users/tasks")]
+    [ProducesResponseType(typeof(ListTasksResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ListTasksResponse>> ListUserTasks(
+        [FromQuery] Guid? userId = null,
+        [FromQuery] bool includeDone = false)
+    {
+        var result = await _mediator.Send(new ListUserTasksQuery(userId, includeDone));
+        return Ok(result);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // Self (current user) task endpoints
     // ─────────────────────────────────────────────────────────────────────
 

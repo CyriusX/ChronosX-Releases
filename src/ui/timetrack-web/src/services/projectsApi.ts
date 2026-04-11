@@ -236,6 +236,12 @@ export function listMyTasks(includeDone: boolean = false): Promise<ListTasksResp
   return api.get<ListTasksResponse>(`/me/tasks?includeDone=${includeDone}`);
 }
 
+export function listUserTasks(userId: string | undefined, includeDone: boolean = false): Promise<ListTasksResponse> {
+  const params = new URLSearchParams({ includeDone: String(includeDone) });
+  if (userId && userId !== 'all') params.set('userId', userId);
+  return api.get<ListTasksResponse>(`/users/tasks?${params.toString()}`);
+}
+
 export function getMyOpenTask(): Promise<OpenTaskResponse | null> {
   return api.get<OpenTaskResponse | null>('/me/tasks/open');
 }

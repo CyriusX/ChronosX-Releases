@@ -32,7 +32,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuthStore } from '../stores/authStore';
 import { useReportsData, useReportsSummary } from '../hooks/useReportsData';
 import { listMembers } from '../services/memberApi';
-import { listMyTasks, listProjects, type Task, type ProjectItem } from '../services/projectsApi';
+import { listUserTasks, listProjects, type Task, type ProjectItem } from '../services/projectsApi';
 import { exportReportsToCSV } from '../lib/exportReports';
 import { fadeUp, staggerContainer, STAGGER } from '../lib/animation';
 import { toLocalDateStr } from '../types/reports';
@@ -151,13 +151,13 @@ export default function Reports() {
   useEffect(() => {
     setTasksLoading(true);
     Promise.all([
-      listMyTasks(true).catch(() => ({ tasks: [] })),
+      listUserTasks(selectedUserId, true).catch(() => ({ tasks: [] })),
       listProjects(false).catch(() => ({ projects: [], totalCount: 0 })),
     ]).then(([tasksRes, projRes]) => {
       setAllTasks(tasksRes.tasks);
       setProjectsList(projRes.projects);
     }).finally(() => setTasksLoading(false));
-  }, []);
+  }, [selectedUserId]);
 
   // Handle period change
   const handlePeriodChange = (period: PeriodPreset) => {
