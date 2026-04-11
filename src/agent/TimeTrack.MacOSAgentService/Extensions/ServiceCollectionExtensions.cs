@@ -28,6 +28,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MacOSAgentSettings>(sp =>
             sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MacOSAgentSettings>>().Value);
 
+        // Register AgentSettings (Windows shared workers need this type)
+        services.Configure<AgentSettings>(
+            configuration.GetSection(AgentSettings.SectionName));
+
+        services.AddSingleton<AgentSettings>(sp =>
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AgentSettings>>().Value);
+
         services.Configure<UpdateSettings>(
             configuration.GetSection(UpdateSettings.SectionName));
 
@@ -86,13 +93,13 @@ public static class ServiceCollectionExtensions
         else
         {
             Console.WriteLine("[SyncServices] Using REAL sync transport");
-            services.AddSyncServices(new Agent.Infrastructure.Configuration.SyncSettings
+            services.AddSyncServices(new Agent.Contracts.Configuration.SyncSettings
             {
                 BackendUrl = settings.Sync!.BackendUrl!,
                 AuthToken = settings.Sync.AuthToken,
                 SyncIntervalSeconds = settings.Sync.SyncIntervalSeconds,
                 MaxBatchSize = settings.Sync.MaxBatchSize,
-                MaxBatchSizeBytes = settings.Sync.MaxBatchSizeBytes,
+                MaxBatchSizeBytes = (int)settings.Sync.MaxBatchSizeBytes,
                 HttpTimeoutSeconds = settings.Sync.HttpTimeoutSeconds,
                 ConsecutiveFailuresAlertThreshold = settings.Sync.ConsecutiveFailuresAlertThreshold
             });
@@ -109,7 +116,9 @@ public static class ServiceCollectionExtensions
 
         var settings = configuration.GetSection(MacOSAgentSettings.SectionName).Get<MacOSAgentSettings>()
             ?? new MacOSAgentSettings();
-        var backendUrl = settings.Sync?.BackendUrl ?? "http://localhost:5000";
+        var backendUrl = string.IsNullOrWhiteSpace(settings.Sync?.BackendUrl)
+            ? "https://chronosx-timetrack-api.gpoda0.easypanel.host"
+            : settings.Sync!.BackendUrl!;
 
         services.AddHttpClient<IAppCategorySyncService, AppCategorySyncService>(client =>
         {
@@ -123,7 +132,7 @@ public static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(15);
         });
 
-        services.AddSingleton<IRemoteCommandExecutor, Agent.Infrastructure.Services.RemoteCommands.RemoteCommandExecutor>();
+        services.AddSingleton<IRemoteCommandExecutor, TimeTrack.MacOSAgentService.RemoteCommands.MacOSRemoteCommandExecutor>();
         services.AddSingleton<Func<IRemoteCommandExecutor>>(sp =>
             () => sp.GetRequiredService<IRemoteCommandExecutor>());
 

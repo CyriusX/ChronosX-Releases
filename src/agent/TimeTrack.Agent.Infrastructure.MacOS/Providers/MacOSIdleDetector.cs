@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TimeTrack.Agent.Contracts.Providers;
@@ -79,8 +80,8 @@ public sealed class MacOSIdleDetector : IIdleDetector
         try
         {
             var idleSeconds = CGEventSourceSecondsSinceLastEventType(
-                CGEventSourceStateID.CombinedSessionState,
-                CGEventType.AllEvents);
+                (int)CGEventSourceStateID.CombinedSessionState,
+                (int)CGEventType.AllEvents);
 
             if (idleSeconds < 0)
             {

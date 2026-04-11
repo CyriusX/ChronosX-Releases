@@ -1,7 +1,9 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TimeTrack.Agent.Contracts.Providers;
+using TimeTrack.Agent.Infrastructure.MacOS.Interop;
 
 namespace TimeTrack.Agent.Infrastructure.MacOS.Providers;
 
@@ -156,7 +158,7 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
         }
     }
 
-    private string? GetApplicationPath(int pid)
+    private unsafe string? GetApplicationPath(int pid)
     {
         try
         {
@@ -176,7 +178,7 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
         }
     }
 
-    private string? GetProcessName(int pid)
+    private unsafe string? GetProcessName(int pid)
     {
         try
         {
@@ -390,10 +392,10 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
     private static extern int NSWorkspace_FrontmostApplicationPid();
 
     [DllImport("/System/Library/Frameworks/AppKit.framework/AppKit")]
-    private static extern int NSWorkspace_GetApplicationPathForPid(int pid, byte* buffer, int bufferSize);
+    private static extern unsafe int NSWorkspace_GetApplicationPathForPid(int pid, byte* buffer, int bufferSize);
 
     [DllImport("/usr/lib/libproc.dylib")]
-    private static extern int proc_name(int pid, byte* buffer, int bufferSize);
+    private static extern unsafe int proc_name(int pid, byte* buffer, int bufferSize);
 
     [DllImport("/System/Library/Frameworks/ApplicationServices.framework/Frameworks/Accessibility.framework/Accessibility")]
     private static extern IntPtr AXUIElementCreateApplication(int pid);
@@ -404,17 +406,11 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     private static extern void CFRelease(IntPtr cf);
 
-    [DllImport("/System/Library/Frameworks/Foundation.framework/Foundation")]
-    private static extern IntPtr CFStringCreateWithCString(IntPtr alloc, byte* cStr, int encoding);
-
-    [DllImport("/System/Library/Frameworks/Foundation.framework/Foundation")]
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     private static extern int CFStringGetLength(IntPtr theString);
 
-    [DllImport("/System/Library/Frameworks/Foundation.framework/Foundation")]
-    private static extern IntPtr CFStringGetCharactersPtr(IntPtr theString);
-
-    [DllImport("/System/Library/Frameworks/Foundation.framework/Foundation")]
-    private static extern void CFStringGetCharacters(IntPtr theString, nint range, char* buffer);
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static extern unsafe void CFStringGetCharacters(IntPtr theString, nint range, char* buffer);
 
     [DllImport("/System/Library/Frameworks/Foundation.framework/Foundation")]
     private static extern IntPtr NSAppleScript_AllocInit();
@@ -425,20 +421,8 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
     [DllImport("/System/Library/Frameworks/Foundation.framework/Foundation")]
     private static extern IntPtr NSAppleScript_ExecuteAndReturnError(IntPtr script, ref IntPtr errorInfo);
 
-    private static readonly IntPtr kAXFocusedWindowAttribute = CFStringCreate("AXFocusedWindow");
-    private static readonly IntPtr kAXTitleAttribute = CFStringCreate("AXTitle");
-
-    private static IntPtr CFStringCreate(string str)
-    {
-        var bytes = System.Text.Encoding.UTF8.GetBytes(str);
-        unsafe
-        {
-            fixed (byte* ptr = bytes)
-            {
-                return CFStringCreateWithCString(IntPtr.Zero, ptr, 0x08000100); // kCFStringEncodingUTF8
-            }
-        }
-    }
+    private static readonly IntPtr kAXFocusedWindowAttribute = CoreFoundationNative.CFStringCreate("AXFocusedWindow");
+    private static readonly IntPtr kAXTitleAttribute = CoreFoundationNative.CFStringCreate("AXTitle");
 
     private static string? CFStringToString(IntPtr cfString)
     {

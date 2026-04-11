@@ -1,7 +1,10 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Security;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Services;
+using TimeTrack.Agent.Infrastructure.MacOS.Interop;
 
 namespace TimeTrack.Agent.Infrastructure.MacOS.Security;
 
@@ -393,9 +396,6 @@ public sealed class KeychainTokenStore : ITokenStore
     private static extern IntPtr CFDictionaryGetValue(IntPtr theDict, IntPtr key);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern IntPtr CFStringCreate(string str);
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     private static extern void CFRelease(IntPtr cf);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
@@ -407,20 +407,7 @@ public sealed class KeychainTokenStore : ITokenStore
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     private static extern long CFDataGetLength(IntPtr theData);
 
-    private static IntPtr CFStringCreate(string str)
-    {
-        var bytes = System.Text.Encoding.UTF8.GetBytes(str);
-        unsafe
-        {
-            fixed (byte* ptr = bytes)
-            {
-                return CFStringCreateWithCString(IntPtr.Zero, ptr, 0x08000100);
-            }
-        }
-    }
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern IntPtr CFStringCreateWithCString(IntPtr alloc, byte* cStr, int encoding);
+    private static IntPtr CFStringCreate(string str) => CoreFoundationNative.CFStringCreate(str);
 
     #endregion
 }
