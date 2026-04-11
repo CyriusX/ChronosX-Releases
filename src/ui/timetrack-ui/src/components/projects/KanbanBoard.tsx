@@ -18,10 +18,10 @@ import {
   closestCenter,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { ListTodo, CircleDashed, CheckCircle2 } from 'lucide-react';
+import { ListTodo, CircleDashed, CheckCircle2, Eye } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { TaskDetailDrawer } from './TaskDetailDrawer';
-import { moveTask, type Task, type TaskStatus } from '../../services/projectsApi';
+import { moveTask, type Task, type TaskStatus, type ProjectSyncSource } from '../../services/projectsApi';
 
 type ColumnDef = {
   id: TaskStatus;
@@ -30,9 +30,16 @@ type ColumnDef = {
   accent: string;
 };
 
-const COLUMNS: ColumnDef[] = [
+const LOCAL_COLUMNS: ColumnDef[] = [
   { id: 'Todo', label: 'A Fazer', icon: ListTodo, accent: '#94a3b8' },
   { id: 'InProgress', label: 'Em Progresso', icon: CircleDashed, accent: '#fbbf24' },
+  { id: 'Done', label: 'Concluído', icon: CheckCircle2, accent: '#05df72' },
+];
+
+const LINEAR_COLUMNS: ColumnDef[] = [
+  { id: 'Todo', label: 'A Fazer', icon: ListTodo, accent: '#94a3b8' },
+  { id: 'InProgress', label: 'Em Progresso', icon: CircleDashed, accent: '#fbbf24' },
+  { id: 'InReview', label: 'Em Revisão', icon: Eye, accent: '#a855f7' },
   { id: 'Done', label: 'Concluído', icon: CheckCircle2, accent: '#05df72' },
 ];
 
@@ -48,17 +55,22 @@ export function KanbanBoard({
   tasks,
   projectColor,
   currentUserId,
+  syncSource = 'Local',
   onLocalChange,
   onConflict,
 }: {
   tasks: Task[];
   projectColor: string;
   currentUserId: string | null | undefined;
+  /** 'Linear' unlocks the extra "Em Revisão" column. Defaults to 'Local'. */
+  syncSource?: ProjectSyncSource;
   onLocalChange: (tasks: Task[]) => void;
   onConflict: () => void;
 }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null);
+
+  const COLUMNS = syncSource === 'Linear' ? LINEAR_COLUMNS : LOCAL_COLUMNS;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -101,6 +113,9 @@ export function KanbanBoard({
     }
 
     if (targetStatus === null || targetIndex < 0) return;
+
+    // Defensive: InReview only on Linear-synced projects
+    if (targetStatus === 'InReview' && syncSource !== 'Linear') return;
 
     const currentIndex = columns[activeTask.status].findIndex((t) => t.id === activeTask.id);
     if (targetStatus === activeTask.status && currentIndex === targetIndex) return;

@@ -66,6 +66,12 @@ public sealed class TaskResponse
     public uint RowVersion { get; init; }
     public bool IsRunning { get; init; }
     public long? RunningSeconds { get; init; }
+
+    // ── Linear sync metadata (nullable — populated only for Linear-sourced tasks) ──
+    public bool IsLinearSourced { get; init; }
+    public string? LinearIssueIdentifier { get; init; }
+    public string? LinearUrl { get; init; }
+    public string? LinearStateName { get; init; }
 }
 
 public sealed class ListTasksResponse

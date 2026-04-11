@@ -93,7 +93,11 @@ public sealed class ListProjectTasksQueryHandler : IRequestHandler<ListProjectTa
             TotalSecondsWorked = t.TotalSecondsWorked,
             RowVersion = t.RowVersion,
             IsRunning = openEntry is not null && openEntry.IsOpen,
-            RunningSeconds = running
+            RunningSeconds = running,
+            IsLinearSourced = t.IsLinearSourced,
+            LinearIssueIdentifier = t.LinearIssueIdentifier,
+            LinearUrl = t.LinearUrl,
+            LinearStateName = t.LinearStateName
         };
     }
 }

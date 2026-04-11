@@ -46,16 +46,7 @@ public sealed class CreateProjectCommandHandler : IRequestHandler<CreateProjectC
 
         await _projectRepository.AddAsync(project, cancellationToken);
 
-        return new ProjectResponse
-        {
-            Id = project.Id,
-            Name = project.Name,
-            Description = project.Description,
-            Color = project.Color,
-            Status = project.Status.ToString(),
-            CreatedAt = project.CreatedAt,
-            UpdatedAt = project.UpdatedAt
-        };
+        return TimeTrack.Backend.Application.Projects.Queries.ProjectResponseMapper.Map(project);
     }
 }
 
@@ -97,16 +88,7 @@ public sealed class UpdateProjectCommandHandler : IRequestHandler<UpdateProjectC
         project.Update(request.Name, request.Description, request.Color);
         await _projectRepository.UpdateAsync(project, cancellationToken);
 
-        return new ProjectResponse
-        {
-            Id = project.Id,
-            Name = project.Name,
-            Description = project.Description,
-            Color = project.Color,
-            Status = project.Status.ToString(),
-            CreatedAt = project.CreatedAt,
-            UpdatedAt = project.UpdatedAt
-        };
+        return TimeTrack.Backend.Application.Projects.Queries.ProjectResponseMapper.Map(project);
     }
 }
 

@@ -13,6 +13,7 @@ import { MembersSection } from './MembersSection';
 import { OrganizationSection } from './OrganizationSection';
 import { AgentStatusSection } from './AgentStatusSection';
 import { TimelineSection } from './TimelineSection';
+import { IntegrationsSection } from './IntegrationsSection';
 import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -151,6 +152,8 @@ export function SettingsPage() {
         return <TimelineSection />;
       case 'focus-timer':
         return <FocusTimerSection />;
+      case 'integrations':
+        return <IntegrationsSection />;
       case 'team':
         return canManageTeam ? <MembersSection /> : null;
       case 'organization':

@@ -4,6 +4,8 @@ import { api } from './apiClient';
 // TYPES — Projects
 // ============================================================================
 
+export type ProjectSyncSource = 'Local' | 'Linear';
+
 export interface ProjectItem {
   id: string;
   name: string;
@@ -12,6 +14,9 @@ export interface ProjectItem {
   status: string; // 'Active' | 'Archived'
   createdAt: string;
   updatedAt: string | null;
+  syncSource: ProjectSyncSource;
+  linearProjectId: string | null;
+  lastSyncedAt: string | null;
 }
 
 export interface ListProjectsResponse {
@@ -77,6 +82,10 @@ export interface Task {
   rowVersion: number;
   isRunning: boolean;
   runningSeconds: number | null;
+  isLinearSourced: boolean;
+  linearIssueIdentifier: string | null;
+  linearUrl: string | null;
+  linearStateName: string | null;
 }
 
 export interface ListTasksResponse {

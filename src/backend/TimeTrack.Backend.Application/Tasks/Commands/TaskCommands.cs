@@ -572,7 +572,11 @@ internal static class TaskMapper
             TotalSecondsWorked = task.TotalSecondsWorked,
             RowVersion = task.RowVersion,
             IsRunning = openEntry is not null && openEntry.IsOpen,
-            RunningSeconds = running
+            RunningSeconds = running,
+            IsLinearSourced = task.IsLinearSourced,
+            LinearIssueIdentifier = task.LinearIssueIdentifier,
+            LinearUrl = task.LinearUrl,
+            LinearStateName = task.LinearStateName
         };
     }
 }
