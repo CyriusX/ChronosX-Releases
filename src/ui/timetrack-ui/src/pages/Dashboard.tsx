@@ -186,7 +186,7 @@ export default function Dashboard() {
 
         <div className="flex-1 flex gap-5 px-5 pb-4 min-h-0">
           {/* Main Content Area — scrollable */}
-          <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-0 pr-1">
+          <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-hidden">
             {/* Loading overlay for member data */}
             {isViewingMember && memberLoading && (
               <div className="flex items-center justify-center py-8">
@@ -285,7 +285,7 @@ export default function Dashboard() {
           </div>
 
           {/* Right Panel — fixed width, desktop only */}
-          <div className="hidden lg:flex w-[280px] flex-shrink-0 overflow-y-auto">
+          <div className="hidden lg:flex w-[280px] flex-shrink-0 min-h-0 overflow-hidden">
             <RightPanel
               summary={displaySummary}
               weeklyHistory={displayWeeklyHistory}

@@ -48,8 +48,8 @@ export function Sidebar() {
 
   return (
     <aside className="hidden md:flex w-[180px] flex-shrink-0 glass-sidebar flex-col overflow-hidden">
-      {/* Logo + Tracking LED */}
-      <div className="px-4 py-5 flex-shrink-0">
+      {/* Logo + Tracking LED — pt-8 clears macOS traffic light buttons */}
+      <div className="px-4 pt-8 pb-5 flex-shrink-0">
         <div className="flex items-center gap-2">
           <motion.img
             src={logoImg}
