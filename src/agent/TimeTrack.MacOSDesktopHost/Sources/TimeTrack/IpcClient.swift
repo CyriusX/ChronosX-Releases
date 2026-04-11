@@ -161,6 +161,12 @@ class IpcClient: ObservableObject {
         }
     }
 
+    private func toJsonString(_ value: Any?) -> String? {
+        guard let value = value, !(value is NSNull) else { return nil }
+        guard let data = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     private func processIncomingMessage(_ line: String) {
         guard let data = line.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -172,21 +178,16 @@ class IpcClient: ObservableObject {
             let error = json["error"] as? String
             let responseData = json["data"]
 
-            let response = IpcResponse(
-                success: success,
-                data: responseData != nil ? .string(String(describing: responseData)) : nil,
-                error: error
-            )
+            let dataAnyCodable: AnyCodable? = toJsonString(responseData).map { .string($0) }
+            let response = IpcResponse(success: success, data: dataAnyCodable, error: error)
 
             if let continuation = pendingRequests.removeValue(forKey: requestId) {
                 continuation.resume(returning: response)
             }
         } else if let eventType = json["eventType"] as? String {
             let payload = json["payload"]
-            let event = IpcEvent(
-                eventType: eventType,
-                payload: payload != nil ? .string(String(describing: payload)) : nil
-            )
+            let payloadAnyCodable: AnyCodable? = toJsonString(payload).map { .string($0) }
+            let event = IpcEvent(eventType: eventType, payload: payloadAnyCodable)
             onEvent?(event)
         }
     }

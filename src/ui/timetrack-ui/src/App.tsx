@@ -114,7 +114,7 @@ function App() {
 
   return (
     <HashRouter>
-      <div className="min-h-screen bg-[rgb(10,12,18)] text-[#f5f7fb]">
+      <div className="h-screen overflow-hidden bg-[rgb(10,12,18)] text-[#f5f7fb]">
         <AnimatedRoutes />
         <Toaster />
         <TrackingStoppedOverlay />
