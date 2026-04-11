@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Loader2, Trash2, Zap, ExternalLink, Lock } from 'lucide-react';
 import { updateTask, deleteTask, type Task, type ProjectMember, type TaskPriority } from '../../services/projectsApi';
+import { SimpleMarkdown } from './SimpleMarkdown';
 
 const PRIORITIES: TaskPriority[] = ['Low', 'Medium', 'High'];
 
@@ -270,9 +271,7 @@ function LinearReadOnlyView({ task, onClose }: { task: Task; onClose: () => void
           {task.description?.trim() && (
             <div>
               <div className="text-[10px] uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1">Descrição</div>
-              <pre className="whitespace-pre-wrap break-words text-[12px] text-[rgba(245,247,251,0.75)] font-sans">
-                {task.description}
-              </pre>
+              <SimpleMarkdown source={task.description} />
             </div>
           )}
 

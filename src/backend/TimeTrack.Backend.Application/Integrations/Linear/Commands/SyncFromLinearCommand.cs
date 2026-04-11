@@ -246,6 +246,10 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
             }
         }
 
+        // ── Retry any pending pushes that failed during earlier MoveTask calls ──
+        await RetryPendingPushesAsync(integration, apiKey, ct);
+        LinearPendingPushQueue.Prune(integration);
+
         // ── Finalize ─────────────────────────────────────────────────────
         integration.MarkSynced();
         integration.MarkUsed();
@@ -290,5 +294,92 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
         var row = LinearSyncHistory.CreateFailure(orgId, userId, startedAt, DateTime.UtcNow, error);
         try { await _history.AddAsync(row, ct); }
         catch (Exception logEx) { _logger.LogWarning(logEx, "Could not persist linear sync failure history"); }
+    }
+
+    /// <summary>
+    /// Walks the pending-push queue persisted on the integration metadata and
+    /// re-attempts each one. The push path in <c>MoveTaskCommandHandler</c>
+    /// enqueues entries when the live push failed; this is our chance to
+    /// recover them without running a dedicated Hangfire worker.
+    /// </summary>
+    private async Task RetryPendingPushesAsync(Domain.Entities.UserIntegration integration, string apiKey, CancellationToken ct)
+    {
+        var pending = LinearPendingPushQueue.List(integration);
+        if (pending.Count == 0) return;
+
+        _logger.LogInformation("Retrying {Count} pending Linear push(es) for user {UserId}",
+            pending.Count, integration.UserId);
+
+        foreach (var entry in pending)
+        {
+            var task = await _tasks.GetByIdAsync(entry.TaskId, ct);
+            if (task is null || !task.IsLinearSourced || string.IsNullOrWhiteSpace(task.LinearTeamId) || string.IsNullOrWhiteSpace(task.LinearIssueId))
+            {
+                // Task gone or no longer Linear-sourced — drop the entry.
+                LinearPendingPushQueue.Dequeue(integration, entry.TaskId);
+                continue;
+            }
+
+            // Only retry if the local status still matches the target that was queued;
+            // otherwise the user has moved the card elsewhere and the live MoveTask
+            // handler will own the fresh push.
+            if (task.Status != entry.TargetStatus)
+            {
+                LinearPendingPushQueue.Dequeue(integration, entry.TaskId);
+                continue;
+            }
+
+            // Load team states (cached if fresh)
+            var now = DateTime.UtcNow;
+            IReadOnlyList<LinearWorkflowState>? teamStates =
+                LinearTeamStateCache.TryGet(integration, task.LinearTeamId!, now);
+            if (teamStates is null)
+            {
+                try
+                {
+                    teamStates = await _linear.GetTeamStatesAsync(apiKey, task.LinearTeamId!, ct);
+                    LinearTeamStateCache.Store(integration, task.LinearTeamId!, teamStates, now);
+                }
+                catch (Exception ex)
+                {
+                    LinearPendingPushQueue.Enqueue(integration, task.Id, entry.TargetStatus, ex.Message);
+                    continue;
+                }
+            }
+
+            var target = LinearStateMapper.ResolveLinearState(entry.TargetStatus, teamStates);
+            if (target is null)
+            {
+                LinearPendingPushQueue.Enqueue(integration, task.Id, entry.TargetStatus, "no_linear_state_match");
+                continue;
+            }
+
+            try
+            {
+                var ok = await _linear.UpdateIssueStateAsync(apiKey, task.LinearIssueId!, target.Id, ct);
+                if (ok)
+                {
+                    task.UpdateLinearState(target.Id, target.Name);
+                    await _tasks.UpdateAsync(task, ct);
+                    LinearPendingPushQueue.Dequeue(integration, task.Id);
+                }
+                else
+                {
+                    LinearPendingPushQueue.Enqueue(integration, task.Id, entry.TargetStatus, "issue_update_returned_false");
+                }
+            }
+            catch (LinearUnauthorizedException ex)
+            {
+                integration.MarkUnauthorized(ex.Message);
+                LinearPendingPushQueue.Enqueue(integration, task.Id, entry.TargetStatus, "unauthorized");
+                // No point retrying the rest of the queue with a bad token.
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Retry push failed for task {TaskId}", task.Id);
+                LinearPendingPushQueue.Enqueue(integration, task.Id, entry.TargetStatus, ex.Message);
+            }
+        }
     }
 }

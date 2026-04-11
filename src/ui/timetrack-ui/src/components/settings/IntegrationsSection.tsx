@@ -1,12 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Zap, RefreshCw, Unplug, AlertTriangle, CheckCircle2, ExternalLink, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Zap, RefreshCw, Unplug, AlertTriangle, CheckCircle2, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, ChevronRight, XCircle } from 'lucide-react';
 import {
   listMyIntegrations,
   connectLinear,
   disconnectLinear,
   syncLinear,
+  getLinearSyncHistory,
   type UserIntegration,
   type LinearSyncResult,
+  type LinearSyncHistoryEntry,
 } from '../../services/integrationsApi';
 import { useNotifications } from '../../stores/uiStore';
 
@@ -82,6 +84,11 @@ function LinearCard({
   const [formError, setFormError] = useState<string | null>(null);
   const [lastSyncResult, setLastSyncResult] = useState<LinearSyncResult | null>(null);
 
+  // Sync history (lazy-loaded when the panel is expanded for the first time)
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<LinearSyncHistoryEntry[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   const isConnected = integration?.status === 'Active';
   const isUnauthorized = integration?.status === 'ErrorUnauthorized';
 
@@ -126,11 +133,33 @@ function LinearCard({
           : 'Nenhuma alteração encontrada no Linear',
       );
       await onChange();
+      if (historyOpen) await loadHistory();
     } catch (err: unknown) {
       const message = extractMessage(err) ?? 'Falha ao sincronizar com o Linear.';
       notify.error(message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await getLinearSyncHistory();
+      setHistory(res.entries ?? []);
+    } catch (err) {
+      console.error('[IntegrationsSection] failed to load sync history', err);
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const toggleHistory = () => {
+    const next = !historyOpen;
+    setHistoryOpen(next);
+    if (next && history === null) {
+      loadHistory();
     }
   };
 
@@ -239,6 +268,38 @@ function LinearCard({
               Desconectar
             </button>
           </div>
+
+          {/* Sync history — expandable */}
+          <div className="pt-3 mt-3 border-t border-[rgba(255,255,255,0.04)]">
+            <button
+              type="button"
+              onClick={toggleHistory}
+              className="w-full flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] hover:text-[rgba(245,247,251,0.75)] transition-colors"
+            >
+              {historyOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              Histórico de sincronizações
+            </button>
+            {historyOpen && (
+              <div className="mt-2">
+                {historyLoading ? (
+                  <div className="flex items-center gap-2 text-[10px] text-[rgba(245,247,251,0.5)] py-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Carregando…
+                  </div>
+                ) : history && history.length > 0 ? (
+                  <ul className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                    {history.map((h) => (
+                      <SyncHistoryRow key={h.id} entry={h} />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[10px] italic text-[rgba(245,247,251,0.35)] py-2">
+                    Nenhuma sincronização registrada ainda.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -339,6 +400,33 @@ function formatRelative(iso: string): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}min atrás`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
   return `${Math.floor(diff / 86400)}d atrás`;
+}
+
+function SyncHistoryRow({ entry }: { entry: LinearSyncHistoryEntry }) {
+  const iconColor = entry.success ? '#05df72' : '#f87171';
+  const Icon = entry.success ? CheckCircle2 : XCircle;
+
+  return (
+    <li className="px-2.5 py-1.5 rounded-md bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]">
+      <div className="flex items-start gap-2">
+        <Icon className="w-3 h-3 mt-0.5 flex-shrink-0" style={{ color: iconColor }} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] text-[rgba(245,247,251,0.7)]">{formatDateTime(entry.startedAt)}</span>
+            <span className="text-[9px] text-[rgba(245,247,251,0.4)]">{entry.durationMs}ms</span>
+          </div>
+          {entry.success ? (
+            <div className="text-[9px] text-[rgba(245,247,251,0.55)] mt-0.5">
+              +{entry.projectsCreated} projetos, +{entry.tasksCreated} tarefas, ~{entry.tasksUpdated} atualizadas
+              {entry.tasksSoftDeleted > 0 && `, ${entry.tasksSoftDeleted} removidas`}
+            </div>
+          ) : (
+            <div className="text-[9px] text-[#f87171] mt-0.5 break-words">{entry.errorMessage ?? 'Falha'}</div>
+          )}
+        </div>
+      </div>
+    </li>
+  );
 }
 
 function extractMessage(err: unknown): string | null {
