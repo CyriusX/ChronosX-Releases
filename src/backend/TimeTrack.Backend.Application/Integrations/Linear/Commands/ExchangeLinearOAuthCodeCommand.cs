@@ -78,9 +78,10 @@ public sealed class ExchangeLinearOAuthCodeCommandHandler : IRequestHandler<Exch
             externalUserName = viewer.Name;
             externalUserEmail = viewer.Email;
         }
-        catch (LinearApiException ex)
+        catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to fetch Linear viewer info during OAuth callback");
+            // Viewer fetch is best-effort — a 401 or network error must not prevent saving the token.
+            _logger.LogWarning(ex, "Failed to fetch Linear viewer info during OAuth callback (non-fatal)");
         }
 
         var existingIntegration = await _userIntegrationRepository.GetAsync(

@@ -7,6 +7,7 @@ using TimeTrack.Backend.Application.Common.Exceptions;
 using TimeTrack.Backend.Application.Integrations.DTOs;
 using TimeTrack.Backend.Application.Integrations.Linear.Commands;
 using TimeTrack.Backend.Application.Integrations.Linear.Queries;
+using NotFoundException = TimeTrack.Backend.Application.Common.Exceptions.NotFoundException;
 
 namespace TimeTrack.Api.Controllers;
 
@@ -89,8 +90,23 @@ public sealed class UserIntegrationsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<LinearSyncResultResponse>> SyncLinear()
     {
-        var result = await _mediator.Send(new SyncFromLinearCommand());
-        return Ok(result);
+        try
+        {
+            var result = await _mediator.Send(new SyncFromLinearCommand());
+            return Ok(result);
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { errors = ex.Errors });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(new { message = $"{ex.EntityType} not found" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpGet("api/v1/me/integrations/linear/history")]
