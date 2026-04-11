@@ -239,13 +239,6 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
         var task = await _tasks.GetByIdAsync(request.TaskId, ct)
             ?? throw new NotFoundException("Task", request.TaskId);
 
-        var role = _currentUser.Role;
-        var isManager = role == UserRole.Admin || role == UserRole.Gestor;
-        var isAssignee = task.AssignedUserId == _currentUser.UserId;
-
-        if (!isManager && !isAssignee)
-            throw new ForbiddenException("Only the assignee or a manager can move this task");
-
         if (request.RowVersion.HasValue && request.RowVersion.Value != task.RowVersion)
             throw new ConflictException("task_version_stale", "Task has been modified by someone else. Reload and retry.");
 
@@ -265,10 +258,13 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
         // Timer side-effects
         // ─────────────────────────────────────────────────────────────────────
 
+        // The timer always tracks the user who is moving the card, not the assignee.
+        var workerId = _currentUser.UserId.Value;
+
         if (oldStatus == ProjectTaskStatus.InProgress && newStatus != ProjectTaskStatus.InProgress)
         {
             // Closing the in-progress phase: close any open entry on this task for this user.
-            var open = await _entries.GetOpenForUserAsync(task.AssignedUserId ?? _currentUser.UserId.Value, ct);
+            var open = await _entries.GetOpenForUserAsync(workerId, ct);
             if (open is not null && open.TaskId == task.Id)
             {
                 var added = open.Close(now);
@@ -281,7 +277,6 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
         if (newStatus == ProjectTaskStatus.InProgress && oldStatus != ProjectTaskStatus.InProgress)
         {
             // Auto-stop any other open entry the user has (only ONE in-progress task at a time).
-            var workerId = task.AssignedUserId ?? _currentUser.UserId.Value;
             var existingOpen = await _entries.GetOpenForUserAsync(workerId, ct);
             if (existingOpen is not null)
             {

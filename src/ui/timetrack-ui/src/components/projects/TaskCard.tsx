@@ -99,25 +99,20 @@ export function TaskCard({
     <div
       ref={setNodeRef}
       style={style}
+      {...(draggable ? listeners : {})}
+      {...(draggable ? attributes : {})}
       className={`group relative bg-[rgba(26,29,46,0.8)] border border-[rgba(255,255,255,0.06)] rounded-lg p-3 transition-colors ${
         draggable
-          ? 'hover:border-[rgba(255,255,255,0.12)] cursor-pointer'
+          ? 'hover:border-[rgba(255,255,255,0.12)] cursor-grab active:cursor-grabbing'
           : 'cursor-pointer opacity-75'
       }`}
       onClick={() => onOpen?.(task.id)}
     >
-      {/* Drag handle — only when the user owns the card */}
+      {/* Visual grip hint — no listeners, whole card is the drag surface */}
       {draggable && (
-        <button
-          {...attributes}
-          {...listeners}
-          onClick={(e) => e.stopPropagation()}
-          className="absolute top-1.5 right-1.5 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.06)] transition-all cursor-grab active:cursor-grabbing"
-          aria-label="Arrastar"
-          title="Arrastar"
-        >
+        <span className="absolute top-1.5 right-1.5 p-0.5 rounded opacity-0 group-hover:opacity-60 text-[rgba(245,247,251,0.4)] pointer-events-none">
           <GripVertical className="w-3 h-3" />
-        </button>
+        </span>
       )}
 
       {/* Running indicator */}

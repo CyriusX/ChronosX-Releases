@@ -9,7 +9,6 @@ import { motion } from 'motion/react';
 import { ArrowLeft, Users, Loader2, RefreshCw, Zap, ExternalLink } from 'lucide-react';
 import { Sidebar } from '../components/dashboard';
 import { KanbanBoard } from '../components/projects/KanbanBoard';
-import { useAuthStore } from '../stores/authStore';
 import {
   getProject,
   listProjectTasks,
@@ -26,7 +25,6 @@ const POLL_INTERVAL_MS = 15_000;
 export default function ProjectBoard() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const user = useAuthStore((s) => s.user);
   const { notify } = useNotifications();
 
   const [project, setProject] = useState<ProjectItem | null>(null);
@@ -252,7 +250,6 @@ export default function ProjectBoard() {
               tasks={tasks}
               projectId={projectId}
               projectColor={project?.color ?? '#8B5CF6'}
-              currentUserId={user?.id ?? null}
               syncSource={project?.syncSource ?? 'Local'}
               onLocalChange={handleOptimisticChange}
               onConflict={handleConflict}
