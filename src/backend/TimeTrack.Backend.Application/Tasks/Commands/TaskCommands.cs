@@ -56,16 +56,18 @@ public sealed class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand
             throw new UnauthorizedAccessException();
 
         var role = _currentUser.Role;
-        if (role != UserRole.Admin && role != UserRole.Gestor)
-            throw new ForbiddenException("Only managers can create tasks");
+        var isManager = role == UserRole.Admin || role == UserRole.Gestor;
 
         var project = await _projects.GetByIdAsync(request.ProjectId, ct)
             ?? throw new NotFoundException("Project", request.ProjectId);
 
-        if (request.AssignedUserId.HasValue)
+        // Non-managers can only create tasks assigned to themselves.
+        var assignedUserId = isManager ? request.AssignedUserId : _currentUser.UserId;
+
+        if (assignedUserId.HasValue)
         {
-            var assignee = await _users.GetByIdAsync(request.AssignedUserId.Value, ct)
-                ?? throw new NotFoundException("User", request.AssignedUserId.Value);
+            var assignee = await _users.GetByIdAsync(assignedUserId.Value, ct)
+                ?? throw new NotFoundException("User", assignedUserId.Value);
             if (assignee.OrgId != project.OrgId)
                 throw new ValidationException("AssignedUserId", "Assignee must belong to the same organization");
             var isMember = await _members.IsMemberAsync(project.Id, assignee.Id, ct);
@@ -81,7 +83,7 @@ public sealed class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand
             project.Id,
             request.Title,
             _currentUser.UserId.Value,
-            request.AssignedUserId,
+            assignedUserId,
             request.Description,
             priority,
             request.DueDate,
@@ -454,12 +456,17 @@ public sealed class DeleteTaskCommandHandler : IRequestHandler<DeleteTaskCommand
 
     public async Task<Unit> Handle(DeleteTaskCommand request, CancellationToken ct)
     {
+        if (!_currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException();
+
         var role = _currentUser.Role;
-        if (role != UserRole.Admin && role != UserRole.Gestor)
-            throw new ForbiddenException("Only managers can delete tasks");
+        var isManager = role == UserRole.Admin || role == UserRole.Gestor;
 
         var task = await _tasks.GetByIdAsync(request.TaskId, ct)
             ?? throw new NotFoundException("Task", request.TaskId);
+
+        if (!isManager && task.CreatedByUserId != _currentUser.UserId.Value)
+            throw new ForbiddenException("You can only delete tasks you created");
 
         // Close any in-progress entry tied to this task.
         if (task.Status == ProjectTaskStatus.InProgress && task.AssignedUserId.HasValue)
@@ -591,6 +598,7 @@ internal static class TaskMapper
             Title = task.Title,
             Description = task.Description,
             Status = task.Status.ToString(),
+            CreatedByUserId = task.CreatedByUserId,
             AssignedUserId = task.AssignedUserId,
             AssignedUserDisplayName = assignedUserDisplayName ?? task.AssignedUser?.DisplayName,
             Priority = task.Priority.ToString(),

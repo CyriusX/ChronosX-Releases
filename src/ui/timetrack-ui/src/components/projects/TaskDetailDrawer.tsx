@@ -19,9 +19,11 @@ import {
   CircleDashed,
   ListTodo,
   Eye,
+  Trash2,
 } from 'lucide-react';
-import { getTask, type Task, type TaskStatus, type TaskPriority } from '../../services/projectsApi';
+import { getTask, deleteTask, type Task, type TaskStatus, type TaskPriority } from '../../services/projectsApi';
 import { SimpleMarkdown } from './SimpleMarkdown';
+import { useAuthStore, selectUser } from '../../stores';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -104,13 +106,17 @@ function deadlineTone(dueDate: string | null, status: TaskStatus): 'overdue' | '
 export function TaskDetailDrawer({
   taskId,
   onClose,
+  onDeleted,
 }: {
   taskId: string | null;
   onClose: () => void;
+  onDeleted?: (taskId: string) => void;
 }) {
+  const currentUser = useAuthStore(selectUser);
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!taskId) {
@@ -146,6 +152,27 @@ export function TaskDetailDrawer({
     return () => window.removeEventListener('keydown', handler);
   }, [taskId, onClose]);
 
+  const handleDelete = async () => {
+    if (!task || deleting) return;
+    if (!window.confirm(`Excluir tarefa "${task.title}"?`)) return;
+    setDeleting(true);
+    try {
+      await deleteTask(task.id);
+      onDeleted?.(task.id);
+      onClose();
+    } catch (err) {
+      console.error('[TaskDetailDrawer] delete failed', err);
+      setError('Não foi possível excluir a tarefa.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const canDelete = task !== null
+    && !task.isLinearSourced
+    && currentUser !== null
+    && task.createdByUserId === currentUser.id;
+
   const open = taskId !== null;
 
   return (
@@ -167,7 +194,15 @@ export function TaskDetailDrawer({
             exit={{ x: '100%' }}
             transition={{ type: 'spring', stiffness: 260, damping: 30 }}
           >
-            <DrawerBody task={task} loading={loading} error={error} onClose={onClose} />
+            <DrawerBody
+              task={task}
+              loading={loading}
+              error={error}
+              onClose={onClose}
+              canDelete={canDelete}
+              deleting={deleting}
+              onDelete={handleDelete}
+            />
           </motion.aside>
         </>
       )}
@@ -180,11 +215,17 @@ function DrawerBody({
   loading,
   error,
   onClose,
+  canDelete,
+  deleting,
+  onDelete,
 }: {
   task: Task | null;
   loading: boolean;
   error: string | null;
   onClose: () => void;
+  canDelete: boolean;
+  deleting: boolean;
+  onDelete: () => void;
 }) {
   if (loading || !task) {
     return (
@@ -322,13 +363,24 @@ function DrawerBody({
           )}
         </div>
 
-        {/* Read-only notice for desktop users */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
-          <Lock className="w-3 h-3 text-[rgba(245,247,251,0.35)]" />
-          <span className="text-[10px] text-[rgba(245,247,251,0.45)]">
-            Somente leitura — edição disponível apenas para gestores na web.
-          </span>
-        </div>
+        {/* Actions */}
+        {canDelete ? (
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-[rgba(239,68,68,0.3)] text-[#f87171] text-[11px] font-medium hover:bg-[rgba(239,68,68,0.08)] hover:border-[rgba(239,68,68,0.5)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {deleting ? 'Excluindo…' : 'Excluir tarefa'}
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
+            <Lock className="w-3 h-3 text-[rgba(245,247,251,0.35)]" />
+            <span className="text-[10px] text-[rgba(245,247,251,0.45)]">
+              Somente leitura — edição disponível apenas para gestores na web.
+            </span>
+          </div>
+        )}
       </div>
     </>
   );

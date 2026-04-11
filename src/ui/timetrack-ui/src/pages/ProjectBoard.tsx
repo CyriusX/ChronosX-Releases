@@ -96,7 +96,19 @@ export default function ProjectBoard() {
   const handleOptimisticChange = (next: Task[]) => setTasks(next);
   const handleConflict = () => fetchAll(false);
 
-  const totalSecondsWorked = tasks.reduce((sum, t) => sum + t.totalSecondsWorked, 0);
+  const handleTaskCreated = (task: Task) => {
+    setTasks((prev) => [...prev, task]);
+  };
+
+  const handleTaskDeleted = (taskId: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+  };
+
+  // Include running seconds in billable cost so it reflects live work in progress.
+  const totalSecondsWorked = tasks.reduce((sum, t) => {
+    const running = t.isRunning && t.runningSeconds ? t.runningSeconds : 0;
+    return sum + t.totalSecondsWorked + running;
+  }, 0);
   const totalCost = project?.isBillable && project?.hourlyRate
     ? (totalSecondsWorked / 3600) * project.hourlyRate
     : null;
@@ -238,11 +250,14 @@ export default function ProjectBoard() {
           ) : (
             <KanbanBoard
               tasks={tasks}
+              projectId={projectId}
               projectColor={project?.color ?? '#8B5CF6'}
               currentUserId={user?.id ?? null}
               syncSource={project?.syncSource ?? 'Local'}
               onLocalChange={handleOptimisticChange}
               onConflict={handleConflict}
+              onTaskCreated={handleTaskCreated}
+              onTaskDeleted={handleTaskDeleted}
             />
           )}
         </div>
