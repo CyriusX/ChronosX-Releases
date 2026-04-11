@@ -22,6 +22,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { getTask, type Task, type TaskStatus, type TaskPriority } from '../../services/projectsApi';
+import { SimpleMarkdown } from './SimpleMarkdown';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -310,9 +311,7 @@ function DrawerBody({
             </span>
           </div>
           {task.description?.trim() ? (
-            <pre className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-[rgba(245,247,251,0.85)] font-sans">
-              {task.description}
-            </pre>
+            <SimpleMarkdown source={task.description} />
           ) : (
             <p className="text-[11px] italic text-[rgba(245,247,251,0.35)]">Sem descrição.</p>
           )}

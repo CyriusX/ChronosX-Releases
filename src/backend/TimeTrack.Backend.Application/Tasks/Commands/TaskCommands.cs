@@ -352,22 +352,41 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
             return;
         }
 
-        IReadOnlyList<LinearWorkflowState> teamStates;
-        try
+        // Try the cache first — team workflow states rarely change, so an hour of
+        // staleness is fine and it skips the GraphQL round-trip on every move.
+        var now = DateTime.UtcNow;
+        IReadOnlyList<LinearWorkflowState>? teamStates =
+            LinearTeamStateCache.TryGet(integration, task.LinearTeamId!, now);
+
+        if (teamStates is null)
         {
-            teamStates = await _linear.GetTeamStatesAsync(apiKey, task.LinearTeamId!, ct);
-        }
-        catch (LinearUnauthorizedException ex)
-        {
-            integration.MarkUnauthorized(ex.Message);
-            await _integrations.UpdateAsync(integration, ct);
-            return;
+            try
+            {
+                teamStates = await _linear.GetTeamStatesAsync(apiKey, task.LinearTeamId!, ct);
+                LinearTeamStateCache.Store(integration, task.LinearTeamId!, teamStates, now);
+                // Integration write happens below in the success/failure branches.
+            }
+            catch (LinearUnauthorizedException ex)
+            {
+                integration.MarkUnauthorized(ex.Message);
+                LinearPendingPushQueue.Enqueue(integration, task.Id, newStatus, "unauthorized");
+                await _integrations.UpdateAsync(integration, ct);
+                return;
+            }
+            catch (LinearApiException ex)
+            {
+                LinearPendingPushQueue.Enqueue(integration, task.Id, newStatus, ex.Message);
+                await _integrations.UpdateAsync(integration, ct);
+                return;
+            }
         }
 
         var target = LinearStateMapper.ResolveLinearState(newStatus, teamStates);
         if (target is null)
         {
             _logger.LogWarning("No Linear state resolved for {Status} on team {TeamId}", newStatus, task.LinearTeamId);
+            LinearPendingPushQueue.Enqueue(integration, task.Id, newStatus, "no_linear_state_match");
+            await _integrations.UpdateAsync(integration, ct);
             return;
         }
 
@@ -378,6 +397,11 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
             {
                 task.UpdateLinearState(target.Id, target.Name);
                 await _tasks.UpdateAsync(task, ct);
+                LinearPendingPushQueue.Dequeue(integration, task.Id);
+            }
+            else
+            {
+                LinearPendingPushQueue.Enqueue(integration, task.Id, newStatus, "issue_update_returned_false");
             }
             integration.MarkUsed();
             await _integrations.UpdateAsync(integration, ct);
@@ -385,6 +409,13 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
         catch (LinearUnauthorizedException ex)
         {
             integration.MarkUnauthorized(ex.Message);
+            LinearPendingPushQueue.Enqueue(integration, task.Id, newStatus, "unauthorized");
+            await _integrations.UpdateAsync(integration, ct);
+        }
+        catch (LinearApiException ex)
+        {
+            _logger.LogWarning(ex, "Linear status push API failure for task {TaskId}", task.Id);
+            LinearPendingPushQueue.Enqueue(integration, task.Id, newStatus, ex.Message);
             await _integrations.UpdateAsync(integration, ct);
         }
     }
