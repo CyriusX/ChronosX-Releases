@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, Users, Loader2, RefreshCw, Zap, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Users, Loader2, RefreshCw, Zap, ExternalLink, Clock, ListTodo, DollarSign } from 'lucide-react';
 import { Sidebar } from '../components/dashboard';
 import { KanbanBoard } from '../components/projects/KanbanBoard';
 import {
@@ -107,6 +107,7 @@ export default function ProjectBoard() {
     const running = t.isRunning && t.runningSeconds ? t.runningSeconds : 0;
     return sum + t.totalSecondsWorked + running;
   }, 0);
+  const todoCount = tasks.filter((t) => t.status === 'Todo').length;
   const totalCost = project?.isBillable && project?.hourlyRate
     ? (totalSecondsWorked / 3600) * project.hourlyRate
     : null;
@@ -217,15 +218,28 @@ export default function ProjectBoard() {
           </header>
         </div>
 
-        {/* Cost Display — for billable projects */}
-        {totalCost !== null && (
+        {/* Project stats bar */}
+        {!loading && (
           <div className="px-4 lg:px-6 pb-3 flex-shrink-0">
-            <div className="px-3 py-2 rounded-lg bg-gradient-to-r from-[rgba(139,92,246,0.12)] to-[rgba(139,92,246,0.06)] border border-[rgba(139,92,246,0.2)]">
-              <p className="text-[11px] text-[rgba(245,247,251,0.8)]">
-                <span className="font-semibold text-[#c4b5fd]">{formatCost(totalCost, project?.currency || 'USD')}</span>
-                <span className="mx-2">·</span>
-                <span>{formatTotalWorked(totalSecondsWorked)} trabalhado</span>
-              </p>
+            <div className="flex flex-wrap items-center gap-4 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]">
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-[rgba(245,247,251,0.4)]" />
+                <span className="text-[11px] text-[rgba(245,247,251,0.7)]">{formatTotalWorked(totalSecondsWorked)} trabalhado</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <ListTodo className="w-3.5 h-3.5 text-[rgba(245,247,251,0.4)]" />
+                <span className="text-[11px] text-[rgba(245,247,251,0.7)]">{todoCount} a fazer</span>
+              </div>
+              {totalCost !== null && (
+                <>
+                  <div className="h-3 w-px bg-[rgba(255,255,255,0.1)]" />
+                  <div className="flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-[#c4b5fd]" />
+                    <span className="text-[11px] font-semibold text-[#c4b5fd]">{formatCost(totalCost, project?.currency || 'USD')}</span>
+                    <span className="text-[10px] text-[rgba(245,247,251,0.4)]">faturável</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
