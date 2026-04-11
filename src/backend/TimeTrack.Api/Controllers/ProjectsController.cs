@@ -83,7 +83,10 @@ public sealed class ProjectsController : ControllerBase
             id,
             request.Name,
             request.Description,
-            request.Color));
+            request.Color,
+            request.IsBillable,
+            request.Currency,
+            request.HourlyRate));
 
         return Ok(result);
     }

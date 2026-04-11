@@ -250,3 +250,41 @@ public sealed class GetMyOpenTaskQueryHandler : IRequestHandler<GetMyOpenTaskQue
         };
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIST MY TASK ENTRIES FOR A DATE (for the activity timeline)
+// ═══════════════════════════════════════════════════════════════════════════
+
+public sealed record ListMyTaskEntriesQuery(DateOnly Date) : IRequest<ListTaskEntriesResponse>;
+
+public sealed class ListMyTaskEntriesQueryHandler : IRequestHandler<ListMyTaskEntriesQuery, ListTaskEntriesResponse>
+{
+    private readonly ITaskTimeEntryRepository _entries;
+    private readonly ICurrentUserContext _currentUser;
+
+    public ListMyTaskEntriesQueryHandler(ITaskTimeEntryRepository entries, ICurrentUserContext currentUser)
+    {
+        _entries = entries;
+        _currentUser = currentUser;
+    }
+
+    public async Task<ListTaskEntriesResponse> Handle(ListMyTaskEntriesQuery request, CancellationToken ct)
+    {
+        if (!_currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException();
+
+        var entries = await _entries.ListForUserOnDateAsync(_currentUser.UserId.Value, request.Date, ct);
+
+        var dtos = entries.Select(e => new TaskEntryDto
+        {
+            Id = e.Id,
+            TaskTitle = e.Task?.Title ?? string.Empty,
+            ProjectName = e.Task?.Project?.Name ?? string.Empty,
+            ProjectColor = e.Task?.Project?.Color ?? "#4A9FFF",
+            StartedAt = e.StartedAt,
+            EndedAt = e.EndedAt
+        }).ToList();
+
+        return new ListTaskEntriesResponse { Entries = dtos };
+    }
+}

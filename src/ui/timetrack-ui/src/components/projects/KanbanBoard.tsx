@@ -75,6 +75,7 @@ export function KanbanBoard({
   const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null);
   const [addingTask, setAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDescription, setNewTaskDescription] = useState('');
   const [creatingTask, setCreatingTask] = useState(false);
   const newTaskInputRef = useRef<HTMLInputElement>(null);
 
@@ -103,6 +104,7 @@ export function KanbanBoard({
   const cancelAddingTask = () => {
     setAddingTask(false);
     setNewTaskTitle('');
+    setNewTaskDescription('');
   };
 
   const submitNewTask = async () => {
@@ -110,10 +112,12 @@ export function KanbanBoard({
     if (!title || creatingTask) return;
     setCreatingTask(true);
     try {
-      const task = await createTask(projectId, { title });
+      const description = newTaskDescription.trim() || null;
+      const task = await createTask(projectId, { title, description });
       onTaskCreated?.(task);
       setAddingTask(false);
       setNewTaskTitle('');
+      setNewTaskDescription('');
     } catch (err) {
       console.error('[KanbanBoard] createTask failed', err);
     } finally {
@@ -212,11 +216,21 @@ export function KanbanBoard({
                         value={newTaskTitle}
                         onChange={(e) => setNewTaskTitle(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') submitNewTask();
+                          if (e.key === 'Enter' && !e.shiftKey) submitNewTask();
                           if (e.key === 'Escape') cancelAddingTask();
                         }}
                         placeholder="Nome da tarefa…"
                         className="w-full bg-transparent text-[11px] text-[#f5f7fb] placeholder:text-[rgba(245,247,251,0.3)] outline-none"
+                      />
+                      <textarea
+                        value={newTaskDescription}
+                        onChange={(e) => setNewTaskDescription(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') cancelAddingTask();
+                        }}
+                        placeholder="Descrição (opcional)…"
+                        rows={2}
+                        className="w-full bg-transparent text-[10px] text-[rgba(245,247,251,0.7)] placeholder:text-[rgba(245,247,251,0.25)] outline-none resize-none"
                       />
                       <div className="flex gap-1.5">
                         <button

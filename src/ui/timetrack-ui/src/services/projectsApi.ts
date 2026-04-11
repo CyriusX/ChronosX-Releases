@@ -197,6 +197,27 @@ export function closeMyOpenTaskOnIdleReject(): Promise<void> {
   return api.post<void>('/me/tasks/open/close-on-idle-reject');
 }
 
+// ============================================================================
+// TYPES — Task Entries (for activity timeline)
+// ============================================================================
+
+export interface TaskEntryDto {
+  id: string;
+  taskTitle: string;
+  projectName: string;
+  projectColor: string;
+  startedAt: string;
+  endedAt: string | null;
+}
+
+export interface ListTaskEntriesResponse {
+  entries: TaskEntryDto[];
+}
+
+export function getMyTaskEntries(date: string): Promise<ListTaskEntriesResponse> {
+  return api.get<ListTaskEntriesResponse>(`/me/task-entries?date=${encodeURIComponent(date)}`);
+}
+
 export function listMyNotifications(unreadOnly: boolean = false, take: number = 50): Promise<ListNotificationsResponse> {
   return api.get<ListNotificationsResponse>(`/me/notifications?unreadOnly=${unreadOnly}&take=${take}`);
 }
