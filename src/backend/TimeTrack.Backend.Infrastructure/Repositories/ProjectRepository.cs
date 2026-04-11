@@ -73,4 +73,10 @@ public sealed class ProjectRepository : IProjectRepository
         _context.Projects.Remove(project);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<Project?> GetByLinearProjectIdAsync(Guid orgId, string linearProjectId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Projects
+            .FirstOrDefaultAsync(p => p.OrgId == orgId && p.LinearProjectId == linearProjectId, cancellationToken);
+    }
 }

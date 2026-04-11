@@ -6,7 +6,11 @@ using Microsoft.Extensions.Http;
 using Resend;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.FocusScore;
+using TimeTrack.Backend.Application.Integrations;
+using TimeTrack.Backend.Application.Integrations.Linear;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using TimeTrack.Backend.Infrastructure.Integrations;
+using TimeTrack.Backend.Infrastructure.Integrations.Linear;
 using TimeTrack.Backend.Infrastructure.Jobs.Configuration;
 using TimeTrack.Backend.Infrastructure.Persistence;
 using TimeTrack.Backend.Infrastructure.Repositories;
@@ -67,6 +71,16 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Remote Commands
         services.AddScoped<IRemoteCommandRepository, RemoteCommandRepository>();
+
+        // User Integrations (Linear + future providers)
+        services.AddScoped<IUserIntegrationRepository, UserIntegrationRepository>();
+        services.AddScoped<ILinearSyncHistoryRepository, LinearSyncHistoryRepository>();
+        services.AddSingleton<IUserIntegrationTokenProtector, UserIntegrationTokenProtector>();
+        services.AddHttpClient<ILinearClient, LinearClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.linear.app/graphql");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
 
         // Focus Score Services
         services.AddSingleton<AppProductivityClassifier>();

@@ -17,4 +17,10 @@ public interface IProjectTaskRepository
     /// AND has an assignee. Used by DeadlineScanJob to send "due today" notifications.
     /// </summary>
     Task<IReadOnlyList<ProjectTask>> ListAssignedTasksDueOnAsync(DateTime utcDate, CancellationToken cancellationToken = default);
+
+    /// <summary>Find a Linear-sourced task by its external issue id.</summary>
+    Task<ProjectTask?> GetByLinearIssueIdAsync(Guid orgId, string linearIssueId, CancellationToken cancellationToken = default);
+
+    /// <summary>List all Linear-sourced tasks for a given project (for orphan cleanup on sync).</summary>
+    Task<IReadOnlyList<ProjectTask>> ListLinearTasksForProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
 }

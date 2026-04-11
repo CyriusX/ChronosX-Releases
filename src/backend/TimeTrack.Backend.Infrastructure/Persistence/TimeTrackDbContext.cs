@@ -53,6 +53,10 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<AppCategoryGlobal> AppCategoryGlobals => Set<AppCategoryGlobal>();
     public DbSet<AppCategoryOverride> AppCategoryOverrides => Set<AppCategoryOverride>();
 
+    // Third-party integrations (Linear for v1)
+    public DbSet<UserIntegration> UserIntegrations => Set<UserIntegration>();
+    public DbSet<LinearSyncHistory> LinearSyncHistory => Set<LinearSyncHistory>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -149,6 +153,14 @@ public sealed class TimeTrackDbContext : DbContext
         // Remote Commands
         modelBuilder.Entity<RemoteCommand>()
             .HasQueryFilter(rc => !_currentUser.IsAuthenticated || rc.OrgId == _currentUser.OrgId);
+
+        // User Integrations (Linear etc.)
+        modelBuilder.Entity<UserIntegration>()
+            .HasQueryFilter(i => !_currentUser.IsAuthenticated || i.OrgId == _currentUser.OrgId);
+
+        // Linear Sync History
+        modelBuilder.Entity<LinearSyncHistory>()
+            .HasQueryFilter(h => !_currentUser.IsAuthenticated || h.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()

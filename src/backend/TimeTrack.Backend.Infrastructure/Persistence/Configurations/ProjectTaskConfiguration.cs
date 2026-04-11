@@ -86,8 +86,38 @@ internal sealed class ProjectTaskConfiguration : IEntityTypeConfiguration<Projec
             .ValueGeneratedOnAddOrUpdate()
             .IsConcurrencyToken();
 
+        // ── Linear mirror columns ──
+        builder.Property(t => t.LinearIssueId)
+            .HasColumnName("linear_issue_id")
+            .HasMaxLength(64);
+
+        builder.Property(t => t.LinearIssueIdentifier)
+            .HasColumnName("linear_issue_identifier")
+            .HasMaxLength(32);
+
+        builder.Property(t => t.LinearUrl)
+            .HasColumnName("linear_url")
+            .HasMaxLength(500);
+
+        builder.Property(t => t.LinearStateId)
+            .HasColumnName("linear_state_id")
+            .HasMaxLength(64);
+
+        builder.Property(t => t.LinearStateName)
+            .HasColumnName("linear_state_name")
+            .HasMaxLength(100);
+
+        builder.Property(t => t.LinearTeamId)
+            .HasColumnName("linear_team_id")
+            .HasMaxLength(64);
+
+        builder.Ignore(t => t.IsLinearSourced);
+
         builder.HasIndex(t => new { t.OrgId, t.ProjectId, t.Status });
         builder.HasIndex(t => new { t.AssignedUserId, t.Status });
+        builder.HasIndex(t => new { t.OrgId, t.LinearIssueId })
+            .IsUnique()
+            .HasFilter("linear_issue_id IS NOT NULL");
 
         builder.HasOne(t => t.Project)
             .WithMany()

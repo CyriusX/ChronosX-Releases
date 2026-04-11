@@ -26,8 +26,18 @@ public sealed class ProjectTask
     public DateTime? DeletedAt { get; private set; }
     public uint RowVersion { get; private set; }
 
+    // ── Linear sync (nullable — only populated when mirrored from Linear) ──
+    public string? LinearIssueId { get; private set; }
+    public string? LinearIssueIdentifier { get; private set; }
+    public string? LinearUrl { get; private set; }
+    public string? LinearStateId { get; private set; }
+    public string? LinearStateName { get; private set; }
+    public string? LinearTeamId { get; private set; }
+
     public Project? Project { get; private set; }
     public User? AssignedUser { get; private set; }
+
+    public bool IsLinearSourced => LinearIssueId != null;
 
     private ProjectTask() { }
 
@@ -107,5 +117,111 @@ public sealed class ProjectTask
     {
         DeletedAt = DateTime.UtcNow;
         UpdatedAt = DeletedAt;
+    }
+
+    // ── Linear sync helpers ──────────────────────────────────────────────
+
+    public static ProjectTask CreateFromLinear(
+        Guid orgId,
+        Guid projectId,
+        Guid createdByUserId,
+        string title,
+        string? description,
+        TaskPriority priority,
+        DateTime? dueDate,
+        ProjectTaskStatus status,
+        Guid? assignedUserId,
+        double position,
+        string linearIssueId,
+        string? linearIssueIdentifier,
+        string? linearUrl,
+        string? linearStateId,
+        string? linearStateName,
+        string? linearTeamId)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            throw new ArgumentException("Task title is required", nameof(title));
+        if (string.IsNullOrWhiteSpace(linearIssueId))
+            throw new ArgumentException("Linear issue id is required", nameof(linearIssueId));
+
+        var now = DateTime.UtcNow;
+        return new ProjectTask
+        {
+            Id = Guid.NewGuid(),
+            OrgId = orgId,
+            ProjectId = projectId,
+            Title = title.Trim(),
+            Description = description?.Trim(),
+            Status = status,
+            AssignedUserId = assignedUserId,
+            CreatedByUserId = createdByUserId,
+            Priority = priority,
+            DueDate = dueDate,
+            Position = position,
+            CreatedAt = now,
+            UpdatedAt = now,
+            MovedToInProgressAt = status == ProjectTaskStatus.InProgress ? now : null,
+            CompletedAt = status == ProjectTaskStatus.Done ? now : null,
+            TotalSecondsWorked = 0,
+            LinearIssueId = linearIssueId.Trim(),
+            LinearIssueIdentifier = linearIssueIdentifier?.Trim(),
+            LinearUrl = linearUrl?.Trim(),
+            LinearStateId = linearStateId?.Trim(),
+            LinearStateName = linearStateName?.Trim(),
+            LinearTeamId = linearTeamId?.Trim()
+        };
+    }
+
+    /// <summary>
+    /// Apply a snapshot from Linear. Does NOT trigger timer side-effects — callers must
+    /// handle open TaskTimeEntry cleanup themselves before calling this.
+    /// </summary>
+    public void ApplyLinearSnapshot(
+        string title,
+        string? description,
+        TaskPriority priority,
+        DateTime? dueDate,
+        ProjectTaskStatus status,
+        Guid? assignedUserId,
+        string? linearIssueIdentifier,
+        string? linearUrl,
+        string? linearStateId,
+        string? linearStateName,
+        string? linearTeamId)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            throw new ArgumentException("Task title is required", nameof(title));
+
+        Title = title.Trim();
+        Description = description?.Trim();
+        Priority = priority;
+        DueDate = dueDate;
+        AssignedUserId = assignedUserId;
+        LinearIssueIdentifier = linearIssueIdentifier?.Trim();
+        LinearUrl = linearUrl?.Trim();
+        LinearStateId = linearStateId?.Trim();
+        LinearStateName = linearStateName?.Trim();
+        LinearTeamId = linearTeamId?.Trim();
+
+        var now = DateTime.UtcNow;
+        if (Status != status)
+        {
+            if (status == ProjectTaskStatus.InProgress && MovedToInProgressAt is null)
+                MovedToInProgressAt = now;
+            if (status == ProjectTaskStatus.Done)
+                CompletedAt = now;
+            else if (Status == ProjectTaskStatus.Done && status != ProjectTaskStatus.Done)
+                CompletedAt = null;
+            Status = status;
+        }
+
+        UpdatedAt = now;
+    }
+
+    public void UpdateLinearState(string? linearStateId, string? linearStateName)
+    {
+        LinearStateId = linearStateId?.Trim();
+        LinearStateName = linearStateName?.Trim();
+        UpdatedAt = DateTime.UtcNow;
     }
 }
