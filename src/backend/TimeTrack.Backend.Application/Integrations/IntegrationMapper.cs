@@ -5,7 +5,7 @@ namespace TimeTrack.Backend.Application.Integrations;
 
 internal static class IntegrationMapper
 {
-    public static UserIntegrationResponse Map(UserIntegration i) => new()
+    public static UserIntegrationResponse Map(Domain.Entities.UserIntegration i) => new()
     {
         Id = i.Id,
         Provider = i.Provider.ToString(),
@@ -16,7 +16,13 @@ internal static class IntegrationMapper
         ExternalUserEmail = i.ExternalUserEmail,
         ConnectedAt = i.ConnectedAt,
         LastSyncAt = i.LastSyncAt,
-        LastUsedAt = i.LastUsedAt
+        LastUsedAt = i.LastUsedAt,
+        AuthMethod = i.AuthMethod switch
+        {
+            Domain.Entities.UserIntegrationAuthMethod.ApiKey => "ApiKey",
+            Domain.Entities.UserIntegrationAuthMethod.OAuth => "OAuth",
+            _ => "ApiKey"
+        }
     };
 
     public static LinearSyncHistoryEntryResponse Map(LinearSyncHistory h) => new()

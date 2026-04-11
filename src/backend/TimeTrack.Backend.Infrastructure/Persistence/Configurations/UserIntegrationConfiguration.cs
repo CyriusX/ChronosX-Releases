@@ -52,31 +52,21 @@ internal sealed class UserIntegrationConfiguration : IEntityTypeConfiguration<Us
             .HasColumnName("scope")
             .HasMaxLength(500);
 
-        builder.Property(i => i.ConnectedAt)
-            .HasColumnName("connected_at")
-            .HasDefaultValueSql("now()");
-
-        builder.Property(i => i.LastUsedAt)
-            .HasColumnName("last_used_at");
-
-        builder.Property(i => i.LastSyncAt)
-            .HasColumnName("last_sync_at");
-
-        builder.Property(i => i.Status)
-            .HasColumnName("status")
-            .HasConversion<string>()
-            .HasMaxLength(30)
+        // ── OAuth fields ──
+        builder.Property(i => i.AuthMethod)
+            .HasColumnName("auth_method")
+            .HasConversion<int>()
+            .HasDefaultValue(UserIntegrationAuthMethod.ApiKey)
             .IsRequired();
 
-        builder.Property(i => i.ErrorMessage)
-            .HasColumnName("error_message")
-            .HasMaxLength(1000);
+        builder.Property(i => i.RefreshToken)
+            .HasColumnName("refresh_token")
+            .HasColumnType("bytea");
 
-        builder.Property(i => i.MetadataJson)
-            .HasColumnName("metadata_json")
-            .HasColumnType("jsonb");
+        builder.Property(i => i.TokenExpiresAt)
+            .HasColumnName("token_expires_at");
 
-        // One integration per (user, provider) pair
+        // ── One integration per (user, provider) pair ──
         builder.HasIndex(i => new { i.UserId, i.Provider })
             .IsUnique();
 

@@ -54,3 +54,9 @@ public sealed record LinearIssueProject(
 public sealed record LinearIssueTeam(
     string Id,
     string? Key);
+
+public sealed record LinearOAuthTokenResponse(
+    string AccessToken,
+    string RefreshToken,
+    int ExpiresIn,
+    string TokenType);

@@ -23,6 +23,7 @@ export interface UserIntegration {
   connectedAt: string;
   lastSyncAt: string | null;
   lastUsedAt: string | null;
+  authMethod: 'ApiKey' | 'OAuth';
 }
 
 export interface ListUserIntegrationsResponse {
@@ -79,4 +80,13 @@ export function syncLinear(): Promise<LinearSyncResult> {
 
 export function getLinearSyncHistory(): Promise<ListLinearSyncHistoryResponse> {
   return api.get<ListLinearSyncHistoryResponse>('/me/integrations/linear/history');
+}
+
+export interface InitiateLinearOAuthResponse {
+  authorizeUrl: string;
+  state: string;
+}
+
+export function initiateLinearOAuth(): Promise<InitiateLinearOAuthResponse> {
+  return api.get<InitiateLinearOAuthResponse>('/me/integrations/linear/oauth');
 }

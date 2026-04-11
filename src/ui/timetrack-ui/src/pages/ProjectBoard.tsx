@@ -96,6 +96,23 @@ export default function ProjectBoard() {
   const handleOptimisticChange = (next: Task[]) => setTasks(next);
   const handleConflict = () => fetchAll(false);
 
+  const totalSecondsWorked = tasks.reduce((sum, t) => sum + t.totalSecondsWorked, 0);
+  const totalCost = project?.isBillable && project?.hourlyRate
+    ? (totalSecondsWorked / 3600) * project.hourlyRate
+    : null;
+
+  const formatCost = (cost: number, currency: string): string => {
+    return `${currency} ${cost.toFixed(2)}`;
+  };
+
+  const formatTotalWorked = (seconds: number): string => {
+    if (seconds < 60) return '0m';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h === 0) return `${m}m`;
+    return `${h}h ${m}m`;
+  };
+
   return (
     <div className="flex h-screen bg-[#0b0d14] pb-14 md:pb-0">
       <Sidebar />
@@ -189,6 +206,19 @@ export default function ProjectBoard() {
             </div>
           </header>
         </div>
+
+        {/* Cost Display — for billable projects */}
+        {totalCost !== null && (
+          <div className="px-4 lg:px-6 pb-3 flex-shrink-0">
+            <div className="px-3 py-2 rounded-lg bg-gradient-to-r from-[rgba(139,92,246,0.12)] to-[rgba(139,92,246,0.06)] border border-[rgba(139,92,246,0.2)]">
+              <p className="text-[11px] text-[rgba(245,247,251,0.8)]">
+                <span className="font-semibold text-[#c4b5fd]">{formatCost(totalCost, project?.currency || 'USD')}</span>
+                <span className="mx-2">·</span>
+                <span>{formatTotalWorked(totalSecondsWorked)} trabalhado</span>
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Info banner — only your cards are draggable */}
         <div className="px-4 lg:px-6 pb-3 flex-shrink-0">

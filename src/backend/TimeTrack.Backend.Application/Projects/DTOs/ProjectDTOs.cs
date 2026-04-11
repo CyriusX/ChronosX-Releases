@@ -16,6 +16,13 @@ public sealed class CreateProjectRequest
 
     [MaxLength(7)]
     public string? Color { get; init; }
+
+    public bool? IsBillable { get; init; }
+
+    [MaxLength(3)]
+    public string? Currency { get; init; }
+
+    public decimal? HourlyRate { get; init; }
 }
 
 /// <summary>
@@ -32,6 +39,13 @@ public sealed class UpdateProjectRequest
 
     [MaxLength(7)]
     public string? Color { get; init; }
+
+    public bool? IsBillable { get; init; }
+
+    [MaxLength(3)]
+    public string? Currency { get; init; }
+
+    public decimal? HourlyRate { get; init; }
 }
 
 /// <summary>
@@ -46,6 +60,11 @@ public sealed class ProjectResponse
     public string Status { get; init; } = string.Empty;
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
+
+    // ── Billable project fields ──
+    public bool IsBillable { get; init; }
+    public string? Currency { get; init; }
+    public decimal? HourlyRate { get; init; }
 
     // ── Linear sync metadata ──
     public string SyncSource { get; init; } = "Local"; // "Local" | "Linear"

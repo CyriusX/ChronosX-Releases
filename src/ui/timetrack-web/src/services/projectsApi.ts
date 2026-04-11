@@ -14,6 +14,9 @@ export interface ProjectItem {
   status: string; // 'Active' | 'Archived'
   createdAt: string;
   updatedAt: string | null;
+  isBillable: boolean;
+  currency: string | null;
+  hourlyRate: number | null;
   syncSource: ProjectSyncSource;
   linearProjectId: string | null;
   lastSyncedAt: string | null;
@@ -28,6 +31,9 @@ export interface CreateProjectRequest {
   name: string;
   description?: string;
   color?: string;
+  isBillable?: boolean;
+  currency?: string;
+  hourlyRate?: number;
 }
 
 // ============================================================================

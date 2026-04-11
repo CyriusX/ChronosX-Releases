@@ -72,6 +72,9 @@ internal static class ProjectResponseMapper
         Status = p.Status.ToString(),
         CreatedAt = p.CreatedAt,
         UpdatedAt = p.UpdatedAt,
+        IsBillable = p.IsBillable,
+        Currency = p.Currency,
+        HourlyRate = p.HourlyRate,
         SyncSource = p.SyncSource.ToString(),
         LinearProjectId = p.LinearProjectId,
         LastSyncedAt = p.LastSyncedAt

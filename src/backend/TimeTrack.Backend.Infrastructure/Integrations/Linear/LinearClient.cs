@@ -123,6 +123,115 @@ public sealed class LinearClient : ILinearClient
         return resp.IssueUpdate?.Success ?? false;
     }
 
+    public async Task<LinearOAuthTokenResponse> ExchangeCodeForTokenAsync(string code, string redirectUri, CancellationToken cancellationToken = default)
+    {
+        var clientId = Environment.GetEnvironmentVariable("LINEAR_CLIENT_ID") ?? "";
+        var clientSecret = Environment.GetEnvironmentVariable("LINEAR_CLIENT_SECRET") ?? "";
+
+        var payload = new Dictionary<string, string>
+        {
+            ["grant_type"] = "authorization_code",
+            ["code"] = code,
+            ["redirect_uri"] = redirectUri,
+            ["client_id"] = clientId,
+            ["client_secret"] = clientSecret
+        };
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.linear.app/oauth/token")
+        {
+            Content = new FormUrlEncodedContent(payload)
+        };
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _http.SendAsync(request, cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new LinearApiException("Network error exchanging Linear OAuth code", ex);
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Linear OAuth token exchange failed {Status}: {Body}", (int)response.StatusCode, Truncate(body, 500));
+            throw new LinearApiException($"Linear OAuth token exchange returned {(int)response.StatusCode}");
+        }
+
+        try
+        {
+            var tokenData = JsonSerializer.Deserialize<OAuthTokenResponseBody>(body, JsonOptions);
+            if (tokenData is null || string.IsNullOrEmpty(tokenData.AccessToken))
+                throw new LinearApiException("Linear OAuth token response missing access_token");
+
+            return new LinearOAuthTokenResponse(
+                tokenData.AccessToken,
+                tokenData.RefreshToken ?? string.Empty,
+                tokenData.ExpiresIn,
+                tokenData.TokenType ?? "Bearer");
+        }
+        catch (JsonException ex)
+        {
+            throw new LinearApiException("Malformed Linear OAuth token response", ex);
+        }
+    }
+
+    public async Task<LinearOAuthTokenResponse> RefreshAccessTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
+    {
+        var clientId = Environment.GetEnvironmentVariable("LINEAR_CLIENT_ID") ?? "";
+        var clientSecret = Environment.GetEnvironmentVariable("LINEAR_CLIENT_SECRET") ?? "";
+
+        var payload = new Dictionary<string, string>
+        {
+            ["grant_type"] = "refresh_token",
+            ["refresh_token"] = refreshToken,
+            ["client_id"] = clientId,
+            ["client_secret"] = clientSecret
+        };
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.linear.app/oauth/token")
+        {
+            Content = new FormUrlEncodedContent(payload)
+        };
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _http.SendAsync(request, cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new LinearApiException("Network error refreshing Linear OAuth token", ex);
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Linear OAuth token refresh failed {Status}: {Body}", (int)response.StatusCode, Truncate(body, 500));
+            throw new LinearApiException($"Linear OAuth token refresh returned {(int)response.StatusCode}");
+        }
+
+        try
+        {
+            var tokenData = JsonSerializer.Deserialize<OAuthTokenResponseBody>(body, JsonOptions);
+            if (tokenData is null || string.IsNullOrEmpty(tokenData.AccessToken))
+                throw new LinearApiException("Linear OAuth refresh response missing access_token");
+
+            return new LinearOAuthTokenResponse(
+                tokenData.AccessToken,
+                tokenData.RefreshToken ?? refreshToken,
+                tokenData.ExpiresIn,
+                tokenData.TokenType ?? "Bearer");
+        }
+        catch (JsonException ex)
+        {
+            throw new LinearApiException("Malformed Linear OAuth refresh response", ex);
+        }
+    }
+
     // ── Internals ──────────────────────────────────────────────────────────
 
     private async Task<T> PostAsync<T>(string apiKey, string query, object? variables, CancellationToken ct) where T : class
@@ -306,5 +415,13 @@ public sealed class LinearClient : ILinearClient
     private sealed class NodeList<T>
     {
         [JsonPropertyName("nodes")] public List<T> Nodes { get; set; } = new();
+    }
+
+    private sealed class OAuthTokenResponseBody
+    {
+        [JsonPropertyName("access_token")] public string? AccessToken { get; set; }
+        [JsonPropertyName("refresh_token")] public string? RefreshToken { get; set; }
+        [JsonPropertyName("expires_in")] public int ExpiresIn { get; set; }
+        [JsonPropertyName("token_type")] public string? TokenType { get; set; }
     }
 }

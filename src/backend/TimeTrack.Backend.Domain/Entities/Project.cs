@@ -16,6 +16,11 @@ public sealed class Project
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
 
+    // ── Billable project fields ──
+    public bool IsBillable { get; private set; }
+    public string? Currency { get; private set; }
+    public decimal? HourlyRate { get; private set; }
+
     // ── Linear sync (nullable — only populated on Linear-sourced projects) ──
     public ProjectSyncSource SyncSource { get; private set; } = ProjectSyncSource.Local;
     public string? LinearProjectId { get; private set; }
@@ -31,13 +36,24 @@ public sealed class Project
         Guid orgId,
         string name,
         string? description = null,
-        string color = "#4A9FFF")
+        string color = "#4A9FFF",
+        bool isBillable = false,
+        string? currency = null,
+        decimal? hourlyRate = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Project name is required", nameof(name));
 
         if (string.IsNullOrWhiteSpace(color))
             color = "#4A9FFF";
+
+        if (isBillable)
+        {
+            if (string.IsNullOrWhiteSpace(currency))
+                throw new ArgumentException("Currency is required when project is billable", nameof(currency));
+            if (hourlyRate == null || hourlyRate <= 0)
+                throw new ArgumentException("Hourly rate must be greater than 0 when project is billable", nameof(hourlyRate));
+        }
 
         return new Project
         {
@@ -48,7 +64,10 @@ public sealed class Project
             Color = color,
             Status = ProjectStatus.Active,
             SyncSource = ProjectSyncSource.Local,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            IsBillable = isBillable,
+            Currency = isBillable ? currency?.Trim() : null,
+            HourlyRate = isBillable ? hourlyRate : null
         };
     }
 
@@ -81,7 +100,7 @@ public sealed class Project
         };
     }
 
-    public void Update(string name, string? description = null, string? color = null)
+    public void Update(string name, string? description = null, string? color = null, bool? isBillable = null, string? currency = null, decimal? hourlyRate = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Project name is required", nameof(name));
@@ -89,6 +108,34 @@ public sealed class Project
         Name = name.Trim();
         Description = description?.Trim();
         Color = color ?? Color;
+
+        if (isBillable.HasValue)
+        {
+            if (isBillable.Value)
+            {
+                if (string.IsNullOrWhiteSpace(currency))
+                    throw new ArgumentException("Currency is required when project is billable", nameof(currency));
+                if (hourlyRate == null || hourlyRate <= 0)
+                    throw new ArgumentException("Hourly rate must be greater than 0 when project is billable", nameof(hourlyRate));
+                IsBillable = true;
+                Currency = currency?.Trim();
+                HourlyRate = hourlyRate;
+            }
+            else
+            {
+                IsBillable = false;
+                Currency = null;
+                HourlyRate = null;
+            }
+        }
+        else if (IsBillable)
+        {
+            if (currency != null)
+                Currency = currency.Trim();
+            if (hourlyRate.HasValue && hourlyRate.Value > 0)
+                HourlyRate = hourlyRate.Value;
+        }
+
         UpdatedAt = DateTime.UtcNow;
     }
 

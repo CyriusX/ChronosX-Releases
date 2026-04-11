@@ -21,6 +21,9 @@ export interface ProjectItem {
   status: string;
   createdAt: string;
   updatedAt: string | null;
+  isBillable: boolean;
+  currency: string | null;
+  hourlyRate: number | null;
   syncSource: ProjectSyncSource;
   linearProjectId: string | null;
   lastSyncedAt: string | null;
