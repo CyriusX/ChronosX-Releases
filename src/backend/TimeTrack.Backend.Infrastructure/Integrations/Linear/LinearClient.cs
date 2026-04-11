@@ -238,8 +238,11 @@ public sealed class LinearClient : ILinearClient
         {
             Content = JsonContent.Create(body, options: JsonOptions)
         };
-        // Linear personal API keys are sent as-is in the Authorization header (no "Bearer").
-        request.Headers.Authorization = new AuthenticationHeaderValue(apiKey);
+        // Personal API keys start with "lin_api_" and are sent as the scheme with no bearer prefix.
+        // OAuth access tokens are sent as "Bearer <token>".
+        request.Headers.Authorization = apiKey.StartsWith("lin_api_", StringComparison.OrdinalIgnoreCase)
+            ? new AuthenticationHeaderValue(apiKey)
+            : new AuthenticationHeaderValue("Bearer", apiKey);
 
         HttpResponseMessage response;
         try
