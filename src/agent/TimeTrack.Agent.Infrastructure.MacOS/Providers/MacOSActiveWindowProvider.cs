@@ -38,6 +38,11 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
         _filePathExtractor = filePathExtractor ?? throw new ArgumentNullException(nameof(filePathExtractor));
         _options = options?.Value ?? new ActiveWindowProviderOptions();
         _currentProcessId = Environment.ProcessId;
+
+        // Ask macOS to prompt the user for Accessibility permission if not already granted.
+        // Without it, window titles come back empty; the app name and bundle path are still
+        // captured so tracking remains functional.
+        AccessibilityPermission.CheckAndPrompt(prompt: true, _logger);
     }
 
     /// <inheritdoc />
