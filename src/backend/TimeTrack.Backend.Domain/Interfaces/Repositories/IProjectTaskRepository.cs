@@ -23,4 +23,10 @@ public interface IProjectTaskRepository
 
     /// <summary>List all Linear-sourced tasks for a given project (for orphan cleanup on sync).</summary>
     Task<IReadOnlyList<ProjectTask>> ListLinearTasksForProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists tasks assigned to any user within the given organization.
+    /// Used by admin/manager reports to show team-wide task breakdown.
+    /// </summary>
+    Task<IReadOnlyList<ProjectTask>> ListByOrgAsync(Guid orgId, bool includeDone = false, CancellationToken cancellationToken = default);
 }

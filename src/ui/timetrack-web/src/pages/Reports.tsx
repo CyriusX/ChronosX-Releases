@@ -35,7 +35,7 @@ import {
   ProjectTasksAccordion,
 } from '@desktop/components/reports';
 import type { PeriodPreset, GroupByOption } from '@desktop/types/reports';
-import { listMyTasks, listProjects } from '../services/projectsApi';
+import { listUserTasks, listProjects } from '../services/projectsApi';
 
 const PERIOD_OPTIONS: { value: PeriodPreset; label: string }[] = [
   { value: 'today', label: 'Hoje' },
@@ -105,17 +105,17 @@ export default function Reports() {
     loadMembers();
   }, []);
 
-  // Load projects & tasks for the accordion
+  // Load projects & tasks for the accordion — reacts to selected user
   useEffect(() => {
     setTasksLoading(true);
     Promise.all([
-      listMyTasks(true).catch(() => ({ tasks: [] })),
+      listUserTasks(selectedUserId, true).catch(() => ({ tasks: [] })),
       listProjects(false).catch(() => ({ projects: [], totalCount: 0 })),
     ]).then(([tasksRes, projRes]) => {
       setAllTasks(tasksRes.tasks);
       setProjectsList(projRes.projects);
     }).finally(() => setTasksLoading(false));
-  }, []);
+  }, [selectedUserId]);
 
   const loadMembers = async () => {
     try {

@@ -90,4 +90,21 @@ public sealed class ProjectTaskRepository : IProjectTaskRepository
         => await _context.ProjectTasks
             .Where(t => t.ProjectId == projectId && t.LinearIssueId != null)
             .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<ProjectTask>> ListByOrgAsync(Guid orgId, bool includeDone = false, CancellationToken ct = default)
+    {
+        var query = _context.ProjectTasks
+            .Include(t => t.Project)
+            .Include(t => t.AssignedUser)
+            .Where(t => t.OrgId == orgId && t.AssignedUserId != null);
+
+        if (!includeDone)
+            query = query.Where(t => t.Status != ProjectTaskStatus.Done);
+
+        return await query
+            .OrderBy(t => t.ProjectId)
+            .ThenBy(t => t.Status)
+            .ThenBy(t => t.Position)
+            .ToListAsync(ct);
+    }
 }

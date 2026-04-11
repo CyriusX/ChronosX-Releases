@@ -104,6 +104,108 @@ public sealed class ListProjectTasksQueryHandler : IRequestHandler<ListProjectTa
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// LIST TASKS FOR A SPECIFIC USER (admin/manager reports)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// Query to list tasks for a specific user (or all org users).
+/// Only accessible by Admin/Gestor roles for users within their organization.
+/// </summary>
+public sealed record ListUserTasksQuery(Guid? TargetUserId, bool IncludeDone = false) : IRequest<ListTasksResponse>;
+
+public sealed class ListUserTasksQueryHandler : IRequestHandler<ListUserTasksQuery, ListTasksResponse>
+{
+    private readonly IProjectTaskRepository _tasks;
+    private readonly IProjectRepository _projects;
+    private readonly ITaskTimeEntryRepository _entries;
+    private readonly IUserRepository _users;
+    private readonly ICurrentUserContext _currentUser;
+
+    public ListUserTasksQueryHandler(
+        IProjectTaskRepository tasks,
+        IProjectRepository projects,
+        ITaskTimeEntryRepository entries,
+        IUserRepository users,
+        ICurrentUserContext currentUser)
+    {
+        _tasks = tasks;
+        _projects = projects;
+        _entries = entries;
+        _users = users;
+        _currentUser = currentUser;
+    }
+
+    public async Task<ListTasksResponse> Handle(ListUserTasksQuery request, CancellationToken ct)
+    {
+        if (!_currentUser.UserId.HasValue || !_currentUser.OrgId.HasValue)
+            throw new UnauthorizedAccessException();
+
+        var orgId = _currentUser.OrgId.Value;
+
+        // Fetch tasks: either for a specific user or for the whole org
+        List<Domain.Entities.ProjectTask> tasks;
+        if (request.TargetUserId.HasValue)
+        {
+            // Verify target user belongs to the same org
+            var targetUser = await _users.GetByIdAsync(request.TargetUserId.Value, ct);
+            if (targetUser == null || targetUser.OrgId != orgId)
+                throw new NotFoundException("User", request.TargetUserId.Value);
+
+            tasks = (List<Domain.Entities.ProjectTask>)await _tasks.ListAssignedToUserAsync(
+                request.TargetUserId.Value, request.IncludeDone, ct);
+        }
+        else
+        {
+            // All team members — fetch by org
+            tasks = (List<Domain.Entities.ProjectTask>)await _tasks.ListByOrgAsync(
+                orgId, request.IncludeDone, ct);
+        }
+
+        // Build project cache
+        var projectCache = new Dictionary<Guid, Domain.Entities.Project>();
+        foreach (var t in tasks)
+        {
+            if (t.Project is not null) projectCache[t.ProjectId] = t.Project;
+            else if (!projectCache.ContainsKey(t.ProjectId))
+            {
+                var p = await _projects.GetByIdAsync(t.ProjectId, ct);
+                if (p is not null) projectCache[t.ProjectId] = p;
+            }
+        }
+
+        // Find open entries for relevant users
+        var assigneeIds = tasks
+            .Select(t => t.AssignedUserId)
+            .Where(u => u.HasValue)
+            .Select(u => u!.Value)
+            .Distinct();
+
+        var openByTaskId = new Dictionary<Guid, Domain.Entities.TaskTimeEntry>();
+        foreach (var assignee in assigneeIds)
+        {
+            var open = await _entries.GetOpenForUserAsync(assignee, ct);
+            if (open is not null) openByTaskId[open.TaskId] = open;
+        }
+
+        var responses = tasks.Select(t =>
+        {
+            projectCache.TryGetValue(t.ProjectId, out var project);
+            openByTaskId.TryGetValue(t.Id, out var openEntry);
+            return ListProjectTasksQueryHandler.InternalMap(t, project?.Name ?? string.Empty, project?.Color ?? "#4A9FFF", openEntry);
+        }).ToList();
+
+        return new ListTasksResponse
+        {
+            Tasks = responses,
+            TodoCount = responses.Count(r => r.Status == "Todo"),
+            InProgressCount = responses.Count(r => r.Status == "InProgress"),
+            DoneCount = responses.Count(r => r.Status == "Done"),
+            TotalSecondsWorked = responses.Sum(r => r.TotalSecondsWorked)
+        };
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // LIST MY TASKS (for desktop agent)
 // ═══════════════════════════════════════════════════════════════════════════
 
