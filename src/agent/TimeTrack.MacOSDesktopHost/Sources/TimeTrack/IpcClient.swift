@@ -149,16 +149,14 @@ class IpcClient: ObservableObject {
         listenTask = Task { [weak self] in
             guard let self = self, let socket = self.socket else { return }
 
-            do {
-                for try await line in socket.lines {
-                    guard !Task.isCancelled else { break }
-                    self.processIncomingMessage(line)
-                }
-            } catch {
-                await MainActor.run {
-                    self.isConnected = false
-                    self.onConnectionStateChanged?(false)
-                }
+            for await line in socket.lines {
+                guard !Task.isCancelled else { break }
+                self.processIncomingMessage(line)
+            }
+
+            await MainActor.run {
+                self.isConnected = false
+                self.onConnectionStateChanged?(false)
             }
         }
     }
