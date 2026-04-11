@@ -119,6 +119,12 @@ public sealed class ProjectTask
         UpdatedAt = DeletedAt;
     }
 
+    public void Restore()
+    {
+        DeletedAt = null;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     // ── Linear sync helpers ──────────────────────────────────────────────
 
     public static ProjectTask CreateFromLinear(

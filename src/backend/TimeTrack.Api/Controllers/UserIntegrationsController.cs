@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using TimeTrack.Api.Extensions;
 using TimeTrack.Backend.Application.Common.Exceptions;
 using TimeTrack.Backend.Application.Integrations.DTOs;
@@ -17,8 +18,13 @@ namespace TimeTrack.Api.Controllers;
 public sealed class UserIntegrationsController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly ILogger<UserIntegrationsController> _logger;
 
-    public UserIntegrationsController(IMediator mediator) => _mediator = mediator;
+    public UserIntegrationsController(IMediator mediator, ILogger<UserIntegrationsController> logger)
+    {
+        _mediator = mediator;
+        _logger = logger;
+    }
 
     [HttpGet("api/v1/me/integrations")]
     [ProducesResponseType(typeof(ListUserIntegrationsResponse), StatusCodes.Status200OK)]
@@ -102,6 +108,12 @@ public sealed class UserIntegrationsController : ControllerBase
         catch (NotFoundException ex)
         {
             return NotFound(new { message = $"{ex.EntityType} not found" });
+        }
+        catch (DbUpdateException ex)
+        {
+            var detail = ex.InnerException?.Message ?? ex.Message;
+            _logger.LogError(ex, "Database error during Linear sync: {Detail}", detail);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = detail });
         }
         catch (Exception ex)
         {

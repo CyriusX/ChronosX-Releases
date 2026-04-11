@@ -157,6 +157,13 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
             var mappedPriority = LinearPriorityMapper.FromLinear(issue.Priority);
 
             var existing = await _tasks.GetByLinearIssueIdAsync(orgId, issue.Id, ct);
+            if (existing is not null && existing.DeletedAt is not null)
+            {
+                // Issue was previously soft-deleted (e.g. removed from Linear then re-assigned).
+                // Restore it so the unique index is not violated on the update below.
+                existing.Restore();
+            }
+
             if (existing is null)
             {
                 var task = ProjectTask.CreateFromLinear(
