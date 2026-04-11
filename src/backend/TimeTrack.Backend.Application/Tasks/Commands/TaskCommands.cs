@@ -67,7 +67,10 @@ public sealed class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand
             ? (request.AssignedUserId ?? _currentUser.UserId)
             : _currentUser.UserId;
 
-        if (assignedUserId.HasValue)
+        // Only validate membership when explicitly assigning to someone else.
+        // Self-assignment (creator auto-assign) is always valid — the user is
+        // already authorised to operate on this project or they wouldn't be here.
+        if (assignedUserId.HasValue && assignedUserId != _currentUser.UserId)
         {
             var assignee = await _users.GetByIdAsync(assignedUserId.Value, ct)
                 ?? throw new NotFoundException("User", assignedUserId.Value);
