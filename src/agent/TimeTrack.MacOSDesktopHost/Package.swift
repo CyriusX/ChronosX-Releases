@@ -11,6 +11,12 @@ let package = Package(
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.0.0")
     ],
     targets: [
-        .executableTarget(name: "TimeTrack", dependencies: [.product(name: "Sparkle", package: "Sparkle")])
+        .executableTarget(
+            name: "TimeTrack",
+            dependencies: [.product(name: "Sparkle", package: "Sparkle")],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])
+            ]
+        )
     ]
 )

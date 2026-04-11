@@ -86,7 +86,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
       initial={{ opacity: 0, x: 16 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ type: 'spring', ...SPRING.gentle, delay: 0.2 }}
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-3 h-full overflow-hidden"
     >
       {/* Minhas Tarefas — only on meu-dia tab */}
       {!showTeamCard && <MyTasksWidget />}

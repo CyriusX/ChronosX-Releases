@@ -1,17 +1,46 @@
 import SwiftUI
 import WebKit
 
+// Configures NSWindow when the view joins the window hierarchy.
+private final class _WindowSetupNSView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let w = window else { return }
+        let appBg = NSColor(red: 10.0/255, green: 12.0/255, blue: 18.0/255, alpha: 1)
+        w.backgroundColor = appBg
+        w.titlebarAppearsTransparent = true
+        w.titleVisibility = .hidden
+        w.isMovableByWindowBackground = true
+        // Block resizing — remove the resizable bit from the style mask
+        w.styleMask.remove(.resizable)
+        // Maximise button should not zoom; disable it to avoid a confusing state
+        if let zoomButton = w.standardWindowButton(.zoomButton) {
+            zoomButton.isEnabled = false
+        }
+    }
+}
+
+private struct WindowSetupView: NSViewRepresentable {
+    func makeNSView(context: Context) -> _WindowSetupNSView { _WindowSetupNSView() }
+    func updateNSView(_ nsView: _WindowSetupNSView, context: Context) {}
+}
+
 struct ContentView: View {
     @ObservedObject var ipcClient: IpcClient
     @State private var webView: WKWebView?
     @State private var menuBarController = MenuBarController()
 
     var body: some View {
-        WebViewContainer(ipcClient: ipcClient, webView: $webView)
-            .frame(minWidth: 1000, minHeight: 700)
-            .onAppear {
-                menuBarController.setupMenuBar(ipcClient: ipcClient)
-            }
+        ZStack {
+            // Invisible view that configures the NSWindow once it appears
+            WindowSetupView().frame(width: 0, height: 0)
+            WebViewContainer(ipcClient: ipcClient, webView: $webView)
+        }
+        // Fixed size — no min/max so windowResizability(.contentSize) locks it
+        .frame(width: 1160, height: 880)
+        .onAppear {
+            menuBarController.setupMenuBar(ipcClient: ipcClient)
+        }
     }
 }
 
@@ -43,10 +72,15 @@ struct WebViewContainer: NSViewRepresentable {
         }
 
         let webView = WKWebView(frame: .zero, configuration: config)
+        // Match the app's dark background so there's no white flash during load
+        let appBg = NSColor(red: 10.0/255, green: 12.0/255, blue: 18.0/255, alpha: 1)
+        webView.underPageBackgroundColor = appBg
+        webView.setValue(false, forKey: "drawsBackground")
+        context.coordinator.webView = webView
         self.webView = webView
 
-        if let distPath = Bundle.main.path(forResource: "dist", ofType: nil) {
-            let url = URL(string: "timetrack://app/index.html")!
+        if Bundle.main.path(forResource: "dist", ofType: nil) != nil {
+            let url = URL(string: "timetrack://app/")!
             webView.load(URLRequest(url: url))
         } else {
             let html = """
@@ -70,9 +104,41 @@ struct WebViewContainer: NSViewRepresentable {
 
     class Coordinator: NSObject, WKScriptMessageHandler {
         let ipcClient: IpcClient
+        weak var webView: WKWebView?
 
         init(ipcClient: IpcClient) {
             self.ipcClient = ipcClient
+            super.init()
+
+            ipcClient.onEvent = { [weak self] event in
+                self?.forwardEventToWebView(event)
+            }
+        }
+
+        func forwardEventToWebView(_ event: IpcEvent) {
+            guard let wv = webView else { return }
+            // payload is a valid JSON string stored in AnyCodable.string.
+            // dispatchFromJson expects a JSON string argument, so embed as a JS string
+            // literal by constructing it inside the script via JSON.stringify on the
+            // parsed object — avoids needing to escape the raw JSON string.
+            let payloadJs: String
+            if let jsonStr = event.payload?.value as? String {
+                payloadJs = jsonStr  // Already valid JSON — embed as JS value
+            } else {
+                payloadJs = "null"
+            }
+            let safeType = event.eventType.replacingOccurrences(of: "'", with: "\\'")
+            // Embed payload as a JS literal, then stringify it so timeTrackHandleEvent
+            // receives a JSON string (as dispatchFromJson expects).
+            let script = """
+            (function() {
+                var _p = \(payloadJs);
+                window.timeTrackHandleEvent('\(safeType)', _p === null ? null : JSON.stringify(_p));
+            })();
+            """
+            Task { @MainActor in
+                _ = try? await wv.evaluateJavaScript(script)
+            }
         }
 
         func userContentController(
@@ -97,9 +163,18 @@ struct WebViewContainer: NSViewRepresentable {
                         response = try await ipcClient.sendQuery(name, payload: payload)
                     }
 
+                    // response.data is a JSON string (or nil); parse it back to a Foundation object
+                    // so JSONSerialization can embed it properly in the response dict.
+                    var dataValue: Any = NSNull()
+                    if let jsonStr = response.data?.value as? String,
+                       let jsonBytes = jsonStr.data(using: .utf8),
+                       let parsed = try? JSONSerialization.jsonObject(with: jsonBytes, options: .fragmentsAllowed) {
+                        dataValue = parsed
+                    }
+
                     let responseDict: [String: Any] = [
                         "success": response.success,
-                        "data": response.data?.value ?? NSNull(),
+                        "data": dataValue,
                         "error": response.error ?? NSNull()
                     ]
 
@@ -126,11 +201,12 @@ struct WebViewContainer: NSViewRepresentable {
             var p = _pending[requestId];
             if (p) {
                 delete _pending[requestId];
+                // React IpcService calls JSON.parse() on the result, so always
+                // resolve with a JSON string, not a parsed object.
                 if (typeof responseJson === 'string') {
-                    try { p(JSON.parse(responseJson)); }
-                    catch(e) { p(responseJson); }
-                } else {
                     p(responseJson);
+                } else {
+                    p(JSON.stringify(responseJson));
                 }
             }
         };
@@ -192,6 +268,25 @@ struct WebViewContainer: NSViewRepresentable {
         };
 
         console.log('[MacOSDesktopHost] Bridge injected successfully');
+
+        // Rewrite remote API URLs to same-origin timetrack:// scheme so WKURLSchemeHandler
+        // proxies them natively — eliminates the CORS "Origin timetrack://app" rejection.
+        var _origFetch = window.fetch;
+        var _remoteBase = 'https://chronosx-timetrack-api.gpoda0.easypanel.host/api/v1';
+        var _localBase = 'timetrack://app/api/v1';
+        window.fetch = function(input, init) {
+            var url = (typeof input === 'string') ? input : (input instanceof Request ? input.url : String(input));
+            if (url.indexOf(_remoteBase) === 0) {
+                var newUrl = _localBase + url.substring(_remoteBase.length);
+                if (typeof input === 'string') {
+                    input = newUrl;
+                } else if (input instanceof Request) {
+                    input = new Request(newUrl, input);
+                }
+            }
+            return _origFetch.call(window, input, init);
+        };
+        console.log('[MacOSDesktopHost] API proxy active via timetrack:// scheme');
     })();
     """
 }
