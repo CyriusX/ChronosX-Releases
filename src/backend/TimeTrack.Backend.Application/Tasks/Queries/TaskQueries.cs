@@ -81,6 +81,7 @@ public sealed class ListProjectTasksQueryHandler : IRequestHandler<ListProjectTa
             Title = t.Title,
             Description = t.Description,
             Status = t.Status.ToString(),
+            CreatedByUserId = t.CreatedByUserId,
             AssignedUserId = t.AssignedUserId,
             AssignedUserDisplayName = t.AssignedUser?.DisplayName,
             Priority = t.Priority.ToString(),
