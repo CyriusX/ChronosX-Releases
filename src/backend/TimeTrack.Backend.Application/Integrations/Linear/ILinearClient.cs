@@ -31,20 +31,21 @@ public interface ILinearClient
 }
 
 /// <summary>
-/// Thrown by <see cref="ILinearClient"/> when Linear rejects the token.
-/// Callers should mark the UserIntegration as ErrorUnauthorized and prompt
-/// the user to reconnect.
+/// Thrown on any Linear API failure — network, 5xx, rate limit, malformed response.
 /// </summary>
-public sealed class LinearUnauthorizedException : Exception
-{
-    public LinearUnauthorizedException(string message) : base(message) { }
-}
-
-/// <summary>
-/// Thrown on any other Linear API failure — network, 5xx, rate limit, malformed response.
-/// </summary>
-public sealed class LinearApiException : Exception
+public class LinearApiException : Exception
 {
     public LinearApiException(string message) : base(message) { }
     public LinearApiException(string message, Exception inner) : base(message, inner) { }
+}
+
+/// <summary>
+/// Thrown by <see cref="ILinearClient"/> when Linear rejects the token (401).
+/// Extends <see cref="LinearApiException"/> so existing catch blocks handle it too.
+/// Callers should mark the UserIntegration as ErrorUnauthorized and prompt
+/// the user to reconnect.
+/// </summary>
+public sealed class LinearUnauthorizedException : LinearApiException
+{
+    public LinearUnauthorizedException(string message) : base(message) { }
 }

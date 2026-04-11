@@ -63,6 +63,11 @@ public class ExceptionHandlingMiddleware
                 response = new ErrorResponse(ex.Code, ex.Message);
                 errorDetails = $"ConflictException: {ex.Code} - {ex.Message}";
                 break;
+            case UnauthorizedAccessException ex:
+                statusCode = (int)HttpStatusCode.Unauthorized;
+                response = new ErrorResponse("unauthorized", ex.Message);
+                errorDetails = $"UnauthorizedAccessException: {ex.Message}";
+                break;
             default:
                 statusCode = (int)HttpStatusCode.InternalServerError;
                 response = new ErrorResponse("internal_error", "An unexpected error occurred");
