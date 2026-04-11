@@ -55,7 +55,6 @@ export function KanbanBoard({
   tasks,
   projectId,
   projectColor,
-  currentUserId,
   syncSource = 'Local',
   onLocalChange,
   onConflict,
@@ -65,7 +64,6 @@ export function KanbanBoard({
   tasks: Task[];
   projectId: string;
   projectColor: string;
-  currentUserId: string | null | undefined;
   /** 'Linear' unlocks the extra "Em Revisão" column. Defaults to 'Local'. */
   syncSource?: ProjectSyncSource;
   onLocalChange: (tasks: Task[]) => void;
@@ -94,8 +92,6 @@ export function KanbanBoard({
     );
     return byStatus;
   }, [tasks]);
-
-  const isMine = (task: Task) => !!currentUserId && task.assignedUserId === currentUserId;
 
   const startAddingTask = () => {
     setAddingTask(true);
@@ -127,7 +123,7 @@ export function KanbanBoard({
 
   const onDragStart = (event: DragStartEvent) => {
     const task = event.active.data.current?.task as Task | undefined;
-    if (task && isMine(task)) setActiveTask(task);
+    if (task) setActiveTask(task);
   };
 
   const onDragEnd = async (event: DragEndEvent) => {
@@ -136,7 +132,7 @@ export function KanbanBoard({
     if (!over) return;
 
     const activeTask = active.data.current?.task as Task | undefined;
-    if (!activeTask || !isMine(activeTask)) return;
+    if (!activeTask) return;
 
     let targetStatus: TaskStatus | null = null;
     let targetIndex = -1;
@@ -245,7 +241,7 @@ export function KanbanBoard({
                       key={task.id}
                       task={task}
                       projectColor={projectColor}
-                      draggable={isMine(task)}
+                      draggable={true}
                       onOpen={setDrawerTaskId}
                     />
                   ))}
@@ -264,7 +260,7 @@ export function KanbanBoard({
       <DragOverlay>
         {activeTask ? (
           <div className="rotate-2 opacity-90">
-            <TaskCard task={activeTask} projectColor={projectColor} draggable={false} />
+            <TaskCard task={activeTask} projectColor={projectColor} draggable={true} />
           </div>
         ) : null}
       </DragOverlay>
