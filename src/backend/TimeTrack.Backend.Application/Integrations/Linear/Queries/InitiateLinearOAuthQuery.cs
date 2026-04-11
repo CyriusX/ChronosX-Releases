@@ -37,13 +37,14 @@ public sealed class InitiateLinearOAuthQueryHandler : IRequestHandler<InitiateLi
         var stateJson = JsonSerializer.Serialize(statePayload);
         var state = Convert.ToBase64String(Encoding.UTF8.GetBytes(stateJson));
 
-        var clientId = _configuration["LinearOAuth:ClientId"]
-            ?? Environment.GetEnvironmentVariable("LINEAR_CLIENT_ID")
-            ?? "";
-        var redirectUri = _configuration["LinearOAuth:RedirectUri"]
-            ?? Environment.GetEnvironmentVariable("LINEAR_REDIRECT_URI")
+        var clientId = _configuration["LinearOAuth:ClientId"] is { Length: > 0 } cid ? cid
+            : Environment.GetEnvironmentVariable("LINEAR_CLIENT_ID") ?? "";
+        var clientSecret = _configuration["LinearOAuth:ClientSecret"] is { Length: > 0 } cs ? cs
+            : Environment.GetEnvironmentVariable("LINEAR_CLIENT_SECRET") ?? "";
+        var redirectUri = _configuration["LinearOAuth:RedirectUri"] is { Length: > 0 } ri ? ri
+            : Environment.GetEnvironmentVariable("LINEAR_REDIRECT_URI")
             ?? "http://localhost:5000/api/v1/me/integrations/linear/oauth-callback";
-        var scope = _configuration["LinearOAuth:Scope"] ?? "read,write";
+        var scope = _configuration["LinearOAuth:Scope"] is { Length: > 0 } s ? s : "read,write";
 
         var authorizeUrl = $"https://linear.app/oauth/authorize" +
             $"?client_id={Uri.EscapeDataString(clientId)}" +

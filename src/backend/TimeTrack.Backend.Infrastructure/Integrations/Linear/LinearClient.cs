@@ -3,20 +3,15 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Backend.Application.Integrations.Linear;
 
 namespace TimeTrack.Backend.Infrastructure.Integrations.Linear;
 
-/// <summary>
-/// HttpClient + System.Text.Json-based Linear GraphQL client.
-/// There is no official Linear .NET SDK, and GraphQL is just POST+JSON,
-/// so we hand-write the queries and deserialize into the DTOs in the
-/// Application layer.
-/// </summary>
 public sealed class LinearClient : ILinearClient
 {
-    private const string GraphQlPath = ""; // BaseAddress already points at the /graphql endpoint
+    private const string GraphQlPath = "";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -26,11 +21,13 @@ public sealed class LinearClient : ILinearClient
 
     private readonly HttpClient _http;
     private readonly ILogger<LinearClient> _logger;
+    private readonly IConfiguration _config;
 
-    public LinearClient(HttpClient http, ILogger<LinearClient> logger)
+    public LinearClient(HttpClient http, ILogger<LinearClient> logger, IConfiguration config)
     {
         _http = http;
         _logger = logger;
+        _config = config;
     }
 
     public async Task<LinearViewer> GetViewerAsync(string apiKey, CancellationToken ct = default)
@@ -125,8 +122,8 @@ public sealed class LinearClient : ILinearClient
 
     public async Task<LinearOAuthTokenResponse> ExchangeCodeForTokenAsync(string code, string redirectUri, CancellationToken cancellationToken = default)
     {
-        var clientId = Environment.GetEnvironmentVariable("LINEAR_CLIENT_ID") ?? "";
-        var clientSecret = Environment.GetEnvironmentVariable("LINEAR_CLIENT_SECRET") ?? "";
+        var clientId = ResolveOAuthConfig("LinearOAuth:ClientId", "LINEAR_CLIENT_ID");
+        var clientSecret = ResolveOAuthConfig("LinearOAuth:ClientSecret", "LINEAR_CLIENT_SECRET");
 
         var payload = new Dictionary<string, string>
         {
@@ -180,8 +177,8 @@ public sealed class LinearClient : ILinearClient
 
     public async Task<LinearOAuthTokenResponse> RefreshAccessTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
-        var clientId = Environment.GetEnvironmentVariable("LINEAR_CLIENT_ID") ?? "";
-        var clientSecret = Environment.GetEnvironmentVariable("LINEAR_CLIENT_SECRET") ?? "";
+        var clientId = ResolveOAuthConfig("LinearOAuth:ClientId", "LINEAR_CLIENT_ID");
+        var clientSecret = ResolveOAuthConfig("LinearOAuth:ClientSecret", "LINEAR_CLIENT_SECRET");
 
         var payload = new Dictionary<string, string>
         {
@@ -300,6 +297,13 @@ public sealed class LinearClient : ILinearClient
 
     private static string Truncate(string s, int max)
         => s.Length <= max ? s : s.Substring(0, max) + "…";
+
+    private string ResolveOAuthConfig(string configKey, string envVar)
+    {
+        var fromConfig = _config[configKey];
+        return !string.IsNullOrWhiteSpace(fromConfig) ? fromConfig
+            : Environment.GetEnvironmentVariable(envVar) ?? "";
+    }
 
     // ── Raw response shapes (private; mapped to public DTOs above) ─────────
 
