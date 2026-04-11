@@ -82,6 +82,7 @@ export default defineConfig({
       '@': webSrc,
       '@desktop': desktopSrc,
     },
+    dedupe: ['react', 'react-dom', 'react-router-dom'],
   },
   build: {
     outDir: 'dist',
