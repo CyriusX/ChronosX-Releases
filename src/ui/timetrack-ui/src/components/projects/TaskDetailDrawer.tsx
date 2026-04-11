@@ -53,7 +53,8 @@ function formatDateTime(iso: string | null | undefined): string {
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+  const datePart = iso.split('T')[0];
+  return new Date(datePart + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function priorityColor(priority: TaskPriority): string {
@@ -95,7 +96,9 @@ function initials(name: string | null | undefined): string {
 
 function deadlineTone(dueDate: string | null, status: TaskStatus): 'overdue' | 'today' | 'future' | 'none' {
   if (!dueDate || status === 'Done') return 'none';
-  const d = new Date(dueDate);
+  // Parse as local midnight to avoid UTC-offset shifting the date
+  const datePart = dueDate.split('T')[0];
+  const d = new Date(datePart + 'T00:00:00');
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const startOfDue = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -150,7 +153,7 @@ export function TaskDetailDrawer({
         description: editDescription.trim() || null,
         assignedUserId: task.assignedUserId ?? null,
         priority: editPriority,
-        dueDate: editDueDate ? new Date(editDueDate).toISOString() : null,
+        dueDate: editDueDate ? new Date(editDueDate + 'T12:00:00').toISOString() : null,
       });
       setTask(updated);
       setEditing(false);

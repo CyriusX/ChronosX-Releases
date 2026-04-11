@@ -47,7 +47,9 @@ function initials(name: string | null | undefined): string {
 
 function deadlineTone(dueDate: string | null, status: TaskStatus): 'overdue' | 'today' | 'future' | 'none' {
   if (!dueDate || status === 'Done') return 'none';
-  const d = new Date(dueDate);
+  // Parse as local midnight to avoid UTC-offset shifting the date
+  const datePart = dueDate.split('T')[0];
+  const d = new Date(datePart + 'T00:00:00');
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const startOfDue = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -85,7 +87,7 @@ export function TaskCard({
     ? task.totalSecondsWorked + task.runningSeconds
     : task.totalSecondsWorked;
 
-  const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+  const dueDate = task.dueDate ? new Date(task.dueDate.split('T')[0] + 'T00:00:00') : null;
   const tone = deadlineTone(task.dueDate, task.status);
 
   const deadlineClasses =
