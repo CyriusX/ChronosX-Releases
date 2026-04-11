@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Zap, RefreshCw, Unplug, AlertTriangle, CheckCircle2, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, ChevronRight, XCircle } from 'lucide-react';
+import linearLogo from '../../assets/LinearLogo.png';
 import {
   listMyIntegrations,
   connectLinear,
@@ -230,8 +231,8 @@ function LinearCard({
     <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
       {/* Header */}
       <div className="flex items-start gap-3 mb-4">
-        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#5e6ad2] to-[#a78bfa] flex items-center justify-center flex-shrink-0">
-          <Zap className="w-5 h-5 text-white" />
+        <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center flex-shrink-0">
+          <img src={linearLogo} alt="Linear" className="w-6 h-6 object-contain" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
