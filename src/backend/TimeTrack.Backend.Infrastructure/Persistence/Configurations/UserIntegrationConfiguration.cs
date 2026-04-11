@@ -66,6 +66,30 @@ internal sealed class UserIntegrationConfiguration : IEntityTypeConfiguration<Us
         builder.Property(i => i.TokenExpiresAt)
             .HasColumnName("token_expires_at");
 
+        builder.Property(i => i.ConnectedAt)
+            .HasColumnName("connected_at")
+            .IsRequired();
+
+        builder.Property(i => i.LastUsedAt)
+            .HasColumnName("last_used_at");
+
+        builder.Property(i => i.LastSyncAt)
+            .HasColumnName("last_sync_at");
+
+        builder.Property(i => i.Status)
+            .HasColumnName("status")
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .IsRequired();
+
+        builder.Property(i => i.ErrorMessage)
+            .HasColumnName("error_message")
+            .HasMaxLength(1000);
+
+        builder.Property(i => i.MetadataJson)
+            .HasColumnName("metadata_json")
+            .HasColumnType("jsonb");
+
         // ── One integration per (user, provider) pair ──
         builder.HasIndex(i => new { i.UserId, i.Provider })
             .IsUnique();
