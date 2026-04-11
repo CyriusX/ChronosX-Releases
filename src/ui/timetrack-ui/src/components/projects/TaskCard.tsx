@@ -175,19 +175,14 @@ export function TaskCard({
           </div>
         )}
 
-        {dueDate && (
-          <div
-            className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border ${deadlineClasses}`}
-            title={
-              tone === 'today'
-                ? 'Prazo é hoje'
-                : tone === 'overdue'
-                ? 'Atrasada'
-                : 'Prazo'
-            }
-          >
+        {dueDate && tone !== 'none' && (
+          <div className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border ${deadlineClasses}`}>
             <Calendar className="w-3 h-3" />
-            {dueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+            {tone === 'today'
+              ? 'Prazo hoje'
+              : tone === 'overdue'
+              ? `Atrasado · ${dueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
+              : dueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
           </div>
         )}
       </div>
