@@ -148,6 +148,7 @@ export function TaskDetailDrawer({
       const updated = await updateTask(task.id, {
         title,
         description: editDescription.trim() || null,
+        assignedUserId: task.assignedUserId ?? null,
         priority: editPriority,
         dueDate: editDueDate ? new Date(editDueDate).toISOString() : null,
       });
