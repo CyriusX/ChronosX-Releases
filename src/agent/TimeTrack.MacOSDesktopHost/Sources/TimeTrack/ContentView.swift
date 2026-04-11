@@ -100,11 +100,11 @@ struct WebViewContainer: NSViewRepresentable {
                     let responseJson = responseData.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
 
                     let script = "window._timeTrackIpcResponse(\(requestId), \(responseJson))"
-                    await message.webView?.evaluateJavaScript(script)
+                    _ = try? await message.webView?.evaluateJavaScript(script)
                 } catch {
                     let errorJson = "{\"success\":false,\"error\":\"\(error.localizedDescription.replacingOccurrences(of: "\"", with: "\\\""))\"}"
                     let script = "window._timeTrackIpcResponse(\(requestId), \(errorJson))"
-                    await message.webView?.evaluateJavaScript(script)
+                    _ = try? await message.webView?.evaluateJavaScript(script)
                 }
             }
         }

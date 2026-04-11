@@ -6,6 +6,7 @@ class MenuBarController: ObservableObject {
     private var statusItem: NSStatusItem?
     @Published var isTracking = false
     private var ipcClient: IpcClient?
+    private var menuDelegate: MenuDelegate?
 
     func setupMenuBar(ipcClient: IpcClient) {
         self.ipcClient = ipcClient
@@ -17,7 +18,9 @@ class MenuBarController: ObservableObject {
         }
 
         let menu = NSMenu()
-        menu.delegate = MenuDelegate(controller: self)
+        let delegate = MenuDelegate(controller: self)
+        menuDelegate = delegate
+        menu.delegate = delegate
 
         menu.addItem(NSMenuItem(title: "Open TimeTrack", action: #selector(openWindow), keyEquivalent: "o"))
         let trackingItem = NSMenuItem(title: "Start Tracking", action: #selector(toggleTracking), keyEquivalent: "s")

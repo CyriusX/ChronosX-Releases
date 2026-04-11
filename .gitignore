@@ -77,3 +77,7 @@ logs/
 # Claude
 CLAUDE.md
 .claude/settings.local.json
+/build/
+.build/
+Package.resolved
+*.png
