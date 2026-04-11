@@ -61,12 +61,19 @@
 
 * {
   border-color: rgba(255, 255, 255, 0.08);
+  scrollbar-width: none; /* Firefox */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chrome / Safari / WebKit */
 }
 
 /* ─── Base styles ─── */
-body {
+html, body {
   margin: 0;
   padding: 0;
+  overflow: hidden;
+  height: 100%;
   font-family: 'Inter Variable', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background-color: rgb(10 12 18);
   color: rgb(245 247 251);
@@ -100,24 +107,6 @@ select option:checked {
   background-color: rgba(139, 92, 246, 0.2);
 }
 
-/* ─── Custom scrollbar ─── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.14);
-}
 
 /* ─── Focus & selection ─── */
 *:focus-visible {
