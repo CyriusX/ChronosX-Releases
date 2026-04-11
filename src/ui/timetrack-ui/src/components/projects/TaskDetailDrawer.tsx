@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { getTask, deleteTask, updateTask, type Task, type TaskStatus, type TaskPriority } from '../../services/projectsApi';
 import { SimpleMarkdown } from './SimpleMarkdown';
+import { AssigneeDropdown } from './AssigneeDropdown';
 import { useAuthStore, selectUser } from '../../stores';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -113,10 +114,13 @@ export function TaskDetailDrawer({
   taskId,
   onClose,
   onDeleted,
+  onAssigned,
 }: {
   taskId: string | null;
   onClose: () => void;
   onDeleted?: (taskId: string) => void;
+  /** Called after assignment changes so the parent can refetch. */
+  onAssigned?: () => void;
 }) {
   const currentUser = useAuthStore(selectUser);
   const [task, setTask] = useState<Task | null>(null);
@@ -129,6 +133,12 @@ export function TaskDetailDrawer({
   const [editDescription, setEditDescription] = useState('');
   const [editPriority, setEditPriority] = useState<TaskPriority>('Medium');
   const [editDueDate, setEditDueDate] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleAssigned = () => {
+    setRefreshKey((k) => k + 1);
+    onAssigned?.();
+  };
 
   const startEditing = () => {
     if (!task) return;
@@ -189,7 +199,7 @@ export function TaskDetailDrawer({
     return () => {
       cancelled = true;
     };
-  }, [taskId]);
+  }, [taskId, refreshKey]);
 
   useEffect(() => {
     if (!taskId) return;
@@ -266,6 +276,7 @@ export function TaskDetailDrawer({
               onEditDescription={setEditDescription}
               onEditPriority={setEditPriority}
               onEditDueDate={setEditDueDate}
+              onAssigned={handleAssigned}
             />
           </motion.aside>
         </>
@@ -296,6 +307,7 @@ function DrawerBody({
   onEditDescription,
   onEditPriority,
   onEditDueDate,
+  onAssigned,
 }: {
   task: Task | null;
   loading: boolean;
@@ -318,6 +330,7 @@ function DrawerBody({
   onEditDescription: (v: string) => void;
   onEditPriority: (v: TaskPriority) => void;
   onEditDueDate: (v: string) => void;
+  onAssigned?: () => void;
 }) {
   if (loading || !task) {
     return (
@@ -467,19 +480,25 @@ function DrawerBody({
             {priorityLabel(task.priority)}
           </MetaField>
           <MetaField icon={<User className="w-3 h-3" />} label="Atribuído">
-            {task.assignedUserDisplayName ? (
-              <div className="flex items-center gap-1.5">
-                <div
-                  className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold text-white"
-                  style={{ backgroundColor: task.projectColor }}
-                >
-                  {initials(task.assignedUserDisplayName)}
+            <AssigneeDropdown
+              task={task}
+              projectColor={task.projectColor}
+              onAssigned={onAssigned}
+            >
+              {task.assignedUserDisplayName ? (
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold text-white"
+                    style={{ backgroundColor: task.projectColor }}
+                  >
+                    {initials(task.assignedUserDisplayName)}
+                  </div>
+                  <span className="truncate">{task.assignedUserDisplayName}</span>
                 </div>
-                <span className="truncate">{task.assignedUserDisplayName}</span>
-              </div>
-            ) : (
-              <span className="text-[rgba(245,247,251,0.4)]">Ninguém</span>
-            )}
+              ) : (
+                <span className="text-[rgba(245,247,251,0.4)]">Ninguém</span>
+              )}
+            </AssigneeDropdown>
           </MetaField>
           <MetaField icon={<Calendar className="w-3 h-3" />} label="Prazo">
             {!task.dueDate ? (
@@ -617,12 +636,12 @@ function MetaField({
   children: React.ReactNode;
 }) {
   return (
-    <div className="px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
+    <div className="px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] overflow-visible">
       <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1">
         <span style={accent ? { color: accent } : undefined}>{icon}</span>
         {label}
       </div>
-      <div className="text-[11px] text-[#f5f7fb] truncate" style={accent ? { color: accent } : undefined}>
+      <div className="text-[11px] text-[#f5f7fb] overflow-visible" style={accent ? { color: accent } : undefined}>
         {children}
       </div>
     </div>

@@ -286,6 +286,7 @@ export function KanbanBoard({
           setDrawerTaskId(null);
           onTaskDeleted?.(id);
         }}
+        onAssigned={() => onConflict()}
       />
     </DndContext>
   );

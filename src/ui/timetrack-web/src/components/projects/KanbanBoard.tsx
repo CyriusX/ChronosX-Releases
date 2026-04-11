@@ -192,6 +192,7 @@ export function KanbanBoard({
                       projectColor={projectColor}
                       onEdit={onTaskEdit}
                       onOpen={setDrawerTaskId}
+                      onAssigned={onConflict}
                     />
                   ))}
                   {colTasks.length === 0 && (
@@ -221,6 +222,7 @@ export function KanbanBoard({
           setDrawerTaskId(null);
           onTaskEdit(task);
         }}
+        onAssigned={onConflict}
       />
     </DndContext>
   );
