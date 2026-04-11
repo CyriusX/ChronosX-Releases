@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>ChronosX TimeTrack Updates</title>
+    <link>https://updates.cyrius.com/timetrack/appcast.xml</link>
+    <description>Automatic updates for ChronosX TimeTrack</description>
+    <language>en</language>
+    <item>
+      <title>Version 1.0.0</title>
+      <sparkle:releaseNotesLink>https://updates.cyrius.com/timetrack/releases/1.0.0.html</sparkle:releaseNotesLink>
+      <pubDate>Fri, 11 Apr 2026 00:00:00 +0000</pubDate>
+      <enclosure
+        url="https://updates.cyrius.com/timetrack/downloads/TimeTrack-1.0.0.zip"
+        sparkle:version="1"
+        sparkle:shortVersionString="1.0.0"
+        sparkle:edSignature=""
+        length="0"
+        type="application/octet-stream"
+      />
+    </item>
+  </channel>
+</rss>
