@@ -42,8 +42,8 @@ public sealed class ExchangeLinearOAuthCodeCommandHandler : IRequestHandler<Exch
     {
         var (userId, orgId) = DecodeState(request.State);
 
-        var redirectUri = _configuration["LinearOAuth:RedirectUri"]
-            ?? Environment.GetEnvironmentVariable("LINEAR_REDIRECT_URI")
+        var redirectUri = _configuration["LinearOAuth:RedirectUri"] is { Length: > 0 } ri ? ri
+            : Environment.GetEnvironmentVariable("LINEAR_REDIRECT_URI")
             ?? "http://localhost:5000/api/v1/me/integrations/linear/oauth-callback";
 
         LinearOAuthTokenResponse tokenResponse;
