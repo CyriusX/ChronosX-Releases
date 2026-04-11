@@ -479,9 +479,15 @@ function DrawerBody({
             )}
           </MetaField>
           <MetaField icon={<Calendar className="w-3 h-3" />} label="Prazo">
-            <span className={tone === 'overdue' ? 'text-[#f87171]' : tone === 'today' ? 'text-[#fbbf24]' : ''}>
-              {formatDate(task.dueDate)}
-            </span>
+            {!task.dueDate ? (
+              <span className="text-[rgba(245,247,251,0.4)]">—</span>
+            ) : tone === 'today' ? (
+              <span className="text-[#fbbf24] font-semibold">Prazo hoje</span>
+            ) : tone === 'overdue' ? (
+              <span className="text-[#f87171] font-semibold">Atrasado · {formatDate(task.dueDate)}</span>
+            ) : (
+              <span>{formatDate(task.dueDate)}</span>
+            )}
           </MetaField>
         </div>
 
