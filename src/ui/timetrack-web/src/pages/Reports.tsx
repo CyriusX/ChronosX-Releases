@@ -32,8 +32,10 @@ import {
   TopPathsSection,
   CategoryDonut,
   DistractionSection,
+  ProjectTasksAccordion,
 } from '@desktop/components/reports';
 import type { PeriodPreset, GroupByOption } from '@desktop/types/reports';
+import { listMyTasks, listProjects } from '../services/projectsApi';
 
 const PERIOD_OPTIONS: { value: PeriodPreset; label: string }[] = [
   { value: 'today', label: 'Hoje' },
@@ -66,6 +68,12 @@ export default function Reports() {
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
   const [showGroupByDropdown, setShowGroupByDropdown] = useState(false);
 
+  // Projects & Tasks accordion
+  const [allTasks, setAllTasks] = useState<any[]>([]);
+  const [projectsList, setProjectsList] = useState<any[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
   const periodDropdownRef = useRef<HTMLDivElement>(null);
   const groupByDropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
@@ -95,6 +103,18 @@ export default function Reports() {
   // Load team members
   useEffect(() => {
     loadMembers();
+  }, []);
+
+  // Load projects & tasks for the accordion
+  useEffect(() => {
+    setTasksLoading(true);
+    Promise.all([
+      listMyTasks(true).catch(() => ({ tasks: [] })),
+      listProjects(false).catch(() => ({ projects: [], totalCount: 0 })),
+    ]).then(([tasksRes, projRes]) => {
+      setAllTasks(tasksRes.tasks);
+      setProjectsList(projRes.projects);
+    }).finally(() => setTasksLoading(false));
   }, []);
 
   const loadMembers = async () => {
@@ -360,6 +380,21 @@ export default function Reports() {
               <motion.div variants={fadeUp} className="h-full">
                 <DistractionSection data={data.distractionStats} isLoading={isLoading} title="Analise de Distracoes" />
               </motion.div>
+            </motion.div>
+
+            {/* Projects & Tasks Accordion */}
+            <motion.div variants={fadeUp} initial="hidden" animate="visible">
+              <ProjectTasksAccordion
+                tasks={allTasks}
+                projects={projectsList}
+                loading={tasksLoading}
+                expanded={expandedProjects}
+                onToggle={(id) => setExpandedProjects((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(id)) next.delete(id); else next.add(id);
+                  return next;
+                })}
+              />
             </motion.div>
           </div>
         </div>

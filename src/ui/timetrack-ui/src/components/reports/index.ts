@@ -34,3 +34,7 @@ export type { CategoryDonutProps } from './CategoryDonut';
 // Distraction Section
 export { DistractionSection } from './DistractionSection';
 export type { DistractionSectionProps } from './DistractionSection';
+
+// Projects & Tasks Accordion
+export { ProjectTasksAccordion } from './ProjectTasksAccordion';
+export type { ProjectTasksAccordionProps, TaskItem, ProjectTaskItem } from './ProjectTasksAccordion';
