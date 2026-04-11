@@ -98,6 +98,7 @@ export interface CreateTaskRequest {
 export interface UpdateTaskRequest {
   title: string;
   description?: string | null;
+  assignedUserId?: string | null;
   priority?: string;
   dueDate?: string | null;
 }
