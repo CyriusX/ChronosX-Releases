@@ -1,6 +1,10 @@
 using MediatR;
+using Microsoft.Extensions.Logging;
 using TimeTrack.Backend.Application.Common.Exceptions;
 using TimeTrack.Backend.Application.Common.Interfaces;
+using TimeTrack.Backend.Application.Integrations;
+using TimeTrack.Backend.Application.Integrations.Linear;
+using TimeTrack.Backend.Application.Integrations.Linear.Services;
 using TimeTrack.Backend.Application.Notifications;
 using TimeTrack.Backend.Application.Tasks.DTOs;
 using TimeTrack.Backend.Domain.Entities;
@@ -199,18 +203,30 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
     private readonly IProjectTaskRepository _tasks;
     private readonly IProjectRepository _projects;
     private readonly ITaskTimeEntryRepository _entries;
+    private readonly IUserIntegrationRepository _integrations;
+    private readonly ILinearClient _linear;
+    private readonly IUserIntegrationTokenProtector _protector;
     private readonly ICurrentUserContext _currentUser;
+    private readonly ILogger<MoveTaskCommandHandler> _logger;
 
     public MoveTaskCommandHandler(
         IProjectTaskRepository tasks,
         IProjectRepository projects,
         ITaskTimeEntryRepository entries,
-        ICurrentUserContext currentUser)
+        IUserIntegrationRepository integrations,
+        ILinearClient linear,
+        IUserIntegrationTokenProtector protector,
+        ICurrentUserContext currentUser,
+        ILogger<MoveTaskCommandHandler> logger)
     {
         _tasks = tasks;
         _projects = projects;
         _entries = entries;
+        _integrations = integrations;
+        _linear = linear;
+        _protector = protector;
         _currentUser = currentUser;
+        _logger = logger;
     }
 
     public async Task<TaskResponse> Handle(MoveTaskCommand request, CancellationToken ct)
@@ -234,6 +250,14 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
         var newStatus = ParseStatus(request.Status);
         var oldStatus = task.Status;
         var now = DateTime.UtcNow;
+
+        // InReview is only allowed on Linear-synced projects.
+        if (newStatus == ProjectTaskStatus.InReview)
+        {
+            var projectForStatusCheck = task.Project ?? await _projects.GetByIdAsync(task.ProjectId, ct);
+            if (projectForStatusCheck is null || projectForStatusCheck.SyncSource != ProjectSyncSource.Linear)
+                throw new ValidationException("Status", "'InReview' column is only available on Linear-synced projects");
+        }
 
         // ─────────────────────────────────────────────────────────────────────
         // Timer side-effects
@@ -287,8 +311,82 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
         task.MoveTo(newStatus, newPos);
         await _tasks.UpdateAsync(task, ct);
 
+        // ─────────────────────────────────────────────────────────────────────
+        // Best-effort push to Linear. Never fail the local move if Linear
+        // can't be reached — the user's app must stay responsive.
+        // ─────────────────────────────────────────────────────────────────────
+        if (task.IsLinearSourced && oldStatus != newStatus)
+        {
+            try
+            {
+                await PushStatusToLinearAsync(task, newStatus, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Linear status push failed for task {TaskId}; local move stands", task.Id);
+            }
+        }
+
         var project = task.Project ?? await _projects.GetByIdAsync(task.ProjectId, ct);
         return TaskMapper.Map(task, project, null, null);
+    }
+
+    private async Task PushStatusToLinearAsync(ProjectTask task, ProjectTaskStatus newStatus, CancellationToken ct)
+    {
+        if (!_currentUser.UserId.HasValue) return;
+        if (string.IsNullOrWhiteSpace(task.LinearIssueId) || string.IsNullOrWhiteSpace(task.LinearTeamId))
+            return;
+
+        var integration = await _integrations.GetAsync(_currentUser.UserId.Value, UserIntegrationProvider.Linear, ct);
+        if (integration is null || integration.Status != UserIntegrationStatus.Active)
+            return;
+
+        string apiKey;
+        try
+        {
+            apiKey = _protector.Unprotect(integration.EncryptedToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to decrypt Linear token on status push");
+            return;
+        }
+
+        IReadOnlyList<LinearWorkflowState> teamStates;
+        try
+        {
+            teamStates = await _linear.GetTeamStatesAsync(apiKey, task.LinearTeamId!, ct);
+        }
+        catch (LinearUnauthorizedException ex)
+        {
+            integration.MarkUnauthorized(ex.Message);
+            await _integrations.UpdateAsync(integration, ct);
+            return;
+        }
+
+        var target = LinearStateMapper.ResolveLinearState(newStatus, teamStates);
+        if (target is null)
+        {
+            _logger.LogWarning("No Linear state resolved for {Status} on team {TeamId}", newStatus, task.LinearTeamId);
+            return;
+        }
+
+        try
+        {
+            var ok = await _linear.UpdateIssueStateAsync(apiKey, task.LinearIssueId!, target.Id, ct);
+            if (ok)
+            {
+                task.UpdateLinearState(target.Id, target.Name);
+                await _tasks.UpdateAsync(task, ct);
+            }
+            integration.MarkUsed();
+            await _integrations.UpdateAsync(integration, ct);
+        }
+        catch (LinearUnauthorizedException ex)
+        {
+            integration.MarkUnauthorized(ex.Message);
+            await _integrations.UpdateAsync(integration, ct);
+        }
     }
 
     private static ProjectTaskStatus ParseStatus(string value) => value?.ToLowerInvariant() switch
