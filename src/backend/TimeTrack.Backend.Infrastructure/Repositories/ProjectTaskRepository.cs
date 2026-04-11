@@ -78,4 +78,15 @@ public sealed class ProjectTaskRepository : IProjectTaskRepository
                 t.DueDate < dayEnd)
             .ToListAsync(ct);
     }
+
+    public Task<ProjectTask?> GetByLinearIssueIdAsync(Guid orgId, string linearIssueId, CancellationToken ct = default)
+        => _context.ProjectTasks
+            .Include(t => t.AssignedUser)
+            .Include(t => t.Project)
+            .FirstOrDefaultAsync(t => t.OrgId == orgId && t.LinearIssueId == linearIssueId, ct);
+
+    public async Task<IReadOnlyList<ProjectTask>> ListLinearTasksForProjectAsync(Guid projectId, CancellationToken ct = default)
+        => await _context.ProjectTasks
+            .Where(t => t.ProjectId == projectId && t.LinearIssueId != null)
+            .ToListAsync(ct);
 }
