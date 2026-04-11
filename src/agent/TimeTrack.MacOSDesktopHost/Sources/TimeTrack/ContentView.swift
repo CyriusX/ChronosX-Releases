@@ -18,6 +18,7 @@ struct ContentView: View {
 struct WebViewContainer: NSViewRepresentable {
     @ObservedObject var ipcClient: IpcClient
     @Binding var webView: WKWebView?
+    static var schemeHandler: TimeTrackSchemeHandler?
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -35,12 +36,18 @@ struct WebViewContainer: NSViewRepresentable {
         config.userContentController = userContentController
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
+        if let distPath = Bundle.main.path(forResource: "dist", ofType: nil) {
+            let handler = TimeTrackSchemeHandler(resourcePath: distPath)
+            Self.schemeHandler = handler
+            config.setURLSchemeHandler(handler, forURLScheme: "timetrack")
+        }
+
         let webView = WKWebView(frame: .zero, configuration: config)
         self.webView = webView
 
-        if let bundlePath = Bundle.main.path(forResource: "dist", ofType: nil) {
-            let url = URL(fileURLWithPath: bundlePath).appendingPathComponent("index.html")
-            webView.loadFileURL(url, allowingReadAccessTo: URL(fileURLWithPath: bundlePath))
+        if let distPath = Bundle.main.path(forResource: "dist", ofType: nil) {
+            let url = URL(string: "timetrack://app/index.html")!
+            webView.load(URLRequest(url: url))
         } else {
             let html = """
             <html><body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui;">
