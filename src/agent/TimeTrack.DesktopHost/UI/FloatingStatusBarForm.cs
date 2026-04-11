@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
@@ -444,7 +445,9 @@ internal sealed class PulsingLedControl : Control
     private float _phase;
     private readonly System.Windows.Forms.Timer _t;
 
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public Color LedColor { get => _ledColor; set { _ledColor = value; Invalidate(); } }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool Pulsing
     {
         get => _pulsing;
