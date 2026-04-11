@@ -70,6 +70,11 @@ public static class MacOSInfrastructureExtensions
             return new KeychainTokenStore(logger, httpClient, settings);
         });
 
+        // JwtCurrentUserContext reads the JWT from ITokenStore and extracts the
+        // authenticated user's Guid — TrackingWorker gates on this. Without it,
+        // the macOS DI container would fail to resolve ICurrentUserContext.
+        services.AddSingleton<ICurrentUserContext, JwtCurrentUserContext>();
+
         services.AddHttpClient<ISyncTransport, HttpSyncTransport>(client =>
         {
             client.BaseAddress = new Uri(settings.BackendUrl);

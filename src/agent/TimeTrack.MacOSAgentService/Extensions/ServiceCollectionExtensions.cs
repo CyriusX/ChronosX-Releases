@@ -92,8 +92,11 @@ public static class ServiceCollectionExtensions
         }
         else
         {
-            Console.WriteLine("[SyncServices] Using REAL sync transport");
-            services.AddSyncServices(new Agent.Contracts.Configuration.SyncSettings
+            Console.WriteLine("[SyncServices] Using REAL sync transport (macOS Keychain token store)");
+            // Use the macOS-specific extension — it registers KeychainTokenStore and
+            // JwtCurrentUserContext. The shared AddSyncServices is Windows-only
+            // (DpapiTokenStore) and crashes with PlatformNotSupportedException on macOS.
+            services.AddMacOSSyncServices(new Agent.Contracts.Configuration.SyncSettings
             {
                 BackendUrl = settings.Sync!.BackendUrl!,
                 AuthToken = settings.Sync.AuthToken,
