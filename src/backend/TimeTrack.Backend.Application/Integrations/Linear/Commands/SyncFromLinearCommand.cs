@@ -155,6 +155,9 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
 
             var mappedStatus = LinearStateMapper.FromLinear(issue.State.Name, issue.State.Type);
             var mappedPriority = LinearPriorityMapper.FromLinear(issue.Priority);
+            var description = issue.Description is { Length: > 2000 }
+                ? issue.Description[..2000]
+                : issue.Description;
 
             var existing = await _tasks.GetByLinearIssueIdAsync(orgId, issue.Id, ct);
             if (existing is not null && existing.DeletedAt is not null)
@@ -171,7 +174,7 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
                     localProject.Id,
                     userId,
                     issue.Title,
-                    issue.Description,
+                    description,
                     mappedPriority,
                     issue.DueDate,
                     mappedStatus,
@@ -204,7 +207,7 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
 
                 existing.ApplyLinearSnapshot(
                     issue.Title,
-                    issue.Description,
+                    description,
                     mappedPriority,
                     issue.DueDate,
                     mappedStatus,
