@@ -21,10 +21,10 @@ import {
   closestCenter,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { Plus, ListTodo, CircleDashed, CheckCircle2 } from 'lucide-react';
+import { Plus, ListTodo, CircleDashed, CheckCircle2, Eye } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { TaskDetailDrawer } from './TaskDetailDrawer';
-import { moveTask, type Task, type TaskStatus } from '../../services/projectsApi';
+import { moveTask, type Task, type TaskStatus, type ProjectSyncSource } from '../../services/projectsApi';
 
 type ColumnDef = {
   id: TaskStatus;
@@ -33,9 +33,16 @@ type ColumnDef = {
   accent: string;
 };
 
-const COLUMNS: ColumnDef[] = [
+const LOCAL_COLUMNS: ColumnDef[] = [
   { id: 'Todo', label: 'A Fazer', icon: ListTodo, accent: '#94a3b8' },
   { id: 'InProgress', label: 'Em Progresso', icon: CircleDashed, accent: '#fbbf24' },
+  { id: 'Done', label: 'Concluído', icon: CheckCircle2, accent: '#05df72' },
+];
+
+const LINEAR_COLUMNS: ColumnDef[] = [
+  { id: 'Todo', label: 'A Fazer', icon: ListTodo, accent: '#94a3b8' },
+  { id: 'InProgress', label: 'Em Progresso', icon: CircleDashed, accent: '#fbbf24' },
+  { id: 'InReview', label: 'Em Revisão', icon: Eye, accent: '#a855f7' },
   { id: 'Done', label: 'Concluído', icon: CheckCircle2, accent: '#05df72' },
 ];
 
@@ -52,6 +59,7 @@ export function KanbanBoard({
   projectColor,
   onTaskCreateClick,
   onTaskEdit,
+  syncSource = 'Local',
   onLocalChange,
   onConflict,
 }: {
@@ -59,6 +67,8 @@ export function KanbanBoard({
   projectColor: string;
   onTaskCreateClick: (status: TaskStatus) => void;
   onTaskEdit: (task: Task) => void;
+  /** 'Linear' unlocks the extra "Em Revisão" column and hides the create button. */
+  syncSource?: ProjectSyncSource;
   /** Called with the optimistic new task list so the parent can reflect the move immediately. */
   onLocalChange: (tasks: Task[]) => void;
   /** Called when the server rejects the move (409 concurrency); parent should refetch. */
@@ -66,6 +76,9 @@ export function KanbanBoard({
 }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null);
+
+  const COLUMNS = syncSource === 'Linear' ? LINEAR_COLUMNS : LOCAL_COLUMNS;
+  const isLinearProject = syncSource === 'Linear';
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -111,6 +124,9 @@ export function KanbanBoard({
     }
 
     if (targetStatus === null || targetIndex < 0) return;
+
+    // Defensive: InReview is only valid on Linear-synced projects
+    if (targetStatus === 'InReview' && !isLinearProject) return;
 
     // No-op if dropped at the same spot
     const currentIndex = columns[activeTask.status].findIndex((t) => t.id === activeTask.id);
@@ -165,7 +181,7 @@ export function KanbanBoard({
               accent={col.accent}
               count={colTasks.length}
               totalWorked={totalWorked}
-              onAddClick={() => onTaskCreateClick(col.id)}
+              onAddClick={isLinearProject ? undefined : () => onTaskCreateClick(col.id)}
             >
               <SortableContext items={colTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
@@ -228,7 +244,8 @@ function KanbanColumn({
   accent: string;
   count: number;
   totalWorked: number;
-  onAddClick: () => void;
+  /** When undefined, the "+" button is hidden (e.g. Linear-synced projects). */
+  onAddClick?: () => void;
   children: React.ReactNode;
 }) {
   // Make the column a drop target even when empty
@@ -256,13 +273,15 @@ function KanbanColumn({
             <div className="text-[9px] text-[rgba(245,247,251,0.35)]">{formatTotalWorked(totalWorked)} trabalhado</div>
           )}
         </div>
-        <button
-          onClick={onAddClick}
-          className="p-1 rounded-md text-[rgba(245,247,251,0.4)] hover:text-[#c4b5fd] hover:bg-[rgba(139,92,246,0.08)] transition-colors"
-          title="Adicionar tarefa"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
+        {onAddClick && (
+          <button
+            onClick={onAddClick}
+            className="p-1 rounded-md text-[rgba(245,247,251,0.4)] hover:text-[#c4b5fd] hover:bg-[rgba(139,92,246,0.08)] transition-colors"
+            title="Adicionar tarefa"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Cards */}

@@ -5,12 +5,26 @@
 
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { X, Loader2, Trash2 } from 'lucide-react';
+import { X, Loader2, Trash2, Zap, ExternalLink, Lock } from 'lucide-react';
 import { updateTask, deleteTask, type Task, type ProjectMember, type TaskPriority } from '../../services/projectsApi';
 
 const PRIORITIES: TaskPriority[] = ['Low', 'Medium', 'High'];
 
-export function EditTaskModal({
+export function EditTaskModal(props: {
+  task: Task;
+  members: ProjectMember[];
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  // Linear-sourced tasks are read-only in our app — all editing happens in Linear.
+  // Split into its own component so we don't call hooks conditionally.
+  if (props.task.isLinearSourced) {
+    return <LinearReadOnlyView task={props.task} onClose={props.onClose} />;
+  }
+  return <EditableTaskModal {...props} />;
+}
+
+function EditableTaskModal({
   task,
   members,
   onClose,
@@ -202,6 +216,91 @@ export function EditTaskModal({
               {saving && <Loader2 className="w-3 h-3 animate-spin" />}
               Salvar
             </button>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
+// ── Read-only view for Linear-sourced tasks ────────────────────────────────
+
+function LinearReadOnlyView({ task, onClose }: { task: Task; onClose: () => void }) {
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] max-w-[92vw] bg-[#0b0d14] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-2xl"
+      >
+        <div className="flex items-center justify-between p-5 pb-3">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-[#a78bfa]" />
+            <h3 className="text-[15px] font-semibold text-[#f5f7fb]">Tarefa do Linear</h3>
+            {task.linearIssueIdentifier && (
+              <span className="text-[10px] font-mono text-[rgba(245,247,251,0.5)]">{task.linearIssueIdentifier}</span>
+            )}
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-[rgba(255,255,255,0.06)]">
+            <X className="w-4 h-4 text-[rgba(245,247,251,0.5)]" />
+          </button>
+        </div>
+
+        <div className="px-5 pb-5 space-y-4">
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-[rgba(94,106,210,0.08)] border border-[rgba(94,106,210,0.25)]">
+            <Lock className="w-3.5 h-3.5 text-[#a78bfa] flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] text-[rgba(245,247,251,0.7)]">
+              Esta tarefa é sincronizada do Linear. Para editar título, descrição, prioridade ou prazo,
+              faça a alteração diretamente no Linear e sincronize depois.
+            </p>
+          </div>
+
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1">Título</div>
+            <div className="text-[13px] text-[#f5f7fb]">{task.title}</div>
+          </div>
+
+          {task.description?.trim() && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1">Descrição</div>
+              <pre className="whitespace-pre-wrap break-words text-[12px] text-[rgba(245,247,251,0.75)] font-sans">
+                {task.description}
+              </pre>
+            </div>
+          )}
+
+          {task.linearStateName && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1">Estado no Linear</div>
+              <div className="text-[12px] text-[rgba(245,247,251,0.7)]">{task.linearStateName}</div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-2 border-t border-[rgba(255,255,255,0.04)]">
+            <button
+              onClick={onClose}
+              className="px-3 py-2 rounded-lg text-[11px] text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.06)]"
+            >
+              Fechar
+            </button>
+            {task.linearUrl && (
+              <a
+                href={task.linearUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-gradient-to-r from-[#5e6ad2] to-[#a78bfa] text-white hover:opacity-90 transition-opacity"
+              >
+                Abrir no Linear
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
           </div>
         </div>
       </motion.div>

@@ -46,6 +46,11 @@ public sealed class ProjectResponse
     public string Status { get; init; } = string.Empty;
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
+
+    // ── Linear sync metadata ──
+    public string SyncSource { get; init; } = "Local"; // "Local" | "Linear"
+    public string? LinearProjectId { get; init; }
+    public DateTime? LastSyncedAt { get; init; }
 }
 
 /// <summary>

@@ -1,4 +1,4 @@
-import { User, Settings2, Bell, Activity, Users, Building2, Info, Cpu, EyeOff } from 'lucide-react';
+import { User, Settings2, Bell, Activity, Users, Building2, Info, Cpu, EyeOff, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SPRING } from '../../lib/animation';
 import type { SettingsSection, SettingsSectionDef, SettingsGroup } from '../../types/settingsNav';
@@ -16,6 +16,7 @@ const SECTIONS: SettingsSectionDef[] = [
   { id: 'notifications', label: 'Notificações', icon: Bell, group: 'personal' },
   { id: 'timeline', label: 'Timeline', icon: EyeOff, group: 'personal' },
   { id: 'focus-timer', label: 'Foco & Timer', icon: Activity, group: 'personal' },
+  { id: 'integrations', label: 'Integrações', icon: Zap, group: 'personal' },
   { id: 'team', label: 'Equipe', icon: Users, group: 'management', requiresPermission: 'canManageTeam' },
   { id: 'organization', label: 'Organização', icon: Building2, group: 'management', requiresPermission: 'canViewOrgPolicies' },
   { id: 'agent-status', label: 'Status do Agent', icon: Cpu, group: 'system' },

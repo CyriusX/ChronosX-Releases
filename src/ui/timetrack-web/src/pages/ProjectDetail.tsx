@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, Users, Plus, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Users, Plus, Loader2, RefreshCw, Zap, ExternalLink } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
 import { KanbanBoard } from '../components/projects/KanbanBoard';
 import { AddMemberModal } from '../components/projects/AddMemberModal';
@@ -22,6 +22,7 @@ import {
   type TaskStatus,
   type ProjectMember,
 } from '../services/projectsApi';
+import { syncLinear } from '../services/integrationsApi';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -40,8 +41,12 @@ export default function ProjectDetail() {
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [createTaskStatus, setCreateTaskStatus] = useState<TaskStatus>('Todo');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [syncingLinear, setSyncingLinear] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const isLinearProject = project?.syncSource === 'Linear';
 
   if (!canManageTeam) {
     return <Navigate to="/" replace />;
@@ -92,6 +97,23 @@ export default function ProjectDetail() {
     fetchAll(false);
   };
 
+  const handleLinearSync = async () => {
+    setSyncingLinear(true);
+    setSyncError(null);
+    try {
+      await syncLinear();
+      await fetchAll(false);
+    } catch (err: unknown) {
+      const msg =
+        (err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string'
+          ? (err as { message: string }).message
+          : 'Falha ao sincronizar com o Linear.');
+      setSyncError(msg);
+    } finally {
+      setSyncingLinear(false);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-transparent overflow-hidden pt-[52px] md:pt-0">
       <WebSidebar />
@@ -118,54 +140,100 @@ export default function ProjectDetail() {
                 <h1 className="text-[16px] sm:text-[20px] font-semibold text-[#f5f7fb] truncate">
                   {project?.name ?? 'Projeto'}
                 </h1>
+                {isLinearProject && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[rgba(94,106,210,0.12)] border border-[rgba(94,106,210,0.3)] text-[9px] font-semibold text-[#a78bfa]">
+                    <Zap className="w-2.5 h-2.5" />
+                    LINEAR
+                  </span>
+                )}
               </div>
               {project?.description && (
                 <p className="text-[11px] sm:text-[12px] text-[rgba(245,247,251,0.4)] max-w-[600px]">
                   {project.description}
                 </p>
               )}
+              {isLinearProject && project?.lastSyncedAt && (
+                <p className="text-[10px] text-[rgba(245,247,251,0.35)] mt-1">
+                  Sincronizado do Linear · última sincronização {formatRelative(project.lastSyncedAt)}
+                </p>
+              )}
+              {syncError && (
+                <p className="text-[11px] text-[#f87171] mt-1">{syncError}</p>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Members chips */}
-              <button
-                onClick={() => setShowAddMember(true)}
-                className="flex items-center gap-2 h-9 px-3 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-                title="Gerenciar membros"
-              >
-                <Users className="w-3.5 h-3.5 text-[rgba(245,247,251,0.6)]" />
-                <div className="flex -space-x-1.5">
-                  {members.slice(0, 4).map((m) => (
-                    <div
-                      key={m.id}
-                      className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white border border-[#0b0d14]"
-                      style={{ backgroundColor: project?.color ?? '#8B5CF6' }}
-                      title={m.displayName}
-                    >
-                      {initials(m.displayName)}
-                    </div>
-                  ))}
-                  {members.length > 4 && (
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-[rgba(245,247,251,0.6)] bg-[rgba(255,255,255,0.08)] border border-[#0b0d14]">
-                      +{members.length - 4}
-                    </div>
-                  )}
-                </div>
-                <span className="text-[11px] text-[rgba(245,247,251,0.6)] hidden sm:inline">
-                  {members.length === 0 ? 'Adicionar' : `${members.length} membro${members.length !== 1 ? 's' : ''}`}
-                </span>
-              </button>
+              {/* Members chips — hidden on Linear projects since membership is not managed there */}
+              {!isLinearProject && (
+                <button
+                  onClick={() => setShowAddMember(true)}
+                  className="flex items-center gap-2 h-9 px-3 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                  title="Gerenciar membros"
+                >
+                  <Users className="w-3.5 h-3.5 text-[rgba(245,247,251,0.6)]" />
+                  <div className="flex -space-x-1.5">
+                    {members.slice(0, 4).map((m) => (
+                      <div
+                        key={m.id}
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white border border-[#0b0d14]"
+                        style={{ backgroundColor: project?.color ?? '#8B5CF6' }}
+                        title={m.displayName}
+                      >
+                        {initials(m.displayName)}
+                      </div>
+                    ))}
+                    {members.length > 4 && (
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-[rgba(245,247,251,0.6)] bg-[rgba(255,255,255,0.08)] border border-[#0b0d14]">
+                        +{members.length - 4}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-[rgba(245,247,251,0.6)] hidden sm:inline">
+                    {members.length === 0 ? 'Adicionar' : `${members.length} membro${members.length !== 1 ? 's' : ''}`}
+                  </span>
+                </button>
+              )}
 
-              {/* New Task */}
-              <motion.button
-                onClick={() => handleTaskCreateClick('Todo')}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.97 }}
-                className="flex items-center gap-2 h-9 px-4 rounded-[10px] bg-gradient-to-r from-[#8B5CF6] to-[#7c3aed] text-white text-[11px] font-semibold shadow-[0_4px_12px_rgba(139,92,246,0.3)] hover:from-[#7c3aed] hover:to-[#6d28d9] transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Nova Tarefa
-              </motion.button>
+              {/* New Task button is hidden on Linear projects (issues come from Linear) */}
+              {!isLinearProject && (
+                <motion.button
+                  onClick={() => handleTaskCreateClick('Todo')}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="flex items-center gap-2 h-9 px-4 rounded-[10px] bg-gradient-to-r from-[#8B5CF6] to-[#7c3aed] text-white text-[11px] font-semibold shadow-[0_4px_12px_rgba(139,92,246,0.3)] hover:from-[#7c3aed] hover:to-[#6d28d9] transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Nova Tarefa
+                </motion.button>
+              )}
+
+              {/* Sync from Linear — only on Linear-synced projects */}
+              {isLinearProject && (
+                <motion.button
+                  onClick={handleLinearSync}
+                  disabled={syncingLinear}
+                  whileHover={{ scale: syncingLinear ? 1 : 1.04 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="flex items-center gap-2 h-9 px-4 rounded-[10px] bg-gradient-to-r from-[#5e6ad2] to-[#a78bfa] text-white text-[11px] font-semibold shadow-[0_4px_12px_rgba(94,106,210,0.3)] disabled:opacity-60 transition-colors"
+                  title="Puxar atualizações do Linear"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncingLinear ? 'animate-spin' : ''}`} />
+                  {syncingLinear ? 'Sincronizando…' : 'Sincronizar Linear'}
+                </motion.button>
+              )}
+
+              {/* Open in Linear link */}
+              {isLinearProject && project?.linearProjectId && (
+                <a
+                  href={`https://linear.app/team/project/${encodeURIComponent(project.linearProjectId)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                  title="Abrir no Linear"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-[rgba(245,247,251,0.6)]" />
+                </a>
+              )}
 
               {/* Refresh */}
               <button
@@ -189,6 +257,7 @@ export default function ProjectDetail() {
             <KanbanBoard
               tasks={tasks}
               projectColor={project?.color ?? '#8B5CF6'}
+              syncSource={project?.syncSource ?? 'Local'}
               onTaskCreateClick={handleTaskCreateClick}
               onTaskEdit={setEditingTask}
               onLocalChange={handleOptimisticChange}
@@ -242,4 +311,12 @@ function initials(name: string): string {
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0][0]?.toUpperCase() ?? '?';
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function formatRelative(iso: string): string {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return 'agora';
+  if (diff < 3600) return `há ${Math.floor(diff / 60)}min`;
+  if (diff < 86400) return `há ${Math.floor(diff / 3600)}h`;
+  return `há ${Math.floor(diff / 86400)}d`;
 }
