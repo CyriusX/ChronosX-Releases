@@ -55,6 +55,10 @@ internal static class ObjCRuntime
     private static extern IntPtr objc_msgSend_IntPtr_Int(IntPtr receiver, IntPtr selector, int arg);
 
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")]
+    private static extern IntPtr objc_msgSend_IntPtr_IntPtr_IntPtr(
+        IntPtr receiver, IntPtr selector, IntPtr arg1, IntPtr arg2);
+
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")]
     private static extern int objc_msgSend_Int(IntPtr receiver, IntPtr selector);
 
     public static IntPtr GetClass(string name) => objc_getClass(name);
@@ -69,6 +73,9 @@ internal static class ObjCRuntime
 
     public static IntPtr SendMessage(IntPtr receiver, IntPtr selector, int arg)
         => objc_msgSend_IntPtr_Int(receiver, selector, arg);
+
+    public static IntPtr SendMessage(IntPtr receiver, IntPtr selector, IntPtr arg1, IntPtr arg2)
+        => objc_msgSend_IntPtr_IntPtr_IntPtr(receiver, selector, arg1, arg2);
 
     public static int SendMessageInt(IntPtr receiver, IntPtr selector)
         => objc_msgSend_Int(receiver, selector);
