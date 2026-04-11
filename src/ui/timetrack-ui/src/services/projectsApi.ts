@@ -68,6 +68,7 @@ export interface Task {
   title: string;
   description: string | null;
   status: TaskStatus;
+  createdByUserId: string;
   assignedUserId: string | null;
   assignedUserDisplayName: string | null;
   priority: TaskPriority;
@@ -85,6 +86,13 @@ export interface Task {
   linearIssueIdentifier: string | null;
   linearUrl: string | null;
   linearStateName: string | null;
+}
+
+export interface CreateTaskRequest {
+  title: string;
+  description?: string | null;
+  priority?: string;
+  dueDate?: string | null;
 }
 
 export interface ListTasksResponse {
@@ -151,6 +159,14 @@ export function listProjectTasks(projectId: string): Promise<ListTasksResponse> 
 
 export function listProjectMembers(projectId: string): Promise<ListMembersResponse> {
   return api.get<ListMembersResponse>(`/projects/${encodeURIComponent(projectId)}/members`);
+}
+
+export function createTask(projectId: string, body: CreateTaskRequest): Promise<Task> {
+  return api.post<Task>(`/projects/${encodeURIComponent(projectId)}/tasks`, body);
+}
+
+export function deleteTask(id: string): Promise<void> {
+  return api.delete<void>(`/tasks/${encodeURIComponent(id)}`);
 }
 
 export function moveTask(id: string, body: MoveTaskRequest): Promise<Task> {

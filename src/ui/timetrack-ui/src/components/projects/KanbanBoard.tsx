@@ -6,7 +6,7 @@
  * triggers a full refetch (the card was modified by someone else).
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -18,10 +18,10 @@ import {
   closestCenter,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { ListTodo, CircleDashed, CheckCircle2, Eye } from 'lucide-react';
+import { ListTodo, CircleDashed, CheckCircle2, Eye, Plus, Loader2 } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { TaskDetailDrawer } from './TaskDetailDrawer';
-import { moveTask, type Task, type TaskStatus, type ProjectSyncSource } from '../../services/projectsApi';
+import { moveTask, createTask, type Task, type TaskStatus, type ProjectSyncSource } from '../../services/projectsApi';
 
 type ColumnDef = {
   id: TaskStatus;
@@ -53,22 +53,32 @@ function formatTotalWorked(seconds: number): string {
 
 export function KanbanBoard({
   tasks,
+  projectId,
   projectColor,
   currentUserId,
   syncSource = 'Local',
   onLocalChange,
   onConflict,
+  onTaskCreated,
+  onTaskDeleted,
 }: {
   tasks: Task[];
+  projectId: string;
   projectColor: string;
   currentUserId: string | null | undefined;
   /** 'Linear' unlocks the extra "Em Revisão" column. Defaults to 'Local'. */
   syncSource?: ProjectSyncSource;
   onLocalChange: (tasks: Task[]) => void;
   onConflict: () => void;
+  onTaskCreated?: (task: Task) => void;
+  onTaskDeleted?: (taskId: string) => void;
 }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null);
+  const [addingTask, setAddingTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [creatingTask, setCreatingTask] = useState(false);
+  const newTaskInputRef = useRef<HTMLInputElement>(null);
 
   const COLUMNS = syncSource === 'Linear' ? LINEAR_COLUMNS : LOCAL_COLUMNS;
 
@@ -86,6 +96,34 @@ export function KanbanBoard({
   }, [tasks]);
 
   const isMine = (task: Task) => !!currentUserId && task.assignedUserId === currentUserId;
+
+  const startAddingTask = () => {
+    setAddingTask(true);
+    setNewTaskTitle('');
+    // Focus the input on next paint
+    setTimeout(() => newTaskInputRef.current?.focus(), 50);
+  };
+
+  const cancelAddingTask = () => {
+    setAddingTask(false);
+    setNewTaskTitle('');
+  };
+
+  const submitNewTask = async () => {
+    const title = newTaskTitle.trim();
+    if (!title || creatingTask) return;
+    setCreatingTask(true);
+    try {
+      const task = await createTask(projectId, { title });
+      onTaskCreated?.(task);
+      setAddingTask(false);
+      setNewTaskTitle('');
+    } catch (err) {
+      console.error('[KanbanBoard] createTask failed', err);
+    } finally {
+      setCreatingTask(false);
+    }
+  };
 
   const onDragStart = (event: DragStartEvent) => {
     const task = event.active.data.current?.task as Task | undefined;
@@ -155,6 +193,9 @@ export function KanbanBoard({
           const Icon = col.icon;
           const totalWorked = colTasks.reduce((sum, t) => sum + t.totalSecondsWorked, 0);
 
+          const isTodoCol = col.id === 'Todo';
+          const canAddTask = isTodoCol && syncSource !== 'Linear';
+
           return (
             <KanbanColumn
               key={col.id}
@@ -164,9 +205,41 @@ export function KanbanBoard({
               accent={col.accent}
               count={colTasks.length}
               totalWorked={totalWorked}
+              onAdd={canAddTask ? startAddingTask : undefined}
             >
               <SortableContext items={colTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
+                  {canAddTask && addingTask && (
+                    <div className="p-2 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.1)] space-y-2">
+                      <input
+                        ref={newTaskInputRef}
+                        value={newTaskTitle}
+                        onChange={(e) => setNewTaskTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') submitNewTask();
+                          if (e.key === 'Escape') cancelAddingTask();
+                        }}
+                        placeholder="Nome da tarefa…"
+                        className="w-full bg-transparent text-[11px] text-[#f5f7fb] placeholder:text-[rgba(245,247,251,0.3)] outline-none"
+                      />
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={submitNewTask}
+                          disabled={!newTaskTitle.trim() || creatingTask}
+                          className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-[#4A9FFF] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#3b8fee] transition-colors"
+                        >
+                          {creatingTask ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                          Adicionar
+                        </button>
+                        <button
+                          onClick={cancelAddingTask}
+                          className="px-2 py-1 rounded text-[10px] text-[rgba(245,247,251,0.5)] hover:text-[#f5f7fb] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {colTasks.map((task) => (
                     <TaskCard
                       key={task.id}
@@ -176,7 +249,7 @@ export function KanbanBoard({
                       onOpen={setDrawerTaskId}
                     />
                   ))}
-                  {colTasks.length === 0 && (
+                  {colTasks.length === 0 && !addingTask && (
                     <div className="text-center py-8 text-[10px] text-[rgba(245,247,251,0.25)] italic">
                       Sem tarefas
                     </div>
@@ -196,7 +269,14 @@ export function KanbanBoard({
         ) : null}
       </DragOverlay>
 
-      <TaskDetailDrawer taskId={drawerTaskId} onClose={() => setDrawerTaskId(null)} />
+      <TaskDetailDrawer
+        taskId={drawerTaskId}
+        onClose={() => setDrawerTaskId(null)}
+        onDeleted={(id) => {
+          setDrawerTaskId(null);
+          onTaskDeleted?.(id);
+        }}
+      />
     </DndContext>
   );
 }
@@ -208,6 +288,7 @@ function KanbanColumn({
   accent,
   count,
   totalWorked,
+  onAdd,
   children,
 }: {
   id: TaskStatus;
@@ -216,6 +297,7 @@ function KanbanColumn({
   accent: string;
   count: number;
   totalWorked: number;
+  onAdd?: () => void;
   children: React.ReactNode;
 }) {
   const { setNodeRef } = useSortable({
@@ -246,6 +328,16 @@ function KanbanColumn({
             </div>
           )}
         </div>
+        {onAdd && (
+          <button
+            onClick={onAdd}
+            className="p-1 rounded text-[rgba(245,247,251,0.4)] hover:text-[#f5f7fb] hover:bg-[rgba(255,255,255,0.06)] transition-colors flex-shrink-0"
+            aria-label="Adicionar tarefa"
+            title="Adicionar tarefa"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 min-h-[100px]">{children}</div>

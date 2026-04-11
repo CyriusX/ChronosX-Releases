@@ -53,6 +53,7 @@ public sealed class TaskResponse
     public string Title { get; init; } = string.Empty;
     public string? Description { get; init; }
     public string Status { get; init; } = string.Empty;
+    public Guid CreatedByUserId { get; init; }
     public Guid? AssignedUserId { get; init; }
     public string? AssignedUserDisplayName { get; init; }
     public string Priority { get; init; } = string.Empty;

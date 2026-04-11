@@ -112,7 +112,6 @@ export function TaskCard({
           {...attributes}
           {...listeners}
           onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
           className="absolute top-1.5 right-1.5 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.06)] transition-all cursor-grab active:cursor-grabbing"
           aria-label="Arrastar"
           title="Arrastar"
