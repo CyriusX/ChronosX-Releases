@@ -7,6 +7,7 @@ using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Infrastructure.MacOS.Notifications;
 using TimeTrack.Agent.Infrastructure.MacOS.Providers;
 using TimeTrack.Agent.Infrastructure.MacOS.Security;
+using TimeTrack.Agent.Infrastructure.Services;
 
 namespace TimeTrack.Agent.Infrastructure.MacOS.Extensions;
 
@@ -102,16 +103,4 @@ public static class MacOSInfrastructureExtensions
         return services;
     }
 
-    /// <summary>
-    /// Adiciona NullSyncTransport para modo local/teste (sem backend)
-    /// </summary>
-    public static IServiceCollection AddNullSyncTransport(this IServiceCollection services)
-    {
-        services.AddSingleton<ISyncTransport, NullSyncTransport>();
-        services.AddSingleton<ITokenStore, NullTokenStore>();
-        services.AddSingleton<IDeviceActivationService, NullDeviceActivationService>();
-        services.AddSingleton<IBackendReportsClient, NullBackendReportsClient>();
-        services.AddSingleton<IBackendTasksClient, NullBackendTasksClient>();
-        return services;
-    }
 }

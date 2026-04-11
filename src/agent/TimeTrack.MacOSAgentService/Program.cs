@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using TimeTrack.Agent.Infrastructure.Extensions;
 using TimeTrack.Agent.Infrastructure.Services;
 using TimeTrack.AgentService.Events;
 using TimeTrack.AgentService.Notifications;

@@ -1,6 +1,9 @@
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Notifications;
 using TimeTrack.Agent.Contracts.Services;
+using TimeTrack.Agent.Infrastructure.MacOS.Interop;
 
 namespace TimeTrack.Agent.Infrastructure.MacOS.Notifications;
 
@@ -157,7 +160,9 @@ public sealed class MacOSNotificationService : INotificationService
             if (notification.Kind != NotificationKind.Generic)
             {
                 var categoryIdentifier = GetCategoryIdentifier(notification.Kind);
-                UNMutableNotificationContent_setCategoryIdentifier(content, categoryIdentifier);
+                var categoryIdentifierCf = CFStringCreate(categoryIdentifier);
+                UNMutableNotificationContent_setCategoryIdentifier(content, categoryIdentifierCf);
+                CFRelease(categoryIdentifierCf);
 
                 var category = CreateNotificationCategory(notification.Kind, notification.PrimaryAction, notification.SecondaryAction);
                 if (category != IntPtr.Zero)
@@ -315,28 +320,12 @@ public sealed class MacOSNotificationService : INotificationService
     private static extern void UNUserNotificationCenter_requestAuthorization(int options, IntPtr completion);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern IntPtr CFStringCreate(string str);
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     private static extern void CFRelease(IntPtr cf);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     private static extern IntPtr CFArrayCreate(int numValues, params IntPtr[] values);
 
-    private static IntPtr CFStringCreate(string str)
-    {
-        var bytes = System.Text.Encoding.UTF8.GetBytes(str);
-        unsafe
-        {
-            fixed (byte* ptr = bytes)
-            {
-                return CFStringCreateWithCString(IntPtr.Zero, ptr, 0x08000100);
-            }
-        }
-    }
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern IntPtr CFStringCreateWithCString(IntPtr alloc, byte* cStr, int encoding);
+    private static IntPtr CFStringCreate(string str) => CoreFoundationNative.CFStringCreate(str);
 
     #endregion
 }
