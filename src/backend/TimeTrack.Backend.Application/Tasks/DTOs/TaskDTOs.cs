@@ -75,6 +75,21 @@ public sealed class TaskResponse
     public string? LinearStateName { get; init; }
 }
 
+public sealed class TaskEntryDto
+{
+    public Guid Id { get; init; }
+    public string TaskTitle { get; init; } = string.Empty;
+    public string ProjectName { get; init; } = string.Empty;
+    public string ProjectColor { get; init; } = string.Empty;
+    public DateTime StartedAt { get; init; }
+    public DateTime? EndedAt { get; init; }
+}
+
+public sealed class ListTaskEntriesResponse
+{
+    public List<TaskEntryDto> Entries { get; init; } = [];
+}
+
 public sealed class ListTasksResponse
 {
     public List<TaskResponse> Tasks { get; init; } = [];

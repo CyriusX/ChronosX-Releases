@@ -145,4 +145,15 @@ public sealed class TasksController : ControllerBase
         await _mediator.Send(new CloseOpenTaskTimerOnIdleRejectCommand());
         return NoContent();
     }
+
+    [HttpGet("api/v1/me/task-entries")]
+    [ProducesResponseType(typeof(ListTaskEntriesResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ListTaskEntriesResponse>> GetMyTaskEntries([FromQuery] string? date = null)
+    {
+        var dateOnly = date is not null && DateOnly.TryParse(date, out var parsed)
+            ? parsed
+            : DateOnly.FromDateTime(DateTime.UtcNow);
+        var result = await _mediator.Send(new ListMyTaskEntriesQuery(dateOnly));
+        return Ok(result);
+    }
 }

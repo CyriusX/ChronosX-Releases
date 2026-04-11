@@ -61,8 +61,11 @@ public sealed class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand
         var project = await _projects.GetByIdAsync(request.ProjectId, ct)
             ?? throw new NotFoundException("Project", request.ProjectId);
 
-        // Non-managers can only create tasks assigned to themselves.
-        var assignedUserId = isManager ? request.AssignedUserId : _currentUser.UserId;
+        // Default to the current user when no assignee is specified.
+        // Managers may explicitly assign to others; everyone else always gets self-assigned.
+        var assignedUserId = isManager
+            ? (request.AssignedUserId ?? _currentUser.UserId)
+            : _currentUser.UserId;
 
         if (assignedUserId.HasValue)
         {

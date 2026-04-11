@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { useIpc } from '../../hooks/useIpc';
 import { useTrackingStore } from '../../stores/trackingStore';
 import { getDailyActivities } from '../../services/reportApi';
+import { getMyTaskEntries, type TaskEntryDto } from '../../services/projectsApi';
 import { useHiddenAppsStore } from '../../stores/hiddenAppsStore';
 import { cardBase } from './shared/styles';
 
@@ -168,6 +169,27 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
   }, [isControlled, isViewingToday, isActive, localGap, activities]);
 
   const hiddenApps = useHiddenAppsStore(s => s.hiddenApps);
+
+  // ── Task time entries ────────────────────────────────────────────────────────
+  const [taskEntries, setTaskEntries] = useState<TaskEntryDto[]>([]);
+
+  useEffect(() => {
+    const d = selectedDate ?? new Date();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    getMyTaskEntries(dateStr)
+      .then(res => setTaskEntries(res.entries ?? []))
+      .catch(() => {});
+  }, [selectedDate, now]); // re-fetch on date change; `now` ticks every 5s to keep open entry fresh
+
+  const taskBlocks = useMemo(() => {
+    return taskEntries.map((e, i) => {
+      const start = new Date(e.startedAt).getTime();
+      const end = e.endedAt ? new Date(e.endedAt).getTime() : now;
+      const left = Math.max(0, Math.min(100, ((start - dayStart) / dayMs) * 100));
+      const width = Math.max(0.2, Math.min(100 - left, ((end - start) / dayMs) * 100));
+      return { ...e, left, width, key: i };
+    });
+  }, [taskEntries, dayStart, dayMs, now]);
 
   // ── Fast path: REST API fetch on mount (no IPC dependency) ──────────────────
   // Fires immediately without waiting for the named pipe connection.
@@ -404,7 +426,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                     ))}
                   </div>
 
-                  {/* Timeline bar */}
+                  {/* Timeline bar — apps */}
                   <div className="relative h-[28px] rounded-md bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]">
                     {hourLabels.slice(1, -1).map((h) => (
                       <div key={h} className="absolute top-0 bottom-0 w-px bg-[rgba(255,255,255,0.03)]" style={{ left: `${(h / TOTAL_HOURS) * 100}%` }} />
@@ -431,6 +453,33 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                       </div>
                     )}
                   </div>
+
+                  {/* Task timeline — thin row showing task work periods */}
+                  {taskBlocks.length > 0 && (
+                    <div className="mt-1.5">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-[8px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.3)]">Tarefas</span>
+                      </div>
+                      <div className="relative h-[10px] rounded-sm bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]">
+                        {taskBlocks.map((block) => (
+                          <div
+                            key={block.key}
+                            style={{
+                              left: `${block.left}%`,
+                              width: `${block.width}%`,
+                              backgroundColor: block.projectColor,
+                              minWidth: '2px',
+                            }}
+                            className="absolute top-[1px] bottom-[1px] rounded-[2px] opacity-80 hover:opacity-100 cursor-default"
+                            title={`${block.taskTitle} · ${block.projectName}`}
+                          />
+                        ))}
+                        {nowPct >= 0 && (
+                          <div className="absolute top-0 bottom-0 w-px bg-[rgba(245,247,251,0.3)]" style={{ left: `${nowPct}%` }} />
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
