@@ -140,15 +140,60 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
         }
     }
 
+    // Cached Objective-C class/selector handles — these are interned by the runtime
+    // and cheap to look up, but we cache to avoid string marshalling on every call.
+    private static readonly IntPtr s_nsWorkspaceClass = ObjCRuntime.GetClass("NSWorkspace");
+    private static readonly IntPtr s_nsRunningAppClass = ObjCRuntime.GetClass("NSRunningApplication");
+    private static readonly IntPtr s_selSharedWorkspace = ObjCRuntime.GetSelector("sharedWorkspace");
+    private static readonly IntPtr s_selFrontmostApp = ObjCRuntime.GetSelector("frontmostApplication");
+    private static readonly IntPtr s_selProcessIdentifier = ObjCRuntime.GetSelector("processIdentifier");
+    private static readonly IntPtr s_selLocalizedName = ObjCRuntime.GetSelector("localizedName");
+    private static readonly IntPtr s_selBundleURL = ObjCRuntime.GetSelector("bundleURL");
+    private static readonly IntPtr s_selPath = ObjCRuntime.GetSelector("path");
+    private static readonly IntPtr s_selRunningAppWithPid = ObjCRuntime.GetSelector("runningApplicationWithProcessIdentifier:");
+
     private (int pid, string? appName) GetFrontmostApplication()
     {
         try
         {
-            var pid = NSWorkspace_FrontmostApplicationPid();
-            if (pid == 0)
+            if (s_nsWorkspaceClass == IntPtr.Zero)
+            {
+                _logger.LogWarning("NSWorkspace class not found — AppKit may not be loaded");
                 return (0, null);
+            }
 
-            var appName = GetProcessName(pid);
+            // [NSWorkspace sharedWorkspace]
+            var workspace = ObjCRuntime.SendMessage(s_nsWorkspaceClass, s_selSharedWorkspace);
+            if (workspace == IntPtr.Zero)
+            {
+                _logger.LogDebug("[NSWorkspace sharedWorkspace] returned nil");
+                return (0, null);
+            }
+
+            // [workspace frontmostApplication] → NSRunningApplication*
+            var runningApp = ObjCRuntime.SendMessage(workspace, s_selFrontmostApp);
+            if (runningApp == IntPtr.Zero)
+            {
+                _logger.LogDebug("[workspace frontmostApplication] returned nil");
+                return (0, null);
+            }
+
+            // [runningApp processIdentifier] → pid_t (int32)
+            var pid = ObjCRuntime.SendMessageInt(runningApp, s_selProcessIdentifier);
+            if (pid == 0)
+            {
+                _logger.LogDebug("[runningApp processIdentifier] returned 0");
+                return (0, null);
+            }
+
+            // [runningApp localizedName] → NSString*
+            var nsName = ObjCRuntime.SendMessage(runningApp, s_selLocalizedName);
+            var appName = ObjCRuntime.NSStringToManaged(nsName);
+
+            // Fallback to proc_name if localizedName wasn't available
+            if (string.IsNullOrEmpty(appName))
+                appName = GetProcessName(pid);
+
             return (pid, appName);
         }
         catch (Exception ex)
@@ -158,18 +203,23 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
         }
     }
 
-    private unsafe string? GetApplicationPath(int pid)
+    private string? GetApplicationPath(int pid)
     {
         try
         {
-            var bufferSize = 1024;
-            var buffer = stackalloc byte[bufferSize];
-
-            var length = NSWorkspace_GetApplicationPathForPid(pid, buffer, bufferSize);
-            if (length == 0)
+            // [NSRunningApplication runningApplicationWithProcessIdentifier:pid]
+            var runningApp = ObjCRuntime.SendMessage(s_nsRunningAppClass, s_selRunningAppWithPid, pid);
+            if (runningApp == IntPtr.Zero)
                 return null;
 
-            return Marshal.PtrToStringUTF8((IntPtr)buffer, length);
+            // [runningApp bundleURL] → NSURL*
+            var bundleURL = ObjCRuntime.SendMessage(runningApp, s_selBundleURL);
+            if (bundleURL == IntPtr.Zero)
+                return null;
+
+            // [bundleURL path] → NSString*
+            var nsPath = ObjCRuntime.SendMessage(bundleURL, s_selPath);
+            return ObjCRuntime.NSStringToManaged(nsPath);
         }
         catch (Exception ex)
         {
@@ -230,8 +280,7 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 
                     try
                     {
-                        var title = CFStringToString(titleValue);
-                        return title;
+                        return ObjCRuntime.NSStringToManaged(titleValue);
                     }
                     finally
                     {
@@ -297,56 +346,11 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 
     private static string? ExtractBrowserUrl(int pid, string? windowTitle)
     {
-        if (string.IsNullOrEmpty(windowTitle))
-            return null;
-
-        try
-        {
-            var scriptSource = """
-                tell application "System Events"
-                    tell process pid of first application process whose frontmost is true
-                        try
-                            get title of first window
-                        on error
-                            return ""
-                        end try
-                    end tell
-                end tell
-                """;
-
-            var script = NSAppleScript_AllocInit();
-            if (script == IntPtr.Zero)
-                return null;
-
-            try
-            {
-                var source = Marshal.StringToHGlobalUni(scriptSource);
-                NSAppleScript_InitWithSource(script, source);
-                Marshal.FreeHGlobal(source);
-
-                var errorDict = IntPtr.Zero;
-                var result = NSAppleScript_ExecuteAndReturnError(script, ref errorDict);
-
-                if (errorDict != IntPtr.Zero)
-                    CFRelease(errorDict);
-
-                if (result != IntPtr.Zero)
-                {
-                    var urlString = CFStringToString(result);
-                    CFRelease(result);
-                    return urlString;
-                }
-            }
-            finally
-            {
-                CFRelease(script);
-            }
-        }
-        catch
-        {
-            return null;
-        }
-
+        // Browser URL extraction via AppleScript is not yet wired up on macOS.
+        // The previous implementation DllImported NSAppleScript as C functions,
+        // which does not work because NSAppleScript is an Objective-C class.
+        // We would need to go through the ObjC runtime or shell out to /usr/bin/osascript.
+        // Returning null keeps tracking functional — window title alone is still captured.
         return null;
     }
 
@@ -388,69 +392,26 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 
     #region Native Interop
 
-    [DllImport("/System/Library/Frameworks/AppKit.framework/AppKit")]
-    private static extern int NSWorkspace_FrontmostApplicationPid();
-
-    [DllImport("/System/Library/Frameworks/AppKit.framework/AppKit")]
-    private static extern unsafe int NSWorkspace_GetApplicationPathForPid(int pid, byte* buffer, int bufferSize);
-
+    // libproc: pure C API, works fine.
     [DllImport("/usr/lib/libproc.dylib")]
     private static extern unsafe int proc_name(int pid, byte* buffer, int bufferSize);
 
-    [DllImport("/System/Library/Frameworks/ApplicationServices.framework/Frameworks/Accessibility.framework/Accessibility")]
+    // Accessibility API: exported as C functions by HIServices, not the non-existent
+    // "Accessibility.framework/Accessibility" path used previously.
+    private const string HIServicesLib =
+        "/System/Library/Frameworks/ApplicationServices.framework/Frameworks/HIServices.framework/HIServices";
+
+    [DllImport(HIServicesLib)]
     private static extern IntPtr AXUIElementCreateApplication(int pid);
 
-    [DllImport("/System/Library/Frameworks/ApplicationServices.framework/Frameworks/Accessibility.framework/Accessibility")]
+    [DllImport(HIServicesLib)]
     private static extern int AXUIElementCopyAttributeValue(IntPtr element, IntPtr attribute, out IntPtr value);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     private static extern void CFRelease(IntPtr cf);
 
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern int CFStringGetLength(IntPtr theString);
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern unsafe void CFStringGetCharacters(IntPtr theString, nint range, char* buffer);
-
-    [DllImport("/System/Library/Frameworks/Foundation.framework/Foundation")]
-    private static extern IntPtr NSAppleScript_AllocInit();
-
-    [DllImport("/System/Library/Frameworks/Foundation.framework/Foundation")]
-    private static extern void NSAppleScript_InitWithSource(IntPtr script, IntPtr source);
-
-    [DllImport("/System/Library/Frameworks/Foundation.framework/Foundation")]
-    private static extern IntPtr NSAppleScript_ExecuteAndReturnError(IntPtr script, ref IntPtr errorInfo);
-
     private static readonly IntPtr kAXFocusedWindowAttribute = CoreFoundationNative.CFStringCreate("AXFocusedWindow");
     private static readonly IntPtr kAXTitleAttribute = CoreFoundationNative.CFStringCreate("AXTitle");
-
-    private static string? CFStringToString(IntPtr cfString)
-    {
-        if (cfString == IntPtr.Zero)
-            return null;
-
-        try
-        {
-            var length = CFStringGetLength(cfString);
-            if (length == 0)
-                return string.Empty;
-
-            var buffer = new char[length];
-            unsafe
-            {
-                fixed (char* ptr = buffer)
-                {
-                    CFStringGetCharacters(cfString, length, ptr);
-                }
-            }
-
-            return new string(buffer);
-        }
-        catch
-        {
-            return null;
-        }
-    }
 
     #endregion
 }
