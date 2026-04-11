@@ -95,6 +95,13 @@ export interface CreateTaskRequest {
   dueDate?: string | null;
 }
 
+export interface UpdateTaskRequest {
+  title: string;
+  description?: string | null;
+  priority?: string;
+  dueDate?: string | null;
+}
+
 export interface ListTasksResponse {
   tasks: Task[];
   todoCount: number;
@@ -163,6 +170,10 @@ export function listProjectMembers(projectId: string): Promise<ListMembersRespon
 
 export function createTask(projectId: string, body: CreateTaskRequest): Promise<Task> {
   return api.post<Task>(`/projects/${encodeURIComponent(projectId)}/tasks`, body);
+}
+
+export function updateTask(id: string, body: UpdateTaskRequest): Promise<Task> {
+  return api.put<Task>(`/tasks/${encodeURIComponent(id)}`, body);
 }
 
 export function deleteTask(id: string): Promise<void> {

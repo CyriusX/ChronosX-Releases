@@ -152,12 +152,18 @@ public sealed class UpdateTaskCommandHandler : IRequestHandler<UpdateTaskCommand
 
     public async Task<TaskResponse> Handle(UpdateTaskCommand request, CancellationToken ct)
     {
+        if (!_currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException();
+
         var role = _currentUser.Role;
-        if (role != UserRole.Admin && role != UserRole.Gestor)
-            throw new ForbiddenException("Only managers can edit tasks");
+        var isManager = role == UserRole.Admin || role == UserRole.Gestor;
 
         var task = await _tasks.GetByIdAsync(request.TaskId, ct)
             ?? throw new NotFoundException("Task", request.TaskId);
+
+        // Creators can edit their own tasks; managers can edit any task.
+        if (!isManager && task.CreatedByUserId != _currentUser.UserId.Value)
+            throw new ForbiddenException("You can only edit tasks you created");
 
         var project = task.Project ?? await _projects.GetByIdAsync(task.ProjectId, ct);
         if (project is null)

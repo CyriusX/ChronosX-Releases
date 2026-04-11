@@ -20,8 +20,11 @@ import {
   ListTodo,
   Eye,
   Trash2,
+  Pencil,
+  Save,
+  XCircle,
 } from 'lucide-react';
-import { getTask, deleteTask, type Task, type TaskStatus, type TaskPriority } from '../../services/projectsApi';
+import { getTask, deleteTask, updateTask, type Task, type TaskStatus, type TaskPriority } from '../../services/projectsApi';
 import { SimpleMarkdown } from './SimpleMarkdown';
 import { useAuthStore, selectUser } from '../../stores';
 
@@ -117,11 +120,52 @@ export function TaskDetailDrawer({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editPriority, setEditPriority] = useState<TaskPriority>('Medium');
+  const [editDueDate, setEditDueDate] = useState('');
+
+  const startEditing = () => {
+    if (!task) return;
+    setEditTitle(task.title);
+    setEditDescription(task.description ?? '');
+    setEditPriority(task.priority);
+    setEditDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '');
+    setEditing(true);
+    setError(null);
+  };
+
+  const cancelEditing = () => { setEditing(false); setError(null); };
+
+  const handleSave = async () => {
+    if (!task || saving) return;
+    const title = editTitle.trim();
+    if (!title) return;
+    setSaving(true);
+    try {
+      const updated = await updateTask(task.id, {
+        title,
+        description: editDescription.trim() || null,
+        priority: editPriority,
+        dueDate: editDueDate ? new Date(editDueDate).toISOString() : null,
+      });
+      setTask(updated);
+      setEditing(false);
+    } catch (err) {
+      console.error('[TaskDetailDrawer] update failed', err);
+      setError('Não foi possível salvar as alterações.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!taskId) {
       setTask(null);
       setError(null);
+      setEditing(false);
       return;
     }
     let cancelled = false;
@@ -168,10 +212,12 @@ export function TaskDetailDrawer({
     }
   };
 
-  const canDelete = task !== null
+  const canEdit = task !== null
     && !task.isLinearSourced
     && currentUser !== null
     && task.createdByUserId === currentUser.id;
+
+  const canDelete = canEdit;
 
   const open = taskId !== null;
 
@@ -199,9 +245,23 @@ export function TaskDetailDrawer({
               loading={loading}
               error={error}
               onClose={onClose}
+              canEdit={canEdit}
               canDelete={canDelete}
               deleting={deleting}
               onDelete={handleDelete}
+              editing={editing}
+              saving={saving}
+              editTitle={editTitle}
+              editDescription={editDescription}
+              editPriority={editPriority}
+              editDueDate={editDueDate}
+              onStartEdit={startEditing}
+              onCancelEdit={cancelEditing}
+              onSave={handleSave}
+              onEditTitle={setEditTitle}
+              onEditDescription={setEditDescription}
+              onEditPriority={setEditPriority}
+              onEditDueDate={setEditDueDate}
             />
           </motion.aside>
         </>
@@ -215,17 +275,45 @@ function DrawerBody({
   loading,
   error,
   onClose,
+  canEdit,
   canDelete,
   deleting,
   onDelete,
+  editing,
+  saving,
+  editTitle,
+  editDescription,
+  editPriority,
+  editDueDate,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+  onEditTitle,
+  onEditDescription,
+  onEditPriority,
+  onEditDueDate,
 }: {
   task: Task | null;
   loading: boolean;
   error: string | null;
   onClose: () => void;
+  canEdit: boolean;
   canDelete: boolean;
   deleting: boolean;
   onDelete: () => void;
+  editing: boolean;
+  saving: boolean;
+  editTitle: string;
+  editDescription: string;
+  editPriority: TaskPriority;
+  editDueDate: string;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave: () => void;
+  onEditTitle: (v: string) => void;
+  onEditDescription: (v: string) => void;
+  onEditPriority: (v: TaskPriority) => void;
+  onEditDueDate: (v: string) => void;
 }) {
   if (loading || !task) {
     return (
@@ -277,10 +365,96 @@ function DrawerBody({
           </div>
         )}
 
-        {/* Title */}
-        <h2 className="text-[18px] font-semibold text-[#f5f7fb] leading-tight">{task.title}</h2>
+        {/* Error (edit mode) */}
+        {error && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.2)] text-[11px] text-[#f87171]">
+            {error}
+          </div>
+        )}
 
-        {/* Meta grid */}
+        {/* Title — view or edit */}
+        {editing ? (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">Título</label>
+              <input
+                value={editTitle}
+                onChange={(e) => onEditTitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) onSave(); if (e.key === 'Escape') onCancelEdit(); }}
+                className="w-full bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 text-[14px] font-semibold text-[#f5f7fb] outline-none focus:border-[rgba(74,159,255,0.5)] transition-colors"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">Descrição</label>
+              <textarea
+                value={editDescription}
+                onChange={(e) => onEditDescription(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') onCancelEdit(); }}
+                rows={4}
+                className="w-full bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 text-[12px] text-[rgba(245,247,251,0.8)] outline-none focus:border-[rgba(74,159,255,0.5)] transition-colors resize-none"
+                placeholder="Descrição (opcional)…"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">Prioridade</label>
+                <select
+                  value={editPriority}
+                  onChange={(e) => onEditPriority(e.target.value as TaskPriority)}
+                  className="w-full bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 text-[12px] text-[#f5f7fb] outline-none focus:border-[rgba(74,159,255,0.5)] transition-colors"
+                >
+                  <option value="None">Nenhuma</option>
+                  <option value="Low">Baixa</option>
+                  <option value="Medium">Média</option>
+                  <option value="High">Alta</option>
+                  <option value="Urgent">Urgente</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">Prazo</label>
+                <input
+                  type="date"
+                  value={editDueDate}
+                  onChange={(e) => onEditDueDate(e.target.value)}
+                  className="w-full bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 text-[12px] text-[#f5f7fb] outline-none focus:border-[rgba(74,159,255,0.5)] transition-colors"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={onSave}
+                disabled={!editTitle.trim() || saving}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#4A9FFF] text-white text-[12px] font-semibold hover:bg-[#3b8fee] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <Save className="w-3.5 h-3.5" />
+                {saving ? 'Salvando…' : 'Salvar'}
+              </button>
+              <button
+                onClick={onCancelEdit}
+                className="px-4 py-2.5 rounded-lg border border-[rgba(255,255,255,0.1)] text-[rgba(245,247,251,0.6)] text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2">
+            <h2 className="flex-1 text-[18px] font-semibold text-[#f5f7fb] leading-tight">{task.title}</h2>
+            {canEdit && (
+              <button
+                onClick={onStartEdit}
+                className="p-1.5 rounded-lg text-[rgba(245,247,251,0.4)] hover:text-[#f5f7fb] hover:bg-[rgba(255,255,255,0.06)] transition-colors flex-shrink-0"
+                title="Editar tarefa"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Meta grid — hidden while editing */}
+        {!editing && (<>
         <div className="grid grid-cols-2 gap-3">
           <MetaField icon={<status.Icon className="w-3 h-3" />} label="Status" accent={status.color}>
             {status.label}
@@ -362,9 +536,11 @@ function DrawerBody({
             </div>
           )}
         </div>
+        {/* end of !editing block */}
+        </>)}
 
-        {/* Actions */}
-        {canDelete ? (
+        {/* Actions — only in view mode */}
+        {!editing && (canDelete ? (
           <button
             onClick={onDelete}
             disabled={deleting}
@@ -380,7 +556,7 @@ function DrawerBody({
               Somente leitura — edição disponível apenas para gestores na web.
             </span>
           </div>
-        )}
+        ))}
       </div>
     </>
   );
