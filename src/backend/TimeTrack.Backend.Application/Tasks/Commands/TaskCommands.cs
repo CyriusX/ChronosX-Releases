@@ -67,9 +67,7 @@ public sealed class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand
             ? (request.AssignedUserId ?? _currentUser.UserId)
             : _currentUser.UserId;
 
-        // Only validate membership when explicitly assigning to someone else.
-        // Self-assignment (creator auto-assign) is always valid — the user is
-        // already authorised to operate on this project or they wouldn't be here.
+        // Validate org membership and auto-add to project if needed.
         if (assignedUserId.HasValue && assignedUserId != _currentUser.UserId)
         {
             var assignee = await _users.GetByIdAsync(assignedUserId.Value, ct)
@@ -78,7 +76,10 @@ public sealed class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand
                 throw new ValidationException("AssignedUserId", "Assignee must belong to the same organization");
             var isMember = await _members.IsMemberAsync(project.Id, assignee.Id, ct);
             if (!isMember)
-                throw new ValidationException("AssignedUserId", "Assignee must be a project member");
+            {
+                var member = ProjectMember.Create(project.OrgId, project.Id, assignee.Id, _currentUser.UserId.Value);
+                await _members.AddAsync(member, ct);
+            }
         }
 
         var priority = ParsePriority(request.Priority);
@@ -179,7 +180,10 @@ public sealed class UpdateTaskCommandHandler : IRequestHandler<UpdateTaskCommand
                 throw new ValidationException("AssignedUserId", "Assignee must belong to the same organization");
             var isMember = await _members.IsMemberAsync(project.Id, assignee.Id, ct);
             if (!isMember)
-                throw new ValidationException("AssignedUserId", "Assignee must be a project member");
+            {
+                var member = ProjectMember.Create(project.OrgId, project.Id, assignee.Id, _currentUser.UserId.Value);
+                await _members.AddAsync(member, ct);
+            }
         }
 
         task.UpdateDetails(request.Title, request.Description, ParsePriority(request.Priority), request.DueDate, request.AssignedUserId);

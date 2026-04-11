@@ -191,12 +191,21 @@ export async function apiClient<T>(
 
     try {
       const errorData = await response.json();
+      console.error('[apiClient] Error response body:', JSON.stringify(errorData, null, 2));
       errorMessage = errorData.message
         || errorData.title
         || errorData.error
         || (typeof errorData === 'string' ? errorData : null)
         || errorMessage;
       errorCode = errorData.code;
+
+      // Include validation errors in the message for easier debugging
+      if (errorData.errors && typeof errorData.errors === 'object') {
+        const details = Object.entries(errorData.errors)
+          .map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`)
+          .join('; ');
+        errorMessage = details || errorMessage;
+      }
     } catch {
       // Failed to parse error response
     }

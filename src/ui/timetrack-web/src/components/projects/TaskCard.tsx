@@ -2,12 +2,14 @@
  * TaskCard — single kanban card, draggable via @dnd-kit/sortable.
  * Click the card surface to open the detail drawer; the pencil button on hover
  * opens the edit modal (managers).
+ * Click the assignee area to open an inline dropdown for quick reassignment.
  */
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Clock, User, Calendar, Pencil, PlayCircle, GripVertical } from 'lucide-react';
+import { Clock, Calendar, Pencil, PlayCircle, GripVertical } from 'lucide-react';
 import type { Task, TaskPriority, TaskStatus } from '../../services/projectsApi';
+import { AssigneeDropdown } from './AssigneeDropdown';
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
@@ -37,14 +39,6 @@ function priorityLabel(priority: TaskPriority): string {
   }
 }
 
-function initials(name: string | null | undefined): string {
-  if (!name) return '?';
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0][0]?.toUpperCase() ?? '?';
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
 function deadlineTone(dueDate: string | null, status: TaskStatus): 'overdue' | 'today' | 'future' | 'none' {
   if (!dueDate || status === 'Done') return 'none';
   const d = new Date(dueDate);
@@ -61,11 +55,14 @@ export function TaskCard({
   projectColor,
   onEdit,
   onOpen,
+  onAssigned,
 }: {
   task: Task;
   projectColor: string;
   onEdit: (task: Task) => void;
   onOpen?: (taskId: string) => void;
+  /** Called after assignment changes so the parent can refetch. */
+  onAssigned?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -153,25 +150,11 @@ export function TaskCard({
 
       {/* Footer: assignee + worked time + due date */}
       <div className="flex items-center gap-2 pl-3.5 flex-wrap">
-        {task.assignedUserDisplayName ? (
-          <div
-            className="flex items-center gap-1 text-[9px] text-[rgba(245,247,251,0.6)]"
-            title={task.assignedUserDisplayName}
-          >
-            <div
-              className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
-              style={{ backgroundColor: projectColor }}
-            >
-              {initials(task.assignedUserDisplayName)}
-            </div>
-            <span className="truncate max-w-[80px]">{task.assignedUserDisplayName.split(' ')[0]}</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1 text-[9px] text-[rgba(245,247,251,0.3)]">
-            <User className="w-3 h-3" />
-            Não atribuído
-          </div>
-        )}
+        <AssigneeDropdown
+          task={task}
+          projectColor={projectColor}
+          onAssigned={onAssigned}
+        />
 
         {worked > 0 && (
           <div className="flex items-center gap-1 text-[9px] text-[rgba(245,247,251,0.45)]">
