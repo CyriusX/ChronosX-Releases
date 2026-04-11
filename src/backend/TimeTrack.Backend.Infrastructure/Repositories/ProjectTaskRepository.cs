@@ -81,6 +81,7 @@ public sealed class ProjectTaskRepository : IProjectTaskRepository
 
     public Task<ProjectTask?> GetByLinearIssueIdAsync(Guid orgId, string linearIssueId, CancellationToken ct = default)
         => _context.ProjectTasks
+            .IgnoreQueryFilters()
             .Include(t => t.AssignedUser)
             .Include(t => t.Project)
             .FirstOrDefaultAsync(t => t.OrgId == orgId && t.LinearIssueId == linearIssueId, ct);
