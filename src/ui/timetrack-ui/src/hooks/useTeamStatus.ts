@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { getTeamStatus, listMembers } from '../services/memberApi';
 import type { TeamMemberStatus, Member } from '../types/member';
 
-const TEAM_STATUS_POLL_INTERVAL_MS = 60_000; // refresh every 60s (matches agent sync interval)
+const TEAM_STATUS_POLL_INTERVAL_MS = 30_000; // refresh every 30s (matches agent sync interval)
 
 interface UseTeamStatusReturn {
   members: TeamMemberStatus[];
