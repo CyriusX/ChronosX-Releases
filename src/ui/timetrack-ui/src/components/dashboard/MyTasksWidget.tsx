@@ -41,6 +41,7 @@ export function MyTasksWidget() {
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0); // forces re-render for live timer
+  const lastFetchedAtRef = useRef<number>(Date.now()); // tracks when tasks were last fetched
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -48,6 +49,7 @@ export function MyTasksWidget() {
     try {
       const res = await listMyTasks(false);
       setTasks(res.tasks ?? []);
+      lastFetchedAtRef.current = Date.now(); // record fetch time so live timer resets
       setError(null);
     } catch (err: any) {
       setError(err?.message || t('dashboard.failedToLoadTasks'));
@@ -126,11 +128,14 @@ export function MyTasksWidget() {
     }
   };
 
-  // Compute live seconds for the in-progress task using the server-reported
-  // runningSeconds + local elapsed since last fetch (using tick to trigger re-render)
+  // Compute live seconds for the in-progress task: server-reported value at last fetch
+  // plus elapsed seconds since that fetch. tick triggers re-render each second.
   const liveSecondsFor = (task: Task): number => {
     void tick;
-    return (task.runningSeconds ?? 0) + task.totalSecondsWorked;
+    const base = (task.runningSeconds ?? 0) + task.totalSecondsWorked;
+    if (!task.isRunning) return base;
+    const elapsedSinceLastFetch = Math.floor((Date.now() - lastFetchedAtRef.current) / 1000);
+    return base + elapsedSinceLastFetch;
   };
 
   if (loading && tasks.length === 0) {
