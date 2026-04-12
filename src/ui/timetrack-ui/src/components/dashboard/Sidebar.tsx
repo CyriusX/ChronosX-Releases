@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Cog, LogOut, Play, Square, Loader2 } from 'lucide-react';
+import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Cog, LogOut, Play, Square, Loader2, Users } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { NavItem } from './shared';
@@ -7,6 +7,7 @@ import { SidebarMiniDash } from './shared/SidebarMiniDash';
 import { useAuthStore } from '../../stores/authStore';
 import { useTrackingStore } from '../../stores/trackingStore';
 import { useIpc } from '../../hooks/useIpc';
+import { usePermissions } from '../../hooks/usePermissions';
 import { SPRING } from '../../lib/animation';
 import logoImg from '../../assets/logo-64.png';
 
@@ -14,6 +15,7 @@ export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuthStore();
+  const { canManageTeam } = usePermissions();
   const isTracking = useTrackingStore(s => s.isTracking);
   const isPaused = useTrackingStore(s => s.isPaused);
   const todaySummary = useTrackingStore(s => s.todaySummary);
@@ -97,6 +99,9 @@ export function Sidebar() {
         <NavItem icon={<BarChart3 className="w-[16px] h-[16px]" />} label="Dashboard" active={location.pathname === '/'} onClick={() => navigate('/')} />
         <NavItem icon={<TimerIcon className="w-[16px] h-[16px]" />} label="Timer" active={location.pathname === '/timer'} onClick={() => navigate('/timer')} />
         <NavItem icon={<FolderOpen className="w-[16px] h-[16px]" />} label="Projetos" active={location.pathname === '/projects'} onClick={() => navigate('/projects')} />
+        {canManageTeam && (
+          <NavItem icon={<Users className="w-[16px] h-[16px]" />} label="Equipe" active={location.pathname === '/teams'} onClick={() => navigate('/teams')} />
+        )}
         <NavItem icon={<Activity className="w-[16px] h-[16px]" />} label="Atividade" active={location.pathname === '/activities'} onClick={() => navigate('/activities')} />
         <NavItem icon={<CalendarDays className="w-[16px] h-[16px]" />} label="Relatórios" active={location.pathname === '/reports'} onClick={() => navigate('/reports')} />
         <NavItem icon={<Cog className="w-[16px] h-[16px]" />} label="Configurações" active={location.pathname === '/settings'} onClick={() => navigate('/settings')} />

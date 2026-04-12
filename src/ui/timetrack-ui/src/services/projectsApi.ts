@@ -247,3 +247,7 @@ export function markNotificationRead(id: string): Promise<void> {
 export function markAllNotificationsRead(): Promise<void> {
   return api.post<void>('/me/notifications/read-all');
 }
+
+export function removeProjectMember(projectId: string, userId: string): Promise<void> {
+  return api.delete<void>(`/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(userId)}`);
+}
