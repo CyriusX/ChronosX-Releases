@@ -48,8 +48,8 @@ public sealed class UpdateWorker : BackgroundService
         }
 
         _logger.LogInformation(
-            "UpdateWorker started. Check interval: {Interval}h, Channel: {Channel}",
-            _settings.CheckIntervalHours,
+            "UpdateWorker started. Check interval: {Interval}min, Channel: {Channel}",
+            _settings.CheckIntervalMinutes,
             _settings.Channel);
 
         // Check on startup if configured
@@ -58,7 +58,7 @@ public sealed class UpdateWorker : BackgroundService
             await CheckForUpdatesAsync(stoppingToken);
         }
 
-        var checkInterval = TimeSpan.FromHours(_settings.CheckIntervalHours);
+        var checkInterval = TimeSpan.FromMinutes(_settings.CheckIntervalMinutes);
 
         using var periodicTimer = new PeriodicTimer(checkInterval);
 

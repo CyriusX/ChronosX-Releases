@@ -21,9 +21,9 @@ public sealed class UpdateSettings
     public string Channel { get; set; } = "stable";
 
     /// <summary>
-    /// How often to check for updates (in hours)
+    /// How often to check for updates (in minutes)
     /// </summary>
-    public int CheckIntervalHours { get; set; } = 4;
+    public int CheckIntervalMinutes { get; set; } = 240;
 
     /// <summary>
     /// Base URL for update API
