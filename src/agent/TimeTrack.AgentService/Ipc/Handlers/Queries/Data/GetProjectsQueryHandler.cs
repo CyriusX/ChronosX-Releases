@@ -29,10 +29,14 @@ public sealed class GetProjectsQueryHandler : IpcHandlerBase, IIpcQueryHandler
                 activeOnly = prop.GetBoolean();
 
             var result = await _backendTasks.ListProjectsAsync(activeOnly, ct);
-            if (result is null)
-                return SuccessResponse(request.RequestId, new { projects = Array.Empty<object>(), totalCount = 0 });
-
-            return SuccessResponse(request.RequestId, result);
+            var projects = (result?.Projects ?? []).Select(p => new
+            {
+                id = p.Id.ToString(),
+                name = p.Name,
+                color = p.Color,
+                status = p.Status
+            }).ToArray();
+            return SuccessResponse(request.RequestId, projects);
         }
         catch (Exception ex)
         {
