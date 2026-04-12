@@ -150,6 +150,9 @@ public sealed class UpdateService : IUpdateService, IDisposable
 
     private async Task PerformUpdateAsync(UpdateCheckResponse updateInfo, CancellationToken cancellationToken)
     {
+        // UpdateService downloads the installer itself (with progress reporting),
+        // then passes the local path to update.exe via --installer-path
+        // so the orchestrator skips its own download and uses the pre-downloaded file.
         var tempPath = Path.Combine(Path.GetTempPath(), "ChronosX-Update");
         var installerPath = Path.Combine(tempPath, $"ChronosX-Setup-{updateInfo.LatestVersion}.exe");
 

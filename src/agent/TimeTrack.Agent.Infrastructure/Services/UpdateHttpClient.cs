@@ -85,82 +85,103 @@ public sealed class UpdateHttpClient : IUpdateHttpClient, IDisposable
         string channel,
         CancellationToken cancellationToken)
     {
-        try
+        var attempt = 0;
+
+        while (true)
         {
-            if (!await EnsureValidTokenAsync(cancellationToken))
+            attempt++;
+
+            try
             {
-                _logger.LogWarning("Cannot check for updates: authentication unavailable");
-                return null;
-            }
-
-            var requestPath = $"/api/v1/updates/check?currentVersion={Uri.EscapeDataString(currentVersion)}&channel={Uri.EscapeDataString(channel)}";
-
-            _logger.LogInformation("Checking for updates: {Path}", requestPath);
-
-            var response = await _httpClient.GetAsync(requestPath, cancellationToken);
-
-            // Handle 401 - try refresh and retry once
-            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && _tokenStore is not null)
-            {
-                _logger.LogWarning("Received 401, attempting token refresh and retry");
-
-                if (await _tokenStore.RefreshAsync(cancellationToken))
+                if (!await EnsureValidTokenAsync(cancellationToken))
                 {
-                    var jwt = await _tokenStore.GetJwtAsync(cancellationToken);
-                    if (!string.IsNullOrEmpty(jwt))
-                    {
-                        _httpClient.DefaultRequestHeaders.Authorization =
-                            new AuthenticationHeaderValue("Bearer", jwt);
-                    }
-
-                    response = await _httpClient.GetAsync(requestPath, cancellationToken);
+                    _logger.LogWarning("Cannot check for updates: authentication unavailable");
+                    return null;
                 }
-            }
 
-            // 204 = no update available
-            if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
-            {
-                _logger.LogInformation("No update available");
-                return new UpdateCheckResponse
+                var requestPath = $"/api/v1/updates/check?currentVersion={Uri.EscapeDataString(currentVersion)}&channel={Uri.EscapeDataString(channel)}";
+
+                _logger.LogInformation("Checking for updates: {Path} (attempt {Attempt})", requestPath, attempt);
+
+                var response = await _httpClient.GetAsync(requestPath, cancellationToken);
+
+                // Handle 401 - try refresh and retry once
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && _tokenStore is not null)
                 {
-                    HasUpdate = false,
-                    CurrentVersion = currentVersion
-                };
-            }
+                    _logger.LogWarning("Received 401, attempting token refresh and retry");
 
-            if (!response.IsSuccessStatusCode)
+                    if (await _tokenStore.RefreshAsync(cancellationToken))
+                    {
+                        var jwt = await _tokenStore.GetJwtAsync(cancellationToken);
+                        if (!string.IsNullOrEmpty(jwt))
+                        {
+                            _httpClient.DefaultRequestHeaders.Authorization =
+                                new AuthenticationHeaderValue("Bearer", jwt);
+                        }
+
+                        response = await _httpClient.GetAsync(requestPath, cancellationToken);
+                    }
+                }
+
+                // 204 = no update available
+                if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+                {
+                    _logger.LogInformation("No update available");
+                    return new UpdateCheckResponse
+                    {
+                        HasUpdate = false,
+                        CurrentVersion = currentVersion
+                    };
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogWarning("Update check failed: StatusCode={StatusCode}, Error={Error}",
+                        response.StatusCode, errorContent);
+                    return null;
+                }
+
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                var result = JsonSerializer.Deserialize<UpdateCheckResponse>(content, _jsonOptions);
+
+                if (result != null)
+                {
+                    _logger.LogInformation("Update check result: HasUpdate={HasUpdate}, LatestVersion={LatestVersion}",
+                        result.HasUpdate, result.LatestVersion);
+                }
+
+                return result;
+            }
+            catch (HttpRequestException ex)
             {
-                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogWarning("Update check failed: StatusCode={StatusCode}, Error={Error}",
-                    response.StatusCode, errorContent);
+                if (attempt >= _settings.MaxRetryAttempts)
+                {
+                    _logger.LogError(ex, "Update check failed after {Attempts} attempts", attempt);
+                    return null;
+                }
+
+                _logger.LogWarning(ex, "Update check attempt {Attempt} failed, retrying in {Delay}s",
+                    attempt, _settings.RetryDelaySeconds);
+                await Task.Delay(TimeSpan.FromSeconds(_settings.RetryDelaySeconds), cancellationToken);
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                if (attempt >= _settings.MaxRetryAttempts)
+                {
+                    _logger.LogWarning("Timeout checking for updates after {Attempts} attempts", attempt);
+                    return null;
+                }
+
+                _logger.LogWarning("Timeout on attempt {Attempt}, retrying in {Delay}s",
+                    attempt, _settings.RetryDelaySeconds);
+                await Task.Delay(TimeSpan.FromSeconds(_settings.RetryDelaySeconds), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking for updates");
                 return null;
             }
-
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var result = JsonSerializer.Deserialize<UpdateCheckResponse>(content, _jsonOptions);
-
-            if (result != null)
-            {
-                _logger.LogInformation("Update check result: HasUpdate={HasUpdate}, LatestVersion={LatestVersion}",
-                    result.HasUpdate, result.LatestVersion);
-            }
-
-            return result;
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, "HTTP error checking for updates");
-            return null;
-        }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            _logger.LogWarning("Timeout checking for updates");
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking for updates");
-            return null;
         }
     }
 

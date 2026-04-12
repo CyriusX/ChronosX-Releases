@@ -99,9 +99,16 @@ public sealed class UpdateWorker : BackgroundService
                 // Broadcast update available event
                 await _eventBroadcaster.BroadcastUpdateAvailableAsync(result);
 
-                // Start forced update
+                // Start forced update with try/finally to guarantee _updateInProgress is reset
                 _updateInProgress = true;
-                _ = _updateService.StartUpdateAsync(cancellationToken);
+                try
+                {
+                    await _updateService.StartUpdateAsync(cancellationToken);
+                }
+                finally
+                {
+                    _updateInProgress = false;
+                }
             }
             else
             {
@@ -111,6 +118,7 @@ public sealed class UpdateWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to check for updates");
+            _updateInProgress = false;
         }
     }
 
@@ -127,8 +135,6 @@ public sealed class UpdateWorker : BackgroundService
 
     private void OnUpdateCompleted(object? sender, UpdateResult result)
     {
-        _updateInProgress = false;
-
         if (result.Success)
         {
             _logger.LogInformation("Update completed successfully to version {Version}", result.Version);
