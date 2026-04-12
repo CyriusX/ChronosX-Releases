@@ -13,10 +13,19 @@ struct TimeTrackApp: App {
                     NSWindow.allowsAutomaticWindowTabbing = false
                     notificationManager.requestAuthorization()
                     Task {
-                        do {
-                            try await ipcClient.connect()
-                        } catch {
-                            print("Failed to connect to AgentService: \(error)")
+                        // Retry connection up to 10 times on startup — the agent
+                        // service may not have created the IPC socket yet.
+                        for attempt in 1...10 {
+                            do {
+                                try await ipcClient.connect()
+                                print("Connected to AgentService (attempt \(attempt))")
+                                break
+                            } catch {
+                                print("Failed to connect to AgentService (attempt \(attempt)): \(error)")
+                                if attempt < 10 {
+                                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                                }
+                            }
                         }
                     }
                 }
