@@ -83,17 +83,18 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
             .Where(s => !Domain.Constants.InternalApps.IsInternal(s.ProcessName))
             .ToList();
 
-        // Group sessions by user and calculate total duration.
-        // Clip each session to the day boundaries so cross-midnight sessions only contribute
-        // the portion that falls within today — matching GetDailyActivityAggregateAsync behaviour.
+        // Group sessions by user and calculate total duration using merged intervals so that
+        // sessions from multiple registered devices that overlap in time are not double-counted.
         var sessionsByUser = filteredSessions
             .GroupBy(s => s.UserId)
-            .ToDictionary(g => g.Key, g => (int)g.Sum(s =>
+            .ToDictionary(g => g.Key, g =>
             {
-                var clippedStart = s.StartedAt < today ? today : s.StartedAt;
-                var clippedEnd = s.EndedAt > tomorrow ? tomorrow : s.EndedAt;
-                return Math.Max(0, (clippedEnd - clippedStart).TotalSeconds);
-            }));
+                var intervals = g.Select(s => (
+                    Start: s.StartedAt < today   ? today    : s.StartedAt,
+                    End:   s.EndedAt   > tomorrow ? tomorrow : s.EndedAt
+                ));
+                return (int)ComputeMergedSeconds(intervals);
+            });
 
         // Find users currently tracking (had activity in last 5 minutes)
         var fiveMinutesAgo = DateTime.UtcNow.AddMinutes(-5);
@@ -126,6 +127,28 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
             ActiveCount = members.Count(m => m.Status == "Active"),
             TrackingCount = members.Count(m => m.IsTracking)
         };
+    }
+
+    private static long ComputeMergedSeconds(IEnumerable<(DateTime Start, DateTime End)> intervals)
+    {
+        var sorted = intervals
+            .Where(i => i.End > i.Start)
+            .OrderBy(i => i.Start)
+            .ToList();
+
+        if (sorted.Count == 0) return 0;
+
+        var merged = new List<(DateTime Start, DateTime End)> { sorted[0] };
+        foreach (var (start, end) in sorted.Skip(1))
+        {
+            var last = merged[^1];
+            if (start <= last.End)
+                merged[^1] = (last.Start, end > last.End ? end : last.End);
+            else
+                merged.Add((start, end));
+        }
+
+        return (long)merged.Sum(m => (m.End - m.Start).TotalSeconds);
     }
 
     private static string FormatDuration(int totalSeconds)
