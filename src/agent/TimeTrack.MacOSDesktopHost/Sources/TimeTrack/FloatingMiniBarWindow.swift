@@ -67,9 +67,9 @@ final class FloatingMiniBarWindow: NSPanel {
         container.layer?.borderWidth = 1
         container.layer?.borderColor = Self.borderColor.cgColor
 
-        // Status dot (pulsing LED)
+        // Status dot (pulsing LED) — green when tracking, red when stopped/paused
         statusDot.wantsLayer = true
-        statusDot.layer?.backgroundColor = Self.cyan.cgColor
+        statusDot.layer?.backgroundColor = Self.green.cgColor
         statusDot.layer?.cornerRadius = 5
         statusDot.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -107,8 +107,10 @@ final class FloatingMiniBarWindow: NSPanel {
         // Build stack
         stackView.orientation = .horizontal
         stackView.alignment = .centerY
+        stackView.distribution = .gravityAreas
         stackView.spacing = 8
         stackView.edgeInsets = NSEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
+        stackView.setHuggingPriority(.required, for: .horizontal)
 
         stackView.addArrangedSubview(statusDot)
         stackView.addArrangedSubview(spacer(width: 4))
@@ -127,14 +129,19 @@ final class FloatingMiniBarWindow: NSPanel {
         container.addSubview(stackView)
         NSLayoutConstraint.activate([
             stackView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            stackView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             stackView.topAnchor.constraint(equalTo: container.topAnchor),
             stackView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            // Pin trailing to container so container sizes to stack
+            stackView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
 
-        // Size container to fit
-        container.autoresizingMask = [.width, .height]
         contentView = container
+
+        // Force layout and resize window to fit content exactly
+        container.layoutSubtreeIfNeeded()
+        let fitWidth = stackView.fittingSize.width
+        setContentSize(NSSize(width: fitWidth, height: Self.barHeight))
+        container.frame = NSRect(x: 0, y: 0, width: fitWidth, height: Self.barHeight)
     }
 
     // MARK: - Public API
@@ -148,11 +155,11 @@ final class FloatingMiniBarWindow: NSPanel {
     }
 
     func updateData(_ data: Data) {
-        // Status dot color
+        // Status dot color — green when tracking, red when stopped/paused
         if data.isPaused || !data.isTracking {
             statusDot.layer?.backgroundColor = Self.redSoft.cgColor
         } else {
-            statusDot.layer?.backgroundColor = Self.cyan.cgColor
+            statusDot.layer?.backgroundColor = Self.green.cgColor
         }
 
         // Active time
