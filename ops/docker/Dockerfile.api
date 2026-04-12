@@ -40,6 +40,9 @@ RUN adduser --disabled-password --gecos '' appuser && \
 # Copy published application
 COPY --from=publish --chown=appuser:appuser /app/publish .
 
+# Copy update installers
+COPY --chown=appuser:appuser src/backend/TimeTrack.Api/updates/ ./updates/
+
 # Switch to non-root user
 USER appuser
 
