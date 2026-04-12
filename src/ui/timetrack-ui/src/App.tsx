@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence } from "motion/react";
 import { useIpc } from "./hooks/useIpc";
+import type { LocalSettings } from "./types/settings";
 import { useTrackingStore, handleTrackingStateChanged } from "./stores/trackingStore";
 import { useAuthStore } from "./stores/authStore";
 import { getIpcService } from "./services";
@@ -23,10 +24,22 @@ import { SessionExpiredNotifier } from "./components/SessionExpiredNotifier";
 import { MobileBottomNav } from "./components/navigation/MobileBottomNav";
 
 function App() {
-  const { isConnected, isReady } = useIpc();
+  const { isConnected, isReady, sendQuery } = useIpc();
   const { setConnected, setReady } = useTrackingStore();
   const { isAuthenticated, tokens } = useAuthStore();
+  const { i18n } = useTranslation();
   const wasConnectedRef = useRef(false);
+
+  // Sync UI language from the Agent's stored settings on every IPC connection.
+  // Without this, the app always starts in the default language (en-US) and
+  // ignores the language the user saved in a previous session.
+  useEffect(() => {
+    if (!isReady) return;
+    sendQuery('getSettings').then((result) => {
+      const lang = (result.data as LocalSettings | undefined)?.language;
+      if (lang) i18n.changeLanguage(lang);
+    }).catch(() => { /* non-critical */ });
+  }, [isReady]);
 
   // Block browser shortcuts — this app runs as a desktop webview, not a browser
   useEffect(() => {
