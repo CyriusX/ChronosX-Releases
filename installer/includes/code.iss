@@ -60,7 +60,7 @@ begin
   RunHidden(Sys + '\taskkill.exe', '/F /IM ChronosX.exe /T');
 
   // Give Windows a moment to release file handles
-  Sleep(1500);
+  Sleep(3000);
 
   Log('CleanupPreviousInstallation: done');
 end;
