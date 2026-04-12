@@ -1,13 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useIpc } from '../hooks/useIpc';
 import { usePermissions } from '../hooks/usePermissions';
 import { useFocusModePolicy } from '../hooks/useFocusModePolicy';
-import { getMemberSummary } from '../services/memberApi';
-import { getDailyActivities } from '../services/reportApi';
-import { useHiddenAppsStore } from '../stores/hiddenAppsStore';
-import type { MemberSummaryResponse } from '../types/member';
-import type { ActivityBlock } from '../hooks/useActivitiesData';
+import { useTeamStatus } from '../hooks/useTeamStatus';
 import {
   Sidebar,
   DashboardHeader,
@@ -16,39 +14,20 @@ import {
   BottomCards,
   RightPanel,
 } from '../components/dashboard';
-import type { TodaySummaryResponse } from '../types/ipc';
-
-const MEMBER_POLL_INTERVAL_MS = 30_000; // Refresh member data every 30s
-
-function formatSyncTime(isoString: string): string {
-  const syncDate = new Date(isoString);
-  const now = new Date();
-  const diffMs = now.getTime() - syncDate.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-
-  if (diffMin < 1) return 'agora';
-  if (diffMin < 60) return `há ${diffMin}min`;
-
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `há ${diffHours}h ${diffMin % 60}min`;
-
-  return syncDate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
+import { MemberCard } from '../components/teams/MemberCard';
+import { MemberDetailDrawer } from '../components/teams/MemberDetailDrawer';
+import { staggerContainer } from '../lib/animation';
+import type { TeamMemberStatus } from '../types/member';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'meu-dia' | 'equipe'>('meu-dia');
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
-  const [memberSummary, setMemberSummary] = useState<TodaySummaryResponse | null>(null);
-  const [memberLastSyncAt, setMemberLastSyncAt] = useState<string | null>(null);
-  const [memberLoading, setMemberLoading] = useState(false);
-  const [memberError, setMemberError] = useState<string | null>(null);
-  const [memberActivities, setMemberActivities] = useState<ActivityBlock[]>([]);
-  const memberPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const hiddenApps = useHiddenAppsStore(s => s.hiddenApps);
-  const { sendCommand, sendQuery } = useIpc();
+  const [drawerMemberId, setDrawerMemberId] = useState<string | null>(null);
+  const { sendQuery } = useIpc();
   const { todaySummary, weeklyHistory, isPaused, isTracking, refreshData } = useDashboardData();
+  const { sendCommand } = useIpc();
   const { canManageTeam } = usePermissions();
   const { focusModePolicy } = useFocusModePolicy();
+  const { members, isLoading, loadTeamStatus } = useTeamStatus();
   const [workGoalSeconds, setWorkGoalSeconds] = useState<number>(28800);
 
   // Fetch work goal setting once
@@ -61,100 +40,22 @@ export default function Dashboard() {
     });
   }, [sendQuery]);
 
-  // Fetch selected member's summary
-  const fetchMemberSummary = useCallback(async (userId: string, isInitial = false) => {
-    if (isInitial) {
-      setMemberLoading(true);
-      setMemberError(null);
-      setMemberSummary(null);
-      setMemberActivities([]);
-    }
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const [data, activitiesData] = await Promise.all([
-        getMemberSummary(userId),
-        getDailyActivities(today, userId).catch(() => null),
-      ]);
-      const raw = data as MemberSummaryResponse;
-      setMemberSummary(raw as unknown as TodaySummaryResponse);
-      setMemberLastSyncAt(raw.lastSyncAt ?? null);
-      setMemberError(null);
-
-      if (activitiesData?.sessions) {
-        const hiddenSet = new Set(hiddenApps.map(a => a.toLowerCase()));
-        const APP_PALETTE = ['#8B5CF6','#22D3EE','#F59E0B','#10B981','#F472B6','#6366F1','#EF4444','#14B8A6','#E879F9','#84CC16'];
-        const colorMap = new Map<string, string>();
-        let ci = 0;
-        const blocks: ActivityBlock[] = [];
-        for (const s of activitiesData.sessions) {
-          if (hiddenSet.has(s.processName.toLowerCase())) continue;
-          if (!colorMap.has(s.processName)) {
-            colorMap.set(s.processName, APP_PALETTE[ci % APP_PALETTE.length]);
-            ci++;
-          }
-          blocks.push({
-            id: `${s.processName}-${s.startedAt}`,
-            name: s.processName,
-            startUtc: s.startedAt,
-            endUtc: s.endedAt,
-            duration: s.durationSeconds,
-            productivity: s.appCategory ?? 'neutral',
-            subcategory: s.appCategory ?? 'unknown',
-            color: colorMap.get(s.processName) ?? '#94a3b8',
-          });
-        }
-        setMemberActivities(blocks);
-      }
-    } catch (err) {
-      console.error('[Dashboard] Error fetching member data:', err);
-      if (isInitial) {
-        setMemberSummary(null);
-        setMemberError(err instanceof Error ? err.message : 'Erro ao carregar dados do membro');
-      }
-    } finally {
-      if (isInitial) setMemberLoading(false);
-    }
-  }, [hiddenApps]);
-
-  // Fetch on member selection + start polling
+  // Load team members when switching to equipe tab
   useEffect(() => {
-    if (selectedMemberId && activeTab === 'equipe') {
-      fetchMemberSummary(selectedMemberId, true);
-
-      // Poll for fresh data
-      memberPollRef.current = setInterval(() => {
-        fetchMemberSummary(selectedMemberId);
-      }, MEMBER_POLL_INTERVAL_MS);
+    if (activeTab === 'equipe') {
+      loadTeamStatus(true);
     }
+  }, [activeTab, loadTeamStatus]);
 
-    return () => {
-      if (memberPollRef.current) {
-        clearInterval(memberPollRef.current);
-        memberPollRef.current = null;
-      }
-    };
-  }, [selectedMemberId, activeTab, fetchMemberSummary]);
-
-  // Clear member selection when switching back to "Meu dia"
+  // Clear drawer when switching away from equipe tab
   useEffect(() => {
     if (activeTab === 'meu-dia') {
-      setSelectedMemberId(null);
-      setMemberSummary(null);
-      setMemberLastSyncAt(null);
-      setMemberError(null);
-      setMemberLoading(false);
-      setMemberActivities([]);
+      setDrawerMemberId(null);
     }
   }, [activeTab]);
 
   const isTeamTab = activeTab === 'equipe';
-  const isViewingMember = isTeamTab && !!selectedMemberId;
-
-  // When viewing a member, show their data; otherwise show own data
-  const displaySummary = isViewingMember ? memberSummary : todaySummary;
-  const displayWeeklyHistory = isViewingMember && memberSummary
-    ? memberSummary.weeklyHistory
-    : weeklyHistory;
+  const drawerMember = members.find((m: TeamMemberStatus) => m.userId === drawerMemberId) ?? null;
 
   const onStartTracking = async () => {
     const result = await sendCommand('startTracking');
@@ -186,50 +87,13 @@ export default function Dashboard() {
 
         <div className="flex-1 flex gap-5 px-5 pb-4 min-h-0">
           {/* Main Content Area — scrollable */}
-          <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-hidden">
-            {/* Loading overlay for member data */}
-            {isViewingMember && memberLoading && (
-              <div className="flex items-center justify-center py-8">
-                <div className="flex items-center gap-3">
-                  <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
-                  <span className="text-[13px] text-[rgba(245,247,251,0.5)]">Carregando dados do membro...</span>
-                </div>
-              </div>
-            )}
+          <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto">
 
-            {/* Error state for member data */}
-            {isViewingMember && memberError && !memberLoading && (
-              <div className="flex items-center justify-center py-6">
-                <div className="text-center">
-                  <p className="text-[13px] text-[rgba(248,113,113,0.9)]">Erro ao carregar dados</p>
-                  <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-1">{memberError}</p>
-                  <button
-                    onClick={() => selectedMemberId && fetchMemberSummary(selectedMemberId, true)}
-                    className="mt-2 px-3 py-1 text-[11px] text-[#8B5CF6] border border-[rgba(139,92,246,0.3)] rounded-md hover:bg-[rgba(139,92,246,0.1)] transition-colors"
-                  >
-                    Tentar novamente
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Prompt to select a member when on team tab with no selection */}
-            {isTeamTab && !selectedMemberId && (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <p className="text-[14px] text-[rgba(245,247,251,0.6)]">Selecione um membro da equipe</p>
-                  <p className="text-[11px] text-[rgba(245,247,251,0.3)] mt-1">
-                    Use o seletor no painel lateral para visualizar os dados de um membro
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* "Meu dia" tab — always show own data + activity timeline */}
+            {/* "Meu dia" tab — own data + activity timeline */}
             {!isTeamTab && (
               <>
                 <TopCards
-                  summary={displaySummary}
+                  summary={todaySummary}
                   isPaused={isPaused}
                   isTracking={isTracking}
                   focusModePolicy={focusModePolicy}
@@ -241,61 +105,85 @@ export default function Dashboard() {
                   workGoalSeconds={workGoalSeconds}
                 />
                 <ActivitySection />
-                <BottomCards summary={displaySummary} />
+                <BottomCards summary={todaySummary} />
               </>
             )}
 
-            {/* Team tab — show member data when selected and loaded */}
-            {isViewingMember && !memberLoading && !memberError && displaySummary && (
+            {/* "Equipe" tab — member card grid */}
+            {isTeamTab && (
               <>
-                {/* Last sync indicator */}
-                {memberLastSyncAt && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.05)]">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#8B5CF6] animate-pulse" />
-                    <span className="text-[10px] text-[rgba(245,247,251,0.4)]">
-                      Última sincronização: {formatSyncTime(memberLastSyncAt)}
-                    </span>
-                    <span className="text-[10px] text-[rgba(245,247,251,0.25)]">
-                      · Sincroniza a cada 60s
-                    </span>
+                {isLoading && members.length === 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="rounded-[22px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] h-[210px] animate-pulse"
+                      />
+                    ))}
                   </div>
+                ) : members.length === 0 ? (
+                  <div className="flex items-center justify-center py-24">
+                    <p className="text-[13px] text-[rgba(245,247,251,0.35)]">Nenhum membro na equipe</p>
+                  </div>
+                ) : (
+                  <motion.div
+                    variants={staggerContainer(0.06)}
+                    initial="hidden"
+                    animate="visible"
+                    className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"
+                  >
+                    {members.map((member: TeamMemberStatus, i: number) => (
+                      <MemberCard
+                        key={member.userId}
+                        member={member}
+                        index={i}
+                        onSelect={setDrawerMemberId}
+                      />
+                    ))}
+                  </motion.div>
                 )}
-                <TopCards
-                  summary={displaySummary}
-                  isPaused={false}
-                  isTracking={false}
-                  isTeamTab={true}
-                  workGoalSeconds={workGoalSeconds}
-                />
-                <ActivitySection activities={memberActivities} />
-                <BottomCards summary={displaySummary} />
               </>
             )}
 
             {/* Right panel content — shown inline on mobile/tablet (< lg) */}
-            <div className="lg:hidden">
-              <RightPanel
-                summary={displaySummary}
-                weeklyHistory={displayWeeklyHistory}
-                showTeamCard={isTeamTab}
-                selectedMemberId={selectedMemberId}
-                onMemberSelect={setSelectedMemberId}
-              />
-            </div>
+            {!isTeamTab && (
+              <div className="lg:hidden">
+                <RightPanel
+                  summary={todaySummary}
+                  weeklyHistory={weeklyHistory}
+                  showTeamCard={false}
+                  selectedMemberId={null}
+                  onMemberSelect={() => {}}
+                />
+              </div>
+            )}
           </div>
 
-          {/* Right Panel — fixed width, desktop only */}
-          <div className="hidden lg:flex w-[280px] flex-shrink-0 min-h-0 overflow-hidden">
-            <RightPanel
-              summary={displaySummary}
-              weeklyHistory={displayWeeklyHistory}
-              showTeamCard={isTeamTab}
-              selectedMemberId={selectedMemberId}
-              onMemberSelect={setSelectedMemberId}
-            />
-          </div>
+          {/* Right Panel — fixed width, desktop only, hidden on team tab */}
+          {!isTeamTab && (
+            <div className="hidden lg:flex w-[280px] flex-shrink-0 min-h-0 overflow-hidden">
+              <RightPanel
+                summary={todaySummary}
+                weeklyHistory={weeklyHistory}
+                showTeamCard={false}
+                selectedMemberId={null}
+                onMemberSelect={() => {}}
+              />
+            </div>
+          )}
         </div>
       </main>
+
+      {/* Member detail drawer */}
+      <AnimatePresence>
+        {drawerMember && (
+          <MemberDetailDrawer
+            key={drawerMember.userId}
+            member={drawerMember}
+            onClose={() => setDrawerMemberId(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
