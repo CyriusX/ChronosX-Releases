@@ -81,6 +81,13 @@ internal sealed class ActivitySessionConfiguration : IEntityTypeConfiguration<Ac
 
         // Indexes for queries
         builder.HasIndex(a => new { a.OrgId, a.UserId, a.StartedAt });
+        // Covering index for per-user date-range queries (activity page, reports).
+        // The (OrgId, UserId, StartedAt) index above cannot be used when OrgId is not
+        // in the WHERE clause — the DB falls back to a table scan. This index makes
+        // GetByUserIdAndDateRangeAsync, GetTopAppsAsync and GetDailySummaryRangeAsync fast.
+        builder.HasIndex(a => new { a.UserId, a.StartedAt })
+               .HasDatabaseName("ix_activity_sessions_user_started")
+               .IsDescending(false, true);
         builder.HasIndex(a => new { a.DeviceId, a.StartedAt });
         builder.HasIndex(a => a.ProjectId);
         builder.HasIndex(a => a.TaskId);
