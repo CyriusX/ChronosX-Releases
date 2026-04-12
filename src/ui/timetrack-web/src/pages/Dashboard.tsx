@@ -18,7 +18,7 @@ import type { TeamMemberStatus } from '@desktop/types/member';
 
 export default function Dashboard() {
   const user = useAuthStore((state) => state.user);
-  const { members, isLoading, loadTeamStatus } = useTeamStatus();
+  const { members, isLoading, lastFetchedAt, loadTeamStatus } = useTeamStatus();
   const [drawerMemberId, setDrawerMemberId] = useState<string | null>(null);
 
   // Load members on mount
@@ -43,6 +43,11 @@ export default function Dashboard() {
                 layoutId="web-dashboard-tab"
               />
               <p className="text-[11px] sm:text-[12px] text-[rgba(245,247,251,0.4)] mt-1">{user?.orgName}</p>
+              {lastFetchedAt && (
+                <p className="text-[10px] text-[rgba(245,247,251,0.25)] mt-0.5">
+                  Atualizado {lastFetchedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </p>
+              )}
             </div>
             <motion.button
               onClick={() => loadTeamStatus()}
