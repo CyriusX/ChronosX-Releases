@@ -57,6 +57,16 @@ function productivityColor(pct: number): string {
   return '#f87171';
 }
 
+function formatRelativeTime(isoDate: string | null | undefined): string | null {
+  if (!isoDate) return null;
+  const diff = (Date.now() - new Date(isoDate).getTime()) / 1000;
+  if (diff < 0) return 'agora';
+  if (diff < 60) return 'agora';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m atrás`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
+  return `${Math.floor(diff / 86400)}d atrás`;
+}
+
 export function MemberCard({ member, index, onSelect }: MemberCardProps) {
   const [productivityPct, setProductivityPct] = useState<number | null>(null);
   const [totalDuration, setTotalDuration] = useState<number>(member.todayDurationSeconds);
@@ -121,21 +131,28 @@ export function MemberCard({ member, index, onSelect }: MemberCardProps) {
           </span>
         </div>
 
-        {/* Online status */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <div className="relative">
-            {member.isTracking && (
-              <motion.div
-                className="absolute inset-0 rounded-full bg-[#05df72]"
-                animate={{ opacity: [0.4, 0.1, 0.4], scale: [1, 1.8, 1] }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              />
-            )}
-            <div className={`w-2 h-2 rounded-full relative ${member.isTracking ? 'bg-[#05df72]' : 'bg-[rgba(245,247,251,0.2)]'}`} />
+        {/* Online status + last sync */}
+        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            <div className="relative">
+              {member.isTracking && (
+                <motion.div
+                  className="absolute inset-0 rounded-full bg-[#05df72]"
+                  animate={{ opacity: [0.4, 0.1, 0.4], scale: [1, 1.8, 1] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                />
+              )}
+              <div className={`w-2 h-2 rounded-full relative ${member.isTracking ? 'bg-[#05df72]' : 'bg-[rgba(245,247,251,0.2)]'}`} />
+            </div>
+            <span className={`text-[10px] ${member.isTracking ? 'text-[#05df72]' : 'text-[rgba(245,247,251,0.3)]'}`}>
+              {member.isTracking ? 'Online' : 'Offline'}
+            </span>
           </div>
-          <span className={`text-[10px] ${member.isTracking ? 'text-[#05df72]' : 'text-[rgba(245,247,251,0.3)]'}`}>
-            {member.isTracking ? 'Online' : 'Offline'}
-          </span>
+          {member.lastSyncAt && (
+            <span className="text-[9px] text-[rgba(245,247,251,0.25)]">
+              sync {formatRelativeTime(member.lastSyncAt)}
+            </span>
+          )}
         </div>
       </div>
 

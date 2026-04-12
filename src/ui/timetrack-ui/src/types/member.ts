@@ -27,6 +27,7 @@ export interface TeamMemberStatus {
   todayDurationSeconds: number;
   todayDurationFormatted: string;
   isTracking: boolean;
+  lastSyncAt?: string | null;
 }
 
 export interface TeamStatusResponse {

@@ -10,6 +10,7 @@ interface UseTeamStatusReturn {
   error: string | null;
   activeCount: number;
   trackingCount: number;
+  lastFetchedAt: Date | null;
   loadTeamStatus: (showLoading?: boolean) => Promise<void>;
 }
 
@@ -19,6 +20,7 @@ export function useTeamStatus(): UseTeamStatusReturn {
   const [error, setError] = useState<string | null>(null);
   const [activeCount, setActiveCount] = useState(0);
   const [trackingCount, setTrackingCount] = useState(0);
+  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Convert basic Member to TeamMemberStatus (fallback)
@@ -41,6 +43,7 @@ export function useTeamStatus(): UseTeamStatusReturn {
       setMembers(response.members);
       setActiveCount(response.activeCount);
       setTrackingCount(response.trackingCount);
+      setLastFetchedAt(new Date());
     } catch (err) {
       console.warn('[useTeamStatus] Team status endpoint failed, falling back to basic members:', err);
       try {
@@ -74,6 +77,7 @@ export function useTeamStatus(): UseTeamStatusReturn {
     error,
     activeCount,
     trackingCount,
+    lastFetchedAt,
     loadTeamStatus,
   };
 }

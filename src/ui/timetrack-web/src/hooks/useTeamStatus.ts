@@ -12,6 +12,7 @@ interface UseTeamStatusReturn {
   error: string | null;
   activeCount: number;
   trackingCount: number;
+  lastFetchedAt: Date | null;
   loadTeamStatus: () => Promise<void>;
 }
 
@@ -31,6 +32,7 @@ export function useTeamStatus(): UseTeamStatusReturn {
   const [error, setError] = useState<string | null>(null);
   const [activeCount, setActiveCount] = useState(0);
   const [trackingCount, setTrackingCount] = useState(0);
+  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
 
   const loadTeamStatus = useCallback(async () => {
     setIsLoading(true);
@@ -40,6 +42,7 @@ export function useTeamStatus(): UseTeamStatusReturn {
       setMembers(response.members);
       setActiveCount(response.activeCount);
       setTrackingCount(response.trackingCount);
+      setLastFetchedAt(new Date());
     } catch (err) {
       console.warn('[useTeamStatus] Team status failed, falling back to members list:', err);
       try {
@@ -56,5 +59,5 @@ export function useTeamStatus(): UseTeamStatusReturn {
     }
   }, []);
 
-  return { members, isLoading, error, activeCount, trackingCount, loadTeamStatus };
+  return { members, isLoading, error, activeCount, trackingCount, lastFetchedAt, loadTeamStatus };
 }

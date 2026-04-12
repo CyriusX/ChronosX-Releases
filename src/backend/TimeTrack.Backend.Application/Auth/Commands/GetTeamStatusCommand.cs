@@ -104,10 +104,18 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
             .Distinct()
             .ToHashSet();
 
+        // Most recent session EndedAt per user (last time agent synced data)
+        var lastSyncByUser = sessions
+            .GroupBy(s => s.UserId)
+            .ToDictionary(g => g.Key, g => g.Max(s => s.EndedAt));
+
         // Build response
         var members = users.Select(u =>
         {
             var totalSeconds = sessionsByUser.GetValueOrDefault(u.Id, 0);
+            var lastSync = lastSyncByUser.TryGetValue(u.Id, out var syncTime)
+                ? syncTime.ToString("o")
+                : null;
             return new TeamMemberStatusItem
             {
                 UserId = u.Id,
@@ -116,7 +124,8 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
                 Status = u.Status.ToString(),
                 TodayDurationSeconds = totalSeconds,
                 TodayDurationFormatted = FormatDuration(totalSeconds),
-                IsTracking = currentlyTracking.Contains(u.Id)
+                IsTracking = currentlyTracking.Contains(u.Id),
+                LastSyncAt = lastSync
             };
         }).ToList();
 
