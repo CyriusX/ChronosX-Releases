@@ -95,23 +95,17 @@ export function TaskCard({
     <div
       ref={setNodeRef}
       style={style}
+      {...listeners}
+      {...attributes}
       onClick={() => onOpen?.(task.id)}
-      className="group relative bg-[rgba(26,29,46,0.8)] border border-[rgba(255,255,255,0.06)] rounded-lg p-3 cursor-pointer hover:border-[rgba(255,255,255,0.12)] transition-colors"
+      className="group relative bg-[rgba(26,29,46,0.8)] border border-[rgba(255,255,255,0.06)] rounded-lg p-3 cursor-grab active:cursor-grabbing hover:border-[rgba(255,255,255,0.12)] transition-colors"
     >
-      {/* Drag handle (top-right) */}
-      <button
-        {...attributes}
-        {...listeners}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        className="absolute top-1.5 right-6 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.06)] transition-all cursor-grab active:cursor-grabbing"
-        aria-label={t('tasks.drag')}
-        title={t('tasks.drag')}
-      >
+      {/* Grip icon — visual only, the whole card is the drag surface */}
+      <span className="absolute top-1.5 right-6 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgba(245,247,251,0.4)] pointer-events-none">
         <GripVertical className="w-3 h-3" />
-      </button>
+      </span>
 
-      {/* Edit button (top-right, next to drag handle) */}
+      {/* Edit button — stopPropagation only for click/pointer to avoid triggering card open */}
       <button
         onClick={(e) => {
           e.stopPropagation();
