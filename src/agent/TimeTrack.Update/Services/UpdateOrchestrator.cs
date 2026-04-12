@@ -360,44 +360,203 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
 
     private async Task StopAllServicesAsync(CancellationToken cancellationToken)
     {
-        // Stop Windows service (may not exist if agent runs via Task Scheduler)
-        var serviceStopped = await _serviceController.StopServiceAsync(ServiceName, TimeSpan.FromSeconds(30), cancellationToken);
+        // Step 1: Stop scheduled tasks FIRST to prevent auto-restart
+        // Task Scheduler has RestartCount=10, RestartInterval=1min — kills are useless if tasks restart immediately
+        StopScheduledTasks();
+
+        // Step 2: Stop Windows service (may not exist if agent runs via Task Scheduler)
+        var serviceStopped = await _serviceController.StopServiceAsync(ServiceName, TimeSpan.FromSeconds(10), cancellationToken);
         if (!serviceStopped)
         {
             _logger.LogInformation("Service {Service} not found or not running — using force kill", ServiceName);
-            ForceKillService();
         }
 
-        // Kill any running DesktopHost processes
-        KillProcess("TimeTrack.DesktopHost");
-        KillProcess("ChronosX");
+        // Step 3: Force kill all processes using taskkill (more reliable than Process.Kill)
+        ForceKillWithTaskKill("TimeTrack.AgentService.exe");
+        ForceKillWithTaskKill("TimeTrack.DesktopHost.exe");
 
-        // Wait for processes to fully terminate
-        await Task.Delay(2000, cancellationToken);
+        // Step 4: Verify all processes are actually dead (with retry loop)
+        var verified = await VerifyProcessesTerminatedAsync(TimeSpan.FromSeconds(15), cancellationToken);
+        if (!verified)
+        {
+            throw new InvalidOperationException(
+                "Failed to terminate all TimeTrack processes after 15 seconds. " +
+                "Cannot safely install update while processes are running.");
+        }
+
+        _logger.LogInformation("All services stopped and verified terminated");
+    }
+
+    private void StopScheduledTasks()
+    {
+        try
+        {
+            var psCommand =
+                "Stop-ScheduledTask -TaskName 'ChronosX Agent' -ErrorAction SilentlyContinue; " +
+                "Stop-ScheduledTask -TaskName 'ChronosX Desktop' -ErrorAction SilentlyContinue";
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"{psCommand}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using var process = Process.Start(startInfo);
+            process?.WaitForExit(TimeSpan.FromSeconds(15));
+
+            _logger.LogInformation("Scheduled tasks stopped (exit: {Code})", process?.ExitCode ?? -1);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to stop scheduled tasks — continuing with process kill");
+        }
+    }
+
+    private void ForceKillWithTaskKill(string exeName)
+    {
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "taskkill.exe",
+                Arguments = $"/F /IM {exeName} /T",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using var process = Process.Start(startInfo);
+            process?.WaitForExit(TimeSpan.FromSeconds(10));
+
+            _logger.LogInformation("taskkill /F /IM {Exe} completed (exit: {Code})", exeName, process?.ExitCode ?? -1);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "taskkill failed for {Exe}, falling back to Process.Kill", exeName);
+
+            // Fallback to Process.Kill
+            var processName = Path.GetFileNameWithoutExtension(exeName);
+            foreach (var proc in Process.GetProcessesByName(processName))
+            {
+                try { proc.Kill(); } catch { }
+            }
+        }
+    }
+
+    private async Task<bool> VerifyProcessesTerminatedAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        var processNames = new[] { "TimeTrack.AgentService", "TimeTrack.DesktopHost" };
+
+        while (DateTime.UtcNow < deadline)
+        {
+            var allDead = true;
+            foreach (var name in processNames)
+            {
+                if (Process.GetProcessesByName(name).Length > 0)
+                {
+                    allDead = false;
+                    break;
+                }
+            }
+
+            if (allDead)
+            {
+                return true;
+            }
+
+            await Task.Delay(500, cancellationToken);
+        }
+
+        // Final check — log which processes are still alive
+        foreach (var name in processNames)
+        {
+            var remaining = Process.GetProcessesByName(name);
+            if (remaining.Length > 0)
+            {
+                _logger.LogError("Process {Name} still running after {Timeout}s (PIDs: {PIDs})",
+                    name, (int)timeout.TotalSeconds, string.Join(", ", remaining.Select(p => p.Id)));
+            }
+        }
+
+        return false;
     }
 
     private async Task StartAllServicesAsync(CancellationToken cancellationToken)
     {
-        // Start Windows service
-        var serviceStarted = await _serviceController.StartServiceAsync(ServiceName, TimeSpan.FromSeconds(30), cancellationToken);
-        if (!serviceStarted)
+        // Start via Task Scheduler (matches the real deployment architecture)
+        StartScheduledTasks();
+
+        // Give tasks a moment to launch processes
+        await Task.Delay(3000, cancellationToken);
+
+        // Verify processes started
+        var agentRunning = Process.GetProcessesByName("TimeTrack.AgentService").Length > 0;
+        var desktopRunning = Process.GetProcessesByName("TimeTrack.DesktopHost").Length > 0;
+
+        if (!agentRunning)
         {
-            _logger.LogError("Failed to start service {Service}", ServiceName);
-            throw new InvalidOperationException($"Failed to start service {ServiceName}");
+            _logger.LogWarning("AgentService not running after starting scheduled task — launching directly");
+            LaunchProcessDirectly(Path.Combine(_installPath, "service", "TimeTrack.AgentService.exe"), _installPath + "\\service");
         }
 
-        // Start DesktopHost
-        var desktopHostPath = Path.Combine(_installPath, "TimeTrack.DesktopHost.exe");
-        if (File.Exists(desktopHostPath))
+        if (!desktopRunning)
+        {
+            _logger.LogWarning("DesktopHost not running after starting scheduled task — launching directly");
+            LaunchProcessDirectly(Path.Combine(_installPath, "TimeTrack.DesktopHost.exe"), _installPath);
+        }
+
+        _logger.LogInformation("Services started (Agent: {Agent}, Desktop: {Desktop})", agentRunning, desktopRunning);
+    }
+
+    private void StartScheduledTasks()
+    {
+        try
+        {
+            var psCommand =
+                "Start-ScheduledTask -TaskName 'ChronosX Agent' -ErrorAction SilentlyContinue; " +
+                "Start-ScheduledTask -TaskName 'ChronosX Desktop' -ErrorAction SilentlyContinue";
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"{psCommand}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using var process = Process.Start(startInfo);
+            process?.WaitForExit(TimeSpan.FromSeconds(15));
+
+            _logger.LogInformation("Scheduled tasks started (exit: {Code})", process?.ExitCode ?? -1);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to start scheduled tasks — will try direct launch");
+        }
+    }
+
+    private static void LaunchProcessDirectly(string exePath, string workingDir)
+    {
+        if (!File.Exists(exePath)) return;
+
+        try
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = desktopHostPath,
+                FileName = exePath,
                 UseShellExecute = true,
-                WorkingDirectory = _installPath
+                WorkingDirectory = workingDir
             });
-            _logger.LogInformation("Started DesktopHost");
         }
+        catch { }
     }
 
     private async Task<bool> RunInstallerAsync(string installerPath, CancellationToken cancellationToken)
@@ -440,40 +599,6 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to cleanup temp files");
-        }
-    }
-
-    private void ForceKillService()
-    {
-        try
-        {
-            // GetProcessesByName expects the exe name without extension.
-            // The agent service exe is "TimeTrack.AgentService", not "ChronosXAgent".
-            foreach (var process in Process.GetProcessesByName("TimeTrack.AgentService"))
-            {
-                process.Kill();
-                _logger.LogInformation("Force killed process: TimeTrack.AgentService (PID={Id})", process.Id);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to force kill agent service process");
-        }
-    }
-
-    private void KillProcess(string processName)
-    {
-        try
-        {
-            foreach (var process in Process.GetProcessesByName(processName))
-            {
-                process.Kill();
-                _logger.LogInformation("Killed process: {Process}", processName);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to kill process {Process}", processName);
         }
     }
 
