@@ -14,6 +14,8 @@
     <string>ChronosX TimeTrack</string>
     <key>CFBundleDisplayName</key>
     <string>TimeTrack</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

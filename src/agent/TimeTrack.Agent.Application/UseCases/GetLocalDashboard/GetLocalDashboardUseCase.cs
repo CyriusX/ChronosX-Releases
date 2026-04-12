@@ -100,6 +100,9 @@ public sealed class GetLocalDashboardUseCase
         var internalApps = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "TimeTrack.DesktopHost",
+            "ChronosX TimeTrack",
+            "TimeTrack",
+            "TimeTrack.MacOSAgentService",
             "Microsoft Edge WebView2",
             "Microsoft® Windows® Operating System",
             "Sistema operacional Microsoft® Windows®",

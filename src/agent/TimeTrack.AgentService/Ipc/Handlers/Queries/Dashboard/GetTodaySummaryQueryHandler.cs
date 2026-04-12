@@ -23,6 +23,9 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     private static readonly HashSet<string> InternalApps = new(StringComparer.OrdinalIgnoreCase)
     {
         "TimeTrack.DesktopHost",
+        "ChronosX TimeTrack",
+        "TimeTrack",
+        "TimeTrack.MacOSAgentService",
         "Microsoft Edge WebView2",
         "Microsoft® Windows® Operating System",
         "Sistema operacional Microsoft® Windows®",
@@ -45,8 +48,13 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         {
             var targetDate = ExtractDateOrToday(request);
 
-            // Always use backend API as the single source of truth for categories.
-            // Fall back to local SQLite only when the backend is unreachable.
+            var isToday = targetDate.Date == DateTime.Today;
+
+            if (isToday)
+            {
+                return await BuildFromLocalDashboard(request.RequestId, targetDate, ct);
+            }
+
             return await BuildFromBackendApi(request.RequestId, targetDate, ct);
         }
         catch (Exception ex)
@@ -112,7 +120,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                 subcategory = a.Subcategory
             }).ToArray(),
 
-            weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, ct)
+            weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, dashboard.TotalWorkTime.TotalHours, ct)
         };
 
         return SuccessResponse(requestId, summary);
@@ -213,7 +221,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                         };
                     }).OrderByDescending(a => a.duration).Take(10).ToArray(),
 
-                    weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, ct)
+                    weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, totalActiveSeconds / 3600.0, ct)
                 };
 
                 return SuccessResponse(requestId, summary);
@@ -250,7 +258,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     /// Builds weekly history: today from local SQLite (real-time), past days from backend API (cloud).
     /// Falls back to local SQLite if the backend is unreachable.
     /// </summary>
-    private async Task<object[]> BuildWeeklyHistoryAsync(DateTime centerDate, CancellationToken ct)
+    private async Task<object[]> BuildWeeklyHistoryAsync(DateTime centerDate, double todayHours, CancellationToken ct)
     {
         var today = centerDate;
         var history = new List<object>();
@@ -263,26 +271,15 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
 
             if (i == 0)
             {
-                // TODAY: use local SQLite (fast, real-time, includes in-memory session)
-                try
-                {
-                    var dayDashboard = await _getDashboard.ExecuteAsync(date, ct);
-                    hours = dayDashboard.TotalWorkTime.TotalHours;
-                }
-                catch { /* show 0 */ }
+                hours = todayHours;
             }
             else
             {
-                // PAST DAYS: fetch from backend API (authoritative cloud data)
                 try
                 {
-                    // Small delay between API calls to avoid rate limiting (429)
-                    if (i < 6) await Task.Delay(200, ct);
-
                     var report = await _reportsClient.GetDailySummaryAsync(date, ct);
                     if (report != null)
                     {
-                        // Filter out internal apps (same filter as local dashboard)
                         var filteredSeconds = report.Apps
                             .Where(a => !InternalApps.Contains(
                                 string.IsNullOrEmpty(a.ProcessName) ? a.DisplayName : a.ProcessName))
@@ -291,7 +288,6 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                     }
                     else
                     {
-                        // Backend unavailable — fall back to local SQLite
                         var dayDashboard = await _getDashboard.ExecuteAsync(date, ct);
                         hours = dayDashboard.TotalWorkTime.TotalHours;
                     }
