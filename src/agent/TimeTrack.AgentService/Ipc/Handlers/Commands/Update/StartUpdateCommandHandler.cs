@@ -40,17 +40,19 @@ public sealed class StartUpdateCommandHandler : IpcHandlerBase, IIpcCommandHandl
             }
 
             // Start the update (fire and forget - progress via events)
+            // Use CancellationToken.None so the update outlives the IPC request.
+            // UpdateService manages its own CancellationTokenSource internally.
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await _updateService.StartUpdateAsync(ct);
+                    await _updateService.StartUpdateAsync(CancellationToken.None);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Update task failed");
                 }
-            }, ct);
+            }, CancellationToken.None);
 
             return SuccessResponse(request.RequestId, new
             {

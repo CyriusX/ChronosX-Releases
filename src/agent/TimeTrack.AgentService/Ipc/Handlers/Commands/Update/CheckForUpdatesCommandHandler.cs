@@ -63,7 +63,6 @@ public sealed class CheckForUpdatesCommandHandler : IpcHandlerBase, IIpcCommandH
                 hasUpdate = result.HasUpdate,
                 currentVersion = result.CurrentVersion,
                 latestVersion = result.LatestVersion,
-                downloadUrl = result.DownloadUrl,
                 fileSizeBytes = result.FileSizeBytes,
                 releaseNotes = result.ReleaseNotes
             });

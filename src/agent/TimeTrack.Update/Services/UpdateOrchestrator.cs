@@ -365,7 +365,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
         if (!serviceStopped)
         {
             _logger.LogWarning("Failed to stop service {Service}, attempting force kill", ServiceName);
-            ForceKillService(ServiceName);
+            ForceKillService();
         }
 
         // Kill any running DesktopHost processes
@@ -443,16 +443,21 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
         }
     }
 
-    private void ForceKillService(string serviceName)
+    private void ForceKillService()
     {
         try
         {
-            var process = Process.GetProcessesByName(serviceName).FirstOrDefault();
-            process?.Kill();
+            // GetProcessesByName expects the exe name without extension.
+            // The agent service exe is "TimeTrack.AgentService", not "ChronosXAgent".
+            foreach (var process in Process.GetProcessesByName("TimeTrack.AgentService"))
+            {
+                process.Kill();
+                _logger.LogInformation("Force killed process: TimeTrack.AgentService (PID={Id})", process.Id);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to force kill service {Service}", serviceName);
+            _logger.LogWarning(ex, "Failed to force kill agent service process");
         }
     }
 
