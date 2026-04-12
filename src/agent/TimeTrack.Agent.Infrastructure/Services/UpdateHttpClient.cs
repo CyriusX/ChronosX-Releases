@@ -40,7 +40,7 @@ public sealed class UpdateHttpClient : IUpdateHttpClient, IDisposable
 
     private void ConfigureHttpClient()
     {
-        // Extract base URL from UpdateUrl (e.g., "https://api.cyrius.com" from "https://api.cyrius.com/api/v1/updates")
+        // Extract base URL from UpdateUrl (e.g., "https://chronosx-timetrack-api.gpoda0.easypanel.host" from "https://chronosx-timetrack-api.gpoda0.easypanel.host/api/v1/updates")
         var updateUrl = _settings.UpdateUrl;
         var uri = new Uri(updateUrl);
         var baseUrl = $"{uri.Scheme}://{uri.Host}";
@@ -64,8 +64,8 @@ public sealed class UpdateHttpClient : IUpdateHttpClient, IDisposable
 
             if (!refreshed)
             {
-                _logger.LogWarning("Failed to refresh token for update check");
-                return false;
+                _logger.LogWarning("Failed to refresh token for update check - proceeding without auth");
+                return true; // Proceed without auth - update endpoints are anonymous
             }
         }
 
