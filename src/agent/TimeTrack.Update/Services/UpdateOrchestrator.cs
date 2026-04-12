@@ -360,11 +360,11 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
 
     private async Task StopAllServicesAsync(CancellationToken cancellationToken)
     {
-        // Stop Windows service
+        // Stop Windows service (may not exist if agent runs via Task Scheduler)
         var serviceStopped = await _serviceController.StopServiceAsync(ServiceName, TimeSpan.FromSeconds(30), cancellationToken);
         if (!serviceStopped)
         {
-            _logger.LogWarning("Failed to stop service {Service}, attempting force kill", ServiceName);
+            _logger.LogInformation("Service {Service} not found or not running — using force kill", ServiceName);
             ForceKillService();
         }
 

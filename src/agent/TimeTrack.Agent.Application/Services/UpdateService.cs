@@ -217,22 +217,32 @@ public sealed class UpdateService : IUpdateService, IDisposable
                     Version = updateInfo.LatestVersion,
                     RestartRequired = true
                 });
+
+                // Cleanup installer only after confirmed success
+                try
+                {
+                    if (File.Exists(installerPath)) File.Delete(installerPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to cleanup installer after successful update");
+                }
             }
             else
             {
                 throw new InvalidOperationException("Update installer failed");
             }
         }
-        finally
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
+            // On unexpected errors, clean up the installer
             try
             {
                 if (File.Exists(installerPath)) File.Delete(installerPath);
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to cleanup temp files");
-            }
+            catch { }
+
+            throw;
         }
     }
 
