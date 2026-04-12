@@ -14,6 +14,7 @@ import ProjectBoard from "./pages/ProjectBoard";
 import Reports from "./pages/Reports";
 import TimerPage from "./pages/Timer";
 import Activities from "./pages/Activities";
+import Teams from "./pages/Teams";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Toaster } from "./components/Toaster";
 import { AnimatedPage } from "./components/ui/AnimatedPage";
@@ -182,6 +183,14 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute>
                 <ProjectBoard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/teams"
+            element={
+              <ProtectedRoute>
+                <Teams />
               </ProtectedRoute>
             }
           />
