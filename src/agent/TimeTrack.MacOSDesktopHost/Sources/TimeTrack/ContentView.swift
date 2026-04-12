@@ -22,6 +22,9 @@ private final class _WindowSetupNSView: NSView {
             zoomButton.isEnabled = false
         }
 
+        // Center the window on screen on first launch
+        w.center()
+
         // Initialize the floating mini bar manager (shows bar on minimize)
         if miniBarManager == nil, let client = ipcClient {
             miniBarManager = FloatingMiniBarManager(ipcClient: client, mainWindow: w)
@@ -51,8 +54,11 @@ struct ContentView: View {
             WindowSetupView(ipcClient: ipcClient).frame(width: 0, height: 0)
             WebViewContainer(ipcClient: ipcClient, webView: $webView)
         }
-        // Fixed size — no min/max so windowResizability(.contentSize) locks it
-        .frame(width: 1160, height: 880)
+        // Size to 85% of screen, capped at reasonable maximums
+        .frame(
+            width: min(NSScreen.main.map { $0.visibleFrame.width * 0.85 } ?? 1100, 1400),
+            height: min(NSScreen.main.map { $0.visibleFrame.height * 0.85 } ?? 800, 1000)
+        )
         .onAppear {
             menuBarController.setupMenuBar(ipcClient: ipcClient)
         }
