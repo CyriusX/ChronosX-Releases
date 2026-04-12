@@ -332,13 +332,47 @@ public sealed class ReportRepository : IReportRepository
             }
             : null;
 
+        // Compute total as merged (non-overlapping) intervals so that sessions from
+        // multiple devices that overlap in time are not double-counted.
+        var clippedIntervals = sessions.Select(s => (
+            Start: s.StartedAt < startOfDay ? startOfDay : s.StartedAt,
+            End:   s.EndedAt   > dayEndExclusive ? dayEndExclusive : s.EndedAt
+        ));
+        var mergedTotalSeconds = ComputeMergedSeconds(clippedIntervals);
+
         return new DailyActivityAggregate
         {
-            TotalSeconds = sessions.Sum(a => a.DurationSeconds),
+            TotalSeconds = (int)mergedTotalSeconds,
             FirstActivity = timeBounds?.FirstActivity,
             LastActivity = timeBounds?.LastActivity,
             Apps = appGroups
         };
+    }
+
+    /// <summary>
+    /// Merges overlapping time intervals and returns the total non-overlapping duration in seconds.
+    /// Prevents double-counting when the same user has sessions from multiple devices.
+    /// </summary>
+    private static long ComputeMergedSeconds(IEnumerable<(DateTime Start, DateTime End)> intervals)
+    {
+        var sorted = intervals
+            .Where(i => i.End > i.Start)
+            .OrderBy(i => i.Start)
+            .ToList();
+
+        if (sorted.Count == 0) return 0;
+
+        var merged = new List<(DateTime Start, DateTime End)> { sorted[0] };
+        foreach (var (start, end) in sorted.Skip(1))
+        {
+            var last = merged[^1];
+            if (start <= last.End)
+                merged[^1] = (last.Start, end > last.End ? end : last.End);
+            else
+                merged.Add((start, end));
+        }
+
+        return (long)merged.Sum(m => (m.End - m.Start).TotalSeconds);
     }
 
     public async Task<long> GetDailyIdleSecondsAsync(
