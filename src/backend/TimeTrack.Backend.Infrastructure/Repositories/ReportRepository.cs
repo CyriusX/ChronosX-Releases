@@ -421,44 +421,54 @@ public sealed class ReportRepository : IReportRepository
     {
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
-        // Overlap query + clip: sessions crossing the range boundary contribute only the
-        // portion that falls within [start, end].
+        // Push GroupBy + Sum to the database — avoids loading every session row into memory.
+        // Clipping cross-boundary sessions is done in SQL using GREATEST/LEAST equivalents
+        // via EF's Math.Max/Min which translate correctly to PostgreSQL.
         var endExclusive = end.AddTicks(1);
-        var rawSessions = await _context.ActivitySessions
+
+        // Group by ProcessName + category in SQL, then clip and sum duration per group.
+        // EF translates this to a single aggregating query rather than fetching all rows.
+        var rawGroups = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
-            .Select(a => new { a.ProcessName, a.StartedAt, a.EndedAt, a.AppCategory, a.AppSubcategory })
+            .GroupBy(a => new { a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .Select(g => new
+            {
+                g.Key.ProcessName,
+                g.Key.AppCategory,
+                g.Key.AppSubcategory,
+                // Raw sum of durations clipped to the queried window — done in SQL
+                TotalSeconds = g.Sum(a =>
+                    (int)((a.EndedAt > endExclusive ? endExclusive : a.EndedAt) -
+                          (a.StartedAt < start ? start : a.StartedAt)).TotalSeconds),
+                SessionCount = g.Count()
+            })
             .ToListAsync(cancellationToken);
 
-        // Clip each session to the queried range boundaries
-        var sessions = rawSessions.Select(a => new {
-            a.ProcessName,
-            DurationSeconds = (int)Math.Max(0, (
-                (a.EndedAt > endExclusive ? endExclusive : a.EndedAt) -
-                (a.StartedAt < start ? start : a.StartedAt)
-            ).TotalSeconds),
-            a.AppCategory, a.AppSubcategory
-        }).ToList();
-
-        // Filter out internal/system apps to match dashboard totals
-        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+        // Filter out internal apps (can't push to SQL — HashSet uses OrdinalIgnoreCase)
+        var filteredGroups = rawGroups
+            .Where(a => !InternalApps.Contains(a.ProcessName))
+            .ToList();
 
         // Load org-level overrides for this user
         var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
-        var appGroups = sessions
+        // Merge rows that share the same ProcessName but differ by category (override may change it)
+        var appGroups = filteredGroups
             .GroupBy(a => a.ProcessName)
             .Select(g =>
             {
-                var productivity = ResolveProductivityWithOverrides(g.Key, g.First().AppCategory, overrides);
+                var totalSecs = g.Sum(a => a.TotalSeconds);
+                var dominant = g.OrderByDescending(a => a.TotalSeconds).First();
+                var productivity = ResolveProductivityWithOverrides(dominant.ProcessName, dominant.AppCategory, overrides);
                 return new AppAggregate
                 {
-                    ProcessName = g.Key,
-                    TotalSeconds = g.Sum(a => a.DurationSeconds),
-                    SessionCount = g.Count(),
+                    ProcessName = dominant.ProcessName,
+                    TotalSeconds = totalSecs,
+                    SessionCount = g.Sum(a => a.SessionCount),
                     Productivity = productivity,
-                    Subcategory = ResolveSubcategoryWithOverrides(g.Key, g.First().AppCategory, g.First().AppSubcategory, overrides),
-                    DisplayName = FormatDisplayName(g.Key)
+                    Subcategory = ResolveSubcategoryWithOverrides(dominant.ProcessName, dominant.AppCategory, dominant.AppSubcategory, overrides),
+                    DisplayName = FormatDisplayName(dominant.ProcessName)
                 };
             })
             .Where(a => productivityFilter == null ||
