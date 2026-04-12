@@ -255,25 +255,19 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     private static string ExtractCloudAppName(DailyActivitySession session)
     {
-        // Only extract app name from window title for browsers
-        if (!BrowserDisplayNames.Contains(session.ProcessName))
-            return session.ProcessName;
-
-        var windowTitle = session.WindowTitle;
-        if (!string.IsNullOrWhiteSpace(windowTitle))
+        // For browsers, show "Safari - YouTube" format
+        if (BrowserDisplayNames.Contains(session.ProcessName)
+            && !string.IsNullOrWhiteSpace(session.WindowTitle))
         {
-            var separators = new[] { " - ", " — ", " – " };
-            foreach (var sep in separators)
+            var pageTitle = ExtractPageTitle(session.WindowTitle, session.ProcessName);
+            if (!string.IsNullOrEmpty(pageTitle) && pageTitle != session.WindowTitle)
             {
-                var lastIdx = windowTitle.LastIndexOf(sep, StringComparison.Ordinal);
-                if (lastIdx > 0)
-                {
-                    var suffix = windowTitle[(lastIdx + sep.Length)..].Trim();
-                    if (suffix.Length > 2 && suffix != session.ProcessName)
-                        return suffix;
-                }
+                if (pageTitle.Length > 40)
+                    pageTitle = pageTitle[..37] + "...";
+                return $"{session.ProcessName} - {pageTitle}";
             }
         }
+
         return session.ProcessName;
     }
 
@@ -403,7 +397,12 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     private static void AddTab(List<TabInfo> tabs, ActivitySession session, CategoryLookup categoryLookup)
     {
-        var title = session.App.DisplayName;
+        // Use the window title for the tab name so browser tabs show the page title
+        // (e.g. "YouTube", "Gmail") instead of just the app name ("Safari").
+        // For non-browser apps, fall back to the display name.
+        var title = !string.IsNullOrWhiteSpace(session.WindowTitle)
+            ? ExtractPageTitle(session.WindowTitle, session.App.DisplayName)
+            : session.App.DisplayName;
         var (prod, sub) = ResolveCategory(session, categoryLookup);
 
         tabs.Add(new TabInfo
@@ -415,6 +414,28 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         });
     }
 
+    /// <summary>
+    /// Extracts the page/document title from a window title by removing the app name suffix.
+    /// "YouTube - Safari" → "YouTube"
+    /// "index.ts - ProjectName - Visual Studio Code" → "index.ts - ProjectName"
+    /// </summary>
+    private static string ExtractPageTitle(string windowTitle, string appDisplayName)
+    {
+        var separators = new[] { " - ", " — ", " – " };
+        foreach (var sep in separators)
+        {
+            var lastIdx = windowTitle.LastIndexOf(sep, StringComparison.Ordinal);
+            if (lastIdx > 0)
+            {
+                var suffix = windowTitle[(lastIdx + sep.Length)..].Trim();
+                // If the suffix matches the app name, strip it to get just the page title
+                if (string.Equals(suffix, appDisplayName, StringComparison.OrdinalIgnoreCase))
+                    return windowTitle[..lastIdx].Trim();
+            }
+        }
+        return windowTitle;
+    }
+
     private static readonly HashSet<string> BrowserDisplayNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "Google Chrome", "Chrome", "Safari", "Firefox", "Brave Browser", "Brave",
@@ -423,27 +444,21 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     private static string ExtractAppName(ActivitySession session)
     {
-        // Only extract app name from window title for browsers, where the title
-        // format is "Page Title - BrowserName". For other apps (VS Code, Xcode, etc.),
-        // the suffix is a project/workspace name, not the app name.
-        if (!BrowserDisplayNames.Contains(session.App.DisplayName))
-            return session.App.DisplayName;
-
-        var windowTitle = session.WindowTitle;
-        if (!string.IsNullOrWhiteSpace(windowTitle))
+        // For browsers, show "Safari - YouTube" format so the user can see
+        // which site they were on. For other apps, just show the app name.
+        if (BrowserDisplayNames.Contains(session.App.DisplayName)
+            && !string.IsNullOrWhiteSpace(session.WindowTitle))
         {
-            var separators = new[] { " - ", " — ", " – " };
-            foreach (var sep in separators)
+            var pageTitle = ExtractPageTitle(session.WindowTitle, session.App.DisplayName);
+            if (!string.IsNullOrEmpty(pageTitle) && pageTitle != session.WindowTitle)
             {
-                var lastIdx = windowTitle.LastIndexOf(sep, StringComparison.Ordinal);
-                if (lastIdx > 0)
-                {
-                    var suffix = windowTitle[(lastIdx + sep.Length)..].Trim();
-                    if (suffix.Length > 2 && suffix != session.App.DisplayName)
-                        return suffix;
-                }
+                // Truncate long page titles
+                if (pageTitle.Length > 40)
+                    pageTitle = pageTitle[..37] + "...";
+                return $"{session.App.DisplayName} - {pageTitle}";
             }
         }
+
         return session.App.DisplayName;
     }
 
