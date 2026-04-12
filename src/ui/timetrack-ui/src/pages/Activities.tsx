@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { Sidebar } from '../components/dashboard';
 import { BottomCards, ActivitySection } from '../components/dashboard';
@@ -38,6 +39,7 @@ import { cardBase } from '../components/dashboard/shared/styles';
 // ============================================================================
 
 export default function Activities() {
+  const { t } = useTranslation();
   const data = useActivitiesData();
   const { summary, activities, isLoading } = data;
   const { sendQuery } = useIpc();
@@ -61,7 +63,7 @@ export default function Activities() {
         <div className="px-5 pt-4 pb-2 flex-shrink-0">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-[14px] font-medium text-[#f5f7fb]">Atividades</span>
+              <span className="text-[14px] font-medium text-[#f5f7fb]">{t('activities.title')}</span>
               {isLoading && (
                 <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
               )}
@@ -96,7 +98,7 @@ export default function Activities() {
               <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6 flex items-center justify-center">
                 <div className="flex items-center gap-3">
                   <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
-                  <span className="text-[12px] text-[rgba(245,247,251,0.5)]">Carregando atividades...</span>
+                  <span className="text-[12px] text-[rgba(245,247,251,0.5)]">{t('activities.loadingActivities')}</span>
                 </div>
               </div>
             ) : (
@@ -111,7 +113,7 @@ export default function Activities() {
               <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6 flex items-center justify-center">
                 <div className="flex items-center gap-3">
                   <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
-                  <span className="text-[12px] text-[rgba(245,247,251,0.5)]">Carregando produtividade...</span>
+                  <span className="text-[12px] text-[rgba(245,247,251,0.5)]">{t('activities.loadingProductivity')}</span>
                 </div>
               </div>
             ) : (
@@ -158,6 +160,7 @@ export default function Activities() {
 // ============================================================================
 
 function ActivitiesTopCards({ summary, workGoalSeconds = 28800 }: { summary: ReturnType<typeof useActivitiesData>['summary']; workGoalSeconds?: number }) {
+  const { t } = useTranslation();
   const totalSeconds = summary?.totalDuration ?? 0;
   const idleSeconds = summary?.idleTime ?? 0;
 
@@ -210,7 +213,7 @@ function ActivitiesTopCards({ summary, workGoalSeconds = 28800 }: { summary: Ret
         <Card className={`${cardBase} h-full`}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-              Tempo rastreado
+              {t('activities.timeTracked')}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-3 pb-3 px-4">
@@ -243,7 +246,7 @@ function ActivitiesTopCards({ summary, workGoalSeconds = 28800 }: { summary: Ret
                 </p>
                 <div className="flex items-center justify-center gap-1 mt-1">
                   <Clock className="w-3 h-3 text-[rgba(245,247,251,0.35)]" />
-                  <span className="text-[10px] text-[rgba(245,247,251,0.45)]">Ocioso: {formatDuration(idleSeconds)}</span>
+                  <span className="text-[10px] text-[rgba(245,247,251,0.45)]">{t('activities.idle')} {formatDuration(idleSeconds)}</span>
                 </div>
               </div>
             </div>
@@ -256,7 +259,7 @@ function ActivitiesTopCards({ summary, workGoalSeconds = 28800 }: { summary: Ret
         <Card className={`${cardBase} h-full`}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-              Foco
+              {t('activities.focus')}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-2 pb-3 px-4">
@@ -286,15 +289,15 @@ function ActivitiesTopCards({ summary, workGoalSeconds = 28800 }: { summary: Ret
               </div>
               <div className="mt-2.5 w-full space-y-1">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#4ade80]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">Produtivo</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#4ade80]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">{t('activities.productive')}</span></div>
                   <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(productiveSecs)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#fbbf24]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">Neutro</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#fbbf24]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">{t('activities.neutral')}</span></div>
                   <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(neutralSecs)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#f87171]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">Distração</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#f87171]" /><span className="text-[10px] text-[rgba(245,247,251,0.6)]">{t('activities.distraction')}</span></div>
                   <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(distractionSecs)}</span>
                 </div>
               </div>
@@ -308,27 +311,27 @@ function ActivitiesTopCards({ summary, workGoalSeconds = 28800 }: { summary: Ret
         <Card className={`${cardBase} h-full`}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-              Resumo do dia
+              {t('activities.dailySummary')}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 pb-3 px-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo produtivo</span>
+                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('activities.productiveTime')}</span>
                 <span className="text-[16px] font-bold text-[#4ade80]">{formatDuration(productiveSecs)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo ocioso</span>
+                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('activities.idleTime')}</span>
                 <span className="text-[16px] font-bold text-[rgba(245,247,251,0.5)]">{formatDuration(idleSeconds)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Focus Score</span>
+                <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('activities.focusScore')}</span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[16px] font-bold" style={{
                     color: focusSessionScore >= 80 ? '#4ade80' : focusSessionScore >= 50 ? '#fbbf24' : '#f87171'
                   }}>{focusSessionScore}</span>
                   <span className="text-[9px] text-[rgba(245,247,251,0.3)]">
-                    ({focusSessionCount} {focusSessionCount === 1 ? 'sessao' : 'sessoes'})
+                    ({focusSessionCount} {focusSessionCount === 1 ? t('activities.session') : t('activities.sessions')})
                   </span>
                 </div>
               </div>
@@ -345,6 +348,7 @@ function ActivitiesTopCards({ summary, workGoalSeconds = 28800 }: { summary: Ret
 // ============================================================================
 
 function TopAppsPanel({ summary }: { summary: ReturnType<typeof useActivitiesData>['summary'] }) {
+  const { t } = useTranslation();
   const apps = [...(summary?.topApplications ?? [])]
     .sort((a, b) => b.duration - a.duration)
     .slice(0, 8);
@@ -355,12 +359,12 @@ function TopAppsPanel({ summary }: { summary: ReturnType<typeof useActivitiesDat
     <Card className={cardBase}>
       <CardHeader className="pb-0 pt-3 px-4">
         <CardTitle className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-          Top Apps
+          {t('activities.topApps')}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-3 pb-3 px-4">
         {apps.length === 0 ? (
-          <p className="text-[11px] text-[rgba(245,247,251,0.3)] text-center py-3">Nenhum app</p>
+          <p className="text-[11px] text-[rgba(245,247,251,0.3)] text-center py-3">{t('activities.noApps')}</p>
         ) : (
           <motion.div
             className="space-y-2"

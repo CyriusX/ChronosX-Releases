@@ -1,4 +1,5 @@
 import { Clock } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { DayOfWeek } from '../../types/settings';
 import { PolicyCardShell } from './PolicyCardShell';
 
@@ -18,24 +19,24 @@ interface WorkHoursCardProps {
   onToggleDay: (day: DayOfWeek) => void;
 }
 
-const DAYS_OF_WEEK: { value: DayOfWeek; label: string }[] = [
-  { value: 'monday', label: 'Seg' },
-  { value: 'tuesday', label: 'Ter' },
-  { value: 'wednesday', label: 'Qua' },
-  { value: 'thursday', label: 'Qui' },
-  { value: 'friday', label: 'Sex' },
-  { value: 'saturday', label: 'Sáb' },
-  { value: 'sunday', label: 'Dom' },
+const DAY_KEYS: { value: DayOfWeek; key: string }[] = [
+  { value: 'monday', key: 'policies.workHours.days.monday' },
+  { value: 'tuesday', key: 'policies.workHours.days.tuesday' },
+  { value: 'wednesday', key: 'policies.workHours.days.wednesday' },
+  { value: 'thursday', key: 'policies.workHours.days.thursday' },
+  { value: 'friday', key: 'policies.workHours.days.friday' },
+  { value: 'saturday', key: 'policies.workHours.days.saturday' },
+  { value: 'sunday', key: 'policies.workHours.days.sunday' },
 ];
 
-const DAY_NAMES: Record<string, string> = {
-  monday: 'Seg',
-  tuesday: 'Ter',
-  wednesday: 'Qua',
-  thursday: 'Qui',
-  friday: 'Sex',
-  saturday: 'Sáb',
-  sunday: 'Dom',
+const DAY_NAME_KEYS: Record<string, string> = {
+  monday: 'policies.workHours.days.monday',
+  tuesday: 'policies.workHours.days.tuesday',
+  wednesday: 'policies.workHours.days.wednesday',
+  thursday: 'policies.workHours.days.thursday',
+  friday: 'policies.workHours.days.friday',
+  saturday: 'policies.workHours.days.saturday',
+  sunday: 'policies.workHours.days.sunday',
 };
 
 /**
@@ -58,13 +59,14 @@ export function WorkHoursCard({
   onEndTimeChange,
   onToggleDay,
 }: WorkHoursCardProps) {
+  const { t } = useTranslation();
   const formatWorkHours = () => `${startTime} - ${endTime}`;
 
-  const formatWorkDays = () => days.map((d) => DAY_NAMES[d] || d).join(', ');
+  const formatWorkDays = () => days.map((d) => DAY_NAME_KEYS[d] ? t(DAY_NAME_KEYS[d]) : d).join(', ');
 
   return (
     <PolicyCardShell
-      title="Horário de Trabalho"
+      title={t('policies.workHours.title')}
       icon={Clock}
       iconColor="text-[#8B5CF6]"
       iconBgColor="bg-[rgba(139,92,246,0.15)]"
@@ -79,7 +81,7 @@ export function WorkHoursCard({
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <div className="flex-1">
-              <label className="text-[11px] text-[rgba(245,247,251,0.5)] mb-1 block">Início</label>
+              <label className="text-[11px] text-[rgba(245,247,251,0.5)] mb-1 block">{t('policies.workHours.start')}</label>
               <input
                 type="time"
                 value={startTime}
@@ -88,7 +90,7 @@ export function WorkHoursCard({
               />
             </div>
             <div className="flex-1">
-              <label className="text-[11px] text-[rgba(245,247,251,0.5)] mb-1 block">Fim</label>
+              <label className="text-[11px] text-[rgba(245,247,251,0.5)] mb-1 block">{t('policies.workHours.end')}</label>
               <input
                 type="time"
                 value={endTime}
@@ -100,7 +102,7 @@ export function WorkHoursCard({
           <div>
             <label className="text-[11px] text-[rgba(245,247,251,0.5)] mb-2 block">Dias de trabalho</label>
             <div className="flex flex-wrap gap-1.5">
-              {DAYS_OF_WEEK.map((day) => (
+              {DAY_KEYS.map((day) => (
                 <button
                   key={day.value}
                   onClick={() => onToggleDay(day.value)}
@@ -110,7 +112,7 @@ export function WorkHoursCard({
                       : 'bg-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.08)]'
                   }`}
                 >
-                  {day.label}
+                  {t(day.key)}
                 </button>
               ))}
             </div>
@@ -122,7 +124,7 @@ export function WorkHoursCard({
             <span className="text-[24px] font-semibold text-[#f5f7fb]">{formatWorkHours()}</span>
           </div>
           <p className="text-[13px] text-[rgba(245,247,251,0.5)]">{formatWorkDays()}</p>
-          <p className="text-[11px] text-[rgba(245,247,251,0.35)]">Fuso: {timezone}</p>
+          <p className="text-[11px] text-[rgba(245,247,251,0.35)]">{t('policies.workHours.timezone')}: {timezone}</p>
         </div>
       )}
     </PolicyCardShell>

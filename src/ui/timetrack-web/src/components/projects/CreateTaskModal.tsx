@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { X, Loader2 } from 'lucide-react';
 import { createTask, moveTask, type ProjectMember, type TaskPriority, type TaskStatus } from '../../services/projectsApi';
@@ -22,6 +23,7 @@ export function CreateTaskModal({
   onClose: () => void;
   onCreated: () => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('Medium');
@@ -49,7 +51,7 @@ export function CreateTaskModal({
       }
       await onCreated();
     } catch (err: any) {
-      setError(err?.message || 'Falha ao criar tarefa');
+      setError(err?.message || t('tasks.createFailed'));
     } finally {
       setSaving(false);
     }
@@ -70,41 +72,41 @@ export function CreateTaskModal({
         className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] max-w-[92vw] max-h-[90vh] bg-[#0b0d14] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-2xl flex flex-col"
       >
         <div className="flex items-center justify-between p-5 pb-3 flex-shrink-0">
-          <h3 className="text-[15px] font-semibold text-[#f5f7fb]">Nova Tarefa</h3>
+          <h3 className="text-[15px] font-semibold text-[#f5f7fb]">{t('tasks.newTask')}</h3>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-[rgba(255,255,255,0.06)]">
             <X className="w-4 h-4 text-[rgba(245,247,251,0.5)]" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-5 overflow-y-auto min-h-0 pb-3 flex-1">
-          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Título *</label>
+          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.titleLabel')}</label>
           <input
             type="text"
             autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={255}
-            placeholder="Ex: Ajustar o header do site"
+            placeholder={t('tasks.titlePlaceholder')}
             className="w-full px-3 py-2 mb-3 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[rgba(139,92,246,0.4)]"
           />
 
-          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Descrição</label>
+          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.descriptionLabel')}</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={2000}
             rows={3}
-            placeholder="Opcional"
+            placeholder={t('common.optional')}
             className="w-full px-3 py-2 mb-3 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[rgba(139,92,246,0.4)] resize-none"
           />
 
-          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Responsável</label>
+          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.assignee')}</label>
           <select
             value={assignedUserId}
             onChange={(e) => setAssignedUserId(e.target.value)}
             className="w-full px-3 py-2 mb-3 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[rgba(139,92,246,0.4)]"
           >
-            <option value="">— Ninguém —</option>
+            <option value="">{t('tasks.noAssignee')}</option>
             {members.map((m) => (
               <option key={m.userId} value={m.userId}>
                 {m.displayName}
@@ -113,13 +115,13 @@ export function CreateTaskModal({
           </select>
           {members.length === 0 && (
             <p className="text-[10px] text-[#fbbf24] mb-3">
-              Nenhum membro no projeto ainda. Adicione membros para poder atribuir tarefas.
+              {t('tasks.noMembersWarning')}
             </p>
           )}
 
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Prioridade</label>
+              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.priorityLabel')}</label>
               <div className="flex gap-1">
                 {PRIORITIES.map((p) => (
                   <button
@@ -136,13 +138,13 @@ export function CreateTaskModal({
                         : 'bg-[rgba(255,255,255,0.03)] text-[rgba(245,247,251,0.4)] border border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.06)]'
                     }`}
                   >
-                    {p === 'High' ? 'Alta' : p === 'Medium' ? 'Média' : 'Baixa'}
+                    {p === 'High' ? t('tasks.high') : p === 'Medium' ? t('tasks.medium') : t('tasks.low')}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Prazo</label>
+              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.dueDate')}</label>
               <input
                 type="date"
                 value={dueDate}
@@ -161,7 +163,7 @@ export function CreateTaskModal({
             onClick={onClose}
             className="px-4 py-2 rounded-lg text-[12px] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.06)]"
           >
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -170,7 +172,7 @@ export function CreateTaskModal({
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-semibold bg-gradient-to-r from-[#8B5CF6] to-[#7c3aed] text-white disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving && <Loader2 className="w-3 h-3 animate-spin" />}
-            Criar
+            {t('common.create')}
           </button>
         </div>
       </motion.div>

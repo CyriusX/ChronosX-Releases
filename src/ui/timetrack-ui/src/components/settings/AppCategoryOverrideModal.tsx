@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, AlertCircle } from 'lucide-react';
 import type {
   ProductivityCategory,
@@ -43,6 +44,7 @@ export function AppCategoryOverrideModal({
   onSave,
   app,
 }: AppCategoryOverrideModalProps) {
+  const { t } = useTranslation();
   const [productivity, setProductivity] = useState<ProductivityCategory>('neutral');
   const [subcategory, setSubcategory] = useState<AppSubcategory>('utilities');
   const [note, setNote] = useState('');
@@ -84,7 +86,7 @@ export function AppCategoryOverrideModal({
       onClose();
     } catch (error) {
       console.error('[AppCategoryOverrideModal] Error saving:', error);
-      const message = error instanceof Error ? error.message : 'Erro desconhecido ao salvar';
+      const message = error instanceof Error ? error.message : t('policies.appCategories.unknownSaveError');
       setSaveError(message);
     } finally {
       setIsSaving(false);
@@ -109,7 +111,7 @@ export function AppCategoryOverrideModal({
         <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.06)]">
           <div>
             <h2 className="text-[16px] font-semibold text-[#f5f7fb]">
-              Classificar: {app.displayName}
+              {t('policies.appCategories.classifyApp', { name: app.displayName })}
             </h2>
             <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
               {app.identifier}
@@ -129,7 +131,7 @@ export function AppCategoryOverrideModal({
           {app.source === 'global' && app.productivity !== 'unknown' && (
             <div className="bg-[rgba(255,255,255,0.02)] rounded-lg p-3">
               <p className="text-[11px] text-[rgba(245,247,251,0.4)] mb-1">
-                Classificação atual (global):
+                {t('policies.appCategories.currentClassification')}
               </p>
               <p className="text-[13px] text-[rgba(245,247,251,0.7)]">
                 {productivityConfig[app.productivity].emoji} {productivityConfig[app.productivity].labelPt} — {subcategories[app.subcategory].labelPt}
@@ -140,7 +142,7 @@ export function AppCategoryOverrideModal({
           {/* Productivity selection */}
           <div>
             <label className="text-[12px] text-[rgba(245,247,251,0.5)] mb-2 block">
-              Nova classificação:
+              {t('policies.appCategories.newClassification')}
             </label>
             <div className="grid grid-cols-3 gap-2">
               {(['productive', 'neutral', 'distraction'] as ProductivityCategory[]).map(
@@ -164,7 +166,7 @@ export function AppCategoryOverrideModal({
           {/* Subcategory selection */}
           <div>
             <label className="text-[12px] text-[rgba(245,247,251,0.5)] mb-2 block">
-              Subcategoria:
+              {t('policies.appCategories.subcategory')}
             </label>
             <select
               value={subcategory}
@@ -182,12 +184,12 @@ export function AppCategoryOverrideModal({
           {/* Note */}
           <div>
             <label className="text-[12px] text-[rgba(245,247,251,0.5)] mb-2 block">
-              Nota (opcional):
+              {t('policies.appCategories.noteOptional')}
             </label>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Justificativa para a classificação..."
+              placeholder={t('policies.appCategories.notePlaceholder')}
               rows={3}
               className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#8B5CF6] resize-none"
             />
@@ -197,7 +199,7 @@ export function AppCategoryOverrideModal({
           <div className="flex items-start gap-2 bg-[rgba(255,193,7,0.1)] border border-[rgba(255,193,7,0.2)] rounded-lg p-3">
             <AlertCircle className="w-4 h-4 text-[#FFC107] flex-shrink-0 mt-0.5" />
             <p className="text-[11px] text-[rgba(245,247,251,0.6)]">
-              Esta mudança afeta toda a organização.
+              {t('policies.appCategories.orgWarning')}
             </p>
           </div>
         </div>
@@ -217,14 +219,14 @@ export function AppCategoryOverrideModal({
             disabled={isSaving}
             className="px-4 py-2 rounded-lg text-[13px] font-medium text-[rgba(245,247,251,0.6)] hover:text-[rgba(245,247,251,0.8)] transition-colors disabled:opacity-50"
           >
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving}
             className="px-4 py-2 rounded-lg text-[13px] font-medium bg-[rgba(139,92,246,0.15)] text-[#8B5CF6] border border-[rgba(139,92,246,0.3)] hover:bg-[rgba(139,92,246,0.25)] transition-colors disabled:opacity-50"
           >
-            {isSaving ? 'Salvando...' : 'Salvar override'}
+            {isSaving ? t('common.saving') : t('policies.appCategories.saveOverride')}
           </button>
         </div>
       </div>

@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { fadeUp, staggerContainer, STAGGER } from '../../../lib/animation';
@@ -172,8 +173,10 @@ function CategoryLegendItem({
 export function CategoryDonut({
   categories,
   isLoading = false,
-  title = 'Distribuição por Categoria',
+  title: titleProp,
 }: CategoryDonutProps) {
+  const { t } = useTranslation();
+  const title = titleProp ?? t('reports.categoryDistribution');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   // Calculate total for center display
@@ -231,7 +234,7 @@ export function CategoryDonut({
       <CardContent className="pt-0 pb-4 px-5 flex-1 flex items-center">
         {categories.length === 0 ? (
           <div className="flex items-center justify-center h-45 text-[rgba(245,247,251,0.4)] text-[13px] w-full">
-            Sem dados para exibir
+            {t('reports.noDataToShow')}
           </div>
         ) : (
           <div className="flex gap-6 items-center w-full">
@@ -281,7 +284,7 @@ export function CategoryDonut({
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.5, duration: 0.3 }}
                   >
-                    tempo total
+                    {t('reports.totalTime')}
                   </motion.span>
                 </div>
               </div>

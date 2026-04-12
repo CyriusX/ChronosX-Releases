@@ -1,4 +1,5 @@
 import { AppWindow } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { PolicyCardShell } from './PolicyCardShell';
 
 interface AppExclusionsCardProps {
@@ -11,9 +12,10 @@ interface AppExclusionsCardProps {
  * SRP: Apenas exibe contagem de apps excluídos (sem edição)
  */
 export function AppExclusionsCard({ exclusionsCount }: AppExclusionsCardProps) {
+  const { t } = useTranslation();
   return (
     <PolicyCardShell
-      title="Apps Excluídos"
+      title={t('policies.appExclusions.title')}
       icon={AppWindow}
       iconColor="text-[#ff6b6b]"
       iconBgColor="bg-[rgba(255,107,107,0.15)]"
@@ -30,9 +32,9 @@ export function AppExclusionsCard({ exclusionsCount }: AppExclusionsCardProps) {
             {exclusionsCount === 1 ? 'aplicativo' : 'aplicativos'}
           </span>
         </div>
-        <p className="text-[13px] text-[rgba(245,247,251,0.5)]">Não rastreados pelo sistema</p>
+        <p className="text-[13px] text-[rgba(245,247,251,0.5)]">{t('policies.appExclusions.subtitle')}</p>
         <p className="text-[11px] text-[rgba(245,247,251,0.35)]">
-          {exclusionsCount > 0 ? 'Coleta ignorada para estes apps' : 'Nenhum app excluído'}
+          {exclusionsCount > 0 ? t('policies.appExclusions.subtitle') : t('policies.appExclusions.empty')}
         </p>
       </div>
     </PolicyCardShell>

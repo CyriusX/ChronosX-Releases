@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, Users, Loader2, RefreshCw, Zap, ExternalLink, Clock, ListTodo, DollarSign } from 'lucide-react';
@@ -23,6 +24,7 @@ import { useNotifications } from '../stores/uiStore';
 const POLL_INTERVAL_MS = 15_000;
 
 export default function ProjectBoard() {
+  const { t } = useTranslation();
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { notify } = useNotifications();
@@ -69,14 +71,14 @@ export default function ProjectBoard() {
       const total = res.tasksCreated + res.tasksUpdated;
       notify.success(
         total > 0
-          ? `Linear sincronizado: +${res.tasksCreated} / ~${res.tasksUpdated}`
-          : 'Linear já estava atualizado',
+          ? t('projects.linearSynced', { created: res.tasksCreated, updated: res.tasksUpdated })
+          : t('projects.linearUpToDate'),
       );
       await fetchAll(false);
     } catch (err) {
       const msg = err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string'
         ? (err as { message: string }).message
-        : 'Falha ao sincronizar com o Linear';
+        : t('projects.linearSyncFailed');
       notify.error(msg);
     } finally {
       setSyncingLinear(false);
@@ -136,7 +138,7 @@ export default function ProjectBoard() {
             className="flex items-center gap-1.5 text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] transition-colors mb-2"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Projetos
+            {t('projects.title')}
           </button>
           <header className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1">
@@ -148,7 +150,7 @@ export default function ProjectBoard() {
                   />
                 )}
                 <h1 className="text-[18px] sm:text-[22px] font-semibold text-[#f5f7fb] truncate">
-                  {project?.name ?? 'Projeto'}
+                  {project?.name ?? t('projects.project')}
                 </h1>
                 {isLinearProject && (
                   <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[rgba(94,106,210,0.12)] border border-[rgba(94,106,210,0.3)] text-[9px] font-semibold text-[#a78bfa]">
@@ -164,7 +166,7 @@ export default function ProjectBoard() {
               )}
               {isLinearProject && project?.lastSyncedAt && (
                 <p className="text-[10px] text-[rgba(245,247,251,0.35)] mt-1">
-                  Sincronizado do Linear · última sincronização {formatRelative(project.lastSyncedAt)}
+                  {t('projects.syncedFromLinear')} {formatRelative(project.lastSyncedAt)}
                 </p>
               )}
             </div>
@@ -174,7 +176,7 @@ export default function ProjectBoard() {
                 <div className="flex items-center gap-2 h-9 px-3 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)]">
                   <Users className="w-3.5 h-3.5 text-[rgba(245,247,251,0.6)]" />
                   <span className="text-[11px] text-[rgba(245,247,251,0.6)]">
-                    {members.length} membro{members.length !== 1 ? 's' : ''}
+                    {members.length} {members.length !== 1 ? t('projects.membersCount') : t('projects.member')}
                   </span>
                 </div>
               )}
@@ -186,10 +188,10 @@ export default function ProjectBoard() {
                   whileHover={{ scale: syncingLinear ? 1 : 1.04 }}
                   whileTap={{ scale: 0.97 }}
                   className="flex items-center gap-2 h-9 px-4 rounded-[10px] bg-gradient-to-r from-[#5e6ad2] to-[#a78bfa] text-white text-[11px] font-semibold shadow-[0_4px_12px_rgba(94,106,210,0.3)] disabled:opacity-60 transition-colors"
-                  title="Puxar atualizações do Linear"
+                  title={t('projects.pullLinearUpdates')}
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${syncingLinear ? 'animate-spin' : ''}`} />
-                  {syncingLinear ? 'Sincronizando…' : 'Sincronizar Linear'}
+                  {syncingLinear ? t('projects.syncing') : t('projects.syncLinear')}
                 </motion.button>
               )}
 
@@ -199,7 +201,7 @@ export default function ProjectBoard() {
                   target="_blank"
                   rel="noreferrer"
                   className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-                  title="Abrir no Linear"
+                  title={t('projects.openInLinear')}
                 >
                   <ExternalLink className="w-3.5 h-3.5 text-[rgba(245,247,251,0.6)]" />
                 </a>
@@ -210,7 +212,7 @@ export default function ProjectBoard() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-                title="Atualizar"
+                title={t('common.refresh')}
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-[rgba(245,247,251,0.6)] ${refreshing ? 'animate-spin' : ''}`} />
               </motion.button>
@@ -224,11 +226,11 @@ export default function ProjectBoard() {
             <div className="flex flex-wrap items-center gap-4 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]">
               <div className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-[rgba(245,247,251,0.4)]" />
-                <span className="text-[11px] text-[rgba(245,247,251,0.7)]">{formatTotalWorked(totalSecondsWorked)} trabalhado</span>
+                <span className="text-[11px] text-[rgba(245,247,251,0.7)]">{formatTotalWorked(totalSecondsWorked)} {t('projects.worked')}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <ListTodo className="w-3.5 h-3.5 text-[rgba(245,247,251,0.4)]" />
-                <span className="text-[11px] text-[rgba(245,247,251,0.7)]">{todoCount} a fazer</span>
+                <span className="text-[11px] text-[rgba(245,247,251,0.7)]">{todoCount} {t('projects.todoCount')}</span>
               </div>
               {totalCost !== null && (
                 <>
@@ -236,7 +238,7 @@ export default function ProjectBoard() {
                   <div className="flex items-center gap-1.5">
                     <DollarSign className="w-3.5 h-3.5 text-[#c4b5fd]" />
                     <span className="text-[11px] font-semibold text-[#c4b5fd]">{formatCost(totalCost, project?.currency || 'USD')}</span>
-                    <span className="text-[10px] text-[rgba(245,247,251,0.4)]">faturável</span>
+                    <span className="text-[10px] text-[rgba(245,247,251,0.4)]">{t('projects.billableLabel')}</span>
                   </div>
                 </>
               )}
@@ -248,7 +250,7 @@ export default function ProjectBoard() {
         <div className="px-4 lg:px-6 pb-3 flex-shrink-0">
           <div className="px-3 py-2 rounded-lg bg-[rgba(139,92,246,0.08)] border border-[rgba(139,92,246,0.15)]">
             <p className="text-[11px] text-[rgba(245,247,251,0.7)]">
-              <span className="font-semibold text-[#c4b5fd]">Dica:</span> Arraste suas tarefas para "Em Progresso" para iniciar o timer automaticamente. Mover para "Concluído" para encerrar.
+              <span className="font-semibold text-[#c4b5fd]">{t('projects.tip')}</span> {t('projects.tipText')}
             </p>
           </div>
         </div>

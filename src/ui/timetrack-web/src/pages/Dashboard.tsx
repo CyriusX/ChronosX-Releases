@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { WebSidebar } from '../components/WebSidebar';
 import { useAuthStore } from '../stores/authStore';
 import { useTeamStatus } from '../hooks/useTeamStatus';
@@ -17,6 +18,7 @@ import { staggerContainer } from '@desktop/lib/animation';
 import type { TeamMemberStatus } from '@desktop/types/member';
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const user = useAuthStore((state) => state.user);
   const { members, isLoading, lastFetchedAt, loadTeamStatus } = useTeamStatus();
   const [drawerMemberId, setDrawerMemberId] = useState<string | null>(null);
@@ -37,7 +39,7 @@ export default function Dashboard() {
         <div className="px-4 lg:px-5 pt-4 pb-3 flex-shrink-0">
           <header className="flex items-center justify-between">
             <div className="relative">
-              <h1 className="text-[16px] sm:text-[20px] font-semibold text-[#f5f7fb] pb-2">Equipe</h1>
+              <h1 className="text-[16px] sm:text-[20px] font-semibold text-[#f5f7fb] pb-2">{t('dashboard.teamHeader')}</h1>
               <motion.div
                 className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE] rounded-full shadow-[0px_10px_15px_0px_rgba(139,92,246,0.3)]"
                 layoutId="web-dashboard-tab"
@@ -45,7 +47,7 @@ export default function Dashboard() {
               <p className="text-[11px] sm:text-[12px] text-[rgba(245,247,251,0.4)] mt-1">{user?.orgName}</p>
               {lastFetchedAt && (
                 <p className="text-[10px] text-[rgba(245,247,251,0.25)] mt-0.5">
-                  Atualizado {lastFetchedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  {t('common.refresh')} {lastFetchedAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </p>
               )}
             </div>
@@ -54,7 +56,7 @@ export default function Dashboard() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="w-9 h-9 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-              title="Atualizar"
+              title={t('common.refresh')}
             >
               <RefreshCw className={`w-4 h-4 text-[rgba(245,247,251,0.6)] ${isLoading ? 'animate-spin' : ''}`} />
             </motion.button>
@@ -74,7 +76,7 @@ export default function Dashboard() {
             </div>
           ) : members.length === 0 ? (
             <div className="flex items-center justify-center py-24">
-              <p className="text-[13px] text-[rgba(245,247,251,0.35)]">Nenhum membro na equipe</p>
+              <p className="text-[13px] text-[rgba(245,247,251,0.35)]">{t('dashboard.noMembers')}</p>
             </div>
           ) : (
             <motion.div

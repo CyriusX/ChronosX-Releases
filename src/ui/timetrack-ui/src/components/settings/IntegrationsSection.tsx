@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Zap, RefreshCw, Unplug, AlertTriangle, CheckCircle2, ExternalLink, Loader2, Eye, EyeOff, ChevronDown, ChevronRight, XCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import linearLogo from '../../assets/LinearLogo.png';
 import {
   listMyIntegrations,
@@ -23,6 +24,7 @@ import { useNotifications } from '../../stores/uiStore';
  *  - ErrorUnauthorized: red banner with reconnect button
  */
 export function IntegrationsSection() {
+  const { t } = useTranslation();
   const { notify } = useNotifications();
 
   const [loading, setLoading] = useState(true);
@@ -48,9 +50,9 @@ export function IntegrationsSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Integrações</h2>
+        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('settings.integrations.title')}</h2>
         <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-          Conecte contas externas para trazer tarefas diretamente ao seu kanban.
+          {t('settings.integrations.subtitle')}
         </p>
       </div>
 
@@ -58,7 +60,7 @@ export function IntegrationsSection() {
         <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6">
           <div className="flex items-center gap-2 text-[12px] text-[rgba(245,247,251,0.5)]">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            Carregando integrações…
+            {t('settings.integrations.loading')}
           </div>
         </div>
       ) : (
@@ -79,6 +81,7 @@ function LinearCard({
   onChange: () => void | Promise<void>;
   notify: { success: (msg: string) => void; error: (msg: string) => void; info: (msg: string) => void };
 }) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<'view' | 'connect'>('view');
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
@@ -105,7 +108,7 @@ function LinearCard({
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!apiKey.trim()) {
-      setFormError('Cole sua API key do Linear para continuar.');
+      setFormError(t('settings.integrations.linearKeyPrompt'));
       return;
     }
     setBusy(true);
@@ -139,7 +142,7 @@ function LinearCard({
         if (Date.now() - startTime > maxDuration) {
           setOauthPolling(false);
           setBusy(false);
-          setFormError('Tempo esgotado aguardando autorização. Tente novamente.');
+          setFormError(t('settings.integrations.oauthTimeout'));
           return;
         }
 
@@ -165,7 +168,7 @@ function LinearCard({
     } catch (err: unknown) {
       setOauthPolling(false);
       setBusy(false);
-      setFormError(extractMessage(err) ?? 'Não foi possível iniciar a conexão OAuth.');
+      setFormError(extractMessage(err) ?? t('settings.integrations.oauthError'));
     }
   };
 
@@ -366,7 +369,7 @@ function LinearCard({
               {oauthPolling ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Aguardando autorização no navegador…
+                  {t('settings.integrations.connecting')}
                 </>
               ) : (
                 <>
@@ -454,7 +457,7 @@ function LinearCard({
                 disabled={busy}
                 className="px-3 py-1.5 rounded-md bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-[11px] text-[rgba(245,247,251,0.6)] disabled:opacity-40"
               >
-                Cancelar
+                {t('settings.integrations.cancel')}
               </button>
             )}
           </div>
@@ -467,7 +470,7 @@ function LinearCard({
 // ── helpers ────────────────────────────────────────────────────────────────
 
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('pt-BR', {
+  return new Date(iso).toLocaleString(undefined, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',

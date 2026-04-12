@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, Check, Loader2 } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
@@ -44,6 +45,7 @@ function kindAccent(kind: string): string {
 }
 
 export function NotificationsBell() {
+  const { t } = useTranslation();
   const { subscribeToEvent } = useIpc();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -117,7 +119,7 @@ export function NotificationsBell() {
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
         className="relative w-9 h-9 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] backdrop-blur-sm flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-        title={unreadCount > 0 ? `${unreadCount} não lidas` : 'Notificações'}
+        title={unreadCount > 0 ? t('dashboard.unreadCount', { count: unreadCount }) : t('dashboard.notifications')}
       >
         <Bell
           className={`w-4 h-4 ${unreadCount > 0 ? 'text-[#c4b5fd]' : 'text-[rgba(245,247,251,0.6)]'}`}
@@ -141,7 +143,7 @@ export function NotificationsBell() {
             className="absolute top-full right-0 mt-2 w-[360px] max-w-[calc(100vw-2rem)] bg-[#0b0d14] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-2xl z-50"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(255,255,255,0.05)]">
-              <span className="text-[12px] font-semibold text-[#f5f7fb]">Notificações</span>
+              <span className="text-[12px] font-semibold text-[#f5f7fb]">{t('dashboard.notifications')}</span>
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllRead}
@@ -149,7 +151,7 @@ export function NotificationsBell() {
                   className="flex items-center gap-1 text-[10px] text-[#c4b5fd] hover:text-[#a78bfa] disabled:opacity-40 transition-colors"
                 >
                   {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                  Marcar todas
+                  {t('dashboard.markAll')}
                 </button>
               )}
             </div>
@@ -158,7 +160,7 @@ export function NotificationsBell() {
               {items.length === 0 ? (
                 <div className="text-center py-8">
                   <Bell className="w-6 h-6 text-[rgba(245,247,251,0.15)] mx-auto mb-2" />
-                  <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Nenhuma notificação</p>
+                  <p className="text-[11px] text-[rgba(245,247,251,0.4)]">{t('dashboard.noNotifications')}</p>
                 </div>
               ) : (
                 items.map((n) => {

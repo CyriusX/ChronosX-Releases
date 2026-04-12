@@ -1,5 +1,6 @@
 import { HashRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { AnimatePresence } from "motion/react";
 import { useIpc } from "./hooks/useIpc";
 import { useTrackingStore, handleTrackingStateChanged } from "./stores/trackingStore";
@@ -212,6 +213,7 @@ function AnimatedRoutes() {
  * Isolated component — subscribes to tracking store without re-rendering App or AnimatedRoutes.
  */
 function TrackingStoppedOverlay() {
+  const { t } = useTranslation();
   const isTracking = useTrackingStore(s => s.isTracking);
   const isPaused = useTrackingStore(s => s.isPaused);
   const { isAuthenticated } = useAuthStore();
@@ -224,7 +226,7 @@ function TrackingStoppedOverlay() {
     <div className="fixed inset-0 pointer-events-none flex items-center justify-center" style={{ zIndex: 1 }}>
       <div className="absolute inset-0 bg-[rgba(140,20,20,0.06)]" />
       <span className="relative text-[clamp(3rem,8vw,7rem)] font-black uppercase tracking-widest text-[rgba(220,38,38,0.06)] select-none whitespace-nowrap">
-        Tracking Stopped
+        {t('sidebar.trackingStopped')}
       </span>
     </div>
   );

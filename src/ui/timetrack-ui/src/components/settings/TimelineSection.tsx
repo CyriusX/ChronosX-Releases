@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { EyeOff, Plus, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useHiddenAppsStore } from '../../stores/hiddenAppsStore';
 
 export function TimelineSection() {
+  const { t } = useTranslation();
   const { hiddenApps, hideApp, showApp } = useHiddenAppsStore();
   const [newApp, setNewApp] = useState('');
 
@@ -22,9 +24,9 @@ export function TimelineSection() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Timeline</h2>
+        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('settings.timeline.title')}</h2>
         <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-          Configure quais apps ficam ocultos na timeline de atividades
+          {t('settings.timeline.subtitle')}
         </p>
       </div>
 

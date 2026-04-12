@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Play, Pause, Square, SkipForward, ChevronDown, Focus, Activity, Coffee } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar } from '../components/dashboard';
@@ -43,6 +44,7 @@ function fmtShort(ms: number) {
 // ============================================================================
 
 export default function Timer() {
+  const { t } = useTranslation();
   const { sendQuery } = useIpc();
 
   // --- Shared timer state from store ---
@@ -143,7 +145,7 @@ export default function Timer() {
                   transition={SPRING.snappy}
                 />
               )}
-              <span className="relative z-10"><Focus className="w-3.5 h-3.5 inline -mt-0.5 mr-1.5" />Pomodoro</span>
+              <span className="relative z-10"><Focus className="w-3.5 h-3.5 inline -mt-0.5 mr-1.5" />{t('timer.pomodoro')}</span>
             </button>
             <button
               onClick={() => setMode('ultradian')}

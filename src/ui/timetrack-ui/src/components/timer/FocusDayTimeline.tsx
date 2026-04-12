@@ -70,7 +70,7 @@ const MIN_BLOCK_HEIGHT = 6; // px — tiny minimum so short sessions remain visi
 const HOUR_LABELS = Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => i);
 
 function fmtTime(date: Date) {
-  return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtDurationShort(ms: number) {

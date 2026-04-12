@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { DollarSign } from 'lucide-react';
 import { Project } from '../../stores/projectStore';
@@ -17,6 +18,7 @@ interface ProjectModalProps {
 }
 
 export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectModalProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState(project?.name || '');
   const [description, setDescription] = useState(project?.description || '');
   const [color, setColor] = useState(project?.color || PROJECT_COLORS[0]);
@@ -53,7 +55,7 @@ export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectM
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-semibold text-[#f5f7fb] mb-4">
-          {project ? 'Editar Projeto' : 'Novo Projeto'}
+          {project ? t('projects.editProject') : t('projects.newProject')}
         </h2>
 
         <form onSubmit={handleSubmit}>
@@ -61,7 +63,7 @@ export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectM
             {/* Name */}
             <div>
               <label className="block text-sm font-medium text-[rgba(245,247,251,0.8)] mb-1">
-                Nome do Projeto
+                {t('projects.projectName')}
               </label>
               <input
                 type="text"
@@ -76,13 +78,13 @@ export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectM
             {/* Description */}
             <div>
               <label className="block text-sm font-medium text-[rgba(245,247,251,0.8)] mb-1">
-                Descricao (opcional)
+                {t('projects.descriptionOptional')}
               </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full px-3 py-2 bg-[rgba(26,29,46,0.6)] border border-[rgba(255,255,255,0.1)] rounded-lg text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#4A9FFF] resize-none"
-                placeholder="Descreva o projeto..."
+                placeholder={t('projects.descriptionPlaceholder')}
                 rows={3}
               />
             </div>
@@ -90,7 +92,7 @@ export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectM
             {/* Color */}
             <div>
               <label className="block text-sm font-medium text-[rgba(245,247,251,0.8)] mb-2">
-                Cor
+                {t('projects.color')}
               </label>
               <div className="flex flex-wrap gap-2">
                 {PROJECT_COLORS.map((c) => (
@@ -125,7 +127,7 @@ export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectM
                     }`} />
                   </div>
                 </div>
-                <span>Projeto faturável</span>
+                <span>{t('projects.billable')}</span>
               </label>
             </div>
 
@@ -135,7 +137,7 @@ export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectM
                 {/* Currency */}
                 <div>
                   <label className="block text-sm font-medium text-[rgba(245,247,251,0.8)] mb-2">
-                    Moeda
+                    {t('projects.currency')}
                   </label>
                   <div className="grid grid-cols-4 gap-2">
                     {CURRENCIES.map((c) => (
@@ -158,7 +160,7 @@ export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectM
                 {/* Hourly Rate */}
                 <div>
                   <label className="block text-sm font-medium text-[rgba(245,247,251,0.8)] mb-1">
-                    Preço por hora
+                    {t('projects.hourlyRate')}
                   </label>
                   <div className="relative">
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center text-[rgba(245,247,251,0.4)]">
@@ -186,7 +188,7 @@ export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectM
               onClick={onClose}
               className="px-4 py-2 text-[rgba(245,247,251,0.6)] hover:text-[#f5f7fb] transition-colors"
             >
-              Cancelar
+              {t('common.cancel')}
             </button>
             <motion.button
               type="submit"
@@ -195,7 +197,7 @@ export function ProjectModal({ project, onClose, onSubmit, isLoading }: ProjectM
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              {isLoading ? 'Salvando...' : project ? 'Salvar' : 'Criar Projeto'}
+              {isLoading ? t('common.saving') : project ? t('common.save') : t('projects.createProject')}
             </motion.button>
           </div>
         </form>

@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SESSION_EXPIRED_EVENT } from '../services/apiClient';
 
 interface SessionExpiredDetail {
@@ -14,12 +15,13 @@ interface SessionExpiredDetail {
 }
 
 export function SessionExpiredNotifier() {
+  const { t } = useTranslation();
   const [showNotification, setShowNotification] = useState(false);
   const [reason, setReason] = useState('');
 
   useEffect(() => {
     const handleSessionExpired = (event: CustomEvent<SessionExpiredDetail>) => {
-      setReason(event.detail?.reason || 'Sua sessão expirou');
+      setReason(event.detail?.reason || t('session.expiredMessage'));
       setShowNotification(true);
     };
 
@@ -61,7 +63,7 @@ export function SessionExpiredNotifier() {
               />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-[#f5f7fb]">Sessão Expirada</h3>
+          <h3 className="text-lg font-semibold text-[#f5f7fb]">{t('session.expired')}</h3>
         </div>
         <p className="text-[14px] text-[rgba(245,247,251,0.7)] mb-4">
           {reason}

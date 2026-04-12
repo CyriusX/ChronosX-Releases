@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../stores/authStore';
 import { shakeX, SPRING, TIMING } from '../lib/animation';
 import logoImg from '../assets/logo-128.png';
 
 export default function Register() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { register, isLoading, error, setError } = useAuthStore();
   const [email, setEmail] = useState('');
@@ -20,12 +22,12 @@ export default function Register() {
     setError(null);
 
     if (password !== confirmPassword) {
-      setError('As senhas nao coincidem');
+      setError(t('auth.passwordsMismatch'));
       return;
     }
 
     if (password.length < 8) {
-      setError('A senha deve ter pelo menos 8 caracteres');
+      setError(t('auth.passwordTooShort'));
       return;
     }
 
@@ -53,8 +55,8 @@ export default function Register() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2">Conta criada com sucesso!</h2>
-            <p className="text-zinc-400">Redirecionando para o login...</p>
+            <h2 className="text-xl font-semibold text-white mb-2">{t('auth.accountCreated')}</h2>
+            <p className="text-zinc-400">{t('auth.redirectingToLogin')}</p>
           </div>
         </motion.div>
       </div>
@@ -88,7 +90,7 @@ export default function Register() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            Crie sua conta gratuitamente
+            {t('auth.registerSubtitle')}
           </motion.p>
         </div>
 
@@ -123,7 +125,7 @@ export default function Register() {
             transition={{ duration: TIMING.normal, delay: 0.38 }}
           >
             <label htmlFor="displayName" className="block text-sm font-medium text-zinc-300 mb-2">
-              Seu nome
+              {t('auth.name')}
             </label>
             <input
               type="text"
@@ -133,7 +135,7 @@ export default function Register() {
               required
               autoFocus
               className="w-full px-4 py-3 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              placeholder="Joao Silva"
+              placeholder={t('auth.namePlaceholder')}
             />
           </motion.div>
 
@@ -145,7 +147,7 @@ export default function Register() {
             transition={{ duration: TIMING.normal, delay: 0.46 }}
           >
             <label htmlFor="organizationName" className="block text-sm font-medium text-zinc-300 mb-2">
-              Nome da empresa
+              {t('auth.orgName')}
             </label>
             <input
               type="text"
@@ -154,7 +156,7 @@ export default function Register() {
               onChange={(e) => setOrganizationName(e.target.value)}
               required
               className="w-full px-4 py-3 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              placeholder="Minha Empresa LTDA"
+              placeholder={t('auth.orgPlaceholder')}
             />
           </motion.div>
 
@@ -166,7 +168,7 @@ export default function Register() {
             transition={{ duration: TIMING.normal, delay: 0.54 }}
           >
             <label htmlFor="email" className="block text-sm font-medium text-zinc-300 mb-2">
-              Email
+              {t('auth.email')}
             </label>
             <input
               type="email"
@@ -175,7 +177,7 @@ export default function Register() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full px-4 py-3 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              placeholder="seu@email.com"
+              placeholder={t('auth.emailPlaceholder')}
             />
           </motion.div>
 
@@ -187,7 +189,7 @@ export default function Register() {
             transition={{ duration: TIMING.normal, delay: 0.62 }}
           >
             <label htmlFor="password" className="block text-sm font-medium text-zinc-300 mb-2">
-              Senha
+              {t('auth.password')}
             </label>
             <input
               type="password"
@@ -199,7 +201,7 @@ export default function Register() {
               className="w-full px-4 py-3 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               placeholder="••••••••"
             />
-            <p className="text-xs text-zinc-500 mt-1">Minimo 8 caracteres, 1 maiuscula e 1 numero</p>
+            <p className="text-xs text-zinc-500 mt-1">{t('auth.passwordHint')}</p>
           </motion.div>
 
           {/* Confirm Password Field */}
@@ -210,7 +212,7 @@ export default function Register() {
             transition={{ duration: TIMING.normal, delay: 0.7 }}
           >
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-zinc-300 mb-2">
-              Confirmar senha
+              {t('auth.confirmPassword')}
             </label>
             <input
               type="password"
@@ -250,10 +252,10 @@ export default function Register() {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                Criando conta...
+                {t('auth.registering')}
               </>
             ) : (
-              'Criar conta'
+              t('auth.register')
             )}
           </motion.button>
         </motion.form>
@@ -265,9 +267,9 @@ export default function Register() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: TIMING.normal, delay: 0.8 }}
         >
-          Ja tem uma conta?{' '}
+          {t('auth.hasAccount')}{' '}
           <Link to="/login" className="text-blue-400 hover:text-blue-300 transition-colors">
-            Fazer login
+            {t('auth.goToLogin')}
           </Link>
         </motion.p>
       </div>

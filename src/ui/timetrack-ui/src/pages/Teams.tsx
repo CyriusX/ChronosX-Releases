@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Users, Wifi, Activity, RefreshCw } from 'lucide-react';
@@ -31,6 +32,7 @@ export default function Teams() {
 }
 
 function TeamsContent() {
+  const { t } = useTranslation();
   const { members, isLoading, error, activeCount, trackingCount, lastFetchedAt, loadTeamStatus } = useTeamStatus();
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,13 +60,13 @@ function TeamsContent() {
         className="flex items-center justify-between mb-6"
       >
         <div>
-          <h1 className="text-[22px] font-bold text-[#f5f7fb] tracking-[-0.3px]">Equipe</h1>
+          <h1 className="text-[22px] font-bold text-[#f5f7fb] tracking-[-0.3px]">{t('teams.title')}</h1>
           <p className="text-[12px] text-[rgba(245,247,251,0.45)] mt-0.5">
-            Acompanhe o status e produtividade da sua equipe em tempo real
+            {t('teams.subtitle')}
           </p>
           {lastFetchedAt && (
             <p className="text-[10px] text-[rgba(245,247,251,0.25)] mt-0.5">
-              Atualizado {lastFetchedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              {t('teams.updated')} {lastFetchedAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </p>
           )}
         </div>
@@ -74,18 +76,18 @@ function TeamsContent() {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)]">
               <Users className="w-3 h-3 text-[rgba(245,247,251,0.45)]" />
-              <span className="text-[11px] text-[rgba(245,247,251,0.6)]">{members.length} membros</span>
+              <span className="text-[11px] text-[rgba(245,247,251,0.6)]">{members.length} {t('teams.membersCount')}</span>
             </div>
             {activeCount > 0 && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[rgba(5,223,114,0.08)] border border-[rgba(5,223,114,0.2)]">
                 <Wifi className="w-3 h-3 text-[#05df72]" />
-                <span className="text-[11px] text-[#05df72]">{activeCount} ativos</span>
+                <span className="text-[11px] text-[#05df72]">{activeCount} {t('teams.activeCount')}</span>
               </div>
             )}
             {trackingCount > 0 && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[rgba(139,92,246,0.08)] border border-[rgba(139,92,246,0.2)]">
                 <Activity className="w-3 h-3 text-[#8B5CF6]" />
-                <span className="text-[11px] text-[#8B5CF6]">{trackingCount} monitorando</span>
+                <span className="text-[11px] text-[#8B5CF6]">{trackingCount} {t('teams.trackingCount')}</span>
               </div>
             )}
           </div>
@@ -94,7 +96,7 @@ function TeamsContent() {
             onClick={handleRefresh}
             disabled={isLoading || refreshing}
             className="p-2 rounded-lg text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.06)] transition-colors disabled:opacity-40"
-            title="Atualizar"
+            title={t('common.refresh')}
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
@@ -118,7 +120,7 @@ function TeamsContent() {
       ) : members.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 gap-3">
           <Users className="w-12 h-12 text-[rgba(245,247,251,0.15)]" />
-          <p className="text-[13px] text-[rgba(245,247,251,0.35)]">Nenhum membro na equipe</p>
+          <p className="text-[13px] text-[rgba(245,247,251,0.35)]">{t('teams.noMembers')}</p>
         </div>
       ) : (
         <motion.div

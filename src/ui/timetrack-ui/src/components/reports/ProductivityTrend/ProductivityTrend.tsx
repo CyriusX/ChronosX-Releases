@@ -9,6 +9,7 @@
  */
 
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { fadeUp, staggerContainer, STAGGER } from '../../../lib/animation';
@@ -44,6 +45,7 @@ function formatHours(seconds: number): string {
 }
 
 function TrendBar({ period, productive, neutral, distraction, idle, maxSeconds }: TrendBarProps) {
+  const { t } = useTranslation();
   const total = productive + neutral + distraction + idle;
   const scale = maxSeconds > 0 ? 100 / maxSeconds : 0;
 
@@ -64,7 +66,7 @@ function TrendBar({ period, productive, neutral, distraction, idle, maxSeconds }
             initial={{ width: 0 }}
             animate={{ width: `${productiveWidth}%` }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
-            title={`Produtivo: ${formatHours(productive)}`}
+            title={`${t('dashboard.productive')}: ${formatHours(productive)}`}
           />
         )}
         {neutral > 0 && (
@@ -73,7 +75,7 @@ function TrendBar({ period, productive, neutral, distraction, idle, maxSeconds }
             initial={{ width: 0 }}
             animate={{ width: `${neutralWidth}%` }}
             transition={{ duration: 0.6, ease: 'easeOut', delay: 0.1 }}
-            title={`Neutro: ${formatHours(neutral)}`}
+            title={`${t('dashboard.neutral')}: ${formatHours(neutral)}`}
           />
         )}
         {distraction > 0 && (
@@ -82,7 +84,7 @@ function TrendBar({ period, productive, neutral, distraction, idle, maxSeconds }
             initial={{ width: 0 }}
             animate={{ width: `${distractionWidth}%` }}
             transition={{ duration: 0.6, ease: 'easeOut', delay: 0.15 }}
-            title={`Distração: ${formatHours(distraction)}`}
+            title={`${t('dashboard.distraction')}: ${formatHours(distraction)}`}
           />
         )}
         {idle > 0 && (
@@ -105,9 +107,11 @@ function TrendBar({ period, productive, neutral, distraction, idle, maxSeconds }
 export function ProductivityTrend({
   periods,
   isLoading = false,
-  title = 'Tendência de Produtividade',
+  title: titleProp,
   maxHeight = 280,
 }: ProductivityTrendProps) {
+  const { t } = useTranslation();
+  const title = titleProp ?? t('reports.productivityTrend');
   const maxSeconds = useMemo(() => {
     if (periods.length === 0) return 28800;
     return Math.max(
@@ -190,7 +194,7 @@ export function ProductivityTrend({
       <CardContent className="pt-2 pb-3 px-4 flex-1 overflow-hidden">
         {periods.length === 0 ? (
           <div className="flex items-center justify-center h-[120px] text-[rgba(245,247,251,0.4)] text-[12px]">
-            Sem dados para o período
+            {t('reports.noDataForPeriod')}
           </div>
         ) : (
           <motion.div

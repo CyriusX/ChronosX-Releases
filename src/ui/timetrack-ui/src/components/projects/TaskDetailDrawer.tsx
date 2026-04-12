@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
@@ -43,7 +44,7 @@ function formatDuration(seconds: number): string {
 
 function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('pt-BR', {
+  return new Date(iso).toLocaleString(undefined, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -55,7 +56,7 @@ function formatDateTime(iso: string | null | undefined): string {
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const datePart = iso.split('T')[0];
-  return new Date(datePart + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(datePart + 'T00:00:00').toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function priorityColor(priority: TaskPriority): string {
@@ -68,22 +69,22 @@ function priorityColor(priority: TaskPriority): string {
   }
 }
 
-function priorityLabel(priority: TaskPriority): string {
+function priorityLabel(priority: TaskPriority, t: (key: string) => string): string {
   switch (priority) {
-    case 'Urgent': return 'Urgente';
-    case 'High': return 'Alta';
-    case 'Medium': return 'Média';
-    case 'Low': return 'Baixa';
-    default: return 'Nenhuma';
+    case 'Urgent': return t('tasks.urgent');
+    case 'High': return t('tasks.high');
+    case 'Medium': return t('tasks.medium');
+    case 'Low': return t('tasks.low');
+    default: return t('tasks.none');
   }
 }
 
-function statusMeta(status: TaskStatus) {
+function statusMeta(status: TaskStatus, t: (key: string) => string) {
   switch (status) {
-    case 'Todo': return { label: 'A Fazer', color: '#94a3b8', Icon: ListTodo };
-    case 'InProgress': return { label: 'Em Progresso', color: '#fbbf24', Icon: CircleDashed };
-    case 'InReview': return { label: 'Em Revisão', color: '#a855f7', Icon: Eye };
-    case 'Done': return { label: 'Concluído', color: '#05df72', Icon: CheckCircle2 };
+    case 'Todo': return { label: t('tasks.statusTodo'), color: '#94a3b8', Icon: ListTodo };
+    case 'InProgress': return { label: t('tasks.statusInProgress'), color: '#fbbf24', Icon: CircleDashed };
+    case 'InReview': return { label: t('tasks.statusInReview'), color: '#a855f7', Icon: Eye };
+    case 'Done': return { label: t('tasks.statusDone'), color: '#05df72', Icon: CheckCircle2 };
   }
 }
 
@@ -122,6 +123,7 @@ export function TaskDetailDrawer({
   /** Called after assignment changes so the parent can refetch. */
   onAssigned?: () => void;
 }) {
+  const { t } = useTranslation();
   const currentUser = useAuthStore(selectUser);
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
@@ -169,7 +171,7 @@ export function TaskDetailDrawer({
       setEditing(false);
     } catch (err) {
       console.error('[TaskDetailDrawer] update failed', err);
-      setError('Não foi possível salvar as alterações.');
+      setError(t('tasks.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -191,7 +193,7 @@ export function TaskDetailDrawer({
       })
       .catch((err) => {
         console.error('[TaskDetailDrawer] failed to load task', err);
-        if (!cancelled) setError('Não foi possível carregar a tarefa.');
+        if (!cancelled) setError(t('tasks.loadFailed'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -212,7 +214,7 @@ export function TaskDetailDrawer({
 
   const handleDelete = async () => {
     if (!task || deleting) return;
-    if (!window.confirm(`Excluir tarefa "${task.title}"?`)) return;
+    if (!window.confirm(t('tasks.deleteConfirm', { title: task.title }))) return;
     setDeleting(true);
     try {
       await deleteTask(task.id);
@@ -220,7 +222,7 @@ export function TaskDetailDrawer({
       onClose();
     } catch (err) {
       console.error('[TaskDetailDrawer] delete failed', err);
-      setError('Não foi possível excluir a tarefa.');
+      setError(t('tasks.deleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -332,10 +334,12 @@ function DrawerBody({
   onEditDueDate: (v: string) => void;
   onAssigned?: () => void;
 }) {
+  const { t } = useTranslation();
+
   if (loading || !task) {
     return (
       <>
-        <DrawerHeader title="Carregando…" onClose={onClose} />
+        <DrawerHeader title={t('common.loading')} onClose={onClose} />
         {error && (
           <div className="p-6 text-[12px] text-[#f87171]">{error}</div>
         )}
@@ -343,7 +347,7 @@ function DrawerBody({
     );
   }
 
-  const status = statusMeta(task.status);
+  const status = statusMeta(task.status, t);
   const worked = task.isRunning && task.runningSeconds
     ? task.totalSecondsWorked + task.runningSeconds
     : task.totalSecondsWorked;
@@ -359,7 +363,7 @@ function DrawerBody({
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(5,223,114,0.08)] border border-[rgba(5,223,114,0.2)]">
             <PlayCircle className="w-4 h-4 text-[#05df72] animate-pulse" />
             <span className="text-[11px] font-semibold text-[#05df72]">
-              EM EXECUÇÃO · {formatDuration(task.runningSeconds ?? 0)}
+              {t('tasks.running')} {formatDuration(task.runningSeconds ?? 0)}
             </span>
           </div>
         )}
@@ -369,7 +373,7 @@ function DrawerBody({
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(251,191,36,0.08)] border border-[rgba(251,191,36,0.25)]">
             <AlertTriangle className="w-4 h-4 text-[#fbbf24]" />
             <span className="text-[11px] font-semibold text-[#fbbf24]">
-              Prazo é hoje — {formatDate(task.dueDate)}
+              {t('tasks.deadlineTodayIs')} {formatDate(task.dueDate)}
             </span>
           </div>
         )}
@@ -377,7 +381,7 @@ function DrawerBody({
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.25)]">
             <AlertTriangle className="w-4 h-4 text-[#f87171]" />
             <span className="text-[11px] font-semibold text-[#f87171]">
-              Atrasada — prazo era {formatDate(task.dueDate)}
+              {t('tasks.overdueWas')} {formatDate(task.dueDate)}
             </span>
           </div>
         )}
@@ -393,7 +397,7 @@ function DrawerBody({
         {editing ? (
           <div className="space-y-3">
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">Título</label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">{t('tasks.title')}</label>
               <input
                 value={editTitle}
                 onChange={(e) => onEditTitle(e.target.value)}
@@ -403,33 +407,33 @@ function DrawerBody({
               />
             </div>
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">Descrição</label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">{t('tasks.descriptionLabel')}</label>
               <textarea
                 value={editDescription}
                 onChange={(e) => onEditDescription(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Escape') onCancelEdit(); }}
                 rows={4}
                 className="w-full bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 text-[12px] text-[rgba(245,247,251,0.8)] outline-none focus:border-[rgba(74,159,255,0.5)] transition-colors resize-none"
-                placeholder="Descrição (opcional)…"
+                placeholder={t('tasks.descriptionOptional')}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">Prioridade</label>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">{t('tasks.priorityLabel')}</label>
                 <select
                   value={editPriority}
                   onChange={(e) => onEditPriority(e.target.value as TaskPriority)}
                   className="w-full bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 text-[12px] text-[#f5f7fb] outline-none focus:border-[rgba(74,159,255,0.5)] transition-colors"
                 >
-                  <option value="None">Nenhuma</option>
-                  <option value="Low">Baixa</option>
-                  <option value="Medium">Média</option>
-                  <option value="High">Alta</option>
-                  <option value="Urgent">Urgente</option>
+                  <option value="None">{t('tasks.none')}</option>
+                  <option value="Low">{t('tasks.low')}</option>
+                  <option value="Medium">{t('tasks.medium')}</option>
+                  <option value="High">{t('tasks.high')}</option>
+                  <option value="Urgent">{t('tasks.urgent')}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">Prazo</label>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">{t('tasks.deadline')}</label>
                 <input
                   type="date"
                   value={editDueDate}
@@ -445,7 +449,7 @@ function DrawerBody({
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#4A9FFF] text-white text-[12px] font-semibold hover:bg-[#3b8fee] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Save className="w-3.5 h-3.5" />
-                {saving ? 'Salvando…' : 'Salvar'}
+                {saving ? t('common.saving') : t('common.save')}
               </button>
               <button
                 onClick={onCancelEdit}
@@ -462,7 +466,7 @@ function DrawerBody({
               <button
                 onClick={onStartEdit}
                 className="p-1.5 rounded-lg text-[rgba(245,247,251,0.4)] hover:text-[#f5f7fb] hover:bg-[rgba(255,255,255,0.06)] transition-colors flex-shrink-0"
-                title="Editar tarefa"
+                title={t('tasks.editTaskTooltip')}
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
@@ -473,13 +477,13 @@ function DrawerBody({
         {/* Meta grid — hidden while editing */}
         {!editing && (<>
         <div className="grid grid-cols-2 gap-3">
-          <MetaField icon={<status.Icon className="w-3 h-3" />} label="Status" accent={status.color}>
+          <MetaField icon={<status.Icon className="w-3 h-3" />} label={t('tasks.status')} accent={status.color}>
             {status.label}
           </MetaField>
-          <MetaField icon={<Flag className="w-3 h-3" />} label="Prioridade" accent={priorityColor(task.priority)}>
-            {priorityLabel(task.priority)}
+          <MetaField icon={<Flag className="w-3 h-3" />} label={t('tasks.priorityLabel')} accent={priorityColor(task.priority)}>
+            {priorityLabel(task.priority, t)}
           </MetaField>
-          <MetaField icon={<User className="w-3 h-3" />} label="Atribuído">
+          <MetaField icon={<User className="w-3 h-3" />} label={t('tasks.assigned')}>
             <AssigneeDropdown
               task={task}
               projectColor={task.projectColor}
@@ -496,17 +500,17 @@ function DrawerBody({
                   <span className="truncate">{task.assignedUserDisplayName}</span>
                 </div>
               ) : (
-                <span className="text-[rgba(245,247,251,0.4)]">Ninguém</span>
+                <span className="text-[rgba(245,247,251,0.4)]">{t('tasks.nobody')}</span>
               )}
             </AssigneeDropdown>
           </MetaField>
-          <MetaField icon={<Calendar className="w-3 h-3" />} label="Prazo">
+          <MetaField icon={<Calendar className="w-3 h-3" />} label={t('tasks.deadline')}>
             {!task.dueDate ? (
               <span className="text-[rgba(245,247,251,0.4)]">—</span>
             ) : tone === 'today' ? (
-              <span className="text-[#fbbf24] font-semibold">Prazo hoje</span>
+              <span className="text-[#fbbf24] font-semibold">{t('tasks.deadlineTodayLabel')}</span>
             ) : tone === 'overdue' ? (
-              <span className="text-[#f87171] font-semibold">Atrasado · {formatDate(task.dueDate)}</span>
+              <span className="text-[#f87171] font-semibold">{t('tasks.overdueLabel')} · {formatDate(task.dueDate)}</span>
             ) : (
               <span>{formatDate(task.dueDate)}</span>
             )}
@@ -518,7 +522,7 @@ function DrawerBody({
           <div className="flex items-center gap-2 mb-1.5">
             <Clock className="w-3.5 h-3.5 text-[rgba(245,247,251,0.5)]" />
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.5)]">
-              Tempo trabalhado
+              {t('tasks.timeWorked')}
             </span>
           </div>
           <div className="text-[20px] font-semibold text-[#f5f7fb] font-mono tabular-nums">
@@ -526,7 +530,7 @@ function DrawerBody({
           </div>
           {task.movedToInProgressAt && (
             <div className="text-[10px] text-[rgba(245,247,251,0.4)] mt-1">
-              Iniciada em {formatDateTime(task.movedToInProgressAt)}
+              {t('tasks.startedAt')} {formatDateTime(task.movedToInProgressAt)}
             </div>
           )}
         </div>
@@ -536,31 +540,31 @@ function DrawerBody({
           <div className="flex items-center gap-2 mb-2">
             <Tag className="w-3 h-3 text-[rgba(245,247,251,0.5)]" />
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.5)]">
-              Descrição
+              {t('tasks.description')}
             </span>
           </div>
           {task.description?.trim() ? (
             <SimpleMarkdown source={task.description} />
           ) : (
-            <p className="text-[11px] italic text-[rgba(245,247,251,0.35)]">Sem descrição.</p>
+            <p className="text-[11px] italic text-[rgba(245,247,251,0.35)]">{t('tasks.noDescription')}</p>
           )}
         </div>
 
         {/* Timestamps */}
         <div className="pt-3 border-t border-[rgba(255,255,255,0.06)] space-y-1.5 text-[10px] text-[rgba(245,247,251,0.45)]">
           <div className="flex justify-between">
-            <span>Criada</span>
+            <span>{t('tasks.created')}</span>
             <span>{formatDateTime(task.createdAt)}</span>
           </div>
           {task.updatedAt && (
             <div className="flex justify-between">
-              <span>Atualizada</span>
+              <span>{t('tasks.updated')}</span>
               <span>{formatDateTime(task.updatedAt)}</span>
             </div>
           )}
           {task.completedAt && (
             <div className="flex justify-between">
-              <span>Concluída</span>
+              <span>{t('tasks.completed')}</span>
               <span>{formatDateTime(task.completedAt)}</span>
             </div>
           )}
@@ -576,13 +580,13 @@ function DrawerBody({
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-[rgba(239,68,68,0.3)] text-[#f87171] text-[11px] font-medium hover:bg-[rgba(239,68,68,0.08)] hover:border-[rgba(239,68,68,0.5)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            {deleting ? 'Excluindo…' : 'Excluir tarefa'}
+            {deleting ? t('common.deleting') : t('tasks.deleteTask')}
           </button>
         ) : (
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
             <Lock className="w-3 h-3 text-[rgba(245,247,251,0.35)]" />
             <span className="text-[10px] text-[rgba(245,247,251,0.45)]">
-              Somente leitura — edição disponível apenas para gestores na web.
+              {t('tasks.readOnly')}
             </span>
           </div>
         ))}
@@ -600,6 +604,7 @@ function DrawerHeader({
   onClose: () => void;
   projectColor?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="sticky top-0 z-10 bg-[#0b0d14] border-b border-[rgba(255,255,255,0.06)] px-6 py-4 flex items-center justify-between">
       <div className="flex items-center gap-2 min-w-0">
@@ -616,7 +621,7 @@ function DrawerHeader({
       <button
         onClick={onClose}
         className="p-1 rounded text-[rgba(245,247,251,0.5)] hover:text-[#f5f7fb] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-        aria-label="Fechar"
+        aria-label={t('common.close')}
       >
         <X className="w-4 h-4" />
       </button>

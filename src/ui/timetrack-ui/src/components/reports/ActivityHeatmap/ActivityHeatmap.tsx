@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
@@ -21,7 +22,7 @@ export interface ActivityHeatmapProps {
   days: DailySummaryDayItem[];
   /** Loading state */
   isLoading?: boolean;
-  /** Date range title */
+  /** Date range title — defaults to i18n key reports.heatmapTitle */
   title?: string;
   /** Optional user ID - passed to onCellClick callback */
   userId?: string;
@@ -61,10 +62,12 @@ interface TooltipData {
 export function ActivityHeatmap({
   days,
   isLoading = false,
-  title = 'Heatmap de Atividade',
+  title: titleProp,
   userId,
   onCellClick,
 }: ActivityHeatmapProps) {
+  const { t } = useTranslation();
+  const title = titleProp ?? t('reports.heatmapTitle');
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
 
@@ -184,7 +187,7 @@ export function ActivityHeatmap({
             <div className="group relative">
               <Info className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)] cursor-help" />
               <div className="absolute left-0 bottom-full mb-2 px-2 py-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded text-[10px] text-[rgba(245,247,251,0.7)] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                Click em um dia para ver detalhes
+                {t('reports.clickDayDetails')}
               </div>
             </div>
           </div>
@@ -283,7 +286,7 @@ export function ActivityHeatmap({
 
         {/* Legend */}
         <div className="flex items-center justify-end gap-2 mt-4">
-          <span className="text-[10px] text-[rgba(245,247,251,0.4)]">Menos</span>
+          <span className="text-[10px] text-[rgba(245,247,251,0.4)]">{t('reports.less')}</span>
           <div className="flex gap-1">
             {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
               <div
@@ -293,7 +296,7 @@ export function ActivityHeatmap({
               />
             ))}
           </div>
-          <span className="text-[10px] text-[rgba(245,247,251,0.4)]">Mais</span>
+          <span className="text-[10px] text-[rgba(245,247,251,0.4)]">{t('reports.more')}</span>
         </div>
 
         {/* Tooltip - rendered via Portal to escape container constraints */}
@@ -308,11 +311,11 @@ export function ActivityHeatmap({
           >
             <p className="text-[10px] font-medium text-[#f5f7fb]">{tooltip.date}</p>
             <p className="text-[9px] text-[rgba(245,247,251,0.6)]">
-              {formatHours(tooltip.hours)} trabalhadas
+              {formatHours(tooltip.hours)} {t('reports.worked')}
             </p>
             {tooltip.hours > 0 && (
               <p className="text-[9px] text-[rgba(5,223,114,0.8)]">
-                {Math.round(tooltip.productivity * 100)}% produtivo
+                {Math.round(tooltip.productivity * 100)}% {t('reports.productive')}
               </p>
             )}
           </div>,

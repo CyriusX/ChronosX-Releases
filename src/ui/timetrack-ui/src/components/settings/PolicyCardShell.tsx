@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Pencil, Check, X, LucideIcon } from 'lucide-react';
 
 interface PolicyCardShellProps {
@@ -59,11 +60,12 @@ interface EditButtonProps {
 }
 
 function EditButton({ onEdit }: EditButtonProps) {
+  const { t } = useTranslation();
   return (
     <button
       onClick={onEdit}
       className="w-7 h-7 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-      title="Editar"
+      title={t('common.edit')}
     >
       <Pencil className="w-3.5 h-3.5 text-[rgba(245,247,251,0.6)]" />
     </button>
@@ -77,13 +79,14 @@ interface SaveCancelButtonProps {
 }
 
 function SaveCancelButton({ onSave, onCancel, isSaving }: SaveCancelButtonProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2">
       <button
         onClick={onSave}
         disabled={isSaving}
         className="w-7 h-7 rounded-lg bg-[rgba(5,223,114,0.15)] border border-[rgba(5,223,114,0.3)] flex items-center justify-center hover:bg-[rgba(5,223,114,0.25)] transition-colors disabled:opacity-50"
-        title="Salvar"
+        title={isSaving ? t('common.saving') : t('common.save')}
       >
         <Check className="w-3.5 h-3.5 text-[#05df72]" />
       </button>
@@ -91,7 +94,7 @@ function SaveCancelButton({ onSave, onCancel, isSaving }: SaveCancelButtonProps)
         onClick={onCancel}
         disabled={isSaving}
         className="w-7 h-7 rounded-lg bg-[rgba(255,107,107,0.15)] border border-[rgba(255,107,107,0.3)] flex items-center justify-center hover:bg-[rgba(255,107,107,0.25)] transition-colors disabled:opacity-50"
-        title="Cancelar"
+        title={t('common.cancel')}
       >
         <X className="w-3.5 h-3.5 text-[#ff6b6b]" />
       </button>

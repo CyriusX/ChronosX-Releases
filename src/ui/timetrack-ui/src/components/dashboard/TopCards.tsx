@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MoreVertical, Heart, Clock, Target, AlertTriangle, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { animate } from 'animejs';
@@ -48,6 +49,7 @@ export function TopCards({
   weeklyHistory = [],
   workGoalSeconds = 28800,
 }: TopCardsProps) {
+  const { t } = useTranslation();
   const totalSeconds = summary?.totalDuration ?? 0;
   const idleSeconds = summary?.idleTime ?? 0;
 
@@ -160,7 +162,7 @@ export function TopCards({
         <Card className={`${cardBase} h-full`}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="flex items-center justify-between">
-              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Tempo rastreado</span>
+              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.timeTracked')}</span>
               <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
             </CardTitle>
           </CardHeader>
@@ -215,7 +217,7 @@ export function TopCards({
                 {/* Idle time label */}
                 <div className="flex items-center justify-center gap-1 mt-1">
                   <Clock className="w-3 h-3 text-[rgba(245,247,251,0.35)]" />
-                  <span className="text-[10px] text-[rgba(245,247,251,0.45)]">Ocioso: {formatDuration(idleSeconds)}</span>
+                  <span className="text-[10px] text-[rgba(245,247,251,0.45)]">{t('dashboard.idle')} {formatDuration(idleSeconds)}</span>
                 </div>
 
                 {/* VS ONTEM comparison */}
@@ -227,7 +229,7 @@ export function TopCards({
                   >
                     {deltaText}
                   </span>
-                  <span className="text-[8px] uppercase tracking-wider text-[rgba(245,247,251,0.35)]">VS ONTEM</span>
+                  <span className="text-[8px] uppercase tracking-wider text-[rgba(245,247,251,0.35)]">{t('dashboard.vsYesterday')}</span>
                 </div>
               </div>
             </div>
@@ -240,7 +242,7 @@ export function TopCards({
         <Card className={`${cardBase} h-full`}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="flex items-center justify-between">
-              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Foco</span>
+              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.focus')}</span>
               <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
             </CardTitle>
           </CardHeader>
@@ -268,7 +270,7 @@ export function TopCards({
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-[26px] font-bold" style={{ color: scoreColor }}>{animatedScore}</span>
-                  <span className="text-[8px] text-[rgba(245,247,251,0.4)] -mt-0.5">SCORE</span>
+                  <span className="text-[8px] text-[rgba(245,247,251,0.4)] -mt-0.5">{t('dashboard.score')}</span>
                 </div>
               </div>
 
@@ -277,21 +279,21 @@ export function TopCards({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-[#4ade80]" />
-                    <span className="text-[10px] text-[rgba(245,247,251,0.6)]">Produtivo</span>
+                    <span className="text-[10px] text-[rgba(245,247,251,0.6)]">{t('dashboard.productive')}</span>
                   </div>
                   <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(productiveSecs)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-[#fbbf24]" />
-                    <span className="text-[10px] text-[rgba(245,247,251,0.6)]">Neutro</span>
+                    <span className="text-[10px] text-[rgba(245,247,251,0.6)]">{t('dashboard.neutral')}</span>
                   </div>
                   <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(neutralSecs)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-[#f87171]" />
-                    <span className="text-[10px] text-[rgba(245,247,251,0.6)]">Distração</span>
+                    <span className="text-[10px] text-[rgba(245,247,251,0.6)]">{t('dashboard.distraction')}</span>
                   </div>
                   <span className="text-[10px] text-[rgba(245,247,251,0.8)]">{formatDuration(distractionSecs)}</span>
                 </div>
@@ -324,7 +326,7 @@ export function TopCards({
           <Card className={`${cardBase} h-full`}>
             <CardHeader className="pb-0 pt-3 px-4">
               <CardTitle className="flex items-center justify-between">
-                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Resumo</span>
+                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.summary')}</span>
                 <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
               </CardTitle>
             </CardHeader>
@@ -336,7 +338,7 @@ export function TopCards({
                     <div className="w-5 h-5 rounded-md bg-[rgba(161,161,170,0.1)] border border-[rgba(161,161,170,0.2)] flex items-center justify-center">
                       <Clock className="w-3 h-3 text-[rgba(245,247,251,0.5)]" />
                     </div>
-                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Tempo ocioso</span>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('dashboard.idleTime')}</span>
                   </div>
                   <span className="text-[14px] font-bold text-[rgba(245,247,251,0.6)]">{formatDuration(idleSeconds)}</span>
                 </div>
@@ -347,7 +349,7 @@ export function TopCards({
                     <div className="w-5 h-5 rounded-md bg-[rgba(5,223,114,0.1)] border border-[rgba(5,223,114,0.2)] flex items-center justify-center">
                       <Target className="w-3 h-3 text-[#05df72]" />
                     </div>
-                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Sessões de foco</span>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('dashboard.focusSessions')}</span>
                   </div>
                   <span className="text-[14px] font-bold text-[#f5f7fb]">{focusSessionCount}</span>
                 </div>
@@ -358,7 +360,7 @@ export function TopCards({
                     <div className="w-5 h-5 rounded-md bg-[rgba(248,113,113,0.1)] border border-[rgba(248,113,113,0.2)] flex items-center justify-center">
                       <AlertTriangle className="w-3 h-3 text-[#f87171]" />
                     </div>
-                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Distrações</span>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('dashboard.distractions')}</span>
                   </div>
                   <span className="text-[14px] font-bold text-[#f5f7fb]">{distractionCount}</span>
                 </div>
@@ -369,7 +371,7 @@ export function TopCards({
                     <div className="w-5 h-5 rounded-md bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.2)] flex items-center justify-center">
                       <Zap className="w-3 h-3 text-[#8B5CF6]" />
                     </div>
-                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Focus Score</span>
+                    <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('dashboard.focusScore')}</span>
                   </div>
                   <span className="text-[14px] font-bold" style={{ color: getScoreColor(focusScoreAvg) }}>
                     {focusScoreAvg}
