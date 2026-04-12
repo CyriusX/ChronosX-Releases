@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -84,7 +85,8 @@ public sealed class WebViewBridge
     }
 
     /// <summary>
-    /// Sends a query to AgentService and returns JSON response
+    /// Sends a query to AgentService and returns JSON response.
+    /// For getCurrentStatus, enriches the response with DesktopHost version.
     /// </summary>
     public async Task<string> SendQuery(string query, string? payloadJson = null)
     {
@@ -100,27 +102,68 @@ public sealed class WebViewBridge
 
             var response = await _ipcClient.SendQueryAsync(query, payload).ConfigureAwait(false);
 
-            var result = new
+            // Enrich getCurrentStatus with DesktopHost assembly version
+            if (response.Success && string.Equals(query, "getCurrentStatus", StringComparison.OrdinalIgnoreCase) && response.Data != null)
+            {
+                var dataJson = JsonSerializer.Serialize(response.Data, _jsonOptions);
+                using var doc = JsonDocument.Parse(dataJson);
+                var root = doc.RootElement;
+
+                var enriched = new Dictionary<string, JsonElement>();
+                foreach (var prop in root.EnumerateObject())
+                {
+                    enriched[prop.Name] = prop.Value;
+                }
+
+                enriched["desktopHostVersion"] = JsonSerializer.SerializeToElement(GetDesktopHostVersion());
+
+                var result = new
+                {
+                    success = response.Success,
+                    data = enriched,
+                    error = response.Error
+                };
+
+                return JsonSerializer.Serialize(result, _jsonOptions);
+            }
+
+            var defaultResult = new
             {
                 success = response.Success,
                 data = response.Data,
                 error = response.Error
             };
 
-            return JsonSerializer.Serialize(result, _jsonOptions);
+            return JsonSerializer.Serialize(defaultResult, _jsonOptions);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error sending query: {Query}", query);
 
-            var result = new
+            var errorResult = new
             {
                 success = false,
                 data = (object?)null,
                 error = ex.Message
             };
 
-            return JsonSerializer.Serialize(result, _jsonOptions);
+            return JsonSerializer.Serialize(errorResult, _jsonOptions);
+        }
+    }
+
+    /// <summary>
+    /// Returns the DesktopHost assembly version (e.g. "1.0.7")
+    /// </summary>
+    private static string GetDesktopHostVersion()
+    {
+        try
+        {
+            return typeof(WebViewBridge).Assembly
+                .GetName().Version?.ToString(3) ?? "0.0.0";
+        }
+        catch
+        {
+            return "0.0.0";
         }
     }
 

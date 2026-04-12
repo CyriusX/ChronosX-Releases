@@ -2,8 +2,6 @@ import { Info, Download, ExternalLink, HardDrive } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAgentStatus } from '../../hooks/useAgentStatus';
 
-const APP_VERSION = '1.0.7';
-
 /**
  * AboutSection - Aba Sobre/Diagnóstico
  */
@@ -21,7 +19,7 @@ export function AboutSection() {
   };
 
   const agentVersion = status.version !== '-' ? status.version : '—';
-  const desktopHostVersion = APP_VERSION;
+  const desktopHostVersion = status.desktopHostVersion ?? '—';
 
   return (
     <div className="space-y-6">
