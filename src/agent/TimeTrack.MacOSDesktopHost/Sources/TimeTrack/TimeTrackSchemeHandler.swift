@@ -52,6 +52,7 @@ class TimeTrackSchemeHandler: NSObject, WKURLSchemeHandler {
         }
 
         var request = URLRequest(url: backendURL)
+        request.cachePolicy = .reloadIgnoringLocalCacheData  // Always fetch fresh — bypass URLSession disk cache
         request.httpMethod = task.request.httpMethod ?? "GET"
         request.timeoutInterval = 30
 
