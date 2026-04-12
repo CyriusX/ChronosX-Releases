@@ -12,10 +12,28 @@ export const resources = {
   'es-ES': { translation: esES },
 } as const;
 
+type AppLanguage = 'pt-BR' | 'en-US' | 'fr-FR' | 'es-ES';
+const VALID_LANGUAGES: AppLanguage[] = ['pt-BR', 'en-US', 'fr-FR', 'es-ES'];
+
+/**
+ * Determine the initial language.
+ * - Web: reads from localStorage (key used by useLanguage.ts web hook)
+ * - Desktop: starts with 'en-US'; the useLanguage hook updates it after IPC loads settings
+ */
+function getInitialLanguage(): AppLanguage {
+  try {
+    const saved = localStorage.getItem('timetrack-web-language');
+    if (saved && VALID_LANGUAGES.includes(saved as AppLanguage)) {
+      return saved as AppLanguage;
+    }
+  } catch { /* WebView2 / SSR environment — skip */ }
+  return 'en-US';
+}
+
 i18n.use(initReactI18next).init({
   resources,
-  lng: 'pt-BR',
-  fallbackLng: 'pt-BR',
+  lng: getInitialLanguage(),
+  fallbackLng: 'en-US',
   interpolation: { escapeValue: false },
 });
 
