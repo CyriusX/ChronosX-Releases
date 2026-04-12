@@ -86,30 +86,40 @@ struct WebViewContainer: NSViewRepresentable {
         config.userContentController = userContentController
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
-        if let distPath = Bundle.main.path(forResource: "dist", ofType: nil) {
-            let handler = TimeTrackSchemeHandler(resourcePath: distPath)
+        // Resolve dist directory — use resourceURL for reliable directory lookup
+        // (Bundle.path(forResource:ofType:) can fail for directories on some OS versions)
+        let distURL = Bundle.main.resourceURL?.appendingPathComponent("dist")
+        let distExists = distURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+
+        NSLog("[WebView] resourceURL: %@", Bundle.main.resourceURL?.path ?? "nil")
+        NSLog("[WebView] distPath: %@ exists=%d", distURL?.path ?? "nil", distExists ? 1 : 0)
+
+        // Register scheme handler so timetrack://app/api/... proxies to backend
+        if distExists, let distURL = distURL {
+            let handler = TimeTrackSchemeHandler(resourcePath: distURL.path)
             Self.schemeHandler = handler
             config.setURLSchemeHandler(handler, forURLScheme: "timetrack")
+            NSLog("[WebView] Scheme handler registered for dist: %@", distURL.path)
+        } else {
+            NSLog("[WebView] WARNING: dist not found, no scheme handler registered")
         }
 
         let webView = WKWebView(frame: .zero, configuration: config)
-        // Match the app's dark background so there's no white flash during load
         let appBg = NSColor(red: 10.0/255, green: 12.0/255, blue: 18.0/255, alpha: 1)
         webView.underPageBackgroundColor = appBg
         webView.setValue(false, forKey: "drawsBackground")
+        webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
         self.webView = webView
 
-        if Bundle.main.path(forResource: "dist", ofType: nil) != nil {
+        if distExists {
             let url = URL(string: "timetrack://app/")!
+            NSLog("[WebView] Loading timetrack://app/")
             webView.load(URLRequest(url: url))
         } else {
             let html = """
-            <html><body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui;">
-            <div style="text-align:center">
-            <h2>TimeTrack</h2>
-            <p>UI bundle not found. Place the React dist/ in the app bundle.</p>
-            </div></body></html>
+            <html><body style="background:#0a0c12;display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui;color:#f5f7fb;">
+            <div style="text-align:center"><h2>ChronosX</h2><p>UI bundle not found in app resources.</p><p style="font-size:11px;opacity:0.5">\(distURL?.path ?? "no path")</p></div></body></html>
             """
             webView.loadHTMLString(html, baseURL: nil)
         }
@@ -123,7 +133,19 @@ struct WebViewContainer: NSViewRepresentable {
         Coordinator(ipcClient: ipcClient)
     }
 
-    class Coordinator: NSObject, WKScriptMessageHandler {
+    class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            NSLog("[WebView] didFinish: %@", webView.url?.absoluteString ?? "nil")
+        }
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            NSLog("[WebView] didFail: %@", error.localizedDescription)
+        }
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            NSLog("[WebView] didFailProvisionalNavigation: %@", error.localizedDescription)
+        }
+        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            NSLog("[WebView] didStart: %@", webView.url?.absoluteString ?? "nil")
+        }
         let ipcClient: IpcClient
         weak var webView: WKWebView?
 

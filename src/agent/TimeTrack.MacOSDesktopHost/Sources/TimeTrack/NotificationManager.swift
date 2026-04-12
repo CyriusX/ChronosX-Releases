@@ -5,6 +5,12 @@ import UserNotifications
 class NotificationManager: NSObject, ObservableObject {
     override init() {
         super.init()
+        // UNUserNotificationCenter requires a properly signed app bundle.
+        // Skip on unsigned/dev builds to avoid SIGABRT at startup.
+        guard Bundle.main.bundleIdentifier != nil else {
+            print("[NotificationManager] No bundle identifier — skipping UNUserNotificationCenter setup")
+            return
+        }
         UNUserNotificationCenter.current().delegate = self
     }
 

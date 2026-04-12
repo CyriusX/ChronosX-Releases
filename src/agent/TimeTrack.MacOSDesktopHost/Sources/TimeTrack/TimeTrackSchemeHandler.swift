@@ -21,6 +21,8 @@ class TimeTrackSchemeHandler: NSObject, WKURLSchemeHandler {
         if path.hasPrefix("/") { path = String(path.dropFirst()) }
         if path.isEmpty { path = "index.html" }
 
+        NSLog("[Scheme] Request: %@ → path=%@", url.absoluteString, path)
+
         // Proxy API requests natively — same origin (timetrack://app/api/...) so no CORS
         if path.hasPrefix("api/") {
             proxyToBackend(task: task, url: url, path: path)
