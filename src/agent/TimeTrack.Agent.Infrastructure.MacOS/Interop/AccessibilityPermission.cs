@@ -54,11 +54,15 @@ internal static class AccessibilityPermission
     {
         try
         {
-            if (!prompt)
+            // Always check without prompting first — if already trusted, skip the
+            // system dialog entirely. Without this guard, macOS shows the Accessibility
+            // permission popup every time the agent starts, even when permission is
+            // already granted.
+            var alreadyTrusted = AXIsProcessTrusted();
+            if (alreadyTrusted || !prompt)
             {
-                var already = AXIsProcessTrusted();
-                LogResult(already, logger);
-                return already;
+                LogResult(alreadyTrusted, logger);
+                return alreadyTrusted;
             }
 
             // Build @{ "AXTrustedCheckOptionPrompt": @YES } via the Objective-C runtime.

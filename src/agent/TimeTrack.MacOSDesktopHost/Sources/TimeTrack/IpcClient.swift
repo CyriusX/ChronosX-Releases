@@ -110,6 +110,15 @@ class IpcClient: ObservableObject {
         pendingRequests.removeAll()
     }
 
+    func reconnect() async {
+        disconnect()
+        do {
+            try await connect()
+        } catch {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+    }
+
     func sendCommand(_ command: String, payload: Any? = nil) async throws -> IpcResponse {
         return try await sendMessage(type: "command", name: command, payload: payload)
     }
@@ -134,7 +143,8 @@ class IpcClient: ObservableObject {
             throw IpcError.sendFailed("Failed to encode message")
         }
 
-        return try await withCheckedThrowingContinuation { continuation in
+        // Register continuation and send — runs on MainActor
+        let response: IpcResponse = try await withCheckedThrowingContinuation { continuation in
             pendingRequests[currentId] = continuation
             do {
                 try socket.send(jsonString + "\n")
@@ -142,7 +152,17 @@ class IpcClient: ObservableObject {
                 pendingRequests.removeValue(forKey: currentId)
                 continuation.resume(throwing: error)
             }
+
+            // Schedule a timeout to cancel the pending request after 10s
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                if let cont = self?.pendingRequests.removeValue(forKey: currentId) {
+                    cont.resume(throwing: IpcError.responseTimeout)
+                }
+            }
         }
+
+        return response
     }
 
     private func startListening() {
@@ -157,6 +177,18 @@ class IpcClient: ObservableObject {
             await MainActor.run {
                 self.isConnected = false
                 self.onConnectionStateChanged?(false)
+            }
+
+            guard !Task.isCancelled else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                guard !Task.isCancelled else { return }
+                do {
+                    try await self.connect()
+                    return
+                } catch {
+                    continue
+                }
             }
         }
     }
@@ -262,6 +294,7 @@ private class Socket {
 private class BufferedReader {
     private let fd: Int32
     private var buffer = ""
+    private let readQueue = DispatchQueue(label: "com.cyriusx.timetrack.ipc.read", qos: .utility)
 
     init(fd: Int32) {
         self.fd = fd
@@ -275,12 +308,25 @@ private class BufferedReader {
         }
 
         while true {
-            var chunk = [UInt8](repeating: 0, count: 4096)
-            let bytesRead = Darwin.read(fd, &chunk, 4096)
-            if bytesRead <= 0 { return nil }
+            // Move the blocking Darwin.read() off the cooperative thread pool
+            // to avoid starving other async tasks.
+            let readResult: Data? = await withCheckedContinuation { continuation in
+                let capturedFd = self.fd
+                readQueue.async {
+                    var chunk = [UInt8](repeating: 0, count: 4096)
+                    let bytesRead = Darwin.read(capturedFd, &chunk, 4096)
+                    if bytesRead <= 0 {
+                        continuation.resume(returning: nil)
+                    } else {
+                        continuation.resume(returning: Data(chunk[..<bytesRead]))
+                    }
+                }
+            }
 
-            let data = Data(chunk[..<bytesRead])
-            guard let str = String(data: data, encoding: .utf8) else { return nil }
+            guard let data = readResult,
+                  let str = String(data: data, encoding: .utf8) else {
+                return nil
+            }
             buffer += str
 
             if let newlineRange = buffer.range(of: "\n") {

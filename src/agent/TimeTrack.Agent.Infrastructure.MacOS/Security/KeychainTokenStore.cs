@@ -1,15 +1,15 @@
-using System.Runtime.InteropServices;
+using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Security;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Services;
-using TimeTrack.Agent.Infrastructure.MacOS.Interop;
 
 namespace TimeTrack.Agent.Infrastructure.MacOS.Security;
 
 /// <summary>
-/// Implementation of ITokenStore using macOS Keychain for secure storage
+/// Implementation of ITokenStore using macOS Keychain for secure storage.
+/// Uses the /usr/bin/security CLI tool for reliable Keychain access.
 /// </summary>
 [SupportedOSPlatform("macos")]
 public sealed class KeychainTokenStore : ITokenStore
@@ -57,11 +57,11 @@ public sealed class KeychainTokenStore : ITokenStore
         var tokens = new TokenData(jwt, refreshToken, expiresAt);
 
         var json = JsonSerializer.Serialize(tokens);
-        var status = SecItemAddOrUpdate(ServiceName, TokenAccount, json);
+        var success = KeychainStore(ServiceName, TokenAccount, json);
 
-        if (status != 0)
+        if (!success)
         {
-            _logger.LogError("Failed to store tokens in Keychain: {Status}", status);
+            _logger.LogError("Failed to store tokens in Keychain");
             throw new SecurityException("Failed to store tokens securely");
         }
 
@@ -81,7 +81,7 @@ public sealed class KeychainTokenStore : ITokenStore
 
     public async Task ClearAsync(CancellationToken cancellationToken = default)
     {
-        var status = SecItemDelete(ServiceName, TokenAccount);
+        KeychainDelete(ServiceName, TokenAccount);
 
         lock (_cacheLock)
         {
@@ -175,7 +175,7 @@ public sealed class KeychainTokenStore : ITokenStore
                 return _cachedTokens;
         }
 
-        var json = SecItemCopyContent(ServiceName, TokenAccount);
+        var json = KeychainFind(ServiceName, TokenAccount);
         if (json == null)
             return null;
 
@@ -225,145 +225,111 @@ public sealed class KeychainTokenStore : ITokenStore
         return DateTime.UtcNow.AddHours(1);
     }
 
-    private static int SecItemAddOrUpdate(string service, string account, string data)
+    // =========================================================================
+    // Keychain access via /usr/bin/security CLI
+    // =========================================================================
+
+    /// <summary>
+    /// Stores (or updates) a generic password in the macOS Keychain.
+    /// Uses -U flag to update if the entry already exists.
+    /// </summary>
+    private bool KeychainStore(string service, string account, string data)
     {
         try
         {
-            var existingData = SecItemCopyContent(service, account);
-            if (existingData != null)
+            // -U = update if exists, -s = service, -a = account, -w = password data
+            var (exitCode, _, stderr) = RunSecurity(
+                "add-generic-password",
+                "-U",
+                "-s", service,
+                "-a", account,
+                "-w", data);
+
+            if (exitCode != 0)
             {
-                var attributes = CreateQueryDictionary(service, account);
-                var updateAttributes = CreateUpdateDictionary(data);
-                return SecItemUpdate(attributes, updateAttributes);
+                _logger.LogError("security add-generic-password failed (exit {ExitCode}): {Stderr}",
+                    exitCode, stderr);
+                return false;
             }
 
-            var addAttributes = CreateAddAttributes(service, account, data);
-            return SecItemAdd(addAttributes, IntPtr.Zero);
+            return true;
         }
-        catch
+        catch (Exception ex)
         {
-            return -1;
+            _logger.LogError(ex, "Error storing to Keychain via security CLI");
+            return false;
         }
     }
 
-    private static IntPtr CreateQueryDictionary(string service, string account)
-    {
-        var dict = CFDictionaryCreateMutable(IntPtr.Zero, 0, IntPtr.Zero, IntPtr.Zero);
-        if (dict == IntPtr.Zero)
-            return IntPtr.Zero;
-
-        var serviceCf = CFStringCreate(service);
-        var accountCf = CFStringCreate(account);
-        var classKey = CFStringCreate("class");
-        var genericPasswordClass = CFStringCreate("genp");
-
-        CFDictionaryAddValue(dict, classKey, genericPasswordClass);
-        CFDictionaryAddValue(dict, serviceCf, accountCf);
-
-        CFRelease(serviceCf);
-        CFRelease(accountCf);
-        CFRelease(classKey);
-        CFRelease(genericPasswordClass);
-
-        return dict;
-    }
-
-    private static IntPtr CreateUpdateDictionary(string data)
-    {
-        var dict = CFDictionaryCreateMutable(IntPtr.Zero, 0, IntPtr.Zero, IntPtr.Zero);
-        if (dict == IntPtr.Zero)
-            return IntPtr.Zero;
-
-        var valueKey = CFStringCreate("v_Data");
-        var dataBytes = System.Text.Encoding.UTF8.GetBytes(data);
-        var dataCf = CFDataCreate(dataBytes);
-
-        CFDictionaryAddValue(dict, valueKey, dataCf);
-
-        CFRelease(valueKey);
-        CFRelease(dataCf);
-
-        return dict;
-    }
-
-    private static IntPtr CreateAddAttributes(string service, string account, string data)
-    {
-        var dict = CFDictionaryCreateMutable(IntPtr.Zero, 0, IntPtr.Zero, IntPtr.Zero);
-        if (dict == IntPtr.Zero)
-            return IntPtr.Zero;
-
-        var serviceKey = CFStringCreate("srvr");
-        var accountKey = CFStringCreate("acct");
-        var classKey = CFStringCreate("class");
-        var valueKey = CFStringCreate("v_Data");
-        var genericPasswordClass = CFStringCreate("genp");
-
-        var serviceCf = CFStringCreate(service);
-        var accountCf = CFStringCreate(account);
-        var dataBytes = System.Text.Encoding.UTF8.GetBytes(data);
-        var dataCf = CFDataCreate(dataBytes);
-
-        CFDictionaryAddValue(dict, classKey, genericPasswordClass);
-        CFDictionaryAddValue(dict, serviceKey, serviceCf);
-        CFDictionaryAddValue(dict, accountKey, accountCf);
-        CFDictionaryAddValue(dict, valueKey, dataCf);
-
-        CFRelease(serviceKey);
-        CFRelease(accountKey);
-        CFRelease(classKey);
-        CFRelease(valueKey);
-        CFRelease(genericPasswordClass);
-        CFRelease(serviceCf);
-        CFRelease(accountCf);
-        CFRelease(dataCf);
-
-        return dict;
-    }
-
-    private static string? SecItemCopyContent(string service, string account)
+    /// <summary>
+    /// Reads a generic password from the macOS Keychain.
+    /// Returns the password string, or null if not found.
+    /// </summary>
+    private string? KeychainFind(string service, string account)
     {
         try
         {
-            var query = CreateQueryDictionary(service, account);
-            var result = IntPtr.Zero;
-            var status = SecItemCopyMatching(query, out result);
+            // -s = service, -a = account, -w = output only the password
+            var (exitCode, stdout, _) = RunSecurity(
+                "find-generic-password",
+                "-s", service,
+                "-a", account,
+                "-w");
 
-            if (status != 0 || result == IntPtr.Zero)
+            if (exitCode != 0)
                 return null;
 
-            var dataPtr = CFDictionaryGetValue(result, CFStringCreate("v_Data"));
-            if (dataPtr == IntPtr.Zero)
-            {
-                CFRelease(result);
-                return null;
-            }
-
-            var dataBytes = CFDataGetBytePtr(dataPtr);
-            var length = (int)CFDataGetLength(dataPtr);
-            var data = new byte[length];
-            Marshal.Copy(dataBytes, data, 0, length);
-
-            CFRelease(result);
-
-            return System.Text.Encoding.UTF8.GetString(data);
+            var result = stdout.Trim();
+            return string.IsNullOrEmpty(result) ? null : result;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error reading from Keychain via security CLI");
             return null;
         }
     }
 
-    private static int SecItemDelete(string service, string account)
+    /// <summary>
+    /// Deletes a generic password from the macOS Keychain.
+    /// </summary>
+    private void KeychainDelete(string service, string account)
     {
         try
         {
-            var query = CreateQueryDictionary(service, account);
-            return SecItemDelete(query);
+            RunSecurity(
+                "delete-generic-password",
+                "-s", service,
+                "-a", account);
         }
-        catch
+        catch (Exception ex)
         {
-            return -1;
+            _logger.LogWarning(ex, "Error deleting from Keychain via security CLI");
         }
+    }
+
+    /// <summary>
+    /// Runs /usr/bin/security with the given arguments and returns (exitCode, stdout, stderr).
+    /// </summary>
+    private static (int ExitCode, string Stdout, string Stderr) RunSecurity(params string[] args)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "/usr/bin/security",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        foreach (var arg in args)
+            psi.ArgumentList.Add(arg);
+
+        using var process = Process.Start(psi)!;
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit(10_000); // 10 second timeout
+
+        return (process.ExitCode, stdout, stderr);
     }
 
     private sealed class RefreshTokenResponse
@@ -371,43 +337,4 @@ public sealed class KeychainTokenStore : ITokenStore
         public string AccessToken { get; set; } = string.Empty;
         public string RefreshToken { get; set; } = string.Empty;
     }
-
-    #region Native Interop
-
-    [DllImport("/System/Library/Frameworks/Security.framework/Security")]
-    private static extern int SecItemAdd(IntPtr attributes, IntPtr result);
-
-    [DllImport("/System/Library/Frameworks/Security.framework/Security")]
-    private static extern int SecItemUpdate(IntPtr query, IntPtr attributesToUpdate);
-
-    [DllImport("/System/Library/Frameworks/Security.framework/Security")]
-    private static extern int SecItemDelete(IntPtr query);
-
-    [DllImport("/System/Library/Frameworks/Security.framework/Security")]
-    private static extern int SecItemCopyMatching(IntPtr query, out IntPtr result);
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern IntPtr CFDictionaryCreateMutable(IntPtr allocator, int capacity, IntPtr keyCallbacks, IntPtr valueCallbacks);
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern void CFDictionaryAddValue(IntPtr theDict, IntPtr key, IntPtr value);
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern IntPtr CFDictionaryGetValue(IntPtr theDict, IntPtr key);
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern void CFRelease(IntPtr cf);
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern IntPtr CFDataCreate(byte[] bytes);
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern IntPtr CFDataGetBytePtr(IntPtr theData);
-
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
-    private static extern long CFDataGetLength(IntPtr theData);
-
-    private static IntPtr CFStringCreate(string str) => CoreFoundationNative.CFStringCreate(str);
-
-    #endregion
 }

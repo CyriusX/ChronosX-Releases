@@ -221,7 +221,6 @@ public sealed class TrackingWorker : BackgroundService
         var userId = _userContext.UserId;
         if (userId == null)
         {
-            _logger.LogDebug("Nenhum usuário autenticado. Pulando ciclo de tracking.");
             return;
         }
 
@@ -349,16 +348,11 @@ public sealed class TrackingWorker : BackgroundService
         var activeWindow = await _activeWindowProvider.GetActiveWindowAsync(cancellationToken);
         if (activeWindow == null)
         {
-            // No active window (PC sleeping/locked/etc.) — treat as idle.
-            // The idle period will be recorded when the user returns.
-            // We do NOT extend the session's end_utc here — that would inflate
-            // the session duration with idle time.
-            if (!_isIdle)
-            {
-                _isIdle = true;
-                _idleStartedAt = DateTime.UtcNow;
-                _logger.LogInformation("No active window detected (PC may be sleeping/locked). Entering idle state.");
-            }
+            // If we reached here, the idle detector (step 2) confirmed the user is NOT idle.
+            // A null active window with an active user means the frontmost app is our own
+            // DesktopHost (filtered by the provider). Don't enter idle state — just skip
+            // this cycle. Real idle is already handled by step 2 above.
+            _logger.LogDebug("No trackable active window (user is using our own app). Skipping cycle.");
             return;
         }
 

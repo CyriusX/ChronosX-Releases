@@ -86,7 +86,15 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
             var exePath = GetApplicationPath(pid);
             if (string.IsNullOrEmpty(exePath))
             {
-                _logger.LogDebug("Could not get exe path for process {ProcessId}", pid);
+                _logger.LogDebug("Could not get exe path for process {ProcessId}/{AppName}", pid, appName);
+                return null;
+            }
+
+            _logger.LogDebug("Frontmost app: {App} (PID={Pid}, Path={Path})", appName, pid, exePath);
+
+            if (IsOwnAppBundle(exePath))
+            {
+                _logger.LogDebug("Filtered as own app bundle: {Path}", exePath);
                 return null;
             }
 
@@ -95,6 +103,9 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 
             if (info != null)
             {
+                _logger.LogInformation(
+                    "Tracked active window: {App} (PID={Pid}, Title={Title})",
+                    appName, pid, windowTitle ?? "(null)");
                 UpdateCache(info);
             }
 
@@ -347,6 +358,15 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
                lower.Contains("opera.app") ||
                lower.Contains("edge.app") ||
                lower.Contains("chromium.app");
+    }
+
+    private static bool IsOwnAppBundle(string exePath)
+    {
+        var lower = exePath.ToLowerInvariant();
+        return lower.Contains("timetrack.app") ||
+               lower.Contains("timetrack-desktophost") ||
+               lower.Contains("timetrack.macosdesktophost") ||
+               lower.Contains("chronosx timetrack");
     }
 
     private static string? ExtractBrowserUrl(int pid, string? windowTitle)

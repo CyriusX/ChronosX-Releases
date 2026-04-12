@@ -2,7 +2,9 @@ import AppKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        checkAccessibilityPermission()
+        // Accessibility permission is only needed by the agent service (which does
+        // the actual window tracking). The DesktopHost is just a UI shell — it
+        // doesn't call any AX APIs, so prompting here is unnecessary and confusing.
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
