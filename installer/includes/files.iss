@@ -5,7 +5,7 @@
 
 ; AgentService - Windows Service
 Source: "{#ProjectRoot}\build\publish\AgentService\TimeTrack.AgentService.exe"; DestDir: "{app}\service"; Flags: ignoreversion
-Source: "{#ProjectRoot}\build\publish\AgentService\*.dll"; DestDir: "{app}\service"; Flags: ignoreversion recursesubdirs
+Source: "{#ProjectRoot}\build\publish\AgentService\*.dll"; DestDir: "{app}\service"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 Source: "{#ProjectRoot}\build\publish\AgentService\*.json"; DestDir: "{app}\service"; Flags: ignoreversion
 Source: "{#ProjectRoot}\build\publish\AgentService\createdump.exe"; DestDir: "{app}\service"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#ProjectRoot}\build\publish\AgentService\runtimes\*"; DestDir: "{app}\service\runtimes"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
@@ -25,7 +25,7 @@ Source: "{#ProjectRoot}\build\publish\AgentService\zh-Hant\*"; DestDir: "{app}\s
 
 ; DesktopHost - UI Container
 Source: "{#ProjectRoot}\build\publish\DesktopHost\TimeTrack.DesktopHost.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#ProjectRoot}\build\publish\DesktopHost\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+Source: "{#ProjectRoot}\build\publish\DesktopHost\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 Source: "{#ProjectRoot}\build\publish\DesktopHost\*.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ProjectRoot}\build\publish\DesktopHost\*.deps.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ProjectRoot}\build\publish\DesktopHost\*.runtimeconfig.json"; DestDir: "{app}"; Flags: ignoreversion
