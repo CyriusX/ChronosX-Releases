@@ -23,7 +23,7 @@ export default function Teams() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-screen bg-[#0b0d14] pb-14 md:pb-0">
       <Sidebar />
       <TeamsContent />
     </div>

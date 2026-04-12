@@ -6,7 +6,7 @@ import {
   Timer as TimerIcon,
   FolderOpen,
   Activity,
-  CalendarDays,
+  Users,
   Cog,
   Play,
   Square,
@@ -14,14 +14,15 @@ import {
 } from 'lucide-react';
 import { useTrackingStore } from '../../stores/trackingStore';
 import { useIpc } from '../../hooks/useIpc';
+import { usePermissions } from '../../hooks/usePermissions';
 import { SPRING } from '../../lib/animation';
 
-const NAV_ITEMS = [
+const BASE_NAV_ITEMS = [
   { icon: BarChart3, label: 'Dashboard', path: '/' },
   { icon: TimerIcon, label: 'Timer', path: '/timer' },
   { icon: FolderOpen, label: 'Projetos', path: '/projects' },
   { icon: Activity, label: 'Atividade', path: '/activities' },
-  { icon: CalendarDays, label: 'Relatórios', path: '/reports' },
+  { icon: Users, label: 'Equipe', path: '/teams', managerOnly: true },
   { icon: Cog, label: 'Config', path: '/settings' },
 ];
 
@@ -33,7 +34,10 @@ export function MobileBottomNav() {
   const setTracking = useTrackingStore(s => s.setTracking);
   const setPaused = useTrackingStore(s => s.setPaused);
   const { sendCommand } = useIpc();
+  const { canManageTeam } = usePermissions();
   const [isBusy, setIsBusy] = useState(false);
+
+  const NAV_ITEMS = BASE_NAV_ITEMS.filter(item => !item.managerOnly || canManageTeam);
 
   const isActive = isTracking && !isPaused;
 
