@@ -55,11 +55,16 @@ function productivityColor(pct: number): string {
 function formatRelativeTime(isoDate: string | null | undefined): string | null {
   if (!isoDate) return null;
   const diff = (Date.now() - new Date(isoDate).getTime()) / 1000;
-  if (diff < 0) return 'agora';
-  if (diff < 60) return 'agora';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m atrás`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
-  return `${Math.floor(diff / 86400)}d atrás`;
+  if (diff < 60) return 'Now';
+  if (diff < 3600) {
+    const m = Math.floor(diff / 60);
+    return `${m}min ago`;
+  }
+  if (diff < 86400) {
+    const h = Math.floor(diff / 3600);
+    return `${h}h ago`;
+  }
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
 export function MemberCard({ member, index, onSelect }: MemberCardProps) {
@@ -146,7 +151,7 @@ export function MemberCard({ member, index, onSelect }: MemberCardProps) {
           </div>
           {member.lastSyncAt && (
             <span className="text-[9px] text-[rgba(245,247,251,0.25)]">
-              sync {formatRelativeTime(member.lastSyncAt)}
+              Last Sync {formatRelativeTime(member.lastSyncAt)}
             </span>
           )}
         </div>
