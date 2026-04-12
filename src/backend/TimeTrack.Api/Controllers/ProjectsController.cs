@@ -65,7 +65,10 @@ public sealed class ProjectsController : ControllerBase
         var result = await _mediator.Send(new CreateProjectCommand(
             request.Name,
             request.Description,
-            request.Color));
+            request.Color,
+            request.IsBillable,
+            request.Currency,
+            request.HourlyRate));
 
         return CreatedAtAction(nameof(GetProject), new { id = result.Id }, result);
     }
