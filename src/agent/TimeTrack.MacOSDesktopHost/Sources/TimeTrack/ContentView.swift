@@ -1,8 +1,12 @@
 import SwiftUI
 import WebKit
 
-// Configures NSWindow when the view joins the window hierarchy.
+// Configures NSWindow when the view joins the window hierarchy
+// and initializes the floating mini bar manager.
 private final class _WindowSetupNSView: NSView {
+    var ipcClient: IpcClient?
+    private var miniBarManager: FloatingMiniBarManager?
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let w = window else { return }
@@ -17,11 +21,22 @@ private final class _WindowSetupNSView: NSView {
         if let zoomButton = w.standardWindowButton(.zoomButton) {
             zoomButton.isEnabled = false
         }
+
+        // Initialize the floating mini bar manager (shows bar on minimize)
+        if miniBarManager == nil, let client = ipcClient {
+            miniBarManager = FloatingMiniBarManager(ipcClient: client, mainWindow: w)
+        }
     }
 }
 
 private struct WindowSetupView: NSViewRepresentable {
-    func makeNSView(context: Context) -> _WindowSetupNSView { _WindowSetupNSView() }
+    var ipcClient: IpcClient?
+
+    func makeNSView(context: Context) -> _WindowSetupNSView {
+        let view = _WindowSetupNSView()
+        view.ipcClient = ipcClient
+        return view
+    }
     func updateNSView(_ nsView: _WindowSetupNSView, context: Context) {}
 }
 
@@ -32,8 +47,8 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // Invisible view that configures the NSWindow once it appears
-            WindowSetupView().frame(width: 0, height: 0)
+            // Invisible view that configures the NSWindow and sets up the mini bar
+            WindowSetupView(ipcClient: ipcClient).frame(width: 0, height: 0)
             WebViewContainer(ipcClient: ipcClient, webView: $webView)
         }
         // Fixed size — no min/max so windowResizability(.contentSize) locks it

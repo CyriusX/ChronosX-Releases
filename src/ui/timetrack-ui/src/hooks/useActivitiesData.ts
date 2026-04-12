@@ -416,8 +416,20 @@ function convertSessionsToBlocks(
   return blocks;
 }
 
+const BROWSER_NAMES = new Set([
+  'google chrome', 'chrome', 'safari', 'firefox', 'brave browser', 'brave',
+  'microsoft edge', 'opera', 'chromium', 'arc', 'vivaldi', 'orion',
+]);
+
 function extractAppName(windowTitle?: string, processName?: string): string {
   if (!windowTitle) return processName || 'Unknown';
+
+  // Only extract app name from window title for browsers, where the title
+  // format is "Page Title - BrowserName". For other apps (VS Code, Xcode, etc.),
+  // the suffix is a project/workspace name, not the app name.
+  if (processName && !BROWSER_NAMES.has(processName.toLowerCase()))
+    return processName;
+
   const seps = [' - ', ' — ', ' – '];
   for (const sep of seps) {
     const idx = windowTitle.lastIndexOf(sep);

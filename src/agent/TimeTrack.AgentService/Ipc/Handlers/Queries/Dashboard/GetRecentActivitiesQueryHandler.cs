@@ -255,6 +255,10 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     private static string ExtractCloudAppName(DailyActivitySession session)
     {
+        // Only extract app name from window title for browsers
+        if (!BrowserDisplayNames.Contains(session.ProcessName))
+            return session.ProcessName;
+
         var windowTitle = session.WindowTitle;
         if (!string.IsNullOrWhiteSpace(windowTitle))
         {
@@ -411,8 +415,20 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         });
     }
 
+    private static readonly HashSet<string> BrowserDisplayNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Google Chrome", "Chrome", "Safari", "Firefox", "Brave Browser", "Brave",
+        "Microsoft Edge", "Opera", "Chromium", "Arc", "Vivaldi", "Orion",
+    };
+
     private static string ExtractAppName(ActivitySession session)
     {
+        // Only extract app name from window title for browsers, where the title
+        // format is "Page Title - BrowserName". For other apps (VS Code, Xcode, etc.),
+        // the suffix is a project/workspace name, not the app name.
+        if (!BrowserDisplayNames.Contains(session.App.DisplayName))
+            return session.App.DisplayName;
+
         var windowTitle = session.WindowTitle;
         if (!string.IsNullOrWhiteSpace(windowTitle))
         {

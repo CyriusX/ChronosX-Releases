@@ -168,49 +168,97 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
     private static readonly IntPtr s_selPath = ObjCRuntime.GetSelector("path");
     private static readonly IntPtr s_selRunningAppWithPid = ObjCRuntime.GetSelector("runningApplicationWithProcessIdentifier:");
 
+    // CGWindowList API — doesn't depend on AppKit run loop, always returns fresh data
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static extern IntPtr CGWindowListCopyWindowInfo(int option, uint relativeToWindow);
+
+    private const int kCGWindowListOptionOnScreenOnly = (1 << 0);
+    private const int kCGWindowListExcludeDesktopElements = (1 << 4);
+
+    // CoreFoundation helpers for reading CFDictionary/CFArray/CFNumber/CFString
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static extern nint CFArrayGetCount(IntPtr theArray);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static extern IntPtr CFArrayGetValueAtIndex(IntPtr theArray, nint idx);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static extern IntPtr CFDictionaryGetValue(IntPtr theDict, IntPtr key);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private static extern bool CFNumberGetValue(IntPtr number, int theType, out int value);
+
+    private const int kCFNumberSInt32Type = 3;
+
     private (int pid, string? appName) GetFrontmostApplication()
     {
         try
         {
-            if (s_nsWorkspaceClass == IntPtr.Zero)
+            // Use CGWindowListCopyWindowInfo to find the frontmost on-screen window.
+            // Unlike NSWorkspace.frontmostApplication, this queries the window server
+            // directly and always returns fresh data — no NSRunLoop required.
+            var windowList = CGWindowListCopyWindowInfo(
+                kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, 0);
+
+            if (windowList == IntPtr.Zero)
             {
-                _logger.LogWarning("NSWorkspace class not found — AppKit may not be loaded");
+                _logger.LogDebug("CGWindowListCopyWindowInfo returned null");
                 return (0, null);
             }
 
-            // [NSWorkspace sharedWorkspace]
-            var workspace = ObjCRuntime.SendMessage(s_nsWorkspaceClass, s_selSharedWorkspace);
-            if (workspace == IntPtr.Zero)
+            try
             {
-                _logger.LogDebug("[NSWorkspace sharedWorkspace] returned nil");
-                return (0, null);
+                var count = CFArrayGetCount(windowList);
+                var kOwnerPID = CoreFoundationNative.CFStringCreate("kCGWindowOwnerPID");
+                var kOwnerName = CoreFoundationNative.CFStringCreate("kCGWindowOwnerName");
+                var kWindowLayer = CoreFoundationNative.CFStringCreate("kCGWindowLayer");
+
+                try
+                {
+                    // The window list is ordered front-to-back. Find the first window
+                    // at layer 0 (normal windows) that isn't our own agent process.
+                    for (nint i = 0; i < count; i++)
+                    {
+                        var dict = CFArrayGetValueAtIndex(windowList, i);
+                        if (dict == IntPtr.Zero) continue;
+
+                        // Check window layer — we only want normal windows (layer 0)
+                        var layerRef = CFDictionaryGetValue(dict, kWindowLayer);
+                        if (layerRef != IntPtr.Zero)
+                        {
+                            CFNumberGetValue(layerRef, kCFNumberSInt32Type, out int layer);
+                            if (layer != 0) continue;
+                        }
+
+                        // Get owner PID
+                        var pidRef = CFDictionaryGetValue(dict, kOwnerPID);
+                        if (pidRef == IntPtr.Zero) continue;
+                        CFNumberGetValue(pidRef, kCFNumberSInt32Type, out int pid);
+                        if (pid == 0 || pid == _currentProcessId) continue;
+
+                        // Get owner name
+                        var nameRef = CFDictionaryGetValue(dict, kOwnerName);
+                        var appName = ObjCRuntime.NSStringToManaged(nameRef);
+
+                        if (!string.IsNullOrEmpty(appName))
+                            return (pid, appName);
+                    }
+                }
+                finally
+                {
+                    CFRelease(kOwnerPID);
+                    CFRelease(kOwnerName);
+                    CFRelease(kWindowLayer);
+                }
+            }
+            finally
+            {
+                CFRelease(windowList);
             }
 
-            // [workspace frontmostApplication] → NSRunningApplication*
-            var runningApp = ObjCRuntime.SendMessage(workspace, s_selFrontmostApp);
-            if (runningApp == IntPtr.Zero)
-            {
-                _logger.LogDebug("[workspace frontmostApplication] returned nil");
-                return (0, null);
-            }
-
-            // [runningApp processIdentifier] → pid_t (int32)
-            var pid = ObjCRuntime.SendMessageInt(runningApp, s_selProcessIdentifier);
-            if (pid == 0)
-            {
-                _logger.LogDebug("[runningApp processIdentifier] returned 0");
-                return (0, null);
-            }
-
-            // [runningApp localizedName] → NSString*
-            var nsName = ObjCRuntime.SendMessage(runningApp, s_selLocalizedName);
-            var appName = ObjCRuntime.NSStringToManaged(nsName);
-
-            // Fallback to proc_name if localizedName wasn't available
-            if (string.IsNullOrEmpty(appName))
-                appName = GetProcessName(pid);
-
-            return (pid, appName);
+            _logger.LogDebug("No frontmost application found via CGWindowList");
+            return (0, null);
         }
         catch (Exception ex)
         {

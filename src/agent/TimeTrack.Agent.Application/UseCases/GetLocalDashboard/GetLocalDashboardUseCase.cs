@@ -330,12 +330,23 @@ public sealed class GetLocalDashboardUseCase
     /// For browsers: "YouTube - Google Chrome" → "Google Chrome"
     /// For regular apps: returns the displayName as-is.
     /// </summary>
+    private static readonly HashSet<string> BrowserDisplayNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Google Chrome", "Chrome", "Safari", "Firefox", "Brave Browser", "Brave",
+        "Microsoft Edge", "Opera", "Chromium", "Arc", "Vivaldi", "Orion",
+    };
+
     private static string ExtractExeDisplayName(string? windowTitle, string displayName)
     {
         if (string.IsNullOrWhiteSpace(windowTitle))
             return displayName;
 
-        // Check if the window title has a " - AppName" suffix (typical browser pattern)
+        // Only extract app name from window title for browsers, where the title
+        // format is "Page Title - BrowserName". For other apps (VS Code, Xcode, etc.),
+        // the suffix is a project/workspace name, not the app name.
+        if (!BrowserDisplayNames.Contains(displayName))
+            return displayName;
+
         var separators = new[] { " - ", " — ", " – " };
         foreach (var sep in separators)
         {
@@ -343,7 +354,6 @@ public sealed class GetLocalDashboardUseCase
             if (lastIdx > 0)
             {
                 var suffix = windowTitle[(lastIdx + sep.Length)..].Trim();
-                // If the suffix looks like a real app name (not too short, not the same as display)
                 if (suffix.Length > 2 && suffix != displayName)
                     return suffix;
             }
