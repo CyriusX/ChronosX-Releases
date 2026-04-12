@@ -32,6 +32,9 @@ x86/
 *.pdb
 *.cache
 
+# Allow update installers
+!src/backend/TimeTrack.Api/updates/*.exe
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json
