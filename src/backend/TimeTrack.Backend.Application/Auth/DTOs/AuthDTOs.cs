@@ -335,6 +335,10 @@ public sealed class TeamMemberStatusItem
     /// Se o usuário está atualmente rastreando tempo
     /// </summary>
     public bool IsTracking { get; init; }
+    /// <summary>
+    /// Timestamp of the most recent activity session for this user (UTC ISO 8601)
+    /// </summary>
+    public string? LastSyncAt { get; init; }
 }
 
 /// <summary>

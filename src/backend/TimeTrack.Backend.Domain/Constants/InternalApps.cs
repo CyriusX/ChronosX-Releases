@@ -16,6 +16,9 @@ public static class InternalApps
     public static readonly HashSet<string> ProcessNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "TimeTrack.DesktopHost",
+        "ChronosX TimeTrack",
+        "TimeTrack",
+        "TimeTrack.MacOSAgentService",
         "Microsoft Edge WebView2",
         "Microsoft® Windows® Operating System",
         "Sistema operacional Microsoft® Windows®",

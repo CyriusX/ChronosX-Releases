@@ -31,7 +31,7 @@ export default function Teams() {
 }
 
 function TeamsContent() {
-  const { members, isLoading, error, activeCount, trackingCount, loadTeamStatus } = useTeamStatus();
+  const { members, isLoading, error, activeCount, trackingCount, lastFetchedAt, loadTeamStatus } = useTeamStatus();
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -62,6 +62,11 @@ function TeamsContent() {
           <p className="text-[12px] text-[rgba(245,247,251,0.45)] mt-0.5">
             Acompanhe o status e produtividade da sua equipe em tempo real
           </p>
+          {lastFetchedAt && (
+            <p className="text-[10px] text-[rgba(245,247,251,0.25)] mt-0.5">
+              Atualizado {lastFetchedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </p>
+          )}
         </div>
 
         {/* Badges + refresh */}
