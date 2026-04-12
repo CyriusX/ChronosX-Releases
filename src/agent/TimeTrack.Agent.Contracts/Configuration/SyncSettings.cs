@@ -16,9 +16,9 @@ public sealed class SyncSettings
     public string? AuthToken { get; set; }
 
     /// <summary>
-    /// Intervalo entre ciclos de sync em segundos (mínimo 60s, máximo 300s)
+    /// Intervalo entre ciclos de sync em segundos
     /// </summary>
-    public int SyncIntervalSeconds { get; set; } = 60;
+    public int SyncIntervalSeconds { get; set; } = 30;
 
     /// <summary>
     /// Tamanho máximo do batch (número de itens)
