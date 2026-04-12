@@ -12,6 +12,7 @@
  * - Animações fluidas com Framer Motion
  */
 
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Activity,
@@ -45,6 +46,7 @@ interface HealthIndicatorProps {
 }
 
 function HealthIndicator({ health, indicator, state }: HealthIndicatorProps) {
+  const { t } = useTranslation();
   const config = HEALTH_CONFIG[health];
 
   const StateIcon = () => {
@@ -140,7 +142,7 @@ function HealthIndicator({ health, indicator, state }: HealthIndicatorProps) {
               {indicator.label}
             </motion.p>
             <p className="text-[12px] text-[rgba(245,247,251,0.5)] mt-1">
-              Status do Agent
+              {t('settings.agentStatus.title')}
             </p>
           </div>
         </div>
@@ -164,7 +166,7 @@ function HealthIndicator({ health, indicator, state }: HealthIndicatorProps) {
               }}
             />
             <span className="text-[11px] font-medium text-[rgba(245,247,251,0.6)]">
-              Em tempo real
+              {t('settings.agentStatus.realtime')}
             </span>
           </motion.div>
         </div>
@@ -230,33 +232,34 @@ function SyncStatusBadge({
   lastSyncRelative,
   pendingItems,
 }: SyncStatusBadgeProps) {
+  const { t } = useTranslation();
   const configMap = {
     synced: {
       color: 'text-[#4ade96]',
       bg: 'bg-[rgba(74,222,128,0.15)]',
       border: 'border-[rgba(74,222,128,0.3)]',
-      label: 'Sincronizado',
+      label: t('settings.agentStatus.synced'),
       icon: CheckCircle2,
     },
     syncing: {
       color: 'text-[#4ad9ff]',
       bg: 'bg-[rgba(74,217,255,0.15)]',
       border: 'border-[rgba(74,217,255,0.3)]',
-      label: 'Sincronizando...',
+      label: t('settings.agentStatus.syncing'),
       icon: RefreshCw,
     },
     pending: {
       color: 'text-[#fbbf24]',
       bg: 'bg-[rgba(251,191,36,0.15)]',
       border: 'border-[rgba(251,191,36,0.3)]',
-      label: 'Pendente',
+      label: t('settings.agentStatus.pending'),
       icon: Clock,
     },
     failed: {
       color: 'text-[#f87171]',
       bg: 'bg-[rgba(248,113,113,0.15)]',
       border: 'border-[rgba(248,113,113,0.3)]',
-      label: 'Falhou',
+      label: t('settings.agentStatus.failed'),
       icon: AlertCircle,
     },
   };
@@ -294,7 +297,7 @@ function SyncStatusBadge({
           className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-[rgba(251,191,36,0.15)] text-[#fbbf24] border border-[rgba(251,191,36,0.2)]"
         >
           <Clock className="w-3 h-3" />
-          {pendingItems} pendente{pendingItems > 1 ? 's' : ''}
+          {pendingItems} {t('settings.agentStatus.pendingSuffix', { count: pendingItems })}
         </motion.span>
       )}
     </div>
@@ -334,7 +337,7 @@ function ErrorItemCard({ message, timestamp, type, index }: ErrorItemCardProps) 
           </p>
         </div>
         <span className="text-[10px] text-[rgba(245,247,251,0.3)] flex-shrink-0 font-mono">
-          {new Date(timestamp).toLocaleTimeString('pt-BR', {
+          {new Date(timestamp).toLocaleTimeString(undefined, {
             hour: '2-digit',
             minute: '2-digit',
           })}
@@ -353,6 +356,7 @@ interface ConnectionStatusProps {
 }
 
 function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -366,12 +370,12 @@ function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
       {isConnected ? (
         <>
           <Wifi className="w-4 h-4 text-[#4ade96]" />
-          <span className="text-[11px] text-[#4ade96] font-medium">Conectado</span>
+          <span className="text-[11px] text-[#4ade96] font-medium">{t('settings.agentStatus.connected')}</span>
         </>
       ) : (
         <>
           <WifiOff className="w-4 h-4 text-[#f87171]" />
-          <span className="text-[11px] text-[#f87171] font-medium">Desconectado</span>
+          <span className="text-[11px] text-[#f87171] font-medium">{t('settings.agentStatus.disconnected')}</span>
         </>
       )}
     </motion.div>
@@ -383,15 +387,16 @@ function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
 // ============================================================================
 
 export function AgentStatusSection() {
+  const { t } = useTranslation();
   const { status, isLoading, isAgentOnline } = useAgentStatus();
 
   if (isLoading) {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Status do Agent</h2>
+          <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('settings.agentStatus.title')}</h2>
           <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-            Monitoramento em tempo real do serviço de tracking
+            {t('settings.agentStatus.monitoring')}
           </p>
         </div>
         <div className="animate-pulse space-y-4">
@@ -412,10 +417,10 @@ export function AgentStatusSection() {
       >
         <div>
           <h2 className="text-[20px] font-semibold text-[#f5f7fb]">
-            Status do Agent
+            {t('settings.agentStatus.title')}
           </h2>
           <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-            Monitoramento em tempo real do serviço de tracking
+            {t('settings.agentStatus.monitoring')}
           </p>
         </div>
         <ConnectionStatus isConnected={isAgentOnline} />
@@ -440,7 +445,7 @@ export function AgentStatusSection() {
             <Server className="w-4 h-4 text-white" />
           </div>
           <h3 className="text-[14px] font-medium text-[#f5f7fb]">
-            Informações do Sistema
+            {t('settings.agentStatus.systemInfo')}
           </h3>
         </div>
 
@@ -458,15 +463,15 @@ export function AgentStatusSection() {
                 <Activity className="w-4 h-4" />
               )
             }
-            label="Estado"
+            label={t('settings.agentStatus.state')}
             value={
               status.state === 'running'
-                ? 'Executando'
+                ? t('settings.agentStatus.running')
                 : status.state === 'paused'
-                  ? 'Pausado'
+                  ? t('settings.agentStatus.paused')
                   : status.state === 'idle'
-                    ? 'Inativo'
-                    : 'Parado'
+                    ? t('settings.agentStatus.idle')
+                    : t('settings.agentStatus.stopped')
             }
             iconColor={
               status.state === 'running'
@@ -478,7 +483,7 @@ export function AgentStatusSection() {
           />
           <StatusInfoCard
             icon={<Clock className="w-4 h-4" />}
-            label="Uptime"
+            label={t('settings.agentStatus.uptime')}
             value={formatUptime(status.uptime)}
             iconColor="text-[#a78bfa]"
           />
@@ -490,8 +495,8 @@ export function AgentStatusSection() {
                 <RefreshCw className="w-4 h-4" />
               )
             }
-            label="Última Sincronização"
-            value={status.lastSyncRelative || 'Nunca'}
+            label={t('settings.agentStatus.lastSync')}
+            value={status.lastSyncRelative || t('settings.agentStatus.never')}
             iconColor={
               status.syncStatus === 'synced'
                 ? 'text-[#4ade96]'
@@ -500,7 +505,7 @@ export function AgentStatusSection() {
           />
           <StatusInfoCard
             icon={<TrendingUp className="w-4 h-4" />}
-            label="Versão"
+            label={t('settings.agentStatus.version')}
             value={status.version}
             iconColor="text-[#4ad9ff]"
           />
@@ -520,7 +525,7 @@ export function AgentStatusSection() {
               <RefreshCw className="w-4 h-4 text-white" />
             </div>
             <h3 className="text-[14px] font-medium text-[#f5f7fb]">
-              Sincronização
+              {t('settings.agentStatus.sync')}
             </h3>
           </div>
           <SyncStatusBadge
@@ -546,8 +551,7 @@ export function AgentStatusSection() {
                   <AlertTriangle className="w-4 h-4 text-[#fbbf24]" />
                 </motion.div>
                 <span className="text-[12px] text-[#fbbf24]">
-                  {status.pendingItems} item{status.pendingItems > 1 ? 's' : ''}{' '}
-                  aguardando sincronização
+                  {t('settings.agentStatus.pendingItems', { count: status.pendingItems })}
                 </span>
               </div>
             </motion.div>
@@ -570,8 +574,7 @@ export function AgentStatusSection() {
                   <AlertCircle className="w-4 h-4 text-[#f87171]" />
                 </motion.div>
                 <span className="text-[12px] text-[#f87171]">
-                  {status.failedItems} item{status.failedItems > 1 ? 's' : ''}{' '}
-                  falhou ao sincronizar
+                  {t('settings.agentStatus.failedItems', { count: status.failedItems })}
                 </span>
               </div>
             </motion.div>
@@ -598,7 +601,7 @@ export function AgentStatusSection() {
                 <AlertCircle className="w-4 h-4 text-white" />
               </motion.div>
               <h3 className="text-[14px] font-medium text-[#f87171]">
-                Erros Recentes
+                {t('settings.agentStatus.recentErrors')}
               </h3>
               <span className="ml-auto px-2 py-0.5 rounded-md bg-[rgba(248,113,113,0.2)] text-[11px] text-[#f87171] font-mono">
                 {status.recentErrors.length}

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Building2 } from 'lucide-react';
 import type { OrgPolicyResponse, UpdateOrgPolicyRequest } from '../../types/settings';
 import { usePolicyCards } from './usePolicyCards';
@@ -24,6 +25,7 @@ interface PolicyCardsProps {
  * - Delega estado para hook customizado
  */
 export function PolicyCards({ policy, onUpdate, canEdit = false }: PolicyCardsProps) {
+  const { t } = useTranslation();
   const {
     editingCard,
     isSaving,
@@ -49,9 +51,9 @@ export function PolicyCards({ policy, onUpdate, canEdit = false }: PolicyCardsPr
           <Building2 className="w-4 h-4 text-white" />
         </div>
         <div>
-          <h2 className="text-[18px] font-semibold text-[#f5f7fb]">Políticas da Organização</h2>
+          <h2 className="text-[18px] font-semibold text-[#f5f7fb]">{t('policies.orgPolicies.title')}</h2>
           <p className="text-[12px] text-[rgba(245,247,251,0.4)]">
-            Configuradas pelo administrador • Versão {policy.version}
+            {t('policies.appCategories.configuredByAdmin')} • {t('policies.appCategories.orgPoliciesVersion', { version: policy.version })}
           </p>
         </div>
       </div>

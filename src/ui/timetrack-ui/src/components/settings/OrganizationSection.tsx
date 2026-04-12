@@ -1,4 +1,5 @@
 import { Building2, Clock, Brain, Database, AppWindow } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { OrgPolicyResponse, UpdateOrgPolicyRequest } from '../../types/settings';
 import { usePolicyCards } from './usePolicyCards';
 import { WorkHoursCard } from './WorkHoursCard';
@@ -16,6 +17,7 @@ interface OrganizationSectionProps {
 }
 
 export function OrganizationSection({ policy, onUpdate, canEdit, orgId }: OrganizationSectionProps) {
+  const { t } = useTranslation();
   const {
     editingCard,
     isSaving,
@@ -41,16 +43,16 @@ export function OrganizationSection({ policy, onUpdate, canEdit, orgId }: Organi
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#8b7aff] to-[#6366f1] flex items-center justify-center">
             <Building2 className="w-4 h-4 text-white" />
           </div>
-          <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Organização</h2>
+          <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('settings.organization.title')}</h2>
         </div>
         <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1 ml-11">
-          Políticas e configurações da organização &bull; Versão {policy.version}
+          {t('settings.organization.subtitle')} &bull; Versão {policy.version}
         </p>
       </div>
 
       {/* App Categories Sub-section — first because it's the primary admin action */}
       <div className="space-y-4">
-        <SubSectionHeader icon={AppWindow} label="Classificação de Aplicativos" />
+        <SubSectionHeader icon={AppWindow} label={t('policies.appCategories.title')} />
         <p className="text-[12px] text-[rgba(245,247,251,0.35)] -mt-2 ml-6">
           Aplicativos usados pelos colaboradores são adicionados automaticamente.
           Classifique-os como Produtivo, Neutro ou Distração para refletir em toda a equipe.
@@ -60,7 +62,7 @@ export function OrganizationSection({ policy, onUpdate, canEdit, orgId }: Organi
 
       {/* Work Schedule Sub-section */}
       <div className="space-y-4">
-        <SubSectionHeader icon={Clock} label="Horário de Trabalho" />
+        <SubSectionHeader icon={Clock} label={t('policies.workHours.title')} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <WorkHoursCard
             startTime={workHours.startTime}
@@ -93,7 +95,7 @@ export function OrganizationSection({ policy, onUpdate, canEdit, orgId }: Organi
 
       {/* Focus Mode Policy Sub-section */}
       <div className="space-y-4">
-        <SubSectionHeader icon={Brain} label="Política de Modo Foco" />
+        <SubSectionHeader icon={Brain} label={t('policies.focusMode.title')} />
         <FocusModeCard
           focusMode={focusMode}
           isEditing={editingCard === 'focusMode'}
@@ -108,7 +110,7 @@ export function OrganizationSection({ policy, onUpdate, canEdit, orgId }: Organi
 
       {/* Data & Privacy Sub-section */}
       <div className="space-y-4">
-        <SubSectionHeader icon={Database} label="Dados & Privacidade" />
+        <SubSectionHeader icon={Database} label={t('policies.retention.title')} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <RetentionCard
             retentionDays={retentionDays}

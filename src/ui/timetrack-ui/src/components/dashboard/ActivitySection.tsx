@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -50,7 +51,7 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtDuration(sec: number) {
@@ -74,6 +75,7 @@ interface ActivitySectionProps {
 }
 
 export function ActivitySection({ activities: controlledActivities, selectedDate: externalSelectedDate }: ActivitySectionProps = {}) {
+  const { t } = useTranslation();
   const [dateRange, setDateRange] = useState<DateRange>('today');
 
   // Compute selectedDate from dateRange when not externally controlled
@@ -357,7 +359,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                 >
                   <ChevronDown className="w-3.5 h-3.5 text-[rgba(245,247,251,0.5)]" />
                 </div>
-                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Atividade</span>
+                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.activity')}</span>
               </button>
 
               {/* Right: Date tabs + nav arrows + indicators */}
@@ -365,7 +367,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                 {/* Date filter tabs */}
                 <div className="flex items-center gap-0 bg-[rgba(255,255,255,0.03)] rounded-lg border border-[rgba(255,255,255,0.06)] p-0.5">
                   {(['today', 'yesterday', '7days'] as DateRange[]).map((range) => {
-                    const labels: Record<DateRange, string> = { today: 'Hoje', yesterday: 'Ontem', '7days': '7 dias' };
+                    const labels: Record<DateRange, string> = { today: t('dashboard.todayTab'), yesterday: t('dashboard.yesterdayTab'), '7days': t('dashboard.sevenDaysTab') };
                     const isActive = dateRange === range;
                     return (
                       <button
@@ -409,7 +411,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
             <CardContent className="pt-3 pb-3 px-4">
               {!hasBlocks ? (
                 <div className="text-center py-6">
-                  <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Nenhuma atividade registrada</p>
+                  <p className="text-[11px] text-[rgba(245,247,251,0.4)]">{t('dashboard.noActivity')}</p>
                 </div>
               ) : (
                 <div>
@@ -458,7 +460,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                   {taskBlocks.length > 0 && (
                     <div className="mt-1.5">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-[8px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.3)]">Tarefas</span>
+                        <span className="text-[8px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.3)]">{t('dashboard.tasksTab')}</span>
                       </div>
                       <div className="relative h-[10px] rounded-sm bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]">
                         {taskBlocks.map((block) => (
@@ -497,6 +499,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
 }
 
 function ActivityTooltip({ block, anchorRect }: { block: ActivityBlock; anchorRect: DOMRect }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
@@ -532,7 +535,7 @@ function ActivityTooltip({ block, anchorRect }: { block: ActivityBlock; anchorRe
         </p>
         {block.tabs && block.tabs.length > 0 && (
           <div className="border-t border-[rgba(255,255,255,0.08)] pt-1.5 space-y-[5px]">
-            <p className="text-[8px] uppercase tracking-wider text-[rgba(245,247,251,0.25)] mb-1">Atividades</p>
+            <p className="text-[8px] uppercase tracking-wider text-[rgba(245,247,251,0.25)] mb-1">{t('dashboard.activitiesTab')}</p>
             {block.tabs.map((tab, idx) => (
               <div key={idx} className="flex items-start gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-[3px]" style={{ backgroundColor: tab.color }} />

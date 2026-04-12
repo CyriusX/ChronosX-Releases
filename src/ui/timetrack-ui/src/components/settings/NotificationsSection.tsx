@@ -1,4 +1,5 @@
 import { Bell, Timer } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Switch } from '../ui/switch';
 import type { LocalSettings, UpdateLocalSettingsRequest } from '../../types/settings';
 
@@ -19,15 +20,16 @@ interface NotificationsSectionProps {
 }
 
 export function NotificationsSection({ settings, onUpdate }: NotificationsSectionProps) {
+  const { t } = useTranslation();
   const currentIdle = settings.idleThresholdSeconds ?? 300;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Notificações</h2>
+        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('settings.notifications.title')}</h2>
         <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-          Configure alertas e sons de notificação
+          {t('settings.notifications.subtitle')}
         </p>
       </div>
 
@@ -37,7 +39,7 @@ export function NotificationsSection({ settings, onUpdate }: NotificationsSectio
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#8B5CF6] to-[#22D3EE] flex items-center justify-center">
             <Bell className="w-4 h-4 text-white" />
           </div>
-          <h3 className="text-[14px] font-medium text-[#f5f7fb]">Alertas</h3>
+          <h3 className="text-[14px] font-medium text-[#f5f7fb]">{t('settings.notifications.alerts')}</h3>
         </div>
 
         <div className="space-y-4">
@@ -45,10 +47,10 @@ export function NotificationsSection({ settings, onUpdate }: NotificationsSectio
           <div className="flex items-center justify-between py-2">
             <div className="flex-1 pr-4">
               <p className="text-[13px] text-[rgba(245,247,251,0.9)]">
-                Aviso de retomada automática
+                {t('settings.notifications.autoResume')}
               </p>
               <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
-                Notificar quando o tracking estiver pausado por muito tempo
+                {t('settings.notifications.autoResumeDesc')}
               </p>
             </div>
             <Switch
@@ -66,10 +68,10 @@ export function NotificationsSection({ settings, onUpdate }: NotificationsSectio
           <div className="flex items-center justify-between py-2">
             <div className="flex-1 pr-4">
               <p className="text-[13px] text-[rgba(245,247,251,0.9)]">
-                Sons de notificação
+                {t('settings.notifications.sounds')}
               </p>
               <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
-                Reproduzir sons ao receber notificações
+                {t('settings.notifications.soundsDesc')}
               </p>
             </div>
             <Switch
@@ -88,16 +90,16 @@ export function NotificationsSection({ settings, onUpdate }: NotificationsSectio
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#f59e0b] to-[#ef4444] flex items-center justify-center">
             <Timer className="w-4 h-4 text-white" />
           </div>
-          <h3 className="text-[14px] font-medium text-[#f5f7fb]">Detecção de inatividade</h3>
+          <h3 className="text-[14px] font-medium text-[#f5f7fb]">{t('settings.notifications.idleDetection')}</h3>
         </div>
 
         <div className="space-y-3">
           <div>
             <p className="text-[13px] text-[rgba(245,247,251,0.9)]">
-              Tempo até considerar inativo
+              {t('settings.notifications.idleThreshold')}
             </p>
             <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
-              Após esse tempo sem atividade, o tracking será pausado automaticamente
+              {t('settings.notifications.idleThresholdDesc')}
             </p>
           </div>
 

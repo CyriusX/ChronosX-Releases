@@ -41,7 +41,7 @@ export function DateNavigator({
     return () => document.removeEventListener('mousedown', handler);
   }, [showCalendar]);
 
-  const dateLabel = selectedDate.toLocaleDateString('pt-BR', {
+  const dateLabel = selectedDate.toLocaleDateString(undefined, {
     weekday: 'long',
     day: 'numeric',
     month: 'short',

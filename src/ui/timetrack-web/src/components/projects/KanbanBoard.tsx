@@ -10,6 +10,7 @@
  */
 
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   DndContext,
   DragEndEvent,
@@ -28,22 +29,22 @@ import { moveTask, type Task, type TaskStatus, type ProjectSyncSource } from '..
 
 type ColumnDef = {
   id: TaskStatus;
-  label: string;
+  labelKey: string;
   icon: React.ComponentType<{ className?: string }>;
   accent: string;
 };
 
 const LOCAL_COLUMNS: ColumnDef[] = [
-  { id: 'Todo', label: 'A Fazer', icon: ListTodo, accent: '#94a3b8' },
-  { id: 'InProgress', label: 'Em Progresso', icon: CircleDashed, accent: '#fbbf24' },
-  { id: 'Done', label: 'Concluído', icon: CheckCircle2, accent: '#05df72' },
+  { id: 'Todo', labelKey: 'kanban.todo', icon: ListTodo, accent: '#94a3b8' },
+  { id: 'InProgress', labelKey: 'kanban.inProgress', icon: CircleDashed, accent: '#fbbf24' },
+  { id: 'Done', labelKey: 'kanban.done', icon: CheckCircle2, accent: '#05df72' },
 ];
 
 const LINEAR_COLUMNS: ColumnDef[] = [
-  { id: 'Todo', label: 'A Fazer', icon: ListTodo, accent: '#94a3b8' },
-  { id: 'InProgress', label: 'Em Progresso', icon: CircleDashed, accent: '#fbbf24' },
-  { id: 'InReview', label: 'Em Revisão', icon: Eye, accent: '#a855f7' },
-  { id: 'Done', label: 'Concluído', icon: CheckCircle2, accent: '#05df72' },
+  { id: 'Todo', labelKey: 'kanban.todo', icon: ListTodo, accent: '#94a3b8' },
+  { id: 'InProgress', labelKey: 'kanban.inProgress', icon: CircleDashed, accent: '#fbbf24' },
+  { id: 'InReview', labelKey: 'kanban.inReview', icon: Eye, accent: '#a855f7' },
+  { id: 'Done', labelKey: 'kanban.done', icon: CheckCircle2, accent: '#05df72' },
 ];
 
 function formatTotalWorked(seconds: number): string {
@@ -74,6 +75,7 @@ export function KanbanBoard({
   /** Called when the server rejects the move (409 concurrency); parent should refetch. */
   onConflict: () => void;
 }) {
+  const { t } = useTranslation();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null);
 
@@ -176,7 +178,7 @@ export function KanbanBoard({
             <KanbanColumn
               key={col.id}
               id={col.id}
-              label={col.label}
+              label={t(col.labelKey)}
               icon={<Icon className="w-3.5 h-3.5" />}
               accent={col.accent}
               count={colTasks.length}
@@ -197,7 +199,7 @@ export function KanbanBoard({
                   ))}
                   {colTasks.length === 0 && (
                     <div className="text-center py-8 text-[10px] text-[rgba(245,247,251,0.25)] italic">
-                      Arraste cards aqui
+                      {t('kanban.dragHere')}
                     </div>
                   )}
                 </div>
@@ -250,6 +252,7 @@ function KanbanColumn({
   onAddClick?: () => void;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   // Make the column a drop target even when empty
   const { setNodeRef } = useSortable({
     id: `col-${id}`,
@@ -272,14 +275,14 @@ function KanbanColumn({
             <span className="text-[10px] text-[rgba(245,247,251,0.4)]">· {count}</span>
           </div>
           {totalWorked > 0 && (
-            <div className="text-[9px] text-[rgba(245,247,251,0.35)]">{formatTotalWorked(totalWorked)} trabalhado</div>
+            <div className="text-[9px] text-[rgba(245,247,251,0.35)]">{formatTotalWorked(totalWorked)} {t('projects.worked')}</div>
           )}
         </div>
         {onAddClick && (
           <button
             onClick={onAddClick}
             className="p-1 rounded-md text-[rgba(245,247,251,0.4)] hover:text-[#c4b5fd] hover:bg-[rgba(139,92,246,0.08)] transition-colors"
-            title="Adicionar tarefa"
+            title={t('tasks.addTaskTooltip')}
           >
             <Plus className="w-3.5 h-3.5" />
           </button>

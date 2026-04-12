@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../stores/authStore';
 import { shakeX, SPRING, TIMING } from '../lib/animation';
 import logoImg from '../assets/logo-128.png';
 
 export default function Login() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { login, isLoading, error, setError } = useAuthStore();
   const [email, setEmail] = useState('');
@@ -48,7 +50,7 @@ export default function Login() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            Faca login para continuar
+            {t('auth.loginSubtitle')}
           </motion.p>
         </div>
 
@@ -83,7 +85,7 @@ export default function Login() {
             transition={{ duration: TIMING.normal, delay: 0.38 }}
           >
             <label htmlFor="email" className="block text-sm font-medium text-zinc-300 mb-2">
-              Email
+              {t('auth.email')}
             </label>
             <input
               type="email"
@@ -93,7 +95,7 @@ export default function Login() {
               required
               autoFocus
               className="w-full px-4 py-3 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              placeholder="seu@email.com"
+              placeholder={t('auth.emailPlaceholder')}
             />
           </motion.div>
 
@@ -105,7 +107,7 @@ export default function Login() {
             transition={{ duration: TIMING.normal, delay: 0.46 }}
           >
             <label htmlFor="password" className="block text-sm font-medium text-zinc-300 mb-2">
-              Senha
+              {t('auth.password')}
             </label>
             <input
               type="password"
@@ -114,7 +116,7 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
               required
               className="w-full px-4 py-3 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              placeholder="••••••••"
+              placeholder={t('auth.passwordPlaceholder')}
             />
           </motion.div>
 
@@ -144,10 +146,10 @@ export default function Login() {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                Entrando...
+                {t('auth.loggingIn')}
               </>
             ) : (
-              'Entrar'
+              t('auth.login')
             )}
           </motion.button>
 
@@ -157,7 +159,7 @@ export default function Login() {
               type="button"
               className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
             >
-              Esqueceu sua senha?
+              {t('auth.forgotPassword')}
             </button>
           </div>
         </motion.form>
@@ -169,9 +171,9 @@ export default function Login() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: TIMING.normal, delay: 0.6 }}
         >
-          Nao tem uma conta?{' '}
+          {t('auth.noAccount')}{' '}
           <Link to="/register" className="text-blue-400 hover:text-blue-300 transition-colors">
-            Criar conta
+            {t('auth.createAccount')}
           </Link>
         </motion.p>
       </div>

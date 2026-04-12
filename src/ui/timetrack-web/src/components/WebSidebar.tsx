@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { BarChart3, Activity, CalendarDays, Cog, LogOut, Shield, Menu, X, Wrench, Bell, ChevronDown, FolderKanban } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavItem } from '@desktop/components/dashboard/shared/NavItem';
 import { useAuthStore } from '../stores/authStore';
@@ -18,6 +19,7 @@ function fmtAgo(isoString: string | null): string {
 }
 
 export function WebSidebar() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuthStore();
@@ -74,15 +76,15 @@ export function WebSidebar() {
   const canManageProjects = user?.role === 'Admin' || user?.role === 'Gestor';
 
   const navItems = [
-    { icon: <BarChart3 className="w-[16px] h-[16px]" />, label: 'Dashboard', path: '/' },
-    { icon: <Activity className="w-[16px] h-[16px]" />, label: 'Atividade', path: '/activities' },
-    { icon: <CalendarDays className="w-[16px] h-[16px]" />, label: 'Relatorios', path: '/reports' },
+    { icon: <BarChart3 className="w-[16px] h-[16px]" />, label: t('webSidebar.dashboard'), path: '/' },
+    { icon: <Activity className="w-[16px] h-[16px]" />, label: t('webSidebar.activities'), path: '/activities' },
+    { icon: <CalendarDays className="w-[16px] h-[16px]" />, label: t('webSidebar.reports'), path: '/reports' },
     ...(canManageProjects ? [
-      { icon: <FolderKanban className="w-[16px] h-[16px]" />, label: 'Projetos', path: '/projects' },
+      { icon: <FolderKanban className="w-[16px] h-[16px]" />, label: t('webSidebar.projects'), path: '/projects' },
     ] : []),
-    { icon: <Cog className="w-[16px] h-[16px]" />, label: 'Configuracoes', path: '/settings' },
+    { icon: <Cog className="w-[16px] h-[16px]" />, label: t('webSidebar.settings'), path: '/settings' },
     ...(user?.role === 'Admin' ? [
-      { icon: <Wrench className="w-[16px] h-[16px]" />, label: 'Manutencao', path: '/maintenance' },
+      { icon: <Wrench className="w-[16px] h-[16px]" />, label: t('webSidebar.maintenance'), path: '/maintenance' },
     ] : []),
   ];
 
@@ -104,7 +106,7 @@ export function WebSidebar() {
             <div className="flex items-center gap-1">
               <Shield className="w-2.5 h-2.5 text-[#8B5CF6]" />
               <span className="text-[9px] text-[rgba(139,92,246,0.8)] font-medium uppercase tracking-wider">
-                Admin Portal
+                {t('webSidebar.adminPortal')}
               </span>
             </div>
           </div>
@@ -148,7 +150,7 @@ export function WebSidebar() {
               )}
             </div>
             <span className="text-[13px] font-medium flex-1 text-left">
-              {alerts.length > 0 ? `${alerts.length} Alerta${alerts.length > 1 ? 's' : ''}` : 'Alertas'}
+              {alerts.length > 0 ? `${alerts.length} ${alerts.length > 1 ? t('webSidebar.alerts') : t('webSidebar.alert')}` : t('webSidebar.alerts')}
             </span>
             <motion.div animate={{ rotate: notifOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
               <ChevronDown className="w-3 h-3 opacity-40" />
@@ -165,7 +167,7 @@ export function WebSidebar() {
                 className="overflow-hidden"
               >
                 {alerts.length === 0 ? (
-                  <p className="px-3 py-2 text-[10px] text-[rgba(245,247,251,0.3)]">Todos os dispositivos saudáveis</p>
+                  <p className="px-3 py-2 text-[10px] text-[rgba(245,247,251,0.3)]">{t('webSidebar.allHealthy')}</p>
                 ) : (
                   <div className="mt-1 space-y-0.5 max-h-[200px] overflow-y-auto">
                     {alerts.map((alert) => {
@@ -215,10 +217,10 @@ export function WebSidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[12px] font-medium text-[rgba(245,247,251,0.9)] truncate">
-              {user?.displayName || 'Usuario'}
+              {user?.displayName || t('webSidebar.user')}
             </p>
             <p className="text-[10px] text-[rgba(245,247,251,0.4)] truncate">
-              {user?.role === 'Admin' ? 'Administrador' : 'Gestor'} · {user?.orgName}
+              {user?.role === 'Admin' ? t('webSidebar.admin') : t('webSidebar.manager')} · {user?.orgName}
             </p>
           </div>
         </div>
@@ -227,7 +229,7 @@ export function WebSidebar() {
           className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
         >
           <LogOut className="w-[14px] h-[14px]" />
-          Sair
+          {t('webSidebar.logout')}
         </button>
       </div>
     </>

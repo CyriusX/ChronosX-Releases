@@ -1,4 +1,5 @@
 import { Ban } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { PolicyCardShell } from './PolicyCardShell';
 
 interface IdleThresholdCardProps {
@@ -29,18 +30,19 @@ export function IdleThresholdCard({
   isSaving,
   onThresholdChange,
 }: IdleThresholdCardProps) {
+  const { t } = useTranslation();
   const formatIdleThreshold = () => {
     const minutes = Math.floor(thresholdSeconds / 60);
     const seconds = thresholdSeconds % 60;
     if (minutes > 0 && seconds > 0) {
       return `${minutes}min ${seconds}s`;
     }
-    return minutes > 0 ? `${minutes} minutos` : `${seconds} segundos`;
+    return minutes > 0 ? `${minutes} ${t('policies.idleThreshold.minutes')}` : `${seconds} ${t('policies.idleThreshold.seconds')}`;
   };
 
   return (
     <PolicyCardShell
-      title="Threshold de Inatividade"
+      title={t('policies.idleThreshold.title')}
       icon={Ban}
       iconColor="text-[#f3d05d]"
       iconBgColor="bg-[rgba(243,208,93,0.15)]"
@@ -71,8 +73,7 @@ export function IdleThresholdCard({
           <div className="flex items-baseline gap-2">
             <span className="text-[24px] font-semibold text-[#f5f7fb]">{formatIdleThreshold()}</span>
           </div>
-          <p className="text-[13px] text-[rgba(245,247,251,0.5)]">Tempo sem atividade para pausa automática</p>
-          <p className="text-[11px] text-[rgba(245,247,251,0.35)]">Tracking pausa automaticamente após este período</p>
+          <p className="text-[13px] text-[rgba(245,247,251,0.5)]">{t('policies.idleThreshold.subtitle')}</p>
         </div>
       )}
     </PolicyCardShell>

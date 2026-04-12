@@ -5,6 +5,7 @@
  * Click the assignee area to open an inline dropdown for quick reassignment.
  */
 
+import { useTranslation } from 'react-i18next';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Clock, Calendar, Pencil, PlayCircle, GripVertical } from 'lucide-react';
@@ -29,13 +30,13 @@ function priorityColor(priority: TaskPriority): string {
   }
 }
 
-function priorityLabel(priority: TaskPriority): string {
+function priorityLabelKey(priority: TaskPriority): string {
   switch (priority) {
-    case 'Urgent': return 'Urgente';
-    case 'High': return 'Alta';
-    case 'Medium': return 'Média';
-    case 'Low': return 'Baixa';
-    default: return 'Nenhuma';
+    case 'Urgent': return 'tasks.urgent';
+    case 'High': return 'tasks.high';
+    case 'Medium': return 'tasks.medium';
+    case 'Low': return 'tasks.low';
+    default: return 'tasks.none';
   }
 }
 
@@ -64,6 +65,7 @@ export function TaskCard({
   /** Called after assignment changes so the parent can refetch. */
   onAssigned?: () => void;
 }) {
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: 'task', task },
@@ -103,8 +105,8 @@ export function TaskCard({
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
         className="absolute top-1.5 right-6 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.06)] transition-all cursor-grab active:cursor-grabbing"
-        aria-label="Arrastar"
-        title="Arrastar"
+        aria-label={t('tasks.drag')}
+        title={t('tasks.drag')}
       >
         <GripVertical className="w-3 h-3" />
       </button>
@@ -117,7 +119,7 @@ export function TaskCard({
         }}
         onPointerDown={(e) => e.stopPropagation()}
         className="absolute top-1.5 right-1.5 p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.06)] transition-all"
-        title="Editar"
+        title={t('tasks.edit')}
       >
         <Pencil className="w-3 h-3" />
       </button>
@@ -126,7 +128,7 @@ export function TaskCard({
       {task.isRunning && (
         <div className="flex items-center gap-1.5 mb-2 text-[9px] font-semibold text-[#05df72]">
           <PlayCircle className="w-3 h-3 animate-pulse" />
-          EM EXECUÇÃO · {task.runningSeconds ? formatDuration(task.runningSeconds) : '0s'}
+          {t('tasks.running')} {task.runningSeconds ? formatDuration(task.runningSeconds) : '0s'}
         </div>
       )}
 
@@ -135,7 +137,7 @@ export function TaskCard({
         <span
           className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5"
           style={{ backgroundColor: priorityColor(task.priority) }}
-          title={`Prioridade: ${priorityLabel(task.priority)}`}
+          title={`${t('tasks.priority')} ${t(priorityLabelKey(task.priority))}`}
         />
         <h4 className="flex-1 text-[12px] font-semibold text-[#f5f7fb] leading-snug">
           {task.title}
@@ -168,10 +170,10 @@ export function TaskCard({
             className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border ${deadlineClasses}`}
             title={
               tone === 'today'
-                ? 'Prazo é hoje'
+                ? t('tasks.deadlineToday')
                 : tone === 'overdue'
-                ? 'Atrasada'
-                : 'Prazo'
+                ? t('tasks.overdue')
+                : t('tasks.deadline')
             }
           >
             <Calendar className="w-3 h-3" />

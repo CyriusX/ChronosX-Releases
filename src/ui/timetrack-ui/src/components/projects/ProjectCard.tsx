@@ -3,6 +3,7 @@
  */
 
 import { Archive, Edit2, MoreVertical, RotateCcw, Trash2, Clock, CheckCircle2, CircleDashed, ListTodo, DollarSign, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { Project } from '../../stores/projectStore';
 import { scaleIn, TIMING } from '../../lib/animation';
@@ -46,6 +47,7 @@ export function ProjectCard({
   onDelete,
   isArchived,
 }: ProjectCardProps) {
+  const { t } = useTranslation();
   const totalTasks = (stats?.todoCount ?? 0) + (stats?.inProgressCount ?? 0) + (stats?.doneCount ?? 0);
   const totalCost = project.isBillable && project.hourlyRate && stats
     ? ((stats.totalSecondsWorked / 3600) * project.hourlyRate)
@@ -117,14 +119,14 @@ export function ProjectCard({
                         className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#f5f7fb] transition-colors"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
-                        Editar projeto
+                        {t('projects.editProjectMenu')}
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); onArchive(); }}
                         className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#f5f7fb] transition-colors"
                       >
                         <Archive className="w-3.5 h-3.5" />
-                        Arquivar
+                        {t('projects.archive')}
                       </button>
                     </>
                   ) : (
@@ -133,7 +135,7 @@ export function ProjectCard({
                       className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#f5f7fb] transition-colors"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
-                      Reativar
+                      {t('projects.reactivate')}
                     </button>
                   )}
                   <div className="border-t border-[rgba(255,255,255,0.06)]" />
@@ -142,7 +144,7 @@ export function ProjectCard({
                     className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[#f87171] hover:bg-[rgba(248,113,113,0.08)] transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    Excluir
+                    {t('common.delete')}
                   </button>
                 </motion.div>
               )}
@@ -156,7 +158,7 @@ export function ProjectCard({
             {project.description}
           </p>
         ) : (
-          <p className="text-[11px] text-[rgba(245,247,251,0.2)] italic -mt-1">Sem descrição</p>
+          <p className="text-[11px] text-[rgba(245,247,251,0.2)] italic -mt-1">{t('projects.noDescription')}</p>
         )}
 
         {/* Task status chips */}
@@ -165,19 +167,19 @@ export function ProjectCard({
             {stats.todoCount > 0 && (
               <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[rgba(148,163,184,0.1)] border border-[rgba(148,163,184,0.15)] text-[10px] text-[#94a3b8]">
                 <ListTodo className="w-3 h-3" />
-                {stats.todoCount} a fazer
+                {stats.todoCount} {t('projects.todoCount')}
               </span>
             )}
             {stats.inProgressCount > 0 && (
               <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[rgba(251,191,36,0.1)] border border-[rgba(251,191,36,0.15)] text-[10px] text-[#fbbf24]">
                 <CircleDashed className="w-3 h-3" />
-                {stats.inProgressCount} em progresso
+                {stats.inProgressCount} {t('projects.inProgressCount')}
               </span>
             )}
             {stats.doneCount > 0 && (
               <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[rgba(5,223,114,0.1)] border border-[rgba(5,223,114,0.15)] text-[10px] text-[#05df72]">
                 <CheckCircle2 className="w-3 h-3" />
-                {stats.doneCount} concluído
+                {stats.doneCount} {t('projects.doneCount')}
               </span>
             )}
           </div>
@@ -185,7 +187,7 @@ export function ProjectCard({
 
         {stats && totalTasks === 0 && (
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-[rgba(245,247,251,0.25)] italic">Sem tarefas ainda</span>
+            <span className="text-[10px] text-[rgba(245,247,251,0.25)] italic">{t('projects.noTasksYet')}</span>
           </div>
         )}
 
@@ -212,7 +214,7 @@ export function ProjectCard({
 
           {/* Created date */}
           <span className="text-[10px] text-[rgba(245,247,251,0.25)]">
-            {new Date(project.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+            {new Date(project.createdAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
           </span>
         </div>
       </div>

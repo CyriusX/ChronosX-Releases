@@ -1,5 +1,6 @@
 import { User, Mail, Shield, Building2, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
 
 const ROLE_STYLES: Record<string, string> = {
@@ -8,15 +9,16 @@ const ROLE_STYLES: Record<string, string> = {
   Colaborador: 'bg-[rgba(139,92,246,0.15)] text-[#8B5CF6]',
 };
 
-const ROLE_LABELS: Record<string, string> = {
-  Admin: 'Administrador',
-  Gestor: 'Gestor',
-  Colaborador: 'Colaborador',
+const ROLE_KEYS: Record<string, string> = {
+  Admin: 'settings.profile.admin',
+  Gestor: 'settings.profile.manager',
+  Colaborador: 'settings.profile.contributor',
 };
 
 export function ProfileSection() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const handleLogout = async () => {
     await logout();
@@ -31,9 +33,9 @@ export function ProfileSection() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Perfil</h2>
+        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('settings.profile.title')}</h2>
         <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-          Suas informações de conta e organização
+          {t('settings.profile.subtitle')}
         </p>
       </div>
 
@@ -50,7 +52,7 @@ export function ProfileSection() {
             </h3>
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium mt-1 ${ROLE_STYLES[user.role] || ROLE_STYLES.Colaborador}`}>
               <Shield className="w-3 h-3" />
-              {ROLE_LABELS[user.role] || user.role}
+              {ROLE_KEYS[user.role] ? t(ROLE_KEYS[user.role]) : user.role}
             </span>
           </div>
         </div>
@@ -60,7 +62,7 @@ export function ProfileSection() {
           <div className="flex items-center gap-3 py-2.5 border-b border-[rgba(255,255,255,0.04)]">
             <Mail className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] text-[rgba(245,247,251,0.4)]">E-mail</p>
+              <p className="text-[11px] text-[rgba(245,247,251,0.4)]">{t('settings.profile.email')}</p>
               <p className="text-[13px] text-[rgba(245,247,251,0.9)] truncate">{user.email}</p>
             </div>
           </div>
@@ -68,7 +70,7 @@ export function ProfileSection() {
           <div className="flex items-center gap-3 py-2.5 border-b border-[rgba(255,255,255,0.04)]">
             <User className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Nome de exibição</p>
+              <p className="text-[11px] text-[rgba(245,247,251,0.4)]">{t('settings.profile.displayName')}</p>
               <p className="text-[13px] text-[rgba(245,247,251,0.9)] truncate">{user.displayName}</p>
             </div>
           </div>
@@ -76,7 +78,7 @@ export function ProfileSection() {
           <div className="flex items-center gap-3 py-2.5">
             <Building2 className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Organização</p>
+              <p className="text-[11px] text-[rgba(245,247,251,0.4)]">{t('settings.profile.organization')}</p>
               <p className="text-[13px] text-[rgba(245,247,251,0.9)] truncate">{user.orgName}</p>
             </div>
           </div>
@@ -89,7 +91,7 @@ export function ProfileSection() {
         className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[rgba(248,113,113,0.06)] border border-[rgba(248,113,113,0.15)] text-[#f87171] text-[13px] font-medium hover:bg-[rgba(248,113,113,0.12)] transition-colors"
       >
         <LogOut className="w-4 h-4" />
-        Sair da conta
+        {t('settings.profile.logout')}
       </button>
     </div>
   );

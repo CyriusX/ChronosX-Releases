@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { Clock, CheckSquare, ListTodo, ChevronRight } from 'lucide-react';
 import { getMemberSummary } from '../../services/memberApi';
@@ -35,13 +36,7 @@ function getInitials(name: string): string {
     .join('');
 }
 
-function roleLabel(role: string): string {
-  switch (role) {
-    case 'Admin': return 'Admin';
-    case 'Gestor': return 'Gestor';
-    default: return 'Membro';
-  }
-}
+// roleLabel is resolved via i18n inside the component
 
 function roleColor(role: string): string {
   switch (role) {
@@ -68,6 +63,7 @@ function formatRelativeTime(isoDate: string | null | undefined): string | null {
 }
 
 export function MemberCard({ member, index, onSelect }: MemberCardProps) {
+  const { t } = useTranslation();
   const [productivityPct, setProductivityPct] = useState<number | null>(null);
   const [totalDuration, setTotalDuration] = useState<number>(member.todayDurationSeconds);
   const [inProgressTask, setInProgressTask] = useState<Task | null>(null);
@@ -127,7 +123,7 @@ export function MemberCard({ member, index, onSelect }: MemberCardProps) {
             <ChevronRight className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)] group-hover:text-[rgba(245,247,251,0.6)] transition-colors flex-shrink-0" />
           </div>
           <span className={`mt-0.5 inline-flex text-[10px] font-medium px-1.5 py-0.5 rounded-md border ${roleColor(member.role)}`}>
-            {roleLabel(member.role)}
+            {member.role === 'Admin' ? t('teams.adminRole') : member.role === 'Gestor' ? t('teams.gestorRole') : t('teams.memberRole')}
           </span>
         </div>
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import {
   BarChart3,
@@ -18,15 +19,16 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { SPRING } from '../../lib/animation';
 
 const BASE_NAV_ITEMS = [
-  { icon: BarChart3, label: 'Dashboard', path: '/' },
-  { icon: TimerIcon, label: 'Timer', path: '/timer' },
-  { icon: FolderOpen, label: 'Projetos', path: '/projects' },
-  { icon: Activity, label: 'Atividade', path: '/activities' },
-  { icon: Users, label: 'Equipe', path: '/teams', managerOnly: true },
-  { icon: Cog, label: 'Config', path: '/settings' },
+  { icon: BarChart3, labelKey: 'mobileNav.dashboard', path: '/' },
+  { icon: TimerIcon, labelKey: 'mobileNav.timer', path: '/timer' },
+  { icon: FolderOpen, labelKey: 'mobileNav.projects', path: '/projects' },
+  { icon: Activity, labelKey: 'mobileNav.activities', path: '/activities' },
+  { icon: Users, labelKey: 'mobileNav.team', path: '/teams', managerOnly: true },
+  { icon: Cog, labelKey: 'mobileNav.settings', path: '/settings' },
 ];
 
 export function MobileBottomNav() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const isTracking = useTrackingStore(s => s.isTracking);
@@ -66,7 +68,7 @@ export function MobileBottomNav() {
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 glass-sidebar border-t border-[rgba(255,255,255,0.06)]">
       <div className="flex items-end h-14">
         {/* Nav items — 6 equal columns */}
-        {NAV_ITEMS.map(({ icon: Icon, label, path }) => {
+        {NAV_ITEMS.map(({ icon: Icon, labelKey, path }) => {
           const isCurrentPath = location.pathname === path;
           return (
             <button
@@ -91,7 +93,7 @@ export function MobileBottomNav() {
                 className="relative z-10 text-[9px] font-medium"
                 style={{ color: isCurrentPath ? 'rgba(245,247,251,0.9)' : 'rgba(245,247,251,0.3)' }}
               >
-                {label}
+                {t(labelKey)}
               </span>
             </button>
           );
@@ -102,7 +104,7 @@ export function MobileBottomNav() {
           onClick={handleToggleTracking}
           disabled={isBusy}
           className="flex-shrink-0 flex flex-col items-center justify-center h-full px-3 gap-0.5"
-          title={isActive ? 'Parar monitoramento' : 'Iniciar monitoramento'}
+          title={isActive ? t('sidebar.stopMonitoring') : t('sidebar.resumeMonitoring')}
         >
           <div
             className={`relative w-7 h-7 rounded-full flex items-center justify-center transition-all ${
@@ -130,7 +132,7 @@ export function MobileBottomNav() {
             )}
           </div>
           <span className="text-[9px] font-medium" style={{ color: isActive ? '#f87171' : '#05df72' }}>
-            {isBusy ? '...' : isActive ? 'Parar' : 'Iniciar'}
+            {isBusy ? '...' : isActive ? t('sidebar.stopMonitoring') : t('sidebar.resumeMonitoring')}
           </span>
         </button>
       </div>

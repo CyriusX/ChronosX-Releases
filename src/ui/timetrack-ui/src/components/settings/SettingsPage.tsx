@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { SkeletonShimmer } from '../ui/SkeletonShimmer';
 import { SettingsSidebar } from './SettingsSidebar';
@@ -35,6 +36,7 @@ import type { SettingsSection } from '../../types/settingsNav';
  * - Sistema: Sobre
  */
 export function SettingsPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { sendQuery, sendCommand } = useIpc();
   const { notify } = useNotifications();
@@ -70,7 +72,7 @@ export function SettingsPage() {
           setPolicyError(null);
         } catch (error) {
           console.error('[Settings] Error fetching policies:', error);
-          setPolicyError('Não foi possível carregar as políticas da organização');
+          setPolicyError(t('settings.policyLoadFailed'));
         }
       }
     } catch (error) {
@@ -98,31 +100,31 @@ export function SettingsPage() {
       const result = await sendCommand('updateSettings', updates);
       if (!result.success) {
         console.error('[Settings] Failed to update:', result.error);
-        notify.error('Erro ao salvar configurações');
+        notify.error(t('settings.saveFailed'));
         await loadSettings();
       } else {
-        notify.success('Configurações salvas');
+        notify.success(t('settings.saveSuccess'));
       }
     } catch (error) {
       console.error('[Settings] Error updating settings:', error);
-      notify.error('Erro ao salvar configurações');
+      notify.error(t('settings.saveFailed'));
       await loadSettings();
     }
   };
 
   const handleUpdatePolicy = async (request: UpdateOrgPolicyRequest) => {
     if (!user?.orgId) {
-      notify.error('Erro ao atualizar políticas');
+      notify.error(t('settings.policyUpdateFailed'));
       return;
     }
 
     try {
       const updatedPolicy = await updateOrgPolicy(user.orgId, request);
       setPolicy(updatedPolicy);
-      notify.success('Políticas atualizadas');
+      notify.success(t('settings.policiesUpdated'));
     } catch (error) {
       console.error('[Settings] Error updating policy:', error);
-      notify.error('Erro ao atualizar políticas');
+      notify.error(t('settings.policyUpdateFailed'));
       throw error;
     }
   };
@@ -168,9 +170,9 @@ export function SettingsPage() {
           ) : policyError ? (
             <div className="space-y-6">
               <div>
-                <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Organização</h2>
+                <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('settings.organization.title')}</h2>
                 <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-                  Políticas e configurações da organização
+                  {t('settings.organization.subtitle')}
                 </p>
               </div>
               <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,107,107,0.2)] rounded-2xl p-6">
@@ -179,7 +181,7 @@ export function SettingsPage() {
                   onClick={loadSettings}
                   className="mt-3 text-[12px] text-[#8B5CF6] hover:underline"
                 >
-                  Tentar novamente
+                  {t('common.retry')}
                 </button>
               </div>
             </div>
@@ -251,9 +253,9 @@ export function SettingsPage() {
               <ArrowLeft className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
             </motion.button>
             <div>
-              <h1 className="text-[20px] font-semibold text-[#f5f7fb]">Configurações</h1>
+              <h1 className="text-[20px] font-semibold text-[#f5f7fb]">{t('settings.title')}</h1>
               <p className="text-[12px] text-[rgba(245,247,251,0.4)]">
-                Gerencie suas preferências e configurações
+                {t('settings.subtitle')}
               </p>
             </div>
           </div>

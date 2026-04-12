@@ -9,6 +9,7 @@
  */
 
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { AlertTriangle, Clock, TrendingDown, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
@@ -45,7 +46,7 @@ function DistractionBar({ date, distractionSeconds, maxSeconds }: DistractionBar
 
   // Parse date for display
   const dateObj = new Date(date);
-  const dayLabel = dateObj.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' });
+  const dayLabel = dateObj.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
 
   return (
     <div className="flex items-center gap-2 min-w-0">
@@ -81,6 +82,7 @@ function TopDistractionItem({
   sessionCount,
   maxSeconds,
 }: TopDistractionItemProps) {
+  const { t } = useTranslation();
   const percentage = maxSeconds > 0 ? (totalSeconds / maxSeconds) * 100 : 0;
 
   return (
@@ -100,7 +102,7 @@ function TopDistractionItem({
         {displayName}
       </span>
       <span className="text-[9px] text-[rgba(245,247,251,0.35)]">
-        {sessionCount} sessões
+        {sessionCount} {t('reports.sessions')}
       </span>
       <div className="w-10 h-1 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
         <motion.div
@@ -120,8 +122,10 @@ function TopDistractionItem({
 export function DistractionSection({
   data,
   isLoading = false,
-  title = 'Análise de Distrações',
+  title: titleProp,
 }: DistractionSectionProps) {
+  const { t } = useTranslation();
+  const title = titleProp ?? t('reports.distractionAnalysis');
   // Calculate stats
   const stats = useMemo(() => {
     if (!data || data.dailyDistractions.length === 0) {
@@ -202,7 +206,7 @@ export function DistractionSection({
         <CardContent className="pt-2 pb-3 px-4">
           <div className="flex flex-col items-center justify-center h-[120px] text-[rgba(245,247,251,0.4)]">
             <AlertTriangle className="w-6 h-6 mb-2 opacity-50" />
-            <span className="text-[12px]">Nenhuma distração registrada</span>
+            <span className="text-[12px]">{t('reports.noDistractionRecorded')}</span>
           </div>
         </CardContent>
       </Card>
@@ -236,19 +240,19 @@ export function DistractionSection({
             <p className="text-[11px] font-medium text-[rgba(245,247,251,0.8)] mt-1">
               {formatTime(stats.totalDistraction)}
             </p>
-            <p className="text-[9px] text-[rgba(245,247,251,0.4)]">Total</p>
+            <p className="text-[9px] text-[rgba(245,247,251,0.4)]">{t('reports.total')}</p>
           </div>
           <div className="text-center p-2 rounded-lg bg-[rgba(255,255,255,0.03)]">
             <p className="text-[11px] font-medium text-[rgba(245,247,251,0.8)]">
               {formatTime(stats.avgDaily)}
             </p>
-            <p className="text-[9px] text-[rgba(245,247,251,0.4)]">Média/dia</p>
+            <p className="text-[9px] text-[rgba(245,247,251,0.4)]">{t('reports.avgPerDay')}</p>
           </div>
           <div className="text-center p-2 rounded-lg bg-[rgba(255,255,255,0.03)]">
             <p className="text-[11px] font-medium text-[rgba(245,247,251,0.8)]">
               {data.topDistractions.length}
             </p>
-            <p className="text-[9px] text-[rgba(245,247,251,0.4)]">Fontes</p>
+            <p className="text-[9px] text-[rgba(245,247,251,0.4)]">{t('reports.sources')}</p>
           </div>
         </div>
 
@@ -260,7 +264,7 @@ export function DistractionSection({
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <p className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1">Últimos 14 dias</p>
+            <p className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1">{t('reports.last14Days')}</p>
             <motion.div
               className="space-y-0.5 max-h-25 overflow-y-auto"
               variants={staggerContainer(STAGGER.fast)}
@@ -287,7 +291,7 @@ export function DistractionSection({
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
           >
-            <p className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1">Principais distrações</p>
+            <p className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1">{t('reports.topDistractions')}</p>
             <motion.div
               className="space-y-0.5 max-h-25 overflow-y-auto"
               variants={staggerContainer(STAGGER.listItems)}

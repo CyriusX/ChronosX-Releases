@@ -12,6 +12,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AppWindow } from 'lucide-react';
 import { useAppCategories, type OverrideRequest } from './useAppCategories';
 import { AppCategoriesList } from './AppCategoriesList';
@@ -28,6 +29,7 @@ interface AppCategoriesSectionProps {
  * Main section for managing app categories with override support
  */
 export function AppCategoriesSection({ orgId }: AppCategoriesSectionProps) {
+  const { t } = useTranslation();
   const { notify } = useNotifications();
 
   // State for modals
@@ -55,10 +57,11 @@ export function AppCategoriesSection({ orgId }: AppCategoriesSectionProps) {
   const handleSaveOverride = async (request: OverrideRequest) => {
     try {
       await createOverride(request);
-      notify.success(`${request.displayName} reclassificado como ${request.productivity === 'productive' ? 'Produtivo' : request.productivity === 'neutral' ? 'Neutro' : 'Distração'}`);
+      const categoryLabel = request.productivity === 'productive' ? t('policies.appCategories.productive') : request.productivity === 'neutral' ? t('policies.appCategories.neutral') : t('policies.appCategories.distraction');
+      notify.success(t('policies.appCategories.reclassified', { name: request.displayName, category: categoryLabel }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro desconhecido';
-      notify.error(`Erro ao salvar classificação: ${message}`);
+      const message = error instanceof Error ? error.message : 'unknown';
+      notify.error(t('policies.appCategories.classificationSaveError', { message }));
       throw error; // Re-throw so the modal can also display the error
     }
   };
@@ -69,10 +72,10 @@ export function AppCategoriesSection({ orgId }: AppCategoriesSectionProps) {
   const handleAddApp = async (request: OverrideRequest) => {
     try {
       await createOverride(request);
-      notify.success(`Classificação adicionada para ${request.identifier}`);
+      notify.success(t('policies.appCategories.classificationAdded', { identifier: request.identifier }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro desconhecido';
-      notify.error(`Erro ao adicionar classificação: ${message}`);
+      const message = error instanceof Error ? error.message : 'unknown';
+      notify.error(t('policies.appCategories.classificationAddError', { message }));
       throw error;
     }
   };
@@ -82,15 +85,15 @@ export function AppCategoriesSection({ orgId }: AppCategoriesSectionProps) {
    */
   const handleDeleteOverride = async (identifier: string) => {
     // Confirmation
-    if (!window.confirm(`Remover override? O app voltará à classificação global.`)) {
+    if (!window.confirm(t('policies.appCategories.removeOverrideConfirm'))) {
       return;
     }
 
     try {
       await removeOverride(identifier);
-      notify.success('Override removido com sucesso');
+      notify.success(t('policies.appCategories.overrideRemoved'));
     } catch (error) {
-      notify.error('Erro ao remover override');
+      notify.error(t('policies.appCategories.overrideRemoveError'));
     }
   };
 
@@ -109,9 +112,9 @@ export function AppCategoriesSection({ orgId }: AppCategoriesSectionProps) {
           <AppWindow className="w-5 h-5 text-[#8B5CF6]" />
         </div>
         <div>
-          <h2 className="text-[18px] font-semibold text-[#f5f7fb]">Aplicativos</h2>
+          <h2 className="text-[18px] font-semibold text-[#f5f7fb]">{t('policies.appCategories.appsTitle')}</h2>
           <p className="text-[12px] text-[rgba(245,247,251,0.4)]">
-            Classifique apps e sites por produtividade
+            {t('policies.appCategories.appsSubtitle')}
           </p>
         </div>
       </div>
@@ -119,12 +122,12 @@ export function AppCategoriesSection({ orgId }: AppCategoriesSectionProps) {
       {/* Stats badges */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)]">
-          <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Apps detectados</span>
+          <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('policies.appCategories.detectedApps')}</span>
           <span className="text-[12px] font-medium text-[#f5f7fb]">{apps.length}</span>
         </div>
         {overridesCount > 0 && (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.2)]">
-            <span className="text-[11px] text-[#8B5CF6]">Overrides</span>
+            <span className="text-[11px] text-[#8B5CF6]">{t('policies.appCategories.overrides')}</span>
             <span className="text-[12px] font-medium text-[#8B5CF6]">{overridesCount}</span>
           </div>
         )}

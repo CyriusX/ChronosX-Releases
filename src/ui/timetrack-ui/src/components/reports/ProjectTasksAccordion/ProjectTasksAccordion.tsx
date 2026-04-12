@@ -6,6 +6,7 @@
  * OCP: Can be extended with new task metadata without modifying the component.
  */
 
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Briefcase,
@@ -67,6 +68,7 @@ export function ProjectTasksAccordion({
   expanded,
   onToggle,
 }: ProjectTasksAccordionProps) {
+  const { t } = useTranslation();
   const projectMap = new Map(projects.map((p) => [p.id, p]));
 
   // Group tasks by project
@@ -89,8 +91,8 @@ export function ProjectTasksAccordion({
       {/* Header */}
       <div className="px-5 py-4 border-b border-[rgba(255,255,255,0.06)] flex items-center gap-2">
         <Briefcase className="w-4 h-4 text-[#8B5CF6]" />
-        <h2 className="text-[14px] font-semibold text-[#f5f7fb]">Projetos e Tarefas</h2>
-        <span className="ml-auto text-[11px] text-[rgba(245,247,251,0.4)]">Tempo total acumulado</span>
+        <h2 className="text-[14px] font-semibold text-[#f5f7fb]">{t('reports.projectsAndTasks')}</h2>
+        <span className="ml-auto text-[11px] text-[rgba(245,247,251,0.4)]">{t('reports.totalAccumulatedTime')}</span>
       </div>
 
       {loading ? (
@@ -99,13 +101,13 @@ export function ProjectTasksAccordion({
         </div>
       ) : sorted.length === 0 ? (
         <div className="px-5 py-8 text-center text-[12px] text-[rgba(245,247,251,0.35)] italic">
-          Nenhuma tarefa encontrada.
+          {t('reports.noTaskFound')}
         </div>
       ) : (
         <div className="divide-y divide-[rgba(255,255,255,0.04)]">
           {sorted.map(([projectId, ptasks]) => {
             const project = projectMap.get(projectId);
-            const projectName = ptasks[0]?.projectName ?? 'Projeto desconhecido';
+            const projectName = ptasks[0]?.projectName ?? t('reports.unknownProject');
             const projectColor = ptasks[0]?.projectColor ?? '#8B5CF6';
             const totalSecs = ptasks.reduce((s, t) => s + t.totalSecondsWorked, 0);
             const isBillable = project?.isBillable ?? false;
@@ -133,7 +135,7 @@ export function ProjectTasksAccordion({
                     {todoCount > 0 && (
                       <div className="flex items-center gap-1 text-[10px] text-[rgba(245,247,251,0.5)]">
                         <ListTodo className="w-3 h-3" />
-                        {todoCount} a fazer
+                        {todoCount} {t('reports.toDo')}
                       </div>
                     )}
                     <div className="flex items-center gap-1 text-[11px] text-[rgba(245,247,251,0.7)]">
@@ -181,7 +183,7 @@ export function ProjectTasksAccordion({
                                       : 'bg-[rgba(148,163,184,0.12)] text-[#94a3b8]'
                                   }`}
                                 >
-                                  {task.status === 'Done' ? 'Feito' : task.status === 'InProgress' ? 'Em progresso' : 'A fazer'}
+                                  {task.status === 'Done' ? t('reports.done') : task.status === 'InProgress' ? t('reports.inProgress') : t('reports.toDoStatus')}
                                 </span>
                                 <span className="flex-1 text-[12px] text-[rgba(245,247,251,0.8)] truncate">{task.title}</span>
                                 <div className="flex items-center gap-3 flex-shrink-0">

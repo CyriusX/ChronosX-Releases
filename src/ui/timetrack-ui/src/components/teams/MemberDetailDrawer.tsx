@@ -73,7 +73,7 @@ function priorityLabel(p: TaskPriority): string {
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso.split('T')[0] + 'T00:00:00');
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
 }
 
 interface DerivedProject {

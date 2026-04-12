@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, FolderOpen, Archive, Clock, DollarSign, LayoutGrid, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +12,7 @@ import { listMyTasks, type Task } from '../services/projectsApi';
 import { fadeUp, staggerContainer, STAGGER, SPRING, TIMING } from '../lib/animation';
 
 export default function Projects() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [showArchived, setShowArchived] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -93,7 +95,7 @@ export default function Projects() {
   const handleArchiveProject = async (id: string) => { await archiveProject(id); setMenuOpenId(null); };
   const handleReactivateProject = async (id: string) => { await reactivateProject(id); setMenuOpenId(null); };
   const handleDeleteProject = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este projeto?')) { await deleteProject(id); setMenuOpenId(null); }
+    if (confirm(t('projects.deleteConfirm'))) { await deleteProject(id); setMenuOpenId(null); }
   };
   const openEditModal = (project: Project) => { setEditingProject(project); setIsModalOpen(true); setMenuOpenId(null); };
   const closeModal = () => { setIsModalOpen(false); setEditingProject(null); };
@@ -114,9 +116,9 @@ export default function Projects() {
             transition={{ duration: TIMING.normal }}
           >
             <div>
-              <h1 className="text-[24px] font-bold text-[#f5f7fb] tracking-tight">Projetos</h1>
+              <h1 className="text-[24px] font-bold text-[#f5f7fb] tracking-tight">{t('projects.title')}</h1>
               <p className="text-[13px] text-[rgba(245,247,251,0.45)] mt-0.5">
-                Gerencie os projetos da sua organização
+                {t('projects.subtitle')}
               </p>
             </div>
             <motion.button
@@ -126,7 +128,7 @@ export default function Projects() {
               whileTap={{ scale: 0.97 }}
             >
               <Plus className="w-4 h-4" />
-              Novo Projeto
+              {t('projects.newProject')}
             </motion.button>
           </motion.div>
 
@@ -147,7 +149,7 @@ export default function Projects() {
                 </div>
                 <div>
                   <p className="text-[18px] font-bold text-[#f5f7fb] leading-none">{activeProjects.length}</p>
-                  <p className="text-[10px] text-[rgba(245,247,251,0.45)] mt-0.5">Projetos ativos</p>
+                  <p className="text-[10px] text-[rgba(245,247,251,0.45)] mt-0.5">{t('projects.activeProjects')}</p>
                 </div>
               </motion.div>
 
@@ -160,7 +162,7 @@ export default function Projects() {
                 </div>
                 <div>
                   <p className="text-[18px] font-bold text-[#f5f7fb] leading-none">{fmtDuration(totalSecondsWorked)}</p>
-                  <p className="text-[10px] text-[rgba(245,247,251,0.45)] mt-0.5">Tempo total trabalhado</p>
+                  <p className="text-[10px] text-[rgba(245,247,251,0.45)] mt-0.5">{t('projects.totalWorked')}</p>
                 </div>
               </motion.div>
 
@@ -176,7 +178,7 @@ export default function Projects() {
                     {billableProjectsCount > 0 ? `${totalBillableValue.toFixed(2)}` : '—'}
                   </p>
                   <p className="text-[10px] text-[rgba(245,247,251,0.45)] mt-0.5">
-                    {billableProjectsCount > 0 ? `Valor faturável (${billableProjectsCount} projeto${billableProjectsCount !== 1 ? 's' : ''})` : 'Sem projetos faturáveis'}
+                    {billableProjectsCount > 0 ? t('projects.billableValueWithCount', { count: billableProjectsCount }) : t('projects.noBillable')}
                   </p>
                 </div>
               </motion.div>
@@ -186,8 +188,8 @@ export default function Projects() {
           {/* Tabs */}
           <div className="flex gap-2 mb-5">
             {[
-              { key: false, label: 'Ativos', count: activeProjects.length, icon: FolderOpen },
-              { key: true, label: 'Arquivados', count: archivedProjects.length, icon: Archive },
+              { key: false, label: t('projects.active'), count: activeProjects.length, icon: FolderOpen },
+              { key: true, label: t('projects.archived'), count: archivedProjects.length, icon: Archive },
             ].map(({ key, label, count, icon: Icon }) => (
               <button
                 key={String(key)}
@@ -259,14 +261,14 @@ export default function Projects() {
                   <FolderOpen className="w-7 h-7 text-[rgba(245,247,251,0.2)]" />
                 </div>
                 <p className="text-[14px] font-medium text-[rgba(245,247,251,0.4)]">
-                  {showArchived ? 'Nenhum projeto arquivado' : 'Nenhum projeto criado ainda'}
+                  {showArchived ? t('projects.noArchived') : t('projects.noProjects')}
                 </p>
                 {!showArchived && (
                   <button
                     onClick={() => setIsModalOpen(true)}
                     className="mt-3 text-[13px] text-[#4A9FFF] hover:underline"
                   >
-                    Criar primeiro projeto →
+                    {t('projects.createFirst')}
                   </button>
                 )}
               </motion.div>

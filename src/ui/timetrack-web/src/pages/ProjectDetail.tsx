@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, Users, Plus, Loader2, RefreshCw, Zap, ExternalLink } from 'lucide-react';
@@ -27,6 +28,7 @@ import { syncLinear } from '../services/integrationsApi';
 const POLL_INTERVAL_MS = 15_000;
 
 export default function ProjectDetail() {
+  const { t } = useTranslation();
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { canManageTeam } = usePermissions();
@@ -124,7 +126,7 @@ export default function ProjectDetail() {
       const msg =
         (err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string'
           ? (err as { message: string }).message
-          : 'Falha ao sincronizar com o Linear.');
+          : t('projects.linearSyncFailedMsg'));
       setSyncError(msg);
     } finally {
       setSyncingLinear(false);
@@ -143,7 +145,7 @@ export default function ProjectDetail() {
             className="flex items-center gap-1.5 text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] transition-colors mb-2"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Projetos
+            {t('projects.title')}
           </button>
           <header className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1">
@@ -155,7 +157,7 @@ export default function ProjectDetail() {
                   />
                 )}
                 <h1 className="text-[16px] sm:text-[20px] font-semibold text-[#f5f7fb] truncate">
-                  {project?.name ?? 'Projeto'}
+                  {project?.name ?? t('projects.project')}
                 </h1>
                 {isLinearProject && (
                   <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[rgba(94,106,210,0.12)] border border-[rgba(94,106,210,0.3)] text-[9px] font-semibold text-[#a78bfa]">
@@ -171,7 +173,7 @@ export default function ProjectDetail() {
               )}
               {isLinearProject && project?.lastSyncedAt && (
                 <p className="text-[10px] text-[rgba(245,247,251,0.35)] mt-1">
-                  Sincronizado do Linear · última sincronização {formatRelative(project.lastSyncedAt)}
+                  {t('projects.syncedFromLinear')} {formatRelative(project.lastSyncedAt)}
                 </p>
               )}
               {syncError && (
@@ -185,7 +187,7 @@ export default function ProjectDetail() {
                 <button
                   onClick={() => setShowAddMember(true)}
                   className="flex items-center gap-2 h-9 px-3 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-                  title="Gerenciar membros"
+                  title={t('projects.manageMembersTooltip')}
                 >
                   <Users className="w-3.5 h-3.5 text-[rgba(245,247,251,0.6)]" />
                   <div className="flex -space-x-1.5">
@@ -206,7 +208,7 @@ export default function ProjectDetail() {
                     )}
                   </div>
                   <span className="text-[11px] text-[rgba(245,247,251,0.6)] hidden sm:inline">
-                    {members.length === 0 ? 'Adicionar' : `${members.length} membro${members.length !== 1 ? 's' : ''}`}
+                    {members.length === 0 ? t('projects.addMembers') : t('projects.memberCount', { count: members.length })}
                   </span>
                 </button>
               )}
@@ -220,7 +222,7 @@ export default function ProjectDetail() {
                   className="flex items-center gap-2 h-9 px-4 rounded-[10px] bg-gradient-to-r from-[#8B5CF6] to-[#7c3aed] text-white text-[11px] font-semibold shadow-[0_4px_12px_rgba(139,92,246,0.3)] hover:from-[#7c3aed] hover:to-[#6d28d9] transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Nova Tarefa
+                  {t('tasks.newTask')}
                 </motion.button>
               )}
 
@@ -232,10 +234,10 @@ export default function ProjectDetail() {
                   whileHover={{ scale: syncingLinear ? 1 : 1.04 }}
                   whileTap={{ scale: 0.97 }}
                   className="flex items-center gap-2 h-9 px-4 rounded-[10px] bg-gradient-to-r from-[#5e6ad2] to-[#a78bfa] text-white text-[11px] font-semibold shadow-[0_4px_12px_rgba(94,106,210,0.3)] disabled:opacity-60 transition-colors"
-                  title="Puxar atualizações do Linear"
+                  title={t('projects.pullLinearUpdates')}
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${syncingLinear ? 'animate-spin' : ''}`} />
-                  {syncingLinear ? 'Sincronizando…' : 'Sincronizar Linear'}
+                  {syncingLinear ? t('projects.syncing') : t('projects.syncLinear')}
                 </motion.button>
               )}
 
@@ -246,7 +248,7 @@ export default function ProjectDetail() {
                   target="_blank"
                   rel="noreferrer"
                   className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-                  title="Abrir no Linear"
+                  title={t('projects.openInLinearTooltip')}
                 >
                   <ExternalLink className="w-3.5 h-3.5 text-[rgba(245,247,251,0.6)]" />
                 </a>
@@ -256,7 +258,7 @@ export default function ProjectDetail() {
               <button
                 onClick={() => fetchAll(false)}
                 className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-                title="Atualizar"
+                title={t('projects.refreshTooltip')}
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-[rgba(245,247,251,0.6)] ${refreshing ? 'animate-spin' : ''}`} />
               </button>
@@ -271,7 +273,7 @@ export default function ProjectDetail() {
               <p className="text-[11px] text-[rgba(245,247,251,0.8)]">
                 <span className="font-semibold text-[#c4b5fd]">{formatCost(totalCost, project?.currency || 'USD')}</span>
                 <span className="mx-2">·</span>
-                <span>{formatTotalWorked(totalSecondsWorked)} trabalhado</span>
+                <span>{formatTotalWorked(totalSecondsWorked)} {t('projects.worked')}</span>
               </p>
             </div>
           </div>

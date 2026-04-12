@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { PlayCircle, CheckCircle2, Pause, ListTodo, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -32,6 +33,7 @@ function formatHms(seconds: number): string {
 }
 
 export function MyTasksWidget() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { subscribeToEvent } = useIpc();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -48,7 +50,7 @@ export function MyTasksWidget() {
       setTasks(res.tasks ?? []);
       setError(null);
     } catch (err: any) {
-      setError(err?.message || 'Falha ao carregar tarefas');
+      setError(err?.message || t('dashboard.failedToLoadTasks'));
     } finally {
       setLoading(false);
     }
@@ -94,7 +96,7 @@ export function MyTasksWidget() {
       await moveTask(task.id, { status: 'InProgress', rowVersion: task.rowVersion });
       await fetchTasks();
     } catch (err: any) {
-      setError(err?.message || 'Falha ao iniciar tarefa');
+      setError(err?.message || t('dashboard.failedToStartTask'));
     } finally {
       setBusyTaskId(null);
     }
@@ -106,7 +108,7 @@ export function MyTasksWidget() {
       await moveTask(task.id, { status: 'Todo', rowVersion: task.rowVersion });
       await fetchTasks();
     } catch (err: any) {
-      setError(err?.message || 'Falha ao parar');
+      setError(err?.message || t('dashboard.failedToStopTask'));
     } finally {
       setBusyTaskId(null);
     }
@@ -118,7 +120,7 @@ export function MyTasksWidget() {
       await moveTask(task.id, { status: 'Done', rowVersion: task.rowVersion });
       await fetchTasks();
     } catch (err: any) {
-      setError(err?.message || 'Falha ao concluir');
+      setError(err?.message || t('dashboard.failedToCompleteTask'));
     } finally {
       setBusyTaskId(null);
     }
@@ -136,7 +138,7 @@ export function MyTasksWidget() {
       <Card className={cardBase}>
         <CardHeader className="pb-0 pt-3 px-4">
           <CardTitle>
-            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Minhas Tarefas</span>
+            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.myTasks')}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-2 pb-3 px-4 flex items-center justify-center">
@@ -173,7 +175,7 @@ export function MyTasksWidget() {
             <div className="flex items-center gap-1.5 mb-1.5">
               <PlayCircle className="w-3 h-3 animate-pulse" style={{ color: inProgress.projectColor }} />
               <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: inProgress.projectColor }}>
-                Em execução
+                {t('dashboard.running')}
               </span>
             </div>
 
@@ -196,19 +198,19 @@ export function MyTasksWidget() {
                   onClick={() => handleStop(inProgress)}
                   disabled={busyTaskId === inProgress.id}
                   className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-[rgba(251,191,36,0.12)] text-[#fbbf24] hover:bg-[rgba(251,191,36,0.2)] disabled:opacity-40 transition-colors"
-                  title="Parar (voltar para A Fazer)"
+                  title={t('dashboard.stop')}
                 >
                   {busyTaskId === inProgress.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Pause className="w-3 h-3" />}
-                  Parar
+                  {t('dashboard.stop')}
                 </button>
                 <button
                   onClick={() => handleComplete(inProgress)}
                   disabled={busyTaskId === inProgress.id}
                   className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-[rgba(5,223,114,0.12)] text-[#05df72] hover:bg-[rgba(5,223,114,0.2)] disabled:opacity-40 transition-colors"
-                  title="Concluir"
+                  title={t('dashboard.complete')}
                 >
                   {busyTaskId === inProgress.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                  Concluir
+                  {t('dashboard.complete')}
                 </button>
               </div>
             </div>
@@ -220,7 +222,7 @@ export function MyTasksWidget() {
           <div>
             <div className="flex items-center gap-1.5 mb-2">
               <ListTodo className="w-3 h-3 text-[rgba(245,247,251,0.4)]" />
-              <span className="text-[10px] uppercase tracking-wider text-[rgba(245,247,251,0.4)]">A Fazer</span>
+              <span className="text-[10px] uppercase tracking-wider text-[rgba(245,247,251,0.4)]">{t('dashboard.todo')}</span>
             </div>
             <div className="space-y-1.5">
               {todos.map((task) => (
@@ -242,7 +244,7 @@ export function MyTasksWidget() {
                   <button
                     onClick={() => handleStart(task)}
                     disabled={busyTaskId === task.id || !!inProgress}
-                    title={inProgress ? 'Termine a tarefa atual primeiro' : 'Iniciar'}
+                    title={inProgress ? t('dashboard.finishCurrentFirst') : t('dashboard.start')}
                     className="flex items-center gap-1 px-2 py-1 rounded-md text-[9px] font-semibold bg-[rgba(139,92,246,0.12)] text-[#c4b5fd] hover:bg-[rgba(139,92,246,0.2)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     {busyTaskId === task.id ? (
@@ -250,7 +252,7 @@ export function MyTasksWidget() {
                     ) : (
                       <PlayCircle className="w-3 h-3" />
                     )}
-                    Iniciar
+                    {t('dashboard.start')}
                   </button>
                 </div>
               ))}

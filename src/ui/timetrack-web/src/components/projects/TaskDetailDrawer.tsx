@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
@@ -63,22 +64,22 @@ function priorityColor(priority: TaskPriority): string {
   }
 }
 
-function priorityLabel(priority: TaskPriority): string {
+function priorityLabelKey(priority: TaskPriority): string {
   switch (priority) {
-    case 'Urgent': return 'Urgente';
-    case 'High': return 'Alta';
-    case 'Medium': return 'Média';
-    case 'Low': return 'Baixa';
-    default: return 'Nenhuma';
+    case 'Urgent': return 'tasks.urgent';
+    case 'High': return 'tasks.high';
+    case 'Medium': return 'tasks.medium';
+    case 'Low': return 'tasks.low';
+    default: return 'tasks.none';
   }
 }
 
 function statusMeta(status: TaskStatus) {
   switch (status) {
-    case 'Todo': return { label: 'A Fazer', color: '#94a3b8', Icon: ListTodo };
-    case 'InProgress': return { label: 'Em Progresso', color: '#fbbf24', Icon: CircleDashed };
-    case 'InReview': return { label: 'Em Revisão', color: '#a855f7', Icon: Eye };
-    case 'Done': return { label: 'Concluído', color: '#05df72', Icon: CheckCircle2 };
+    case 'Todo': return { labelKey: 'tasks.statusTodo', color: '#94a3b8', Icon: ListTodo };
+    case 'InProgress': return { labelKey: 'tasks.statusInProgress', color: '#fbbf24', Icon: CircleDashed };
+    case 'InReview': return { labelKey: 'tasks.statusInReview', color: '#a855f7', Icon: Eye };
+    case 'Done': return { labelKey: 'tasks.statusDone', color: '#05df72', Icon: CheckCircle2 };
   }
 }
 
@@ -116,6 +117,7 @@ export function TaskDetailDrawer({
   /** Called after assignment changes so the parent can refetch. */
   onAssigned?: () => void;
 }) {
+  const { t } = useTranslation();
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,7 +143,7 @@ export function TaskDetailDrawer({
       })
       .catch((err) => {
         console.error('[TaskDetailDrawer] failed to load task', err);
-        if (!cancelled) setError('Não foi possível carregar a tarefa.');
+        if (!cancelled) setError(t('tasks.loadFailed'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -204,10 +206,12 @@ function DrawerBody({
   onEdit?: (task: Task) => void;
   onAssigned?: () => void;
 }) {
+  const { t } = useTranslation();
+
   if (loading || !task) {
     return (
       <>
-        <DrawerHeader title="Carregando…" onClose={onClose} />
+        <DrawerHeader title={t('common.loading')} onClose={onClose} />
         {error && <div className="p-6 text-[12px] text-[#f87171]">{error}</div>}
       </>
     );
@@ -239,7 +243,7 @@ function DrawerBody({
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(251,191,36,0.08)] border border-[rgba(251,191,36,0.25)]">
             <AlertTriangle className="w-4 h-4 text-[#fbbf24]" />
             <span className="text-[11px] font-semibold text-[#fbbf24]">
-              Prazo é hoje — {formatDate(task.dueDate)}
+              {t('tasks.deadlineTodayIs')} {formatDate(task.dueDate)}
             </span>
           </div>
         )}
@@ -247,7 +251,7 @@ function DrawerBody({
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.25)]">
             <AlertTriangle className="w-4 h-4 text-[#f87171]" />
             <span className="text-[11px] font-semibold text-[#f87171]">
-              Atrasada — prazo era {formatDate(task.dueDate)}
+              {t('tasks.overdueWas')} {formatDate(task.dueDate)}
             </span>
           </div>
         )}
@@ -261,20 +265,20 @@ function DrawerBody({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.1)] text-[11px] text-[#f5f7fb] transition-colors"
             >
               <Pencil className="w-3 h-3" />
-              Editar
+              {t('common.edit')}
             </button>
           )}
         </div>
 
         {/* Meta grid */}
         <div className="grid grid-cols-2 gap-3">
-          <MetaField icon={<status.Icon className="w-3 h-3" />} label="Status" accent={status.color}>
-            {status.label}
+          <MetaField icon={<status.Icon className="w-3 h-3" />} label={t('tasks.status')} accent={status.color}>
+            {t(status.labelKey)}
           </MetaField>
-          <MetaField icon={<Flag className="w-3 h-3" />} label="Prioridade" accent={priorityColor(task.priority)}>
-            {priorityLabel(task.priority)}
+          <MetaField icon={<Flag className="w-3 h-3" />} label={t('tasks.priorityLabel')} accent={priorityColor(task.priority)}>
+            {t(priorityLabelKey(task.priority))}
           </MetaField>
-          <MetaField icon={<User className="w-3 h-3" />} label="Atribuído">
+          <MetaField icon={<User className="w-3 h-3" />} label={t('tasks.assigned')}>
             <AssigneeDropdown
               task={task}
               projectColor={task.projectColor}
@@ -291,11 +295,11 @@ function DrawerBody({
                   <span className="truncate">{task.assignedUserDisplayName}</span>
                 </div>
               ) : (
-                <span className="text-[rgba(245,247,251,0.4)]">Ninguém</span>
+                <span className="text-[rgba(245,247,251,0.4)]">{t('tasks.nobody')}</span>
               )}
             </AssigneeDropdown>
           </MetaField>
-          <MetaField icon={<Calendar className="w-3 h-3" />} label="Prazo">
+          <MetaField icon={<Calendar className="w-3 h-3" />} label={t('tasks.deadline')}>
             <span className={tone === 'overdue' ? 'text-[#f87171]' : tone === 'today' ? 'text-[#fbbf24]' : ''}>
               {formatDate(task.dueDate)}
             </span>
@@ -307,7 +311,7 @@ function DrawerBody({
           <div className="flex items-center gap-2 mb-1.5">
             <Clock className="w-3.5 h-3.5 text-[rgba(245,247,251,0.5)]" />
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.5)]">
-              Tempo trabalhado
+              {t('tasks.timeWorked')}
             </span>
           </div>
           <div className="text-[20px] font-semibold text-[#f5f7fb] font-mono tabular-nums">
@@ -315,7 +319,7 @@ function DrawerBody({
           </div>
           {task.movedToInProgressAt && (
             <div className="text-[10px] text-[rgba(245,247,251,0.4)] mt-1">
-              Iniciada em {formatDateTime(task.movedToInProgressAt)}
+              {t('tasks.startedAt')} {formatDateTime(task.movedToInProgressAt)}
             </div>
           )}
         </div>
@@ -325,31 +329,31 @@ function DrawerBody({
           <div className="flex items-center gap-2 mb-2">
             <Tag className="w-3 h-3 text-[rgba(245,247,251,0.5)]" />
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.5)]">
-              Descrição
+              {t('tasks.description')}
             </span>
           </div>
           {task.description?.trim() ? (
             <SimpleMarkdown source={task.description} />
           ) : (
-            <p className="text-[11px] italic text-[rgba(245,247,251,0.35)]">Sem descrição.</p>
+            <p className="text-[11px] italic text-[rgba(245,247,251,0.35)]">{t('tasks.noDescription')}</p>
           )}
         </div>
 
         {/* Timestamps */}
         <div className="pt-3 border-t border-[rgba(255,255,255,0.06)] space-y-1.5 text-[10px] text-[rgba(245,247,251,0.45)]">
           <div className="flex justify-between">
-            <span>Criada</span>
+            <span>{t('tasks.created')}</span>
             <span>{formatDateTime(task.createdAt)}</span>
           </div>
           {task.updatedAt && (
             <div className="flex justify-between">
-              <span>Atualizada</span>
+              <span>{t('tasks.updated')}</span>
               <span>{formatDateTime(task.updatedAt)}</span>
             </div>
           )}
           {task.completedAt && (
             <div className="flex justify-between">
-              <span>Concluída</span>
+              <span>{t('tasks.completed')}</span>
               <span>{formatDateTime(task.completedAt)}</span>
             </div>
           )}
@@ -368,6 +372,7 @@ function DrawerHeader({
   onClose: () => void;
   projectColor?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="sticky top-0 z-10 bg-[#0b0d14] border-b border-[rgba(255,255,255,0.06)] px-6 py-4 flex items-center justify-between">
       <div className="flex items-center gap-2 min-w-0">
@@ -384,7 +389,7 @@ function DrawerHeader({
       <button
         onClick={onClose}
         className="p-1 rounded text-[rgba(245,247,251,0.5)] hover:text-[#f5f7fb] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-        aria-label="Fechar"
+        aria-label={t('common.close')}
       >
         <X className="w-4 h-4" />
       </button>

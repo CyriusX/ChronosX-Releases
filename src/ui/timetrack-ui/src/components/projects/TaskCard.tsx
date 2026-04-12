@@ -7,6 +7,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Clock, User, Calendar, PlayCircle, Lock, GripVertical } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { Task, TaskPriority, TaskStatus } from '../../services/projectsApi';
 
 function formatDuration(seconds: number): string {
@@ -27,15 +28,7 @@ function priorityColor(priority: TaskPriority): string {
   }
 }
 
-function priorityLabel(priority: TaskPriority): string {
-  switch (priority) {
-    case 'Urgent': return 'Urgente';
-    case 'High': return 'Alta';
-    case 'Medium': return 'Média';
-    case 'Low': return 'Baixa';
-    default: return 'Nenhuma';
-  }
-}
+// Priority labels are resolved via i18n inside the component
 
 function initials(name: string | null | undefined): string {
   if (!name) return '?';
@@ -71,6 +64,18 @@ export function TaskCard({
   /** Called when the user clicks the card surface. */
   onOpen?: (taskId: string) => void;
 }) {
+  const { t } = useTranslation();
+
+  const getPriorityLabel = (p: TaskPriority): string => {
+    switch (p) {
+      case 'Urgent': return t('tasks.urgent');
+      case 'High': return t('tasks.high');
+      case 'Medium': return t('tasks.medium');
+      case 'Low': return t('tasks.low');
+      default: return t('tasks.none');
+    }
+  };
+
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: 'task', task },
@@ -121,7 +126,7 @@ export function TaskCard({
       {task.isRunning && (
         <div className="flex items-center gap-1.5 mb-2 text-[9px] font-semibold text-[#05df72]">
           <PlayCircle className="w-3 h-3 animate-pulse" />
-          EM EXECUÇÃO · {task.runningSeconds ? formatDuration(task.runningSeconds) : '0s'}
+          {t('tasks.running')} {task.runningSeconds ? formatDuration(task.runningSeconds) : '0s'}
         </div>
       )}
 
@@ -130,7 +135,7 @@ export function TaskCard({
         <span
           className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5"
           style={{ backgroundColor: priorityColor(task.priority) }}
-          title={`Prioridade: ${priorityLabel(task.priority)}`}
+          title={`${t('tasks.priority')} ${getPriorityLabel(task.priority)}`}
         />
         <h4 className="flex-1 text-[12px] font-semibold text-[#f5f7fb] leading-snug">
           {task.title}
@@ -138,7 +143,7 @@ export function TaskCard({
         {!draggable && (
           <Lock
             className="w-3 h-3 text-[rgba(245,247,251,0.25)] flex-shrink-0 mt-0.5"
-            aria-label="Não é sua tarefa"
+            aria-label={t('tasks.notYourTask')}
           />
         )}
       </div>
@@ -166,7 +171,7 @@ export function TaskCard({
         ) : (
           <div className="flex items-center gap-1 text-[9px] text-[rgba(245,247,251,0.3)]">
             <User className="w-3 h-3" />
-            Não atribuído
+            {t('tasks.unassigned')}
           </div>
         )}
 
@@ -181,10 +186,10 @@ export function TaskCard({
           <div className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border ${deadlineClasses}`}>
             <Calendar className="w-3 h-3" />
             {tone === 'today'
-              ? 'Prazo hoje'
+              ? t('tasks.deadlineToday')
               : tone === 'overdue'
-              ? `Atrasado · ${dueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
-              : dueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+              ? `${t('tasks.overdue')} · ${dueDate.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}`
+              : dueDate.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
           </div>
         )}
       </div>

@@ -5,7 +5,7 @@
  * SOLID: ISP - Interfaces segregadas por responsabilidade
  */
 
-import type { FocusModePolicy } from './settings';
+import type { AppLanguage, FocusModePolicy } from './settings';
 
 // ============================================================================
 // BASE TYPES
@@ -253,7 +253,7 @@ export interface UpdateSettingsPayload {
   // Local settings fields
   autoResumeNotificationEnabled?: boolean;
   notificationSoundsEnabled?: boolean;
-  language?: 'pt-BR' | 'en-US';
+  language?: AppLanguage;
   idleThresholdSeconds?: number;
   workGoalSeconds?: number;
 }
@@ -510,7 +510,7 @@ export interface TaskResponse {
 export interface LocalSettingsResponse {
   autoResumeNotificationEnabled: boolean;
   notificationSoundsEnabled: boolean;
-  language: 'pt-BR' | 'en-US';
+  language: AppLanguage;
   idleThresholdSeconds: number | null;
   workGoalSeconds: number | null;
   updatedAt: string;

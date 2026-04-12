@@ -1,4 +1,5 @@
 import { Focus, Timer, Pencil, Check, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { FocusModePolicy, PomodoroConfig, UltradianConfig } from '../../types/settings';
 
 interface FocusModeCardProps {
@@ -27,6 +28,7 @@ export function FocusModeCard({
   isSaving,
   onFocusModeChange,
 }: FocusModeCardProps) {
+  const { t } = useTranslation();
   const updateFocusMode = (updates: Partial<FocusModePolicy>) => {
     onFocusModeChange({ ...focusMode, ...updates });
   };
@@ -53,8 +55,8 @@ export function FocusModeCard({
             <Focus className="w-5 h-5 text-[#8b7aff]" />
           </div>
           <div>
-            <h3 className="text-[14px] font-medium text-[#f5f7fb]">Modo de Foco</h3>
-            <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Pomodoro ou Ciclo Ultradian para produtividade</p>
+            <h3 className="text-[14px] font-medium text-[#f5f7fb]">{t('policies.focusMode.title')}</h3>
+            <p className="text-[11px] text-[rgba(245,247,251,0.4)]">{t('policies.focusMode.subtitle')}</p>
           </div>
         </div>
         {canEdit && (
@@ -64,7 +66,7 @@ export function FocusModeCard({
                 onClick={onSave}
                 disabled={isSaving}
                 className="w-7 h-7 rounded-lg bg-[rgba(5,223,114,0.15)] border border-[rgba(5,223,114,0.3)] flex items-center justify-center hover:bg-[rgba(5,223,114,0.25)] transition-colors disabled:opacity-50"
-                title="Salvar"
+                title={t('common.save')}
               >
                 <Check className="w-3.5 h-3.5 text-[#05df72]" />
               </button>
@@ -72,7 +74,7 @@ export function FocusModeCard({
                 onClick={onCancel}
                 disabled={isSaving}
                 className="w-7 h-7 rounded-lg bg-[rgba(255,107,107,0.15)] border border-[rgba(255,107,107,0.3)] flex items-center justify-center hover:bg-[rgba(255,107,107,0.25)] transition-colors disabled:opacity-50"
-                title="Cancelar"
+                title={t('common.cancel')}
               >
                 <X className="w-3.5 h-3.5 text-[#ff6b6b]" />
               </button>
@@ -81,7 +83,7 @@ export function FocusModeCard({
             <button
               onClick={onEdit}
               className="w-7 h-7 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-              title="Editar"
+              title={t('common.edit')}
             >
               <Pencil className="w-3.5 h-3.5 text-[rgba(245,247,251,0.6)]" />
             </button>
@@ -116,6 +118,7 @@ function FocusModeEditForm({
   onUpdatePomodoro,
   onUpdateUltradian,
 }: FocusModeEditFormProps) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {/* Enable/Mode Selection */}
@@ -130,20 +133,20 @@ function FocusModeEditForm({
                 : 'bg-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.5)] border border-[rgba(255,255,255,0.08)]'
             }`}
           >
-            {focusMode.enabled ? 'Ativado' : 'Desativado'}
+            {focusMode.enabled ? t('policies.focusMode.enabled') : t('policies.focusMode.disabled')}
           </button>
         </div>
         <div>
-          <label className="text-[11px] text-[rgba(245,247,251,0.5)] mb-1 block">Modo</label>
+          <label className="text-[11px] text-[rgba(245,247,251,0.5)] mb-1 block">{t('policies.focusMode.mode')}</label>
           <select
             value={focusMode.mode}
             onChange={(e) => onUpdateFocusMode({ mode: e.target.value as 'pomodoro' | 'ultradian' | 'none' })}
             disabled={!focusMode.enabled}
             className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[#8b7aff] disabled:opacity-50"
           >
-            <option value="none">Nenhum</option>
-            <option value="pomodoro">Pomodoro</option>
-            <option value="ultradian">Ciclo Ultradian</option>
+            <option value="none">{t('policies.focusMode.none')}</option>
+            <option value="pomodoro">{t('policies.focusMode.pomodoro')}</option>
+            <option value="ultradian">{t('policies.focusMode.ultradian')}</option>
           </select>
         </div>
         <div>
@@ -154,7 +157,7 @@ function FocusModeEditForm({
               onChange={(e) => onUpdateFocusMode({ allowUserOverride: e.target.checked })}
               className="w-4 h-4 rounded border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)]"
             />
-            <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Permitir override do usuário</span>
+            <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('policies.focusMode.allowOverride')}</span>
           </label>
         </div>
       </div>
@@ -167,7 +170,7 @@ function FocusModeEditForm({
         </h4>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">Foco (min)</label>
+            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">{t('policies.focusMode.focusMinutes')}</label>
             <input
               type="number"
               min="10"
@@ -179,7 +182,7 @@ function FocusModeEditForm({
             />
           </div>
           <div>
-            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">Pausa curta</label>
+            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">{t('policies.focusMode.shortBreak')}</label>
             <input
               type="number"
               min="5"
@@ -191,7 +194,7 @@ function FocusModeEditForm({
             />
           </div>
           <div>
-            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">Pausa longa</label>
+            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">{t('policies.focusMode.longBreak')}</label>
             <input
               type="number"
               min="5"
@@ -203,7 +206,7 @@ function FocusModeEditForm({
             />
           </div>
           <div>
-            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">Ciclos</label>
+            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">{t('policies.focusMode.cyclesBefore')}</label>
             <input
               type="number"
               min="2"
@@ -225,7 +228,7 @@ function FocusModeEditForm({
         </h4>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">Foco (min)</label>
+            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">{t('policies.focusMode.focusMinutes')}</label>
             <input
               type="number"
               min="10"
@@ -237,7 +240,7 @@ function FocusModeEditForm({
             />
           </div>
           <div>
-            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">Pausa (min)</label>
+            <label className="text-[10px] text-[rgba(245,247,251,0.4)] mb-1 block">{t('policies.focusMode.breakMinutes')}</label>
             <input
               type="number"
               min="5"
@@ -260,6 +263,7 @@ interface FocusModeDisplayProps {
 }
 
 function FocusModeDisplay({ focusMode }: FocusModeDisplayProps) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {/* Status */}
@@ -267,14 +271,14 @@ function FocusModeDisplay({ focusMode }: FocusModeDisplayProps) {
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${focusMode.enabled ? 'bg-[#05df72]' : 'bg-[rgba(245,247,251,0.3)]'}`} />
           <span className="text-[13px] text-[rgba(245,247,251,0.5)]">
-            {focusMode.enabled ? 'Ativado' : 'Desativado'}
+            {focusMode.enabled ? t('policies.focusMode.enabled') : t('policies.focusMode.disabled')}
           </span>
         </div>
         {focusMode.enabled && focusMode.mode !== 'none' && (
           <p className="text-[24px] font-semibold text-[#f5f7fb] capitalize">{focusMode.mode}</p>
         )}
         <p className="text-[11px] text-[rgba(245,247,251,0.35)]">
-          {focusMode.allowUserOverride ? 'Usuários podem iniciar/parar manualmente' : 'Ciclos automáticos'}
+          {focusMode.allowUserOverride ? t('policies.focusMode.allowOverride') : t('policies.focusMode.disabled')}
         </p>
       </div>
 

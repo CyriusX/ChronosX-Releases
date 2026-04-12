@@ -9,6 +9,7 @@
  * - Renderiza lista de AppCategoryRow
  */
 
+import { useTranslation } from 'react-i18next';
 import { Trash2, Search, Filter } from 'lucide-react';
 import type {
   AppCategoryDisplayItem,
@@ -30,13 +31,16 @@ interface AppCategoriesListProps {
   onAdd: () => void;
 }
 
-const FILTER_OPTIONS: { value: AppCategoryFilter; label: string }[] = [
-  { value: 'all', label: 'Todos' },
-  { value: 'productive', label: 'Produtivos' },
-  { value: 'distraction', label: 'Distrações' },
-  { value: 'overrides', label: 'Overrides' },
-  { value: 'unknown', label: 'Desconhecidos' },
-];
+function useFilterOptions() {
+  const { t } = useTranslation();
+  return [
+    { value: 'all' as AppCategoryFilter, label: t('policies.appCategories.filterAll') },
+    { value: 'productive' as AppCategoryFilter, label: t('policies.appCategories.filterProductive') },
+    { value: 'distraction' as AppCategoryFilter, label: t('policies.appCategories.filterDistraction') },
+    { value: 'overrides' as AppCategoryFilter, label: t('policies.appCategories.filterOverrides') },
+    { value: 'unknown' as AppCategoryFilter, label: t('policies.appCategories.filterUnknown') },
+  ];
+}
 
 /**
  * List component for displaying and managing app categories
@@ -54,6 +58,8 @@ export function AppCategoriesList({
   onDelete,
   onAdd,
 }: AppCategoriesListProps) {
+  const { t } = useTranslation();
+  const FILTER_OPTIONS = useFilterOptions();
   return (
     <div className="space-y-4">
       {/* Header with search and filters */}
@@ -65,7 +71,7 @@ export function AppCategoriesList({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Buscar app ou site..."
+            placeholder={t('policies.appCategories.searchPlaceholder')}
             className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg pl-10 pr-4 py-2.5 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#8B5CF6]"
           />
         </div>
@@ -92,7 +98,7 @@ export function AppCategoriesList({
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] font-medium bg-[rgba(5,223,114,0.15)] text-[#05df72] border border-[rgba(5,223,114,0.3)] hover:bg-[rgba(5,223,114,0.25)] transition-colors"
           >
             <span className="text-[16px]">+</span>
-            Adicionar
+            {t('common.add')}
           </button>
         </div>
       </div>
@@ -101,13 +107,13 @@ export function AppCategoriesList({
       {uncategorizedCount > 0 && (
         <div className="flex items-center gap-2 bg-[rgba(255,193,7,0.1)] border border-[rgba(255,193,7,0.2)] rounded-lg px-3 py-2">
           <span className="text-[12px] text-[#FFC107]">
-            {uncategorizedCount} app{uncategorizedCount !== 1 ? 's' : ''} sem classificação
+            {t('policies.appCategories.uncategorizedApps', { count: uncategorizedCount })}
           </span>
           <button
             onClick={() => onFilterChange('unknown')}
             className="text-[11px] text-[#8B5CF6] hover:underline"
           >
-            Filtrar
+            {t('policies.appCategories.filter')}
           </button>
         </div>
       )}
@@ -117,16 +123,16 @@ export function AppCategoriesList({
         {/* Table header */}
         <div className="grid grid-cols-12 gap-2 px-4 py-3 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)]">
           <div className="col-span-4 text-[11px] font-medium text-[rgba(245,247,251,0.5)] uppercase tracking-wider">
-            App/Site
+            {t('policies.appCategories.appSite')}
           </div>
           <div className="col-span-3 text-[11px] font-medium text-[rgba(245,247,251,0.5)] uppercase tracking-wider">
-            Classificação
+            {t('policies.appCategories.classification')}
           </div>
           <div className="col-span-2 text-[11px] font-medium text-[rgba(245,247,251,0.5)] uppercase tracking-wider">
-            Fonte
+            {t('policies.appCategories.source')}
           </div>
           <div className="col-span-3 text-[11px] font-medium text-[rgba(245,247,251,0.5)] uppercase tracking-wider text-right">
-            Ações
+            {t('policies.appCategories.actions')}
           </div>
         </div>
 
@@ -135,7 +141,7 @@ export function AppCategoriesList({
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
-              <span className="text-[13px] text-[rgba(245,247,251,0.5)]">Carregando...</span>
+              <span className="text-[13px] text-[rgba(245,247,251,0.5)]">{t('common.loading')}</span>
             </div>
           </div>
         )}
@@ -146,7 +152,7 @@ export function AppCategoriesList({
             <div className="text-center">
               <p className="text-[14px] text-[#ff6b6b]">{error}</p>
               <button className="mt-2 text-[12px] text-[#8B5CF6] hover:underline">
-                Tentar novamente
+                {t('common.retry')}
               </button>
             </div>
           </div>
@@ -157,14 +163,14 @@ export function AppCategoriesList({
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <p className="text-[14px] text-[rgba(245,247,251,0.5)]">
-                Nenhum aplicativo encontrado
+                {t('policies.appCategories.noResults')}
               </p>
               {searchQuery && (
                 <button
                   onClick={() => onSearchChange('')}
                   className="mt-2 text-[12px] text-[#8B5CF6] hover:underline"
                 >
-                  Limpar busca
+                  {t('policies.appCategories.clearSearch')}
                 </button>
               )}
             </div>
@@ -203,6 +209,7 @@ interface AppCategoryRowProps {
  * Single row in the app categories list
  */
 function AppCategoryRow({ app, onEdit, onDelete }: AppCategoryRowProps) {
+  const { t } = useTranslation();
   const prodConfig = PRODUCTIVITY_CONFIG[app.productivity];
   const subcategoryLabel = SUBCATEGORIES[app.subcategory]?.labelPt || app.subcategory;
   const isOverride = app.source === 'org_override';
@@ -250,7 +257,7 @@ function AppCategoryRow({ app, onEdit, onDelete }: AppCategoryRowProps) {
           </span>
         ) : (
           <span className="text-[11px] text-[rgba(245,247,251,0.4)]">
-            Global
+            {t('policies.appCategories.global')}
           </span>
         )}
       </div>
@@ -265,13 +272,13 @@ function AppCategoryRow({ app, onEdit, onDelete }: AppCategoryRowProps) {
               : 'bg-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.6)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)]'
           }`}
         >
-          {isUnknown ? 'Classificar' : 'Editar'}
+          {isUnknown ? t('policies.appCategories.classify') : t('common.edit')}
         </button>
         {isOverride && (
           <button
             onClick={onDelete}
             className="w-8 h-8 rounded-lg bg-[rgba(255,107,107,0.1)] border border-[rgba(255,107,107,0.2)] flex items-center justify-center hover:bg-[rgba(255,107,107,0.2)] transition-colors"
-            title="Remover override"
+            title={t('policies.appCategories.removeOverrideTooltip')}
           >
             <Trash2 className="w-3.5 h-3.5 text-[#ff6b6b]" />
           </button>

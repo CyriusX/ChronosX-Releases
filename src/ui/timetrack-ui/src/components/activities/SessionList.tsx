@@ -65,7 +65,7 @@ const productivityLabel = (prod: string) => {
 };
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 const DEFAULT_VISIBLE = 8;

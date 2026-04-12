@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { X, Loader2, Trash2, Zap, ExternalLink, Lock } from 'lucide-react';
 import { updateTask, deleteTask, type Task, type ProjectMember, type TaskPriority } from '../../services/projectsApi';
@@ -36,6 +37,7 @@ function EditableTaskModal({
   onClose: () => void;
   onChanged: () => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? '');
   const [priority, setPriority] = useState<TaskPriority>(task.priority);
@@ -61,7 +63,7 @@ function EditableTaskModal({
       });
       await onChanged();
     } catch (err: any) {
-      setError(err?.message || 'Falha ao atualizar tarefa');
+      setError(err?.message || t('tasks.updateFailed'));
     } finally {
       setSaving(false);
     }
@@ -74,7 +76,7 @@ function EditableTaskModal({
       await deleteTask(task.id);
       await onChanged();
     } catch (err: any) {
-      setError(err?.message || 'Falha ao excluir tarefa');
+      setError(err?.message || t('tasks.deleteFailed2'));
       setDeleting(false);
     }
   };
@@ -94,14 +96,14 @@ function EditableTaskModal({
         className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] max-w-[92vw] max-h-[90vh] bg-[#0b0d14] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-2xl flex flex-col"
       >
         <div className="flex items-center justify-between p-5 pb-3 flex-shrink-0">
-          <h3 className="text-[15px] font-semibold text-[#f5f7fb]">Editar Tarefa</h3>
+          <h3 className="text-[15px] font-semibold text-[#f5f7fb]">{t('tasks.editTask')}</h3>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-[rgba(255,255,255,0.06)]">
             <X className="w-4 h-4 text-[rgba(245,247,251,0.5)]" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-5 overflow-y-auto min-h-0 pb-3 flex-1">
-          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Título *</label>
+          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.titleLabel')}</label>
           <input
             type="text"
             autoFocus
@@ -111,7 +113,7 @@ function EditableTaskModal({
             className="w-full px-3 py-2 mb-3 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[rgba(139,92,246,0.4)]"
           />
 
-          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Descrição</label>
+          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.descriptionLabel')}</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -120,13 +122,13 @@ function EditableTaskModal({
             className="w-full px-3 py-2 mb-3 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[rgba(139,92,246,0.4)] resize-none"
           />
 
-          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Responsável</label>
+          <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.assignee')}</label>
           <select
             value={assignedUserId}
             onChange={(e) => setAssignedUserId(e.target.value)}
             className="w-full px-3 py-2 mb-3 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[rgba(139,92,246,0.4)]"
           >
-            <option value="">— Ninguém —</option>
+            <option value="">{t('tasks.noAssignee')}</option>
             {members.map((m) => (
               <option key={m.userId} value={m.userId}>
                 {m.displayName}
@@ -136,7 +138,7 @@ function EditableTaskModal({
 
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Prioridade</label>
+              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.priorityLabel')}</label>
               <div className="flex gap-1">
                 {PRIORITIES.map((p) => (
                   <button
@@ -153,13 +155,13 @@ function EditableTaskModal({
                         : 'bg-[rgba(255,255,255,0.03)] text-[rgba(245,247,251,0.4)] border border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.06)]'
                     }`}
                   >
-                    {p === 'High' ? 'Alta' : p === 'Medium' ? 'Média' : 'Baixa'}
+                    {p === 'High' ? t('tasks.high') : p === 'Medium' ? t('tasks.medium') : t('tasks.low')}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">Prazo</label>
+              <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.dueDate')}</label>
               <input
                 type="date"
                 value={dueDate}
@@ -181,13 +183,13 @@ function EditableTaskModal({
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-[rgba(248,113,113,0.15)] text-[#f87171] border border-[rgba(248,113,113,0.3)] hover:bg-[rgba(248,113,113,0.25)] transition-colors"
               >
                 {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                Confirmar excluir
+                {t('projects.confirmDelete')}
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
                 className="px-2 py-2 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.06)]"
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
             </div>
           ) : (

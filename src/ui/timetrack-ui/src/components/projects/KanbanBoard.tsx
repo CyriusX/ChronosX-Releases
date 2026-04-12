@@ -7,6 +7,7 @@
  */
 
 import { useState, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   DndContext,
   DragEndEvent,
@@ -25,22 +26,22 @@ import { moveTask, createTask, type Task, type TaskStatus, type ProjectSyncSourc
 
 type ColumnDef = {
   id: TaskStatus;
-  label: string;
+  tKey: string;
   icon: React.ComponentType<{ className?: string }>;
   accent: string;
 };
 
 const LOCAL_COLUMNS: ColumnDef[] = [
-  { id: 'Todo', label: 'A Fazer', icon: ListTodo, accent: '#94a3b8' },
-  { id: 'InProgress', label: 'Em Progresso', icon: CircleDashed, accent: '#fbbf24' },
-  { id: 'Done', label: 'Concluído', icon: CheckCircle2, accent: '#05df72' },
+  { id: 'Todo', tKey: 'kanban.todo', icon: ListTodo, accent: '#94a3b8' },
+  { id: 'InProgress', tKey: 'kanban.inProgress', icon: CircleDashed, accent: '#fbbf24' },
+  { id: 'Done', tKey: 'kanban.done', icon: CheckCircle2, accent: '#05df72' },
 ];
 
 const LINEAR_COLUMNS: ColumnDef[] = [
-  { id: 'Todo', label: 'A Fazer', icon: ListTodo, accent: '#94a3b8' },
-  { id: 'InProgress', label: 'Em Progresso', icon: CircleDashed, accent: '#fbbf24' },
-  { id: 'InReview', label: 'Em Revisão', icon: Eye, accent: '#a855f7' },
-  { id: 'Done', label: 'Concluído', icon: CheckCircle2, accent: '#05df72' },
+  { id: 'Todo', tKey: 'kanban.todo', icon: ListTodo, accent: '#94a3b8' },
+  { id: 'InProgress', tKey: 'kanban.inProgress', icon: CircleDashed, accent: '#fbbf24' },
+  { id: 'InReview', tKey: 'kanban.inReview', icon: Eye, accent: '#a855f7' },
+  { id: 'Done', tKey: 'kanban.done', icon: CheckCircle2, accent: '#05df72' },
 ];
 
 function formatTotalWorked(seconds: number): string {
@@ -71,6 +72,7 @@ export function KanbanBoard({
   onTaskCreated?: (task: Task) => void;
   onTaskDeleted?: (taskId: string) => void;
 }) {
+  const { t } = useTranslation();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null);
   const [addingTask, setAddingTask] = useState(false);
@@ -200,7 +202,7 @@ export function KanbanBoard({
             <KanbanColumn
               key={col.id}
               id={col.id}
-              label={col.label}
+              label={t(col.tKey)}
               icon={<Icon className="w-3.5 h-3.5" />}
               accent={col.accent}
               count={colTasks.length}
@@ -219,7 +221,7 @@ export function KanbanBoard({
                           if (e.key === 'Enter' && !e.shiftKey) submitNewTask();
                           if (e.key === 'Escape') cancelAddingTask();
                         }}
-                        placeholder="Nome da tarefa…"
+                        placeholder={t('kanban.taskNamePlaceholder')}
                         className="w-full bg-transparent text-[11px] text-[#f5f7fb] placeholder:text-[rgba(245,247,251,0.3)] outline-none"
                       />
                       <textarea
@@ -228,7 +230,7 @@ export function KanbanBoard({
                         onKeyDown={(e) => {
                           if (e.key === 'Escape') cancelAddingTask();
                         }}
-                        placeholder="Descrição (opcional)…"
+                        placeholder={t('kanban.descriptionPlaceholder')}
                         rows={2}
                         className="w-full bg-transparent text-[10px] text-[rgba(245,247,251,0.7)] placeholder:text-[rgba(245,247,251,0.25)] outline-none resize-none"
                       />
@@ -239,13 +241,13 @@ export function KanbanBoard({
                           className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-[#4A9FFF] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#3b8fee] transition-colors"
                         >
                           {creatingTask ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                          Adicionar
+                          {t('common.add')}
                         </button>
                         <button
                           onClick={cancelAddingTask}
                           className="px-2 py-1 rounded text-[10px] text-[rgba(245,247,251,0.5)] hover:text-[#f5f7fb] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
                         >
-                          Cancelar
+                          {t('common.cancel')}
                         </button>
                       </div>
                     </div>
@@ -261,7 +263,7 @@ export function KanbanBoard({
                   ))}
                   {colTasks.length === 0 && !addingTask && (
                     <div className="text-center py-8 text-[10px] text-[rgba(245,247,251,0.25)] italic">
-                      Sem tarefas
+                      {t('kanban.noTasks')}
                     </div>
                   )}
                 </div>
@@ -311,6 +313,7 @@ function KanbanColumn({
   onAdd?: () => void;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const { setNodeRef } = useSortable({
     id: `col-${id}`,
     data: { type: 'column', status: id },
@@ -335,7 +338,7 @@ function KanbanColumn({
           </div>
           {totalWorked > 0 && (
             <div className="text-[9px] text-[rgba(245,247,251,0.35)]">
-              {formatTotalWorked(totalWorked)} trabalhado
+              {formatTotalWorked(totalWorked)} {t('projects.worked')}
             </div>
           )}
         </div>
@@ -343,8 +346,8 @@ function KanbanColumn({
           <button
             onClick={onAdd}
             className="p-1 rounded text-[rgba(245,247,251,0.4)] hover:text-[#f5f7fb] hover:bg-[rgba(255,255,255,0.06)] transition-colors flex-shrink-0"
-            aria-label="Adicionar tarefa"
-            title="Adicionar tarefa"
+            aria-label={t('kanban.addTask')}
+            title={t('kanban.addTask')}
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
