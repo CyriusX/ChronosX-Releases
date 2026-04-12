@@ -2,7 +2,7 @@ import { Info, Download, ExternalLink, HardDrive } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAgentStatus } from '../../hooks/useAgentStatus';
 
-const APP_VERSION = '1.0.6';
+const APP_VERSION = '1.0.7';
 
 /**
  * AboutSection - Aba Sobre/Diagnóstico
