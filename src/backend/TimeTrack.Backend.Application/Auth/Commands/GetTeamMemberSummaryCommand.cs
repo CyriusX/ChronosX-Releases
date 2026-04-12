@@ -62,11 +62,13 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
             activity.TotalSeconds, activity.Apps.Count(),
             activity.Apps.Sum(a => a.TotalSeconds));
 
-        // Filter out internal apps and recalculate total
+        // Internal apps are already filtered out by the repository before computing the merged total.
+        // Use activity.TotalSeconds (merged, non-overlapping) directly to avoid double-counting
+        // sessions from multiple devices that overlap in time.
         var filteredApps = activity.Apps
             .Where(a => !_internalApps.Contains(a.ProcessName))
             .ToList();
-        var totalSeconds = filteredApps.Sum(a => a.TotalSeconds);
+        var totalSeconds = activity.TotalSeconds;
 
         _logger.LogInformation(
             "[MemberSummary] After internal filter: FilteredApps={FilteredCount} FilteredSum={FilteredSum}s TotalSeconds={TotalSeconds}s",
@@ -238,10 +240,8 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
             try
             {
                 var dayActivity = await _reportRepository.GetDailyActivityAggregateAsync(userId, date, timezone, cancellationToken);
-                var filteredSeconds = dayActivity.Apps
-                    .Where(a => !_internalApps.Contains(a.ProcessName))
-                    .Sum(a => a.TotalSeconds);
-                hours = filteredSeconds / 3600.0;
+                // TotalSeconds is already the merged (non-overlapping) total with internal apps filtered out
+                hours = dayActivity.TotalSeconds / 3600.0;
             }
             catch
             {
