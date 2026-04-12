@@ -26,7 +26,9 @@ Source: "{#ProjectRoot}\build\publish\AgentService\zh-Hant\*"; DestDir: "{app}\s
 ; DesktopHost - UI Container
 Source: "{#ProjectRoot}\build\publish\DesktopHost\TimeTrack.DesktopHost.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ProjectRoot}\build\publish\DesktopHost\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
-Source: "{#ProjectRoot}\build\publish\DesktopHost\appsettings.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#ProjectRoot}\build\publish\DesktopHost\*.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#ProjectRoot}\build\publish\DesktopHost\*.deps.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#ProjectRoot}\build\publish\DesktopHost\*.runtimeconfig.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ProjectRoot}\build\publish\DesktopHost\Resources\*"; DestDir: "{app}\Resources"; Flags: ignoreversion recursesubdirs
 
 ; Update.exe - Auto-update utility (self-contained, no DLLs needed)
