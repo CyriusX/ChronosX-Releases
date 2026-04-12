@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Updates;
@@ -17,6 +20,19 @@ internal class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        // Self-relocation: if running from the install directory,
+        // copy to temp and relaunch from there so the installer can
+        // overwrite the original update.exe
+        if (!args.Contains("--relay", StringComparer.OrdinalIgnoreCase))
+        {
+            var relocated = TryRelocateToTemp(args);
+            if (relocated)
+            {
+                // Original process exits — the temp copy takes over
+                return 0;
+            }
+        }
+
         // Parse arguments
         var options = ParseArguments(args);
 
@@ -273,6 +289,10 @@ internal class Program
                 case "--silent":
                     options.Silent = true;
                     break;
+
+                case "--relay":
+                    options.IsRelay = true;
+                    break;
             }
         }
 
@@ -314,6 +334,85 @@ Examples:
 ");
     }
 
+    /// <summary>
+    /// Copies the current update.exe to a temp directory and relaunches from there.
+    /// This allows the Inno Setup installer to overwrite the original update.exe
+    /// in the install directory.
+    /// </summary>
+    /// <returns>true if relocation was performed (caller should exit with 0)</returns>
+    private static bool TryRelocateToTemp(string[] args)
+    {
+        try
+        {
+            var currentExePath = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(currentExePath)) return false;
+
+            // Only relocate if running from the install directory (Program Files\ChronosX)
+            var installPath = GetInstallationPath();
+            if (!currentExePath.StartsWith(installPath, StringComparison.OrdinalIgnoreCase))
+            {
+                // Already running from outside install dir — no relocation needed
+                return false;
+            }
+
+            var tempDir = Path.Combine(Path.GetTempPath(), "ChronosX-Update");
+            Directory.CreateDirectory(tempDir);
+
+            var relayExePath = Path.Combine(tempDir, "update-relay.exe");
+
+            // Copy self to temp (overwrite if exists)
+            File.Copy(currentExePath, relayExePath, overwrite: true);
+
+            Console.WriteLine($"Relocating from {currentExePath} to {relayExePath}");
+
+            // Build arguments: same as original + --relay flag
+            var argList = new List<string>(args) { "--relay" };
+            var arguments = string.Join(" ", argList.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = relayExePath,
+                Arguments = arguments,
+                UseShellExecute = true,
+                Verb = "runas", // Maintain elevation
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+
+            var process = Process.Start(startInfo);
+            if (process == null)
+            {
+                Console.Error.WriteLine("Failed to start relay process");
+                return false;
+            }
+
+            Console.WriteLine($"Relay process started (PID {process.Id}). Original process exiting.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Relocation failed: {ex.Message}");
+            // Fall through to normal execution — might fail with exit code 5,
+            // but at least we tried
+            return false;
+        }
+    }
+
+    private static string GetInstallationPath()
+    {
+        const string registryKey = @"SOFTWARE\Cyrius\TimeTrack";
+        const string valueName = "InstallPath";
+
+        using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(registryKey);
+        var path = key?.GetValue(valueName) as string;
+
+        if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+        {
+            return path;
+        }
+
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "ChronosX");
+    }
+
     private class UpdateOptions
     {
         public bool ShowHelp { get; set; }
@@ -327,5 +426,6 @@ Examples:
         public string? BackupPath { get; set; }
         public bool VerifySignature { get; set; } = true;
         public bool Silent { get; set; }
+        public bool IsRelay { get; set; }
     }
 }
