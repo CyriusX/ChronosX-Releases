@@ -8,6 +8,7 @@ import { SidebarMiniDash } from './shared/SidebarMiniDash';
 import { useAuthStore } from '../../stores/authStore';
 import { useTrackingStore } from '../../stores/trackingStore';
 import { useIpc } from '../../hooks/useIpc';
+import { useAgentStatus } from '../../hooks/useAgentStatus';
 import { usePermissions } from '../../hooks/usePermissions';
 import { SPRING } from '../../lib/animation';
 import logoImg from '../../assets/logo-64.png';
@@ -22,6 +23,7 @@ export function Sidebar() {
   const isPaused = useTrackingStore(s => s.isPaused);
   const todaySummary = useTrackingStore(s => s.todaySummary);
   const { sendCommand } = useIpc();
+  const { status: agentStatus } = useAgentStatus();
   const [isBusy, setIsBusy] = useState(false);
 
   const isActive = isTracking && !isPaused;
@@ -182,7 +184,9 @@ export function Sidebar() {
 
         {/* Version */}
         <div className="px-4 pb-3">
-          <span className="text-[9px] text-[rgba(245,247,251,0.2)] select-none">v1.0.6</span>
+          <span className="text-[9px] text-[rgba(245,247,251,0.2)] select-none">
+            v{agentStatus.desktopHostVersion ?? agentStatus.version}
+          </span>
         </div>
       </div>
     </aside>

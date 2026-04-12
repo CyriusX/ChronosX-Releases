@@ -463,6 +463,7 @@ export interface CurrentStatusResponse {
   state: 'running' | 'paused' | 'stopped' | 'idle';
   uptime: number; // seconds
   version: string;
+  desktopHostVersion?: string;
   sessionId?: string;
   lastActivity?: string;
 }
