@@ -82,7 +82,7 @@ export default defineConfig({
       '@': webSrc,
       '@desktop': desktopSrc,
     },
-    dedupe: ['react', 'react-dom', 'react-router-dom'],
+    dedupe: ['react', 'react-dom', 'react-router-dom', 'i18next', 'react-i18next'],
   },
   build: {
     outDir: 'dist',

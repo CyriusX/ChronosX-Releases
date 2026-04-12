@@ -23,5 +23,5 @@ export function getSavedLanguage(): AppLanguage {
   if (saved === 'pt-BR' || saved === 'en-US' || saved === 'fr-FR' || saved === 'es-ES') {
     return saved;
   }
-  return 'pt-BR';
+  return 'en-US';
 }
