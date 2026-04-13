@@ -44,7 +44,7 @@ export function useTeamStatus(): UseTeamStatusReturn {
     try {
       const response = await getTeamStatus();
 
-      // Enrich with correct duration from /reports/daily-summary-range
+      // Enrich with productivityRatio from /reports/daily-summary-range
       const today = new Date();
       const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
@@ -52,6 +52,9 @@ export function useTeamStatus(): UseTeamStatusReturn {
         response.members.map(m => getDailySummaryRange(todayStr, todayStr, m.userId))
       );
 
+      // Only enrich with productivityRatio — do NOT overwrite todayDurationSeconds.
+      // getTeamStatus already uses merged intervals (correct). getDailySummaryRange
+      // returns a plain SUM which over-counts overlapping sessions and inflates the total.
       const correctedMembers = response.members.map((member, i) => {
         const result = summaryResults[i];
         if (result.status === 'fulfilled') {
@@ -59,7 +62,6 @@ export function useTeamStatus(): UseTeamStatusReturn {
           if (dayData) {
             return {
               ...member,
-              todayDurationSeconds: dayData.totalActiveSeconds,
               productivityRatio: dayData.productivityRatio,
             };
           }
