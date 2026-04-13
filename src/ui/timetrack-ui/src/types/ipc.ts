@@ -39,7 +39,11 @@ export type AgentEventType =
   | 'connectionStateChanged'
   | 'focusModeChanged'
   | 'focusModeStateChanged'
-  | 'agentHealthChanged';
+  | 'agentHealthChanged'
+  | 'updateAvailable'
+  | 'updateProgress'
+  | 'updateComplete'
+  | 'updateFailed';
 
 // ============================================================================
 // EVENT PAYLOADS
@@ -175,6 +179,35 @@ export interface TaskIdleAutoPausedPayload {
   projectName: string;
 }
 
+// ============================================================================
+// UPDATE EVENT PAYLOADS
+// ============================================================================
+
+export interface UpdateAvailablePayload {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  fileSizeBytes: number;
+  releaseNotes: string;
+}
+
+export interface UpdateProgressPayload {
+  stage: string;
+  percentage: number;
+  message: string;
+  bytesDownloaded?: number;
+  bytesTotal?: number;
+  targetVersion?: string;
+}
+
+export interface UpdateCompletePayload {
+  version: string;
+}
+
+export interface UpdateFailedPayload {
+  error: string;
+}
+
 // Event payload map for type-safe event handling
 export interface EventPayloadMap {
   trackingStarted: TrackingStartedPayload;
@@ -192,6 +225,10 @@ export interface EventPayloadMap {
   notificationReceived: NotificationReceivedPayload;
   myTasksChanged: MyTasksChangedPayload;
   taskIdleAutoPaused: TaskIdleAutoPausedPayload;
+  updateAvailable: UpdateAvailablePayload;
+  updateProgress: UpdateProgressPayload;
+  updateComplete: UpdateCompletePayload;
+  updateFailed: UpdateFailedPayload;
 }
 
 // ============================================================================
@@ -214,7 +251,9 @@ export type AgentCommand =
   | 'syncNow'
   | 'updateSettings'
   | 'setWorkHours'
-  | 'recordFocusSession';
+  | 'recordFocusSession'
+  | 'checkForUpdates'
+  | 'startUpdate';
 
 // Command Payloads
 export interface StoreTokensPayload {
@@ -296,6 +335,8 @@ export interface CommandPayloadMap {
   updateSettings: UpdateSettingsPayload;
   setWorkHours: SetWorkHoursPayload;
   recordFocusSession: RecordFocusSessionPayload;
+  checkForUpdates: undefined;
+  startUpdate: undefined;
 }
 
 // ============================================================================
