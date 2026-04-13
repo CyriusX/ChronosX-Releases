@@ -236,7 +236,11 @@
     },
     "timeline": {
       "title": "Timeline",
-      "subtitle": "Controle a visibilidade da timeline de atividades"
+      "subtitle": "Controle a visibilidade da timeline de atividades",
+      "hiddenApps": "Apps ocultos",
+      "hiddenAppsDesc": "Apps nesta lista não aparecem na timeline de atividades nem no heatmap de produtividade. Use o nome do processo (ex: TimeTrack.DesktopHost, msedge).",
+      "processPlaceholder": "Nome do processo (ex: Spotify)",
+      "noHiddenApps": "Nenhum app oculto"
     },
     "focusTimer": {
       "title": "Foco & Timer",
@@ -267,7 +271,45 @@
       "oauthTimeout": "Tempo esgotado aguardando autorização. Tente novamente.",
       "oauthError": "Não foi possível iniciar a conexão OAuth.",
       "connecting": "Carregando…",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "connected": "Conectado",
+      "reconnectNeeded": "Reconexão necessária",
+      "linearDescription": "Puxa projetos e issues atribuídos ao seu usuário Linear para dentro do kanban.",
+      "unauthorizedBanner": "Sua integração expirou ou foi revogada. Cole uma nova API key para reconectar.",
+      "account": "Conta",
+      "connectedAt": "Conectado em",
+      "lastSync": "Última sincronização",
+      "lastResult": "Último resultado: +{{projects}} projetos, +{{tasks}} tarefas, ~{{updated}} atualizadas em {{ms}}ms",
+      "syncNow": "Sincronizar agora",
+      "disconnect": "Desconectar",
+      "syncHistory": "Histórico de sincronizações",
+      "historyLoading": "Carregando…",
+      "noHistory": "Nenhuma sincronização registrada ainda.",
+      "oauthButton": "Conectar com OAuth (recomendado)",
+      "oauthWaiting": "Autorize o Linear no navegador que acabou de abrir. Esta página será atualizada automaticamente.",
+      "orApiKey": "ou use uma API key",
+      "howToGetKey": "Como obter a API key:",
+      "openLinearSettings": "Abrir Linear Settings",
+      "hideKey": "Esconder chave",
+      "showKey": "Mostrar chave",
+      "reconnect": "Reconectar",
+      "connect": "Conectar Linear",
+      "connectSuccess": "Linear conectado com sucesso",
+      "connectOAuthSuccess": "Linear conectado com sucesso via OAuth",
+      "syncSuccess": "Sincronizado: {{created}} novas, {{updated}} atualizadas",
+      "syncNoChanges": "Nenhuma alteração encontrada no Linear",
+      "syncFail": "Falha ao sincronizar com o Linear.",
+      "connectFail": "Não foi possível validar a API key.",
+      "disconnectConfirm": "Desconectar Linear? Suas tarefas sincronizadas permanecerão, mas não receberão novas atualizações.",
+      "disconnected": "Linear desconectado",
+      "disconnectFail": "Não foi possível desconectar.",
+      "historySuccess": "+{{projects}} projetos, +{{tasks}} tarefas, ~{{updated}} atualizadas",
+      "historyDeletedSuffix": ", {{count}} removidas",
+      "historyFailed": "Falha",
+      "relativeNow": "agora",
+      "relativeMin": "{{n}}min atrás",
+      "relativeHour": "{{n}}h atrás",
+      "relativeDay": "{{n}}d atrás"
     },
     "about": {
       "title": "Sobre",
@@ -354,7 +396,11 @@
       "team": "Equipe",
       "memberCount": "{{count}} membro",
       "memberCount_other": "{{count}} membros",
-      "noMembers": "Nenhum membro encontrado"
+      "noMembers": "Nenhum membro encontrado",
+      "you": "Você",
+      "inactive": "Inativo",
+      "deactivate": "Desativar",
+      "activate": "Ativar"
     },
     "organization": {
       "title": "Organização",
@@ -424,7 +470,12 @@
       "shortBreak": "Pausa curta",
       "longBreak": "Pausa longa",
       "cyclesBefore": "Ciclos até pausa longa",
-      "breakMinutes": "Minutos de descanso"
+      "breakMinutes": "Minutos de descanso",
+      "status": "Status",
+      "focusBreakDisplay": "{{focus}}min foco • {{break}}min pausa",
+      "cyclesDisplay": "{{cycles}} ciclos → {{long}}min pausa longa",
+      "naturalCycle": "Ciclo natural de ~90 min de foco + pausa de recuperação",
+      "naturalProductivity": "Ciclo natural de produtividade"
     },
     "appExclusions": {
       "title": "Exclusão de aplicativos",
@@ -793,7 +844,21 @@
     "noTasksInCategory": "Nenhuma tarefa nesta categoria",
     "confirmDelete": "Confirmar?",
     "remove": "Remover",
-    "focus": "Foco"
+    "focus": "Foco",
+    "lastSync": "Último Sync {{time}}",
+    "priority": {
+      "none": "Nenhuma",
+      "noneLabel": "Prioridade: Nenhuma",
+      "low": "Baixa",
+      "medium": "Média",
+      "high": "Alta",
+      "urgent": "Urgente"
+    },
+    "roleLabel": {
+      "admin": "Admin",
+      "gestor": "Gestor",
+      "member": "Membro"
+    }
   },
   "maintenance": {
     "title": "Manutenção",

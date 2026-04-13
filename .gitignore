@@ -59,6 +59,10 @@ yarn-error.log*
 dist/
 .webpack/
 
+# TypeScript build cache (auto-generated, no need to track)
+tsconfig.tsbuildinfo
+**/*.tsbuildinfo
+
 # Environment
 .env
 .env.local

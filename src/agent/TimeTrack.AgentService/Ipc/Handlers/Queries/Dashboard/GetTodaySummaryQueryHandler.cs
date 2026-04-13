@@ -71,9 +71,11 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     {
         var dashboard = await _getDashboard.ExecuteAsync(targetDate, ct);
 
+        var totalDurationSeconds = (long)dashboard.TotalWorkTime.TotalSeconds;
+
         var summary = new
         {
-            totalDuration  = (long)dashboard.TotalWorkTime.TotalSeconds,
+            totalDuration  = totalDurationSeconds,
             productiveTime = (long)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalSeconds,
             idleTime       = (long)dashboard.TotalIdleTime.TotalSeconds,
             focusTime      = (long)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalSeconds,
