@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getTeamStatus, listMembers } from '../services/memberApi';
 import type { TeamMemberStatus, Member } from '../types/member';
+import { useIpc } from './useIpc';
+import { useAuthStore } from '../stores/authStore';
 
 const TEAM_STATUS_POLL_INTERVAL_MS = 30_000; // refresh every 30s (matches agent sync interval)
 
@@ -23,6 +25,9 @@ export function useTeamStatus(): UseTeamStatusReturn {
   const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const { sendQuery } = useIpc();
+  const currentUser = useAuthStore(s => s.user);
+
   // Convert basic Member to TeamMemberStatus (fallback)
   const mapMemberToStatus = (member: Member): TeamMemberStatus => ({
     userId: member.userId,
@@ -38,16 +43,42 @@ export function useTeamStatus(): UseTeamStatusReturn {
     if (showLoading) setIsLoading(true);
     setError(null);
     try {
-      // Try the new team status endpoint first
       const response = await getTeamStatus();
-      setMembers(response.members);
+
+      // For the current user on this device, override the cloud value with the local
+      // IPC value — the same source used by the Dashboard. This is needed because the
+      // cloud can accumulate stale sessions from previous agent runs (they are synced
+      // but never cleaned up from the backend), which inflates the cloud total vs. the
+      // correctly-merged local value.
+      let localUserSeconds: number | null = null;
+      if (currentUser?.id) {
+        try {
+          const ipcResponse = await sendQuery('getTodaySummary');
+          if (ipcResponse?.data?.totalDuration != null) {
+            localUserSeconds = ipcResponse.data.totalDuration;
+          }
+        } catch {
+          // Fall back to cloud value if IPC is unavailable
+        }
+      }
+
+      const correctedMembers = response.members.map(member => {
+        if (localUserSeconds !== null && member.userId === currentUser?.id) {
+          return {
+            ...member,
+            todayDurationSeconds: localUserSeconds!,
+          };
+        }
+        return member;
+      });
+
+      setMembers(correctedMembers);
       setActiveCount(response.activeCount);
       setTrackingCount(response.trackingCount);
       setLastFetchedAt(new Date());
     } catch (err) {
       console.warn('[useTeamStatus] Team status endpoint failed, falling back to basic members:', err);
       try {
-        // Fallback: use basic members list (always works)
         const basicResponse = await listMembers();
         const mappedMembers = basicResponse.members.map(mapMemberToStatus);
         setMembers(mappedMembers);
@@ -59,7 +90,7 @@ export function useTeamStatus(): UseTeamStatusReturn {
     } finally {
       if (showLoading) setIsLoading(false);
     }
-  }, []);
+  }, [sendQuery, currentUser]);
 
   // Auto-poll to keep the team list fresh (matches agent sync interval)
   useEffect(() => {

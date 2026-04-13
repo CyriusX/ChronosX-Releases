@@ -248,12 +248,9 @@ export function useDashboardData() {
 
     const unsubscribe = subscribeToEvent('syncCompleted', () => {
       console.log('[Dashboard] Sync completed');
-      // Refresh sync state
-      sendQuery('getSyncState').then((response) => {
-        if (response.success && response.data) {
-          setSyncState(response.data as SyncStateResponse);
-        }
-      });
+      // Refresh all dashboard data — newly synced sessions from other devices
+      // should appear in the local dashboard immediately after sync.
+      fetchDashboardData();
     });
 
     return unsubscribe;

@@ -91,7 +91,7 @@ export function WebSidebar() {
   const sidebarContent = (
     <>
       {/* Logo + Admin Badge */}
-      <div className="px-4 py-5 flex-shrink-0">
+      <div className="px-4 pt-6 pb-5 flex-shrink-0">
         <div className="flex items-center gap-2">
           <motion.img
             src={logoImg}
@@ -102,7 +102,14 @@ export function WebSidebar() {
             className="w-8 h-8 rounded-lg shadow-[0px_6px_10px_0px_rgba(139,92,246,0.25)]"
           />
           <div className="flex flex-col">
-            <span className="text-[15px] font-semibold text-[#f5f7fb] tracking-[-0.3px]">ChronosX</span>
+            <motion.span
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3, duration: 0.3 }}
+              className="text-[15px] font-semibold text-[#f5f7fb] tracking-[-0.3px]"
+            >
+              ChronosX
+            </motion.span>
             <div className="flex items-center gap-1">
               <Shield className="w-2.5 h-2.5 text-[#8B5CF6]" />
               <span className="text-[9px] text-[rgba(139,92,246,0.8)] font-medium uppercase tracking-wider">
@@ -207,30 +214,32 @@ export function WebSidebar() {
         </div>
       )}
 
-      {/* User section + Logout */}
-      <div className="border-t border-[rgba(255,255,255,0.04)] flex-shrink-0 px-3 py-3">
-        <div className="flex items-center gap-2.5 px-2 py-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
-            <span className="text-[12px] font-bold text-white">
+      {/* User section + Logout — glassmorphic card matching desktop SidebarMiniDash */}
+      <div className="border-t border-[rgba(255,255,255,0.04)] flex-shrink-0 pt-2 px-2.5 pb-2.5">
+        <div className="rounded-[16px] bg-[linear-gradient(135deg,rgba(22,25,40,0.70),rgba(14,16,26,0.70))] backdrop-blur-[16px] border border-[rgba(255,255,255,0.06)] px-2.5 py-2.5 space-y-2">
+          {/* User row */}
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
               {user?.displayName?.charAt(0)?.toUpperCase() || '?'}
-            </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-medium text-[#f5f7fb] truncate leading-tight">
+                {user?.displayName || t('webSidebar.user')}
+              </p>
+              <p className="text-[8px] text-[rgba(245,247,251,0.3)] leading-tight truncate">
+                {user?.role === 'Admin' ? t('webSidebar.admin') : t('webSidebar.manager')} · {user?.orgName}
+              </p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-medium text-[rgba(245,247,251,0.9)] truncate">
-              {user?.displayName || t('webSidebar.user')}
-            </p>
-            <p className="text-[10px] text-[rgba(245,247,251,0.4)] truncate">
-              {user?.role === 'Admin' ? t('webSidebar.admin') : t('webSidebar.manager')} · {user?.orgName}
-            </p>
-          </div>
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-2 py-1 rounded-lg text-[10px] text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.85)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+          >
+            <LogOut className="w-[12px] h-[12px]" />
+            {t('webSidebar.logout')}
+          </button>
         </div>
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
-        >
-          <LogOut className="w-[14px] h-[14px]" />
-          {t('webSidebar.logout')}
-        </button>
       </div>
     </>
   );
@@ -238,7 +247,7 @@ export function WebSidebar() {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-[200px] flex-shrink-0 glass-sidebar flex-col overflow-hidden">
+      <aside className="hidden md:flex w-[180px] flex-shrink-0 glass-sidebar flex-col overflow-hidden">
         {sidebarContent}
       </aside>
 

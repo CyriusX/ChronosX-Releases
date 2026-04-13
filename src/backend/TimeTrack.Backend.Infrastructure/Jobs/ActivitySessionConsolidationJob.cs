@@ -151,9 +151,9 @@ public sealed class ActivitySessionConsolidationJob : IActivitySessionConsolidat
         var deletedCount = 0;
         var idsToDelete = new List<Guid>();
 
-        // Group sessions by app identity (process_name + window_title)
+        // Group sessions by device + app identity (safe for multi-device users)
         var sessionGroups = sessions
-            .GroupBy(s => new { s.ProcessName, WindowTitle = s.WindowTitle ?? "" })
+            .GroupBy(s => new { s.DeviceId, s.ProcessName, WindowTitle = s.WindowTitle ?? "" })
             .ToList();
 
         foreach (var group in sessionGroups)
@@ -163,25 +163,39 @@ public sealed class ActivitySessionConsolidationJob : IActivitySessionConsolidat
             if (groupSessions.Count <= 1)
                 continue;
 
-            // Find consecutive sessions that can be merged
+            // Track the surviving session for correct chained merges.
+            // Using groupSessions[i-1] is buggy: when A merges B, then C
+            // compares against B (deleted) instead of A (the survivor).
+            var survivor = groupSessions[0];
+
             for (int i = 1; i < groupSessions.Count; i++)
             {
-                var previous = groupSessions[i - 1];
                 var current = groupSessions[i];
+                var gap = (current.StartedAt - survivor.EndedAt).TotalSeconds;
 
-                // Check if sessions can be merged (gap is within tolerance)
-                var gap = (current.StartedAt - previous.EndedAt).TotalSeconds;
-
-                if (gap >= 0 && gap <= MergeGapToleranceSeconds)
+                // Merge if overlapping (gap < 0) or within tolerance (gap <= 10s).
+                // Previously used `gap >= 0` which skipped overlapping sessions
+                // from agent restarts that created duplicate sessions for the same
+                // time window with different IDs.
+                if (gap <= MergeGapToleranceSeconds)
                 {
-                    // Extend previous session to include current using the domain method
-                    previous.Extend(current.EndedAt);
+                    // Only extend if current actually extends beyond survivor.
+                    // Extend() throws if newEndedAt < EndedAt, so this guard
+                    // also handles fully-contained sessions (just delete them).
+                    if (current.EndedAt > survivor.EndedAt)
+                    {
+                        survivor.Extend(current.EndedAt);
+                    }
                     idsToDelete.Add(current.Id);
                     mergedCount++;
 
                     _logger.LogDebug(
-                        "Merging session {CurrentId} into {PreviousId}. Gap: {Gap}s",
-                        current.Id, previous.Id, gap);
+                        "Merging session {CurrentId} into {SurvivorId}. Gap: {Gap:F1}s",
+                        current.Id, survivor.Id, gap);
+                }
+                else
+                {
+                    survivor = current;
                 }
             }
         }

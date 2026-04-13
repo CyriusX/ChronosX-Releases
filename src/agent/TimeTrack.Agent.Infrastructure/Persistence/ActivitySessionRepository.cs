@@ -138,7 +138,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                    category_subcategory, category_source, start_utc, end_utc,
                    window_hash, window_title, domain
             FROM activity_sessions
-            WHERE user_id = @UserId AND start_utc >= @Start AND start_utc < @End
+            WHERE user_id = @UserId AND start_utc < @End AND end_utc > @Start
             ORDER BY start_utc";
 
             var dtos = await connection.QueryAsync<ActivitySessionDto>(sql, new { UserId = userId.ToString(), Start = start, End = end });
@@ -236,7 +236,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                 const string updateOutboxSql = @"
                 UPDATE sync_outbox
                 SET payload_json = @PayloadJson,
-                    next_attempt_utc = COALESCE(next_attempt_utc, @NextAttemptUtc)
+                    next_attempt_utc = @NextAttemptUtc
                 WHERE entity_id = @EntityId AND sent_at IS NULL
                 ";
 

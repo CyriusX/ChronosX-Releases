@@ -1,13 +1,13 @@
 /**
  * MemberCard — displays a single team member's status in the Teams page grid.
- * Lazily fetches productivity summary and task counts on mount.
+ * Duration and productivity data come pre-corrected from the useTeamStatus hook.
+ * Only task data is lazily fetched on mount.
  */
 
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { Clock, CheckSquare, ListTodo, ChevronRight } from 'lucide-react';
-import { getMemberSummary } from '../../services/memberApi';
 import { listUserTasks, type Task } from '../../services/projectsApi';
 import type { TeamMemberStatus } from '../../types/member';
 import { getMemberGradient } from '../dashboard/shared/styles';
@@ -69,8 +69,13 @@ function formatRelativeTime(isoDate: string | null | undefined): string | null {
 
 export function MemberCard({ member, index, onSelect }: MemberCardProps) {
   const { t } = useTranslation();
-  const [productivityPct, setProductivityPct] = useState<number | null>(null);
-  const [totalDuration, setTotalDuration] = useState<number>(member.todayDurationSeconds);
+
+  // Duration and productivity are pre-corrected by useTeamStatus hook
+  const totalDuration = member.todayDurationSeconds;
+  const productivityPct = member.productivityRatio != null
+    ? Math.round(member.productivityRatio * 100)
+    : null;
+
   const [inProgressTask, setInProgressTask] = useState<Task | null>(null);
   const [todoCount, setTodoCount] = useState<number>(0);
   const [doneCount, setDoneCount] = useState<number>(0);
@@ -80,23 +85,14 @@ export function MemberCard({ member, index, onSelect }: MemberCardProps) {
 
     async function load() {
       try {
-        const [summary, tasksRes] = await Promise.all([
-          getMemberSummary(member.userId),
-          listUserTasks(member.userId, true),
-        ]);
+        const tasksRes = await listUserTasks(member.userId, true);
         if (cancelled) return;
-
-        const total = summary.totalDuration;
-        const productive = summary.productiveTime;
-        setProductivityPct(total > 0 ? Math.round((productive / total) * 100) : 0);
-        setTotalDuration(total);
-
         const tasks = tasksRes.tasks ?? [];
         setInProgressTask(tasks.find(t => t.status === 'InProgress') ?? null);
         setTodoCount(tasks.filter(t => t.status === 'Todo').length);
         setDoneCount(tasks.filter(t => t.status === 'Done').length);
       } catch {
-        // Silently degrade — base data from getTeamStatus is still shown
+        // Silently degrade
       }
     }
 
@@ -146,12 +142,12 @@ export function MemberCard({ member, index, onSelect }: MemberCardProps) {
               <div className={`w-2 h-2 rounded-full relative ${member.isTracking ? 'bg-[#05df72]' : 'bg-[rgba(245,247,251,0.2)]'}`} />
             </div>
             <span className={`text-[10px] ${member.isTracking ? 'text-[#05df72]' : 'text-[rgba(245,247,251,0.3)]'}`}>
-              {member.isTracking ? 'Online' : 'Offline'}
+              {member.isTracking ? t('teams.online') : t('teams.offline')}
             </span>
           </div>
           {member.lastSyncAt && (
             <span className="text-[9px] text-[rgba(245,247,251,0.25)]">
-              Last Sync {formatRelativeTime(member.lastSyncAt)}
+              {t('teams.lastSync', { time: formatRelativeTime(member.lastSyncAt) })}
             </span>
           )}
         </div>
@@ -164,14 +160,14 @@ export function MemberCard({ member, index, onSelect }: MemberCardProps) {
             <Clock className="w-3 h-3 text-[rgba(245,247,251,0.4)]" />
             <span className="text-[12px] font-semibold text-[#f5f7fb]">{formatDuration(totalDuration)}</span>
           </div>
-          <span className="text-[9px] text-[rgba(245,247,251,0.35)] uppercase tracking-wide">Hoje</span>
+          <span className="text-[9px] text-[rgba(245,247,251,0.35)] uppercase tracking-wide">{t('teams.today')}</span>
         </div>
 
         <div className="flex-1 flex flex-col items-center gap-0.5 px-2">
           <span className="text-[12px] font-semibold" style={{ color: prodColor ?? 'rgba(245,247,251,0.4)' }}>
             {productivityPct !== null ? `${productivityPct}%` : '—'}
           </span>
-          <span className="text-[9px] text-[rgba(245,247,251,0.35)] uppercase tracking-wide">Produt.</span>
+          <span className="text-[9px] text-[rgba(245,247,251,0.35)] uppercase tracking-wide">{t('teams.productivity')}</span>
         </div>
 
         <div className="flex-1 flex flex-col items-center gap-0.5 px-2">
@@ -179,7 +175,7 @@ export function MemberCard({ member, index, onSelect }: MemberCardProps) {
             <CheckSquare className="w-3 h-3 text-[rgba(245,247,251,0.4)]" />
             <span className="text-[12px] font-semibold text-[#f5f7fb]">{doneCount}</span>
           </div>
-          <span className="text-[9px] text-[rgba(245,247,251,0.35)] uppercase tracking-wide">Feitas</span>
+          <span className="text-[9px] text-[rgba(245,247,251,0.35)] uppercase tracking-wide">{t('teams.done')}</span>
         </div>
       </div>
 
@@ -192,19 +188,19 @@ export function MemberCard({ member, index, onSelect }: MemberCardProps) {
               <p className="text-[11px] text-[rgba(245,247,251,0.9)] truncate leading-tight">{inProgressTask.title}</p>
               <p className="text-[10px] text-[rgba(245,247,251,0.4)] mt-0.5 truncate">{inProgressTask.projectName}</p>
             </div>
-            <span className="text-[9px] text-[#05df72] font-medium flex-shrink-0 mt-0.5">em andamento</span>
+            <span className="text-[9px] text-[#05df72] font-medium flex-shrink-0 mt-0.5">{t('teams.inProgress')}</span>
           </div>
         ) : (
           <div className="flex items-center gap-2 rounded-lg bg-[rgba(255,255,255,0.03)] px-2.5 py-2">
             <div className="w-1.5 h-1.5 rounded-full bg-[rgba(245,247,251,0.15)] flex-shrink-0" />
-            <span className="text-[11px] text-[rgba(245,247,251,0.35)] italic">Nenhuma tarefa em andamento</span>
+            <span className="text-[11px] text-[rgba(245,247,251,0.35)] italic">{t('teams.noTaskInProgress')}</span>
           </div>
         )}
 
         <div className="flex items-center gap-1.5 px-1">
           <ListTodo className="w-3.5 h-3.5 text-[rgba(245,247,251,0.35)]" />
           <span className="text-[11px] text-[rgba(245,247,251,0.5)]">
-            {todoCount === 0 ? 'Sem tarefas pendentes' : `${todoCount} tarefa${todoCount !== 1 ? 's' : ''} a fazer`}
+            {todoCount === 0 ? t('teams.noTodoTasks') : t('teams.todoTasksCount', { count: todoCount })}
           </span>
         </div>
       </div>

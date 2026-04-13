@@ -1,4 +1,5 @@
 import { Crown, Shield, User, Ban, CheckCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { Member, UserRole } from '../../types/member';
 
 interface MemberCardProps {
@@ -38,6 +39,7 @@ export function MemberCard({
   onToggleStatus,
   onChangeRole,
 }: MemberCardProps) {
+  const { t } = useTranslation();
   const isCurrentUser = member.userId === currentUserId;
   const canManage = isAdmin && !isCurrentUser;
 
@@ -54,12 +56,12 @@ export function MemberCard({
             </p>
             {isCurrentUser && (
               <span className="text-[10px] px-1.5 py-0.5 bg-[rgba(139,92,246,0.15)] text-[#8B5CF6] rounded">
-                Você
+                {t('settings.members.you')}
               </span>
             )}
             {member.status === 'Inactive' && (
               <span className="text-[10px] px-1.5 py-0.5 bg-[rgba(255,100,100,0.15)] text-[#ff6464] rounded">
-                Inativo
+                {t('settings.members.inactive')}
               </span>
             )}
           </div>
@@ -74,9 +76,9 @@ export function MemberCard({
             onChange={(e) => onChangeRole(member, e.target.value as UserRole)}
             className={`px-2 py-1 rounded-lg text-[11px] font-medium ${getRoleBadgeStyle(member.role)} bg-transparent border-none cursor-pointer focus:outline-none`}
           >
-            <option value="Colaborador">Colaborador</option>
-            <option value="Gestor">Gestor</option>
-            <option value="Admin">Admin</option>
+            <option value="Colaborador">{t('settings.profile.contributor')}</option>
+            <option value="Gestor">{t('settings.profile.manager')}</option>
+            <option value="Admin">{t('settings.profile.admin')}</option>
           </select>
         ) : (
           <span
@@ -95,7 +97,7 @@ export function MemberCard({
                 ? 'text-[rgba(255,100,100,0.6)] hover:bg-[rgba(255,100,100,0.1)]'
                 : 'text-[rgba(100,255,100,0.6)] hover:bg-[rgba(100,255,100,0.1)]'
             }`}
-            title={member.status === 'Active' ? 'Desativar' : 'Ativar'}
+            title={member.status === 'Active' ? t('settings.members.deactivate') : t('settings.members.activate')}
           >
             {member.status === 'Active' ? (
               <Ban className="w-4 h-4" />

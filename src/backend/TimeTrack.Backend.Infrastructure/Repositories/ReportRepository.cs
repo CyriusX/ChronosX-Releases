@@ -565,15 +565,25 @@ public sealed class ReportRepository : IReportRepository
                 return Math.Clamp(clippedSeconds, 0, rawDuration);
             }
 
-            var totalActive = daySessions.Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
+            // Use merged intervals to prevent double-counting overlapping sessions
+            // (e.g. from agent restarts that create new sessions for the same time window).
+            var clippedActiveIntervals = daySessions.Select(s => (
+                Start: s.StartedAt < dayStart ? dayStart : s.StartedAt,
+                End:   s.EndedAt > dayEndExclusive ? dayEndExclusive : s.EndedAt
+            ));
+            var totalActive = ComputeMergedSeconds(clippedActiveIntervals);
             var totalIdle = dayIdle.Sum(i => ClipDuration(i.StartedAt, i.EndedAt, i.DurationSeconds));
 
-            // Calcular produtividade (using clipped durations + overrides).
+            // Calcular produtividade (using merged intervals + overrides).
             // A session that ran while a kanban task was in progress (TaskId set) ALWAYS counts
             // as productive — the user explicitly opted into focused work on a tracked task.
-            var productiveSeconds = daySessions
+            var clippedProductiveIntervals = daySessions
                 .Where(s => s.TaskId != null || ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
-                .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
+                .Select(s => (
+                    Start: s.StartedAt < dayStart ? dayStart : s.StartedAt,
+                    End:   s.EndedAt > dayEndExclusive ? dayEndExclusive : s.EndedAt
+                ));
+            var productiveSeconds = ComputeMergedSeconds(clippedProductiveIntervals);
 
             // DEBUG: Log productivity calculation
             var productiveCount = daySessions.Count(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive");

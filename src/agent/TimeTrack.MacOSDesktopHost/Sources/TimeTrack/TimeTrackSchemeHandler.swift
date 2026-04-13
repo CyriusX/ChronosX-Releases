@@ -44,7 +44,9 @@ class TimeTrackSchemeHandler: NSObject, WKURLSchemeHandler {
 
     private func proxyToBackend(task: WKURLSchemeTask, url: URL, path: String) {
         var components = URLComponents(string: "\(apiBaseURL)/\(path)")
-        if let query = url.query { components?.query = query }
+        // Use percentEncodedQuery to preserve existing percent-encoding (e.g. timezone=America%2FToronto).
+        // components.query would re-encode % → %25, corrupting the timezone parameter.
+        if let query = url.query { components?.percentEncodedQuery = query }
 
         guard let backendURL = components?.url else {
             task.didFailWithError(URLError(.badURL))

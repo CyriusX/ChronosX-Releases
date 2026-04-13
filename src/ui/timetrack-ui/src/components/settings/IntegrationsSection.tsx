@@ -116,10 +116,10 @@ function LinearCard({
     try {
       await connectLinear(apiKey.trim());
       setApiKey('');
-      notify.success('Linear conectado com sucesso');
+      notify.success(t('settings.integrations.connectSuccess'));
       await onChange();
     } catch (err: unknown) {
-      const message = extractMessage(err) ?? 'Não foi possível validar a API key.';
+      const message = extractMessage(err) ?? t('settings.integrations.connectFail');
       setFormError(message);
     } finally {
       setBusy(false);
@@ -152,7 +152,7 @@ function LinearCard({
           if (linearIntegration && linearIntegration.status === 'Active') {
             setOauthPolling(false);
             setBusy(false);
-            notify.success('Linear conectado com sucesso via OAuth');
+            notify.success(t('settings.integrations.connectOAuthSuccess'));
             await onChange();
             return;
           }
@@ -181,13 +181,13 @@ function LinearCard({
       const total = res.tasksCreated + res.tasksUpdated;
       notify.success(
         total > 0
-          ? `Sincronizado: ${res.tasksCreated} novas, ${res.tasksUpdated} atualizadas`
-          : 'Nenhuma alteração encontrada no Linear',
+          ? t('settings.integrations.syncSuccess', { created: res.tasksCreated, updated: res.tasksUpdated })
+          : t('settings.integrations.syncNoChanges'),
       );
       await onChange();
       if (historyOpen) await loadHistory();
     } catch (err: unknown) {
-      const message = extractMessage(err) ?? 'Falha ao sincronizar com o Linear.';
+      const message = extractMessage(err) ?? t('settings.integrations.syncFail');
       notify.error(message);
     } finally {
       setBusy(false);
@@ -216,15 +216,15 @@ function LinearCard({
   };
 
   const handleDisconnect = async () => {
-    if (!confirm('Desconectar Linear? Suas tarefas sincronizadas permanecerão, mas não receberão novas atualizações.')) return;
+    if (!confirm(t('settings.integrations.disconnectConfirm'))) return;
     setBusy(true);
     try {
       await disconnectLinear();
       setLastSyncResult(null);
-      notify.info('Linear desconectado');
+      notify.info(t('settings.integrations.disconnected'));
       await onChange();
     } catch (err: unknown) {
-      notify.error(extractMessage(err) ?? 'Não foi possível desconectar.');
+      notify.error(extractMessage(err) ?? t('settings.integrations.disconnectFail'));
     } finally {
       setBusy(false);
     }
@@ -243,18 +243,18 @@ function LinearCard({
             {isConnected && (
               <span className="flex items-center gap-1 text-[10px] text-[#05df72]">
                 <CheckCircle2 className="w-3 h-3" />
-                Conectado
+                {t('settings.integrations.connected')}
               </span>
             )}
             {isUnauthorized && (
               <span className="flex items-center gap-1 text-[10px] text-[#f87171]">
                 <AlertTriangle className="w-3 h-3" />
-                Reconexão necessária
+                {t('settings.integrations.reconnectNeeded')}
               </span>
             )}
           </div>
           <p className="text-[11px] text-[rgba(245,247,251,0.5)] mt-0.5">
-            Puxa projetos e issues atribuídos ao seu usuário Linear para dentro do kanban.
+            {t('settings.integrations.linearDescription')}
           </p>
         </div>
       </div>
@@ -264,7 +264,7 @@ function LinearCard({
         <div className="mb-4 flex items-start gap-2 px-3 py-2 rounded-lg bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.25)]">
           <AlertTriangle className="w-4 h-4 text-[#f87171] flex-shrink-0 mt-0.5" />
           <div className="text-[11px] text-[#f87171]">
-            Sua integração expirou ou foi revogada. Cole uma nova API key para reconectar.
+            {t('settings.integrations.unauthorizedBanner')}
           </div>
         </div>
       )}
@@ -273,32 +273,36 @@ function LinearCard({
       {mode === 'view' && isConnected && integration && (
         <div className="space-y-3">
           <div className="flex items-center justify-between py-2 border-b border-[rgba(255,255,255,0.04)]">
-            <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Conta</span>
+            <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('settings.integrations.account')}</span>
             <span className="text-[11px] text-[#f5f7fb] truncate max-w-[200px]">
               {integration.externalUserName ?? integration.externalUserId}
             </span>
           </div>
           {integration.externalUserEmail && (
             <div className="flex items-center justify-between py-2 border-b border-[rgba(255,255,255,0.04)]">
-              <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Email</span>
+              <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('settings.profile.email')}</span>
               <span className="text-[11px] text-[#f5f7fb] truncate max-w-[200px]">{integration.externalUserEmail}</span>
             </div>
           )}
           <div className="flex items-center justify-between py-2 border-b border-[rgba(255,255,255,0.04)]">
-            <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Conectado em</span>
+            <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('settings.integrations.connectedAt')}</span>
             <span className="text-[11px] text-[#f5f7fb]">{formatDateTime(integration.connectedAt)}</span>
           </div>
           <div className="flex items-center justify-between py-2">
-            <span className="text-[11px] text-[rgba(245,247,251,0.5)]">Última sincronização</span>
+            <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{t('settings.integrations.lastSync')}</span>
             <span className="text-[11px] text-[#f5f7fb]">
-              {integration.lastSyncAt ? formatRelative(integration.lastSyncAt) : '—'}
+              {integration.lastSyncAt ? formatRelative(integration.lastSyncAt, t) : '—'}
             </span>
           </div>
 
           {lastSyncResult && (
             <div className="px-3 py-2 rounded-lg bg-[rgba(5,223,114,0.05)] border border-[rgba(5,223,114,0.15)] text-[10px] text-[rgba(245,247,251,0.65)]">
-              Último resultado: +{lastSyncResult.projectsCreated} projetos, +{lastSyncResult.tasksCreated} tarefas,
-              {' '}~{lastSyncResult.tasksUpdated} atualizadas em {lastSyncResult.durationMs}ms
+              {t('settings.integrations.lastResult', {
+                projects: lastSyncResult.projectsCreated,
+                tasks: lastSyncResult.tasksCreated,
+                updated: lastSyncResult.tasksUpdated,
+                ms: lastSyncResult.durationMs,
+              })}
             </div>
           )}
 
@@ -309,7 +313,7 @@ function LinearCard({
               className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[rgba(139,92,246,0.15)] hover:bg-[rgba(139,92,246,0.25)] text-[11px] font-medium text-[#c4b5fd] disabled:opacity-40 transition-colors"
             >
               {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-              Sincronizar agora
+              {t('settings.integrations.syncNow')}
             </button>
             <button
               onClick={handleDisconnect}
@@ -317,7 +321,7 @@ function LinearCard({
               className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(239,68,68,0.12)] text-[11px] text-[rgba(245,247,251,0.6)] hover:text-[#f87171] disabled:opacity-40 transition-colors"
             >
               <Unplug className="w-3 h-3" />
-              Desconectar
+              {t('settings.integrations.disconnect')}
             </button>
           </div>
 
@@ -329,14 +333,14 @@ function LinearCard({
               className="w-full flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] hover:text-[rgba(245,247,251,0.75)] transition-colors"
             >
               {historyOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-              Histórico de sincronizações
+              {t('settings.integrations.syncHistory')}
             </button>
             {historyOpen && (
               <div className="mt-2">
                 {historyLoading ? (
                   <div className="flex items-center gap-2 text-[10px] text-[rgba(245,247,251,0.5)] py-2">
                     <Loader2 className="w-3 h-3 animate-spin" />
-                    Carregando…
+                    {t('settings.integrations.historyLoading')}
                   </div>
                 ) : history && history.length > 0 ? (
                   <ul className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
@@ -346,7 +350,7 @@ function LinearCard({
                   </ul>
                 ) : (
                   <p className="text-[10px] italic text-[rgba(245,247,251,0.35)] py-2">
-                    Nenhuma sincronização registrada ainda.
+                    {t('settings.integrations.noHistory')}
                   </p>
                 )}
               </div>
@@ -374,29 +378,29 @@ function LinearCard({
               ) : (
                 <>
                   <Zap className="w-3.5 h-3.5" />
-                  Conectar com OAuth (recomendado)
+                  {t('settings.integrations.oauthButton')}
                 </>
               )}
             </button>
             {oauthPolling && (
               <p className="text-[10px] text-[rgba(245,247,251,0.45)] text-center">
-                Autorize o Linear no navegador que acabou de abrir. Esta página será atualizada automaticamente.
+                {t('settings.integrations.oauthWaiting')}
               </p>
             )}
           </div>
 
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
-            <span className="text-[10px] text-[rgba(245,247,251,0.35)]">ou use uma API key</span>
+            <span className="text-[10px] text-[rgba(245,247,251,0.35)]">{t('settings.integrations.orApiKey')}</span>
             <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
           </div>
 
           <div className="text-[11px] text-[rgba(245,247,251,0.65)] space-y-1.5">
-            <p className="font-medium text-[rgba(245,247,251,0.85)]">Como obter a API key:</p>
+            <p className="font-medium text-[rgba(245,247,251,0.85)]">{t('settings.integrations.howToGetKey')}</p>
             <ol className="list-decimal list-inside space-y-0.5 pl-1">
-              <li>Abra Linear → Settings → Account → Security & Access</li>
-              <li>Em "Personal API keys", crie uma chave chamada <span className="font-mono text-[10px]">TimeTrack</span></li>
-              <li>Copie a chave gerada e cole abaixo</li>
+              <li>Linear → Settings → Account → Security & Access</li>
+              <li>"Personal API keys" → <span className="font-mono text-[10px]">TimeTrack</span></li>
+              <li>{t('settings.integrations.linearKeyPrompt')}</li>
             </ol>
             <a
               href="https://linear.app/settings/account/security"
@@ -404,7 +408,7 @@ function LinearCard({
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-[10px] text-[#c4b5fd] hover:text-[#a78bfa] mt-1"
             >
-              Abrir Linear Settings
+              {t('settings.integrations.openLinearSettings')}
               <ExternalLink className="w-2.5 h-2.5" />
             </a>
           </div>
@@ -424,7 +428,7 @@ function LinearCard({
               type="button"
               onClick={() => setShowKey((v) => !v)}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[rgba(245,247,251,0.5)] hover:text-[#f5f7fb]"
-              aria-label={showKey ? 'Esconder chave' : 'Mostrar chave'}
+              aria-label={showKey ? t('settings.integrations.hideKey') : t('settings.integrations.showKey')}
             >
               {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
@@ -444,7 +448,7 @@ function LinearCard({
               className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-gradient-to-r from-[#8B5CF6] to-[#a78bfa] hover:from-[#7c3aed] hover:to-[#8B5CF6] text-[11px] font-medium text-white disabled:opacity-40 transition-colors"
             >
               {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-              {isUnauthorized || isConnected ? 'Reconectar' : 'Conectar Linear'}
+              {isUnauthorized || isConnected ? t('settings.integrations.reconnect') : t('settings.integrations.connect')}
             </button>
             {isConnected && (
               <button
@@ -479,15 +483,16 @@ function formatDateTime(iso: string): string {
   });
 }
 
-function formatRelative(iso: string): string {
+function formatRelative(iso: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60) return 'agora';
-  if (diff < 3600) return `${Math.floor(diff / 60)}min atrás`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
-  return `${Math.floor(diff / 86400)}d atrás`;
+  if (diff < 60) return t('settings.integrations.relativeNow');
+  if (diff < 3600) return t('settings.integrations.relativeMin', { n: Math.floor(diff / 60) });
+  if (diff < 86400) return t('settings.integrations.relativeHour', { n: Math.floor(diff / 3600) });
+  return t('settings.integrations.relativeDay', { n: Math.floor(diff / 86400) });
 }
 
 function SyncHistoryRow({ entry }: { entry: LinearSyncHistoryEntry }) {
+  const { t } = useTranslation();
   const iconColor = entry.success ? '#05df72' : '#f87171';
   const Icon = entry.success ? CheckCircle2 : XCircle;
 
@@ -502,11 +507,15 @@ function SyncHistoryRow({ entry }: { entry: LinearSyncHistoryEntry }) {
           </div>
           {entry.success ? (
             <div className="text-[9px] text-[rgba(245,247,251,0.55)] mt-0.5">
-              +{entry.projectsCreated} projetos, +{entry.tasksCreated} tarefas, ~{entry.tasksUpdated} atualizadas
-              {entry.tasksSoftDeleted > 0 && `, ${entry.tasksSoftDeleted} removidas`}
+              {t('settings.integrations.historySuccess', {
+                projects: entry.projectsCreated,
+                tasks: entry.tasksCreated,
+                updated: entry.tasksUpdated,
+              })}
+              {entry.tasksSoftDeleted > 0 && t('settings.integrations.historyDeletedSuffix', { count: entry.tasksSoftDeleted })}
             </div>
           ) : (
-            <div className="text-[9px] text-[#f87171] mt-0.5 break-words">{entry.errorMessage ?? 'Falha'}</div>
+            <div className="text-[9px] text-[#f87171] mt-0.5 break-words">{entry.errorMessage ?? t('settings.integrations.historyFailed')}</div>
           )}
         </div>
       </div>
