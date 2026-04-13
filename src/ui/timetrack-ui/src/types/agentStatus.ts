@@ -21,6 +21,7 @@ export interface AgentStatusUI {
   state: 'running' | 'paused' | 'stopped' | 'idle';
   uptime: number; // seconds
   version: string;
+  desktopHostVersion?: string;
 
   // Sync info from getSyncState query
   syncStatus: 'synced' | 'pending' | 'syncing' | 'failed';

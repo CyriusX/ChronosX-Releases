@@ -15,6 +15,7 @@ import { OrganizationSection } from './OrganizationSection';
 import { AgentStatusSection } from './AgentStatusSection';
 import { TimelineSection } from './TimelineSection';
 import { IntegrationsSection } from './IntegrationsSection';
+import { MaintenanceSection } from './MaintenanceSection';
 import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -189,6 +190,8 @@ export function SettingsPage() {
         ) : null;
       case 'about':
         return <AboutSection />;
+      case 'maintenance':
+        return <MaintenanceSection />;
       case 'agent-status':
         return <AgentStatusSection />;
       default:
