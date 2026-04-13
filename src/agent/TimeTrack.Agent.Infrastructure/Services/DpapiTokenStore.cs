@@ -116,6 +116,13 @@ public sealed class DpapiTokenStore : ITokenStore
 
             if (!response.IsSuccessStatusCode)
             {
+                // Invalidate cache so next attempt reads fresh tokens from disk
+                // (DesktopHost may have stored new tokens via login/refresh)
+                lock (_cacheLock)
+                {
+                    _cachedTokens = null;
+                }
+
                 if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
                     _logger.LogError("User deactivated or refresh token invalid");
