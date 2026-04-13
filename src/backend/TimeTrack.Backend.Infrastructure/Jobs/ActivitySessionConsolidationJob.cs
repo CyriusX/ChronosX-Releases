@@ -29,11 +29,12 @@ public sealed class ActivitySessionConsolidationJob : IActivitySessionConsolidat
 
     /// <summary>
     /// Método para Hangfire - sem parâmetros opcionais
-    /// Processa as últimas 12 horas por padrão
+    /// TEMPORARY: using 30-day window for one-time historical cleanup.
+    /// Revert to TimeSpan.FromHours(12) after the cleanup run completes.
     /// </summary>
     public Task ExecuteConsolidationAsync()
     {
-        return ExecuteAsync(TimeSpan.FromHours(12), CancellationToken.None);
+        return ExecuteAsync(TimeSpan.FromDays(30), CancellationToken.None);
     }
 
     /// <summary>
