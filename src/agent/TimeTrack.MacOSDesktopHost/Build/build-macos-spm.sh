@@ -56,6 +56,9 @@ fi
 echo "[4/6] Creating Info.plist..."
 cp "${SPM_DIR}/Resources/Info.plist" "${APP_BUNDLE}/Contents/Info.plist"
 
+echo "[4b] Copying AppIcon.icns..."
+cp "${SPM_DIR}/Resources/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/AppIcon.icns"
+
 echo "[5/6] Creating LaunchAgent..."
 mkdir -p "${BUILD_DIR}/launchagent"
 cp "${PROJECT_ROOT}/src/agent/TimeTrack.MacOSAgentService/Resources/com.cyriusx.timetrack.agent.plist" \
@@ -70,8 +73,10 @@ else
     echo "  Sparkle framework not found at ${SPARKLE_XCFW}"
 fi
 
-echo "[7/7] Setting up dynamic linker..."
-install_name_tool -add_rpath "@executable_path/../Frameworks" "${APP_BUNDLE}/Contents/MacOS/TimeTrack" 2>/dev/null || echo "  (rpath already set or install_name_tool not needed)"
+echo "[7/7] Setting up dynamic linker rpath..."
+install_name_tool -add_rpath "@executable_path/../Frameworks" "${APP_BUNDLE}/Contents/MacOS/TimeTrack" 2>/dev/null \
+    && echo "  rpath set" \
+    || echo "  (rpath already set)"
 
 echo ""
 echo "=== Build Complete ==="

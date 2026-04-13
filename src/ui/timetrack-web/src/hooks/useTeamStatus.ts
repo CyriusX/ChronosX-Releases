@@ -53,8 +53,8 @@ export function useTeamStatus(): UseTeamStatusReturn {
       );
 
       // Only enrich with productivityRatio — do NOT overwrite todayDurationSeconds.
-      // getTeamStatus already uses merged intervals (correct). getDailySummaryRange
-      // returns a plain SUM which over-counts overlapping sessions and inflates the total.
+      // getTeamStatus uses merged intervals for todayDurationSeconds (authoritative value).
+      // getDailySummaryRange is only used here for productivityRatio enrichment.
       const correctedMembers = response.members.map((member, i) => {
         const result = summaryResults[i];
         if (result.status === 'fulfilled') {
