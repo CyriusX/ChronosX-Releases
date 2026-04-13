@@ -263,6 +263,16 @@ try
     // Configure recurring jobs after application starts
     HangfireConfiguration.ConfigureRecurringJobs();
 
+    // TEMPORARY: one-time endpoint to trigger the 30-day historical cleanup.
+    // Remove this after triggering once in production.
+    app.MapPost("/admin/trigger-consolidation", async (
+        TimeTrack.Backend.Infrastructure.Jobs.Interfaces.IActivitySessionConsolidationJob job,
+        CancellationToken ct) =>
+    {
+        await job.ExecuteAsync(TimeSpan.FromDays(30), ct);
+        return Results.Ok(new { message = "Consolidation complete. Remove this endpoint and revert window to 12h." });
+    });
+
     app.MapControllers();
 
     Log.Information("Starting TimeTrack API...");
