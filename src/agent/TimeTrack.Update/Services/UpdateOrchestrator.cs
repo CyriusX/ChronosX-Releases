@@ -365,10 +365,18 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
         StopScheduledTasks();
 
         // Step 2: Stop Windows service (may not exist if agent runs via Task Scheduler)
-        var serviceStopped = await _serviceController.StopServiceAsync(ServiceName, TimeSpan.FromSeconds(10), cancellationToken);
-        if (!serviceStopped)
+        // System.ServiceProcess may not be available in self-contained publish, so wrap in try-catch
+        try
         {
-            _logger.LogInformation("Service {Service} not found or not running — using force kill", ServiceName);
+            var serviceStopped = await _serviceController.StopServiceAsync(ServiceName, TimeSpan.FromSeconds(10), cancellationToken);
+            if (!serviceStopped)
+            {
+                _logger.LogInformation("Service {Service} not found or not running — using force kill", ServiceName);
+            }
+        }
+        catch (FileNotFoundException ex)
+        {
+            _logger.LogInformation("Windows Service API not available ({Message}) — skipping service stop, will use taskkill", ex.Message);
         }
 
         // Step 3: Force kill all processes using taskkill (more reliable than Process.Kill)
