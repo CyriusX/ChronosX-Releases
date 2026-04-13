@@ -313,15 +313,38 @@
     },
     "about": {
       "title": "About",
-      "subtitle": "System information and diagnostics",
+      "subtitle": "System information",
       "versions": "Versions",
       "agentService": "Agent Service",
       "desktopHost": "Desktop Host",
       "deviceId": "Device ID",
-      "viewAgentStatus": "view Agent Status",
-      "diagnostics": "Diagnostics",
-      "exportLogs": "Export diagnostic logs",
-      "viewStatus": "View full Status screen"
+      "viewAgentStatus": "view Agent Status"
+    },
+    "maintenance": {
+      "title": "Maintenance",
+      "subtitle": "System updates and diagnostics",
+      "update": {
+        "title": "System Update",
+        "currentVersion": "Current version",
+        "checkButton": "Check for updates",
+        "checking": "Checking...",
+        "upToDate": "You are on the latest version",
+        "available": "Update available",
+        "newVersion": "New version",
+        "fileSize": "Size",
+        "releaseNotes": "Release notes",
+        "installButton": "Update now",
+        "downloading": "Downloading update...",
+        "installing": "Installing...",
+        "complete": "Update completed successfully!",
+        "failed": "Update failed",
+        "noUpdate": "No update available"
+      },
+      "diagnostics": {
+        "title": "Diagnostics",
+        "exportLogs": "Export diagnostic logs",
+        "viewStatus": "View full Status screen"
+      }
     },
     "agentStatus": {
       "title": "Agent Status",
@@ -396,7 +419,8 @@
       "team": "Team",
       "organization": "Organization",
       "agentStatus": "Agent Status",
-      "about": "About"
+      "about": "About",
+      "maintenance": "Maintenance"
     },
     "policyLoadFailed": "Could not load organization policies",
     "saveFailed": "Error saving settings",

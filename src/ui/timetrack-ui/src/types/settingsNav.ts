@@ -9,6 +9,7 @@ export type SettingsSection =
   | 'integrations'
   | 'team'
   | 'organization'
+  | 'maintenance'
   | 'agent-status'
   | 'about';
 

@@ -313,15 +313,38 @@
     },
     "about": {
       "title": "Sobre",
-      "subtitle": "Informações do sistema e diagnóstico",
+      "subtitle": "Informações do sistema",
       "versions": "Versões",
       "agentService": "Agent Service",
       "desktopHost": "Desktop Host",
       "deviceId": "Device ID",
-      "viewAgentStatus": "ver Status do Agent",
-      "diagnostics": "Diagnóstico",
-      "exportLogs": "Exportar logs de diagnóstico",
-      "viewStatus": "Ver tela de Status completa"
+      "viewAgentStatus": "ver Status do Agent"
+    },
+    "maintenance": {
+      "title": "Manutenção",
+      "subtitle": "Atualizações e diagnóstico do sistema",
+      "update": {
+        "title": "Atualização do Sistema",
+        "currentVersion": "Versão atual",
+        "checkButton": "Verificar atualizações",
+        "checking": "Verificando...",
+        "upToDate": "Você está na versão mais recente",
+        "available": "Atualização disponível",
+        "newVersion": "Nova versão",
+        "fileSize": "Tamanho",
+        "releaseNotes": "Notas da versão",
+        "installButton": "Atualizar agora",
+        "downloading": "Baixando atualização...",
+        "installing": "Instalando...",
+        "complete": "Atualização concluída com sucesso!",
+        "failed": "Falha na atualização",
+        "noUpdate": "Nenhuma atualização disponível"
+      },
+      "diagnostics": {
+        "title": "Diagnóstico",
+        "exportLogs": "Exportar logs de diagnóstico",
+        "viewStatus": "Ver tela de Status completa"
+      }
     },
     "agentStatus": {
       "title": "Status do Agent",
@@ -396,7 +419,8 @@
       "team": "Equipe",
       "organization": "Organização",
       "agentStatus": "Status do Agent",
-      "about": "Sobre"
+      "about": "Sobre",
+      "maintenance": "Manutenção"
     },
     "policyLoadFailed": "Não foi possível carregar as políticas da organização",
     "saveFailed": "Erro ao salvar configurações",
