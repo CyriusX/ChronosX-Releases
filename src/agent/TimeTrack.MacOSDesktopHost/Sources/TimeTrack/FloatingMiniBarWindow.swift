@@ -183,11 +183,23 @@ final class FloatingMiniBarWindow: NSPanel {
         if let posStr = UserDefaults.standard.string(forKey: Self.positionKey) {
             let parts = posStr.split(separator: ",")
             if parts.count == 2, let x = Double(parts[0]), let y = Double(parts[1]) {
-                setFrameOrigin(NSPoint(x: x, y: y))
-                return
+                let origin = NSPoint(x: x, y: y)
+                // Validate the saved position is visible on at least one screen.
+                // A stale position from a disconnected monitor would leave the bar
+                // off-screen with no way for the user to retrieve it.
+                let barRect = NSRect(origin: origin, size: frame.size)
+                let isOnScreen = NSScreen.screens.contains { screen in
+                    barRect.intersects(screen.visibleFrame)
+                }
+                if isOnScreen {
+                    setFrameOrigin(origin)
+                    return
+                }
+                // Invalid — clear the stale value and fall through to default placement
+                UserDefaults.standard.removeObject(forKey: Self.positionKey)
             }
         }
-        // Default: center top of screen
+        // Default: center top of main screen
         if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
             let x = screenFrame.midX - frame.width / 2
