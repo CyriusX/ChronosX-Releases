@@ -271,15 +271,38 @@
     },
     "about": {
       "title": "Acerca de",
-      "subtitle": "Información del sistema y diagnósticos",
+      "subtitle": "Información del sistema",
       "versions": "Versiones",
       "agentService": "Servicio del Agente",
       "desktopHost": "Host de Escritorio",
       "deviceId": "ID del dispositivo",
-      "viewAgentStatus": "ver Estado del Agente",
-      "diagnostics": "Diagnósticos",
-      "exportLogs": "Exportar registros de diagnóstico",
-      "viewStatus": "Ver pantalla de Estado completa"
+      "viewAgentStatus": "ver Estado del Agente"
+    },
+    "maintenance": {
+      "title": "Mantenimiento",
+      "subtitle": "Actualizaciones y diagnóstico del sistema",
+      "update": {
+        "title": "Actualización del Sistema",
+        "currentVersion": "Versión actual",
+        "checkButton": "Buscar actualizaciones",
+        "checking": "Buscando...",
+        "upToDate": "Estás en la última versión",
+        "available": "Actualización disponible",
+        "newVersion": "Nueva versión",
+        "fileSize": "Tamaño",
+        "releaseNotes": "Notas de la versión",
+        "installButton": "Actualizar ahora",
+        "downloading": "Descargando actualización...",
+        "installing": "Instalando...",
+        "complete": "¡Actualización completada con éxito!",
+        "failed": "Error en la actualización",
+        "noUpdate": "No hay actualizaciones disponibles"
+      },
+      "diagnostics": {
+        "title": "Diagnóstico",
+        "exportLogs": "Exportar registros de diagnóstico",
+        "viewStatus": "Ver pantalla de Estado completa"
+      }
     },
     "agentStatus": {
       "title": "Estado del Agente",
@@ -350,7 +373,8 @@
       "team": "Equipo",
       "organization": "Organización",
       "agentStatus": "Estado del Agente",
-      "about": "Acerca de"
+      "about": "Acerca de",
+      "maintenance": "Mantenimiento"
     },
     "policyLoadFailed": "No se pudieron cargar las políticas de la organización",
     "saveFailed": "Error al guardar la configuración",

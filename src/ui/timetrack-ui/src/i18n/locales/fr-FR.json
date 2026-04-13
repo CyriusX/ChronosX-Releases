@@ -271,15 +271,38 @@
     },
     "about": {
       "title": "À propos",
-      "subtitle": "Informations système et diagnostics",
+      "subtitle": "Informations système",
       "versions": "Versions",
       "agentService": "Service Agent",
       "desktopHost": "Hôte Bureau",
       "deviceId": "ID de l'appareil",
-      "viewAgentStatus": "voir le Statut de l'Agent",
-      "diagnostics": "Diagnostics",
-      "exportLogs": "Exporter les journaux de diagnostic",
-      "viewStatus": "Voir l'écran de statut complet"
+      "viewAgentStatus": "voir le Statut de l'Agent"
+    },
+    "maintenance": {
+      "title": "Maintenance",
+      "subtitle": "Mises à jour et diagnostic du système",
+      "update": {
+        "title": "Mise à jour du système",
+        "currentVersion": "Version actuelle",
+        "checkButton": "Rechercher les mises à jour",
+        "checking": "Vérification...",
+        "upToDate": "Vous êtes sur la dernière version",
+        "available": "Mise à jour disponible",
+        "newVersion": "Nouvelle version",
+        "fileSize": "Taille",
+        "releaseNotes": "Notes de version",
+        "installButton": "Mettre à jour maintenant",
+        "downloading": "Téléchargement de la mise à jour...",
+        "installing": "Installation...",
+        "complete": "Mise à jour terminée avec succès !",
+        "failed": "Échec de la mise à jour",
+        "noUpdate": "Aucune mise à jour disponible"
+      },
+      "diagnostics": {
+        "title": "Diagnostic",
+        "exportLogs": "Exporter les journaux de diagnostic",
+        "viewStatus": "Voir l'écran de statut complet"
+      }
     },
     "agentStatus": {
       "title": "Statut de l'Agent",
@@ -350,7 +373,8 @@
       "team": "Équipe",
       "organization": "Organisation",
       "agentStatus": "Statut de l'Agent",
-      "about": "À propos"
+      "about": "À propos",
+      "maintenance": "Maintenance"
     },
     "policyLoadFailed": "Impossible de charger les politiques de l'organisation",
     "saveFailed": "Erreur lors de l'enregistrement des paramètres",
