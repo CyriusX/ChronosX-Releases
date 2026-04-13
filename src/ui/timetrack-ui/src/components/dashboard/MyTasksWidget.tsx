@@ -161,7 +161,7 @@ export function MyTasksWidget() {
     <Card className={cardBase}>
       <CardHeader className="pb-0 pt-3 px-4">
         <CardTitle className="flex items-center justify-between">
-          <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Minhas Tarefas</span>
+          <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.myTasks')}</span>
           <span className="text-[10px] text-[rgba(245,247,251,0.4)]">{tasks.length}</span>
         </CardTitle>
       </CardHeader>

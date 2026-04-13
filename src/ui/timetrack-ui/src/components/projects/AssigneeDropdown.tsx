@@ -6,6 +6,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Check, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { listMembers } from '../../services/memberApi';
 import { updateTask, type Task } from '../../services/projectsApi';
 
@@ -36,6 +37,7 @@ export function AssigneeDropdown({
   /** Optional custom trigger (defaults to inline assignee display). */
   children?: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -148,7 +150,7 @@ export function AssigneeDropdown({
   ) : (
     <div className="flex items-center gap-1 text-[9px] text-[rgba(245,247,251,0.3)]">
       <User className="w-3 h-3" />
-      Não atribuído
+      {t('projects.unassigned')}
     </div>
   );
 
@@ -182,7 +184,7 @@ export function AssigneeDropdown({
 
           {!loading && members.length === 0 && (
             <div className="px-3 py-2 text-[10px] text-[rgba(245,247,251,0.4)] italic">
-              Nenhum membro encontrado no tenancy.
+              {t('settings.members.noMembers')}
             </div>
           )}
 
@@ -197,7 +199,7 @@ export function AssigneeDropdown({
                 <div className="w-4 h-4 rounded-full flex items-center justify-center bg-[rgba(255,255,255,0.06)]">
                   <User className="w-2.5 h-2.5 text-[rgba(245,247,251,0.4)]" />
                 </div>
-                <span className="flex-1 text-left">Ninguém</span>
+                <span className="flex-1 text-left">{t('projects.nobody')}</span>
                 {!task.assignedUserId && <Check className="w-3 h-3 text-[rgba(245,247,251,0.4)]" />}
                 {saving && savingId === null && <Loader2 className="w-3 h-3 animate-spin text-[rgba(245,247,251,0.5)]" />}
               </button>

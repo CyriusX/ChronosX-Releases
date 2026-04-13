@@ -124,7 +124,7 @@ function FocusModeEditForm({
       {/* Enable/Mode Selection */}
       <div className="space-y-3">
         <div>
-          <label className="text-[11px] text-[rgba(245,247,251,0.5)] mb-1 block">Status</label>
+          <label className="text-[11px] text-[rgba(245,247,251,0.5)] mb-1 block">{t('policies.focusMode.status')}</label>
           <button
             onClick={() => onUpdateFocusMode({ enabled: !focusMode.enabled })}
             className={`w-full px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
@@ -252,7 +252,7 @@ function FocusModeEditForm({
             />
           </div>
         </div>
-        <p className="text-[10px] text-[rgba(245,247,251,0.35)]">Ciclo natural de ~90 min de foco + pausa de recuperação</p>
+        <p className="text-[10px] text-[rgba(245,247,251,0.35)]">{t('policies.focusMode.naturalCycle')}</p>
       </div>
     </div>
   );
@@ -290,10 +290,10 @@ function FocusModeDisplay({ focusMode }: FocusModeDisplayProps) {
         </h4>
         <div className="space-y-1">
           <p className="text-[13px] text-[rgba(245,247,251,0.7)]">
-            {focusMode.pomodoro?.focusMinutes ?? 25}min foco • {focusMode.pomodoro?.shortBreakMinutes ?? 5}min pausa
+            {t('policies.focusMode.focusBreakDisplay', { focus: focusMode.pomodoro?.focusMinutes ?? 25, break: focusMode.pomodoro?.shortBreakMinutes ?? 5 })}
           </p>
           <p className="text-[11px] text-[rgba(245,247,251,0.4)]">
-            {focusMode.pomodoro?.cyclesBeforeLongBreak ?? 4} ciclos → {focusMode.pomodoro?.longBreakMinutes ?? 15}min pausa longa
+            {t('policies.focusMode.cyclesDisplay', { cycles: focusMode.pomodoro?.cyclesBeforeLongBreak ?? 4, long: focusMode.pomodoro?.longBreakMinutes ?? 15 })}
           </p>
         </div>
       </div>
@@ -306,9 +306,9 @@ function FocusModeDisplay({ focusMode }: FocusModeDisplayProps) {
         </h4>
         <div className="space-y-1">
           <p className="text-[13px] text-[rgba(245,247,251,0.7)]">
-            {focusMode.ultradian?.focusMinutes ?? 90}min foco • {focusMode.ultradian?.breakMinutes ?? 20}min pausa
+            {t('policies.focusMode.focusBreakDisplay', { focus: focusMode.ultradian?.focusMinutes ?? 90, break: focusMode.ultradian?.breakMinutes ?? 20 })}
           </p>
-          <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Ciclo natural de produtividade</p>
+          <p className="text-[11px] text-[rgba(245,247,251,0.4)]">{t('policies.focusMode.naturalProductivity')}</p>
         </div>
       </div>
     </div>
