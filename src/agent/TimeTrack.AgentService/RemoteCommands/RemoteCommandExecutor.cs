@@ -21,6 +21,7 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
     private readonly IIpcServer _ipcServer;
     private readonly IpcNotificationService _notificationService;
     private readonly IHostApplicationLifetime _hostLifetime;
+    private readonly IUpdateService _updateService;
     private readonly ILogger<RemoteCommandExecutor> _logger;
 
     public RemoteCommandExecutor(
@@ -29,6 +30,7 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
         IIpcServer ipcServer,
         IpcNotificationService notificationService,
         IHostApplicationLifetime hostLifetime,
+        IUpdateService updateService,
         ILogger<RemoteCommandExecutor> logger)
     {
         _trackingControl = trackingControl;
@@ -36,6 +38,7 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
         _ipcServer = ipcServer;
         _notificationService = notificationService;
         _hostLifetime = hostLifetime;
+        _updateService = updateService;
         _logger = logger;
     }
 
@@ -48,6 +51,7 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
             "force_sync" => await ExecuteForceSyncAsync(ct),
             "send_notification" => await ExecuteSendNotificationAsync(payloadJson, ct),
             "restart" => await ExecuteRestartAsync(ct),
+            "force_update" => await ExecuteForceUpdateAsync(ct),
             "task_assigned" => await ExecuteKanbanNotificationAsync("task_assigned", payloadJson, ct),
             "task_unassigned" => await ExecuteKanbanNotificationAsync("task_unassigned", payloadJson, ct),
             "task_updated" => await ExecuteKanbanNotificationAsync("task_updated", payloadJson, ct),
@@ -267,6 +271,38 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
             _logger.LogError(ex, "Failed to process {Kind} payload", kind);
             return CommandResult.Failed($"Failed to process {kind}: {ex.Message}");
         }
+    }
+
+    private async Task<CommandResult> ExecuteForceUpdateAsync(CancellationToken ct)
+    {
+        if (_updateService.IsUpdating)
+            return CommandResult.Failed("Update already in progress");
+
+        _logger.LogInformation("Force update requested by remote admin command");
+
+        // Fire-and-forget: check → download → install. The command ack is immediate.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var checkResult = await _updateService.CheckForUpdatesAsync(CancellationToken.None);
+                if (checkResult?.HasUpdate == true)
+                {
+                    _logger.LogInformation("Remote update: version {Version} available, starting download", checkResult.LatestVersion);
+                    await _updateService.StartUpdateAsync(CancellationToken.None);
+                }
+                else
+                {
+                    _logger.LogInformation("Remote update: no update available");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Remote force update failed");
+            }
+        }, CancellationToken.None);
+
+        return CommandResult.Ok("Force update initiated");
     }
 
     private sealed class NotificationPayload

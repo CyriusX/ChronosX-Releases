@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Monitor, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe, Trash2, User, AlertTriangle } from 'lucide-react';
+import { Monitor, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe, Trash2, User, AlertTriangle, Download } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
 import { useAuthStore } from '../stores/authStore';
 import { useHealthAlertStore } from '../stores/healthAlertStore';
@@ -421,6 +421,7 @@ export default function Maintenance() {
   const [notifTitle, setNotifTitle] = useState('');
   const [notifBody, setNotifBody] = useState('');
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const [confirmForceUpdate, setConfirmForceUpdate] = useState(false);
   const [deletingDeviceId, setDeletingDeviceId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1018,6 +1019,35 @@ export default function Maintenance() {
                   <Bell className="w-3 h-3" />
                   Notificar Usuario
                 </button>
+
+                {/* Force Update */}
+                {!confirmForceUpdate ? (
+                  <button
+                    onClick={() => setConfirmForceUpdate(true)}
+                    disabled={sendingCommand !== null}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-[rgba(34,211,238,0.3)] text-[#22D3EE] bg-[rgba(34,211,238,0.06)] hover:bg-[rgba(34,211,238,0.12)] transition-colors disabled:opacity-40"
+                  >
+                    <Download className="w-3 h-3" />
+                    Forcar Atualizacao
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleSendCommand('force_update')}
+                      disabled={sendingCommand !== null}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-[rgba(34,211,238,0.2)] text-[#22D3EE] border border-[rgba(34,211,238,0.4)] hover:bg-[rgba(34,211,238,0.3)] transition-colors"
+                    >
+                      {sendingCommand === 'force_update' ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Download className="w-3 h-3" />}
+                      Confirmar
+                    </button>
+                    <button
+                      onClick={() => setConfirmForceUpdate(false)}
+                      className="px-2 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
 
                 {/* Restart Agent */}
                 {!confirmRestart ? (

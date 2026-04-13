@@ -18,7 +18,7 @@ public sealed class CreateRemoteCommandCommandHandler
 {
     private static readonly HashSet<string> ValidCommandTypes = new()
     {
-        "restart", "stop_tracking", "resume_tracking", "force_sync", "send_notification"
+        "restart", "stop_tracking", "resume_tracking", "force_sync", "send_notification", "force_update"
     };
 
     private readonly IRemoteCommandRepository _commandRepository;
