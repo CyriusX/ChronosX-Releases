@@ -360,8 +360,19 @@ Examples:
 
             var relayExePath = Path.Combine(tempDir, "update-relay.exe");
 
-            // Copy self to temp (overwrite if exists)
+            // Copy self and companion files (update.dll, deps.json, runtimeconfig.json) to temp
             File.Copy(currentExePath, relayExePath, overwrite: true);
+
+            var currentDir = Path.GetDirectoryName(currentExePath)!;
+            foreach (var companionFile in new[] { "update.dll", "update.deps.json", "update.runtimeconfig.json" })
+            {
+                var src = Path.Combine(currentDir, companionFile);
+                var dst = Path.Combine(tempDir, companionFile);
+                if (File.Exists(src))
+                {
+                    File.Copy(src, dst, overwrite: true);
+                }
+            }
 
             Console.WriteLine($"Relocating from {currentExePath} to {relayExePath}");
 
