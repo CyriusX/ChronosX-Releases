@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg-primary: #06081B;
+  --color-bg-secondary: #070B26;
+  --color-bg-tertiary: #0A1030;
+  --color-card: #0C1236;
+  --color-card-hover: #101848;
+  --color-card-alt: #10163F;
+  --color-accent-blue: #2E63FF;
+  --color-accent-violet: #7C5CFF;
+  --color-accent-magenta: #C15CFF;
+  --color-accent-cyan: #22D3EE;
+  --color-text-primary: #F5F7FF;
+  --color-text-muted: #A8B1D8;
+  --color-text-dim: #6B7399;
+  --color-border-subtle: rgba(120, 140, 255, 0.12);
+  --color-border-glow: rgba(46, 99, 255, 0.35);
+  --color-glow-blue: rgba(46, 99, 255, 0.15);
+  --color-glow-violet: rgba(124, 92, 255, 0.15);
+  --color-glow-magenta: rgba(193, 92, 255, 0.1);
+
+  --font-heading: var(--font-sora);
+  --font-body: var(--font-inter);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Grid background pattern */
+.bg-grid-pattern {
+  background-image:
+    linear-gradient(rgba(120, 140, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 140, 255, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Glow border utility */
+.glow-border {
+  border: 1px solid rgba(120, 140, 255, 0.12);
+  box-shadow:
+    0 0 20px rgba(46, 99, 255, 0.06),
+    inset 0 0 20px rgba(46, 99, 255, 0.03);
+}
+
+.glow-border-hover:hover {
+  border-color: rgba(46, 99, 255, 0.3);
+  box-shadow:
+    0 0 30px rgba(46, 99, 255, 0.1),
+    inset 0 0 30px rgba(46, 99, 255, 0.05);
+}
+
+/* Glass card */
+.glass-card {
+  background: linear-gradient(135deg, rgba(12, 18, 54, 0.9), rgba(16, 22, 63, 0.7));
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(120, 140, 255, 0.1);
+  border-radius: 20px;
+}
+
+/* Pill button */
+.pill-button {
+  border-radius: 9999px;
+  padding: 0.625rem 1.75rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #F5F7FF 0%, #A8B1D8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-accent {
+  background: linear-gradient(135deg, #2E63FF 0%, #7C5CFF 50%, #C15CFF 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Section spacing */
+.section-padding {
+  padding-top: 6rem;
+  padding-bottom: 6rem;
+}
+
+@media (min-width: 768px) {
+  .section-padding {
+    padding-top: 8rem;
+    padding-bottom: 8rem;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 140, 255, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 140, 255, 0.35);
+}
