@@ -102,7 +102,8 @@ public sealed class RecordActiveWindowUseCase
 
         if (activeSession != null && CanExtendSession(activeSession, appIdentity, windowHash))
         {
-            // Estende a sessão existente - não cria novo outbox item
+            // Extends the existing session. UpdateAsync also updates the outbox payload so
+            // the backend receives the latest EndedAt on the next sync cycle (≤30s lag).
             activeSession.Extend(request.CapturedAt);
             await _sessionRepository.UpdateAsync(activeSession, cancellationToken);
             session = activeSession;

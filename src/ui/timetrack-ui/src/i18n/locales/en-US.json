@@ -236,7 +236,11 @@
     },
     "timeline": {
       "title": "Timeline",
-      "subtitle": "Control the visibility of the activity timeline"
+      "subtitle": "Control the visibility of the activity timeline",
+      "hiddenApps": "Hidden apps",
+      "hiddenAppsDesc": "Apps in this list won't appear in the activity timeline or productivity heatmap. Use the process name (e.g. TimeTrack.DesktopHost, msedge).",
+      "processPlaceholder": "Process name (e.g. Spotify)",
+      "noHiddenApps": "No hidden apps"
     },
     "focusTimer": {
       "title": "Focus & Timer",
@@ -267,7 +271,45 @@
       "oauthTimeout": "Authorization timed out. Please try again.",
       "oauthError": "Could not start the OAuth connection.",
       "connecting": "Loading…",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "connected": "Connected",
+      "reconnectNeeded": "Reconnection needed",
+      "linearDescription": "Pulls projects and issues assigned to your Linear user into the kanban.",
+      "unauthorizedBanner": "Your integration expired or was revoked. Paste a new API key to reconnect.",
+      "account": "Account",
+      "connectedAt": "Connected on",
+      "lastSync": "Last sync",
+      "lastResult": "Last result: +{{projects}} projects, +{{tasks}} tasks, ~{{updated}} updated in {{ms}}ms",
+      "syncNow": "Sync now",
+      "disconnect": "Disconnect",
+      "syncHistory": "Sync history",
+      "historyLoading": "Loading…",
+      "noHistory": "No syncs recorded yet.",
+      "oauthButton": "Connect with OAuth (recommended)",
+      "oauthWaiting": "Authorize Linear in the browser that just opened. This page will update automatically.",
+      "orApiKey": "or use an API key",
+      "howToGetKey": "How to get the API key:",
+      "openLinearSettings": "Open Linear Settings",
+      "hideKey": "Hide key",
+      "showKey": "Show key",
+      "reconnect": "Reconnect",
+      "connect": "Connect Linear",
+      "connectSuccess": "Linear connected successfully",
+      "connectOAuthSuccess": "Linear connected successfully via OAuth",
+      "syncSuccess": "Synced: {{created}} new, {{updated}} updated",
+      "syncNoChanges": "No changes found in Linear",
+      "syncFail": "Failed to sync with Linear.",
+      "connectFail": "Could not validate the API key.",
+      "disconnectConfirm": "Disconnect Linear? Your synced tasks will remain, but won't receive new updates.",
+      "disconnected": "Linear disconnected",
+      "disconnectFail": "Could not disconnect.",
+      "historySuccess": "+{{projects}} projects, +{{tasks}} tasks, ~{{updated}} updated",
+      "historyDeletedSuffix": ", {{count}} removed",
+      "historyFailed": "Failed",
+      "relativeNow": "now",
+      "relativeMin": "{{n}}min ago",
+      "relativeHour": "{{n}}h ago",
+      "relativeDay": "{{n}}d ago"
     },
     "about": {
       "title": "About",
@@ -331,7 +373,11 @@
       "team": "Team",
       "memberCount": "{{count}} member",
       "memberCount_other": "{{count}} members",
-      "noMembers": "No members found"
+      "noMembers": "No members found",
+      "you": "You",
+      "inactive": "Inactive",
+      "deactivate": "Deactivate",
+      "activate": "Activate"
     },
     "organization": {
       "title": "Organization",
@@ -400,7 +446,12 @@
       "shortBreak": "Short break",
       "longBreak": "Long break",
       "cyclesBefore": "Cycles until long break",
-      "breakMinutes": "Rest minutes"
+      "breakMinutes": "Rest minutes",
+      "status": "Status",
+      "focusBreakDisplay": "{{focus}}min focus • {{break}}min break",
+      "cyclesDisplay": "{{cycles}} cycles → {{long}}min long break",
+      "naturalCycle": "Natural ~90min focus cycle + recovery break",
+      "naturalProductivity": "Natural productivity cycle"
     },
     "appExclusions": {
       "title": "App exclusions",
@@ -769,7 +820,21 @@
     "noTasksInCategory": "No tasks in this category",
     "confirmDelete": "Confirm?",
     "remove": "Remove",
-    "focus": "Focus"
+    "focus": "Focus",
+    "lastSync": "Last Sync {{time}}",
+    "priority": {
+      "none": "None",
+      "noneLabel": "Priority: None",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "roleLabel": {
+      "admin": "Admin",
+      "gestor": "Manager",
+      "member": "Member"
+    }
   },
   "maintenance": {
     "title": "Maintenance",

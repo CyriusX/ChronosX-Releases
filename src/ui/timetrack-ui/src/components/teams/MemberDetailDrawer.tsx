@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X, Clock, Zap, Target, Folder, Trash2, Plus, ChevronDown,
@@ -42,14 +43,6 @@ function getInitials(name: string): string {
   return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
 }
 
-function roleLabel(role: string): string {
-  switch (role) {
-    case 'Admin': return 'Admin';
-    case 'Gestor': return 'Gestor';
-    default: return 'Membro';
-  }
-}
-
 function priorityColor(p: TaskPriority): string {
   switch (p) {
     case 'Urgent': return '#ef4444';
@@ -60,15 +53,7 @@ function priorityColor(p: TaskPriority): string {
   }
 }
 
-function priorityLabel(p: TaskPriority): string {
-  switch (p) {
-    case 'Urgent': return 'Urgente';
-    case 'High': return 'Alta';
-    case 'Medium': return 'Média';
-    case 'Low': return 'Baixa';
-    default: return 'Nenhuma';
-  }
-}
+// priorityLabel is resolved via t() inside the component
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -83,6 +68,7 @@ interface DerivedProject {
 }
 
 export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps) {
+  const { t } = useTranslation();
   const [summary, setSummary] = useState<MemberSummaryResponse | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -245,7 +231,9 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                 <div className={`w-2 h-2 rounded-full relative ${member.isTracking ? 'bg-[#05df72]' : 'bg-[rgba(245,247,251,0.2)]'}`} />
               </div>
             </div>
-            <span className="text-[11px] text-[rgba(245,247,251,0.45)]">{roleLabel(member.role)}</span>
+            <span className="text-[11px] text-[rgba(245,247,251,0.45)]">
+              {member.role === 'Admin' ? t('teams.roleLabel.admin') : member.role === 'Gestor' ? t('teams.roleLabel.gestor') : t('teams.roleLabel.member')}
+            </span>
           </div>
           <button
             onClick={onClose}
@@ -268,19 +256,19 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                 <div className="rounded-[14px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] p-3 text-center">
                   <Clock className="w-4 h-4 text-[#22D3EE] mx-auto mb-1" />
                   <div className="text-[14px] font-semibold text-[#f5f7fb]">{formatDuration(summary?.totalDuration ?? 0)}</div>
-                  <div className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase tracking-wide mt-0.5">Hoje</div>
+                  <div className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase tracking-wide mt-0.5">{t('teams.today')}</div>
                 </div>
                 <div className="rounded-[14px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] p-3 text-center">
                   <Target className="w-4 h-4 text-[#10B981] mx-auto mb-1" />
                   <div className="text-[14px] font-semibold" style={{ color: prodPct !== null ? (prodPct >= 70 ? '#05df72' : prodPct >= 40 ? '#fbbf24' : '#f87171') : '#94a3b8' }}>
                     {prodPct !== null ? `${prodPct}%` : '—'}
                   </div>
-                  <div className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase tracking-wide mt-0.5">Produt.</div>
+                  <div className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase tracking-wide mt-0.5">{t('teams.productivity')}</div>
                 </div>
                 <div className="rounded-[14px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] p-3 text-center">
                   <Zap className="w-4 h-4 text-[#F59E0B] mx-auto mb-1" />
                   <div className="text-[14px] font-semibold text-[#fbbf24]">{summary?.focusScore ?? '—'}</div>
-                  <div className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase tracking-wide mt-0.5">Foco</div>
+                  <div className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase tracking-wide mt-0.5">{t('teams.focus')}</div>
                 </div>
               </div>
 
@@ -289,7 +277,7 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                 <div>
                   <h3 className="text-[11px] font-medium text-[rgba(245,247,251,0.45)] uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
                     <Folder className="w-3.5 h-3.5" />
-                    Projetos
+                    {t('teams.projects')}
                   </h3>
                   <div className="space-y-2">
                     {projects.map(p => (
@@ -306,7 +294,7 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                           ) : (
                             <>
                               <X className="w-3 h-3" />
-                              Remover
+                              {t('teams.remove')}
                             </>
                           )}
                         </button>
@@ -321,14 +309,14 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-[11px] font-medium text-[rgba(245,247,251,0.45)] uppercase tracking-wider flex items-center gap-1.5">
                     <CheckSquare className="w-3.5 h-3.5" />
-                    Tarefas
+                    {t('teams.tasks')}
                   </h3>
                   <button
                     onClick={() => setShowAddTask(v => !v)}
                     className="flex items-center gap-1 text-[10px] text-[rgba(139,92,246,0.8)] hover:text-[#8B5CF6] transition-colors"
                   >
                     <Plus className="w-3 h-3" />
-                    Adicionar
+                    {t('teams.addTask')}
                   </button>
                 </div>
 
@@ -352,7 +340,7 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                           >
                             <Folder className="w-3 h-3 flex-shrink-0" />
                             <span className="flex-1 text-left truncate">
-                              {availableProjects.find(p => p.id === newTaskProjectId)?.name ?? 'Selecionar projeto'}
+                              {availableProjects.find(p => p.id === newTaskProjectId)?.name ?? t('teams.selectProject')}
                             </span>
                             <ChevronDown className="w-3 h-3 flex-shrink-0" />
                           </button>
@@ -383,7 +371,7 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                         {/* Title */}
                         <input
                           type="text"
-                          placeholder="Título da tarefa"
+                          placeholder={t('teams.taskTitle')}
                           value={newTaskTitle}
                           onChange={e => setNewTaskTitle(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') handleAddTask(); if (e.key === 'Escape') setShowAddTask(false); }}
@@ -398,11 +386,11 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                             onChange={e => setNewTaskPriority(e.target.value as TaskPriority)}
                             className="flex-1 px-2.5 py-1.5 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[11px] text-[rgba(245,247,251,0.7)] focus:outline-none focus:border-[rgba(139,92,246,0.4)] transition-colors"
                           >
-                            <option value="None">Prioridade: Nenhuma</option>
-                            <option value="Low">Baixa</option>
-                            <option value="Medium">Média</option>
-                            <option value="High">Alta</option>
-                            <option value="Urgent">Urgente</option>
+                            <option value="None">{t('teams.priority.noneLabel')}</option>
+                            <option value="Low">{t('teams.priority.low')}</option>
+                            <option value="Medium">{t('teams.priority.medium')}</option>
+                            <option value="High">{t('teams.priority.high')}</option>
+                            <option value="Urgent">{t('teams.priority.urgent')}</option>
                           </select>
                           <input
                             type="date"
@@ -419,7 +407,7 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                             onClick={() => setShowAddTask(false)}
                             className="flex-1 px-3 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
                           >
-                            Cancelar
+                            {t('common.cancel')}
                           </button>
                           <button
                             type="button"
@@ -427,7 +415,7 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                             disabled={addingTask || !newTaskTitle.trim() || !newTaskProjectId}
                             className="flex-1 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-[rgba(139,92,246,0.2)] text-[#8B5CF6] border border-[rgba(139,92,246,0.3)] hover:bg-[rgba(139,92,246,0.3)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                           >
-                            {addingTask ? 'Criando...' : 'Criar Tarefa'}
+                            {addingTask ? t('teams.creating') : t('teams.createTask')}
                           </button>
                         </div>
                       </div>
@@ -438,9 +426,9 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                 {/* Tabs */}
                 <div className="flex gap-1 mb-3 p-0.5 rounded-[10px] bg-[rgba(255,255,255,0.04)]">
                   {([
-                    { id: 'inprogress' as TaskTab, label: 'Em andamento', count: inProgressTasks.length, icon: PlayCircle },
-                    { id: 'todo' as TaskTab, label: 'A fazer', count: todoTasks.length, icon: Circle },
-                    { id: 'done' as TaskTab, label: 'Feitas', count: doneTasks.length, icon: CheckSquare },
+                    { id: 'inprogress' as TaskTab, label: t('teams.inProgressTab'), count: inProgressTasks.length, icon: PlayCircle },
+                    { id: 'todo' as TaskTab, label: t('teams.todoTab'), count: todoTasks.length, icon: Circle },
+                    { id: 'done' as TaskTab, label: t('teams.doneTab'), count: doneTasks.length, icon: CheckSquare },
                   ] as const).map(tab => (
                     <button
                       key={tab.id}
@@ -466,7 +454,7 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                 <div className="space-y-1.5">
                   {displayedTasks.length === 0 ? (
                     <div className="text-center py-8 text-[11px] text-[rgba(245,247,251,0.3)] italic">
-                      Nenhuma tarefa nesta categoria
+                      {t('teams.noTasksInCategory')}
                     </div>
                   ) : (
                     displayedTasks.map(task => (
@@ -480,7 +468,7 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                             <span className="text-[10px] text-[rgba(245,247,251,0.35)]">{task.projectName}</span>
                             {task.priority !== 'None' && (
                               <span className="text-[9px] font-medium" style={{ color: priorityColor(task.priority) }}>
-                                {priorityLabel(task.priority)}
+                                {t(`teams.priority.${task.priority.toLowerCase()}`)}
                               </span>
                             )}
                             {task.dueDate && (
@@ -496,7 +484,7 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                         <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                           {confirmDeleteId === task.id ? (
                             <>
-                              <span className="text-[9px] text-[#f87171]">Confirmar?</span>
+                              <span className="text-[9px] text-[#f87171]">{t('teams.confirmDelete')}</span>
                               <button
                                 onClick={() => handleDeleteTask(task.id)}
                                 disabled={deletingId === task.id}
