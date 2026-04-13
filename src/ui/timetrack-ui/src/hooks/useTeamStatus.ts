@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getTeamStatus, listMembers } from '../services/memberApi';
-import { getDailySummaryRange } from '../services/reportApi';
 import type { TeamMemberStatus, Member } from '../types/member';
+import { useIpc } from './useIpc';
+import { useAuthStore } from '../stores/authStore';
 
 const TEAM_STATUS_POLL_INTERVAL_MS = 30_000; // refresh every 30s (matches agent sync interval)
 
@@ -24,6 +25,9 @@ export function useTeamStatus(): UseTeamStatusReturn {
   const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const { sendQuery } = useIpc();
+  const currentUser = useAuthStore(s => s.user);
+
   // Convert basic Member to TeamMemberStatus (fallback)
   const mapMemberToStatus = (member: Member): TeamMemberStatus => ({
     userId: member.userId,
@@ -41,43 +45,32 @@ export function useTeamStatus(): UseTeamStatusReturn {
     try {
       const response = await getTeamStatus();
 
-      // Enrich with correct duration from /reports/daily-summary-range
-      // (same data source the web UI uses — verified accurate)
-      const today = new Date();
-      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-      let correctedMembers = response.members;
-      try {
-        const summaryResults = await Promise.allSettled(
-          response.members.map(m => getDailySummaryRange(todayStr, todayStr, m.userId))
-        );
-
-        correctedMembers = response.members.map((member, i) => {
-          const result = summaryResults[i];
-          if (result.status === 'fulfilled') {
-            const dayData = result.value.days?.find((d: { date: string }) => d.date === todayStr) ?? result.value.days?.[0];
-            if (dayData) {
-              const cloudSecs = dayData.totalActiveSeconds;
-              const originalSecs = member.todayDurationSeconds;
-              console.log(
-                `[useTeamStatus] CLOUD totalActiveSeconds=${cloudSecs}s (${Math.floor(cloudSecs/3600)}h${Math.floor((cloudSecs%3600)/60)}m) | getTeamStatus=${originalSecs}s | member=${member.displayName}`
-              );
-              return {
-                ...member,
-                todayDurationSeconds: dayData.totalActiveSeconds,
-                productivityRatio: dayData.productivityRatio,
-              };
-            }
-            console.warn(`[useTeamStatus] No dayData for ${todayStr}, days=`, result.value.days?.map((d: {date: string}) => d.date));
+      // For the current user on this device, override the cloud value with the local
+      // IPC value — the same source used by the Dashboard. This is needed because the
+      // cloud can accumulate stale sessions from previous agent runs (they are synced
+      // but never cleaned up from the backend), which inflates the cloud total vs. the
+      // correctly-merged local value.
+      let localUserSeconds: number | null = null;
+      if (currentUser?.id) {
+        try {
+          const ipcResponse = await sendQuery('getTodaySummary');
+          if (ipcResponse?.data?.totalDuration != null) {
+            localUserSeconds = ipcResponse.data.totalDuration;
           }
-          if (result.status === 'rejected') {
-            console.error(`[useTeamStatus] enrichment failed for ${member.displayName}:`, result.reason);
-          }
-          return member;
-        });
-      } catch (enrichErr) {
-        console.error('[useTeamStatus] enrichment batch failed:', enrichErr);
+        } catch {
+          // Fall back to cloud value if IPC is unavailable
+        }
       }
+
+      const correctedMembers = response.members.map(member => {
+        if (localUserSeconds !== null && member.userId === currentUser?.id) {
+          return {
+            ...member,
+            todayDurationSeconds: localUserSeconds!,
+          };
+        }
+        return member;
+      });
 
       setMembers(correctedMembers);
       setActiveCount(response.activeCount);
@@ -97,7 +90,7 @@ export function useTeamStatus(): UseTeamStatusReturn {
     } finally {
       if (showLoading) setIsLoading(false);
     }
-  }, []);
+  }, [sendQuery, currentUser]);
 
   // Auto-poll to keep the team list fresh (matches agent sync interval)
   useEffect(() => {
