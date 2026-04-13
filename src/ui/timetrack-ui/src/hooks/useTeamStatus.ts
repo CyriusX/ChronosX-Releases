@@ -57,12 +57,18 @@ export function useTeamStatus(): UseTeamStatusReturn {
           if (result.status === 'fulfilled') {
             const dayData = result.value.days?.find((d: { date: string }) => d.date === todayStr) ?? result.value.days?.[0];
             if (dayData) {
+              const cloudSecs = dayData.totalActiveSeconds;
+              const originalSecs = member.todayDurationSeconds;
+              console.log(
+                `[useTeamStatus] CLOUD totalActiveSeconds=${cloudSecs}s (${Math.floor(cloudSecs/3600)}h${Math.floor((cloudSecs%3600)/60)}m) | getTeamStatus=${originalSecs}s | member=${member.displayName}`
+              );
               return {
                 ...member,
                 todayDurationSeconds: dayData.totalActiveSeconds,
                 productivityRatio: dayData.productivityRatio,
               };
             }
+            console.warn(`[useTeamStatus] No dayData for ${todayStr}, days=`, result.value.days?.map((d: {date: string}) => d.date));
           }
           if (result.status === 'rejected') {
             console.error(`[useTeamStatus] enrichment failed for ${member.displayName}:`, result.reason);
