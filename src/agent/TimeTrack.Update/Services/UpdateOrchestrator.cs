@@ -567,6 +567,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
             FileName = installerPath,
             Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOICONS",
             UseShellExecute = true,
+            Verb = "runas",
             WindowStyle = ProcessWindowStyle.Hidden
         };
 
