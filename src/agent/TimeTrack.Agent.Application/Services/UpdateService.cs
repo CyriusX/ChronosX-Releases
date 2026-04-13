@@ -218,30 +218,25 @@ public sealed class UpdateService : IUpdateService, IDisposable
                     RestartRequired = true
                 });
 
-                // Cleanup installer only after confirmed success
+                // Do NOT delete the installer here — update.exe self-relocates and
+                // returns exit code 0 immediately, but the relay process still needs
+                // the installer file. The relay process will clean up after itself.
+            }
+            else
+            {
+                // Only clean up on explicit failure (relay never started)
                 try
                 {
                     if (File.Exists(installerPath)) File.Delete(installerPath);
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to cleanup installer after successful update");
-                }
-            }
-            else
-            {
+                catch { }
+
                 throw new InvalidOperationException("Update installer failed");
             }
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
         {
-            // On unexpected errors, clean up the installer
-            try
-            {
-                if (File.Exists(installerPath)) File.Delete(installerPath);
-            }
-            catch { }
-
+            // On unexpected errors, keep the installer — the relay might still need it
             throw;
         }
     }
