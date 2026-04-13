@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getTeamStatus, listMembers } from '../services/memberApi';
+import { getDailySummaryRange } from '../services/reportApi';
 import type { TeamMemberStatus, Member } from '@desktop/types/member';
 
 const TEAM_STATUS_POLL_INTERVAL_MS = 30_000; // refresh every 30s
@@ -42,7 +43,31 @@ export function useTeamStatus(): UseTeamStatusReturn {
     setError(null);
     try {
       const response = await getTeamStatus();
-      setMembers(response.members);
+
+      // Enrich with correct duration from /reports/daily-summary-range
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      const summaryResults = await Promise.allSettled(
+        response.members.map(m => getDailySummaryRange(todayStr, todayStr, m.userId))
+      );
+
+      const correctedMembers = response.members.map((member, i) => {
+        const result = summaryResults[i];
+        if (result.status === 'fulfilled') {
+          const dayData = result.value.days?.find((d: { date: string }) => d.date === todayStr) ?? result.value.days?.[0];
+          if (dayData) {
+            return {
+              ...member,
+              todayDurationSeconds: dayData.totalActiveSeconds,
+              productivityRatio: dayData.productivityRatio,
+            };
+          }
+        }
+        return member;
+      });
+
+      setMembers(correctedMembers);
       setActiveCount(response.activeCount);
       setTrackingCount(response.trackingCount);
       setLastFetchedAt(new Date());

@@ -1,13 +1,13 @@
 /**
  * MemberCard — displays a single team member's status in the Teams page grid.
- * Lazily fetches productivity summary and task counts on mount.
+ * Duration and productivity data come pre-corrected from the useTeamStatus hook.
+ * Only task data is lazily fetched on mount.
  */
 
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { Clock, CheckSquare, ListTodo, ChevronRight } from 'lucide-react';
-import { getMemberSummary } from '../../services/memberApi';
 import { listUserTasks, type Task } from '../../services/projectsApi';
 import type { TeamMemberStatus } from '../../types/member';
 import { getMemberGradient } from '../dashboard/shared/styles';
@@ -69,8 +69,13 @@ function formatRelativeTime(isoDate: string | null | undefined): string | null {
 
 export function MemberCard({ member, index, onSelect }: MemberCardProps) {
   const { t } = useTranslation();
-  const [productivityPct, setProductivityPct] = useState<number | null>(null);
-  const [totalDuration, setTotalDuration] = useState<number>(member.todayDurationSeconds);
+
+  // Duration and productivity are pre-corrected by useTeamStatus hook
+  const totalDuration = member.todayDurationSeconds;
+  const productivityPct = member.productivityRatio != null
+    ? Math.round(member.productivityRatio * 100)
+    : null;
+
   const [inProgressTask, setInProgressTask] = useState<Task | null>(null);
   const [todoCount, setTodoCount] = useState<number>(0);
   const [doneCount, setDoneCount] = useState<number>(0);
@@ -80,23 +85,14 @@ export function MemberCard({ member, index, onSelect }: MemberCardProps) {
 
     async function load() {
       try {
-        const [summary, tasksRes] = await Promise.all([
-          getMemberSummary(member.userId),
-          listUserTasks(member.userId, true),
-        ]);
+        const tasksRes = await listUserTasks(member.userId, true);
         if (cancelled) return;
-
-        const total = summary.totalDuration;
-        const productive = summary.productiveTime;
-        setProductivityPct(total > 0 ? Math.round((productive / total) * 100) : 0);
-        setTotalDuration(total);
-
         const tasks = tasksRes.tasks ?? [];
         setInProgressTask(tasks.find(t => t.status === 'InProgress') ?? null);
         setTodoCount(tasks.filter(t => t.status === 'Todo').length);
         setDoneCount(tasks.filter(t => t.status === 'Done').length);
       } catch {
-        // Silently degrade — base data from getTeamStatus is still shown
+        // Silently degrade
       }
     }
 

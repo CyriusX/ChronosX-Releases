@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getTeamStatus, listMembers } from '../services/memberApi';
+import { getDailySummaryRange } from '../services/reportApi';
 import type { TeamMemberStatus, Member } from '../types/member';
 
 const TEAM_STATUS_POLL_INTERVAL_MS = 30_000; // refresh every 30s (matches agent sync interval)
@@ -38,16 +39,47 @@ export function useTeamStatus(): UseTeamStatusReturn {
     if (showLoading) setIsLoading(true);
     setError(null);
     try {
-      // Try the new team status endpoint first
       const response = await getTeamStatus();
-      setMembers(response.members);
+
+      // Enrich with correct duration from /reports/daily-summary-range
+      // (same data source the web UI uses — verified accurate)
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      let correctedMembers = response.members;
+      try {
+        const summaryResults = await Promise.allSettled(
+          response.members.map(m => getDailySummaryRange(todayStr, todayStr, m.userId))
+        );
+
+        correctedMembers = response.members.map((member, i) => {
+          const result = summaryResults[i];
+          if (result.status === 'fulfilled') {
+            const dayData = result.value.days?.find((d: { date: string }) => d.date === todayStr) ?? result.value.days?.[0];
+            if (dayData) {
+              return {
+                ...member,
+                todayDurationSeconds: dayData.totalActiveSeconds,
+                productivityRatio: dayData.productivityRatio,
+              };
+            }
+          }
+          if (result.status === 'rejected') {
+            console.error(`[useTeamStatus] enrichment failed for ${member.displayName}:`, result.reason);
+          }
+          return member;
+        });
+      } catch (enrichErr) {
+        console.error('[useTeamStatus] enrichment batch failed:', enrichErr);
+      }
+
+      setMembers(correctedMembers);
       setActiveCount(response.activeCount);
       setTrackingCount(response.trackingCount);
       setLastFetchedAt(new Date());
     } catch (err) {
       console.warn('[useTeamStatus] Team status endpoint failed, falling back to basic members:', err);
       try {
-        // Fallback: use basic members list (always works)
         const basicResponse = await listMembers();
         const mappedMembers = basicResponse.members.map(mapMemberToStatus);
         setMembers(mappedMembers);
