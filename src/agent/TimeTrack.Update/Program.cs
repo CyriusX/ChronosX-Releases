@@ -360,18 +360,22 @@ Examples:
 
             var relayExePath = Path.Combine(tempDir, "update-relay.exe");
 
-            // Copy self and companion files (update.dll, deps.json, runtimeconfig.json) to temp
-            File.Copy(currentExePath, relayExePath, overwrite: true);
-
+            // Copy ALL files from the current directory to temp.
+            // Self-contained .NET apps need runtime DLLs (hostpolicy.dll, coreclr.dll, etc.)
+            // not just the exe and its companion files.
             var currentDir = Path.GetDirectoryName(currentExePath)!;
-            foreach (var companionFile in new[] { "update.dll", "update.deps.json", "update.runtimeconfig.json" })
+            foreach (var file in Directory.GetFiles(currentDir))
             {
-                var src = Path.Combine(currentDir, companionFile);
-                var dst = Path.Combine(tempDir, companionFile);
-                if (File.Exists(src))
+                var fileName = Path.GetFileName(file);
+                var dst = Path.Combine(tempDir, fileName);
+
+                if (fileName.Equals("update.exe", StringComparison.OrdinalIgnoreCase))
                 {
-                    File.Copy(src, dst, overwrite: true);
+                    // Rename the exe to avoid naming confusion
+                    dst = relayExePath;
                 }
+
+                File.Copy(file, dst, overwrite: true);
             }
 
             Console.WriteLine($"Relocating from {currentExePath} to {relayExePath}");
