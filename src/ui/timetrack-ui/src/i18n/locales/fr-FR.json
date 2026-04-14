@@ -209,7 +209,9 @@
       "frFR": "Français (FR)",
       "esES": "Español (ES)",
       "workGoal": "Objectif quotidien",
-      "workGoalDescription": "L'anneau de progression du tableau de bord utilise cet objectif comme référence"
+      "workGoalDescription": "L'anneau de progression du tableau de bord utilise cet objectif comme référence",
+      "launchAtLogin": "Démarrer à la connexion",
+      "launchAtLoginDescription": "Démarrer TimeTrack automatiquement à chaque connexion"
     },
     "profile": {
       "title": "Profil",

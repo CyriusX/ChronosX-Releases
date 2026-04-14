@@ -209,7 +209,9 @@
       "frFR": "Français (FR)",
       "esES": "Español (ES)",
       "workGoal": "Meta diaria",
-      "workGoalDescription": "El anillo de progreso del Panel usa esta meta como referencia"
+      "workGoalDescription": "El anillo de progreso del Panel usa esta meta como referencia",
+      "launchAtLogin": "Iniciar al iniciar sesión",
+      "launchAtLoginDescription": "Iniciar TimeTrack automáticamente al iniciar sesión en Mac"
     },
     "profile": {
       "title": "Perfil",

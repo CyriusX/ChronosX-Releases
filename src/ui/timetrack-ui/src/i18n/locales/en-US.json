@@ -209,7 +209,9 @@
       "frFR": "Français (FR)",
       "esES": "Español (ES)",
       "workGoal": "Daily goal",
-      "workGoalDescription": "The progress ring on the Dashboard uses this goal as a reference"
+      "workGoalDescription": "The progress ring on the Dashboard uses this goal as a reference",
+      "launchAtLogin": "Start at Login",
+      "launchAtLoginDescription": "Automatically start TimeTrack when you log in to your Mac"
     },
     "profile": {
       "title": "Profile",

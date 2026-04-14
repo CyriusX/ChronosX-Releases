@@ -209,7 +209,9 @@
       "frFR": "Français (FR)",
       "esES": "Español (ES)",
       "workGoal": "Meta diária",
-      "workGoalDescription": "O anel de progresso no Dashboard usa essa meta como referência"
+      "workGoalDescription": "O anel de progresso no Dashboard usa essa meta como referência",
+      "launchAtLogin": "Iniciar no Login",
+      "launchAtLoginDescription": "Iniciar o TimeTrack automaticamente ao fazer login no Mac"
     },
     "profile": {
       "title": "Perfil",
