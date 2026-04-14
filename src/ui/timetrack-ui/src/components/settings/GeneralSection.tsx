@@ -1,7 +1,9 @@
-import { Globe, Target } from 'lucide-react';
+import { Globe, Target, LogIn } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LocalSettings, UpdateLocalSettingsRequest, AppLanguage } from '../../types/settings';
 import { useLanguage } from '../../hooks/useLanguage';
+import { useIpc } from '../../hooks/useIpc';
 
 const LANGUAGE_OPTIONS: { code: AppLanguage; label: string }[] = [
   { code: 'pt-BR', label: 'settings.general.ptBR' },
@@ -28,7 +30,31 @@ interface GeneralSectionProps {
 export function GeneralSection({ settings, onUpdate }: GeneralSectionProps) {
   const { t } = useTranslation();
   const { changeLanguage } = useLanguage();
+  const { sendQuery, sendCommand } = useIpc();
   const currentGoal = settings.workGoalSeconds ?? 28800;
+
+  const [launchAtLogin, setLaunchAtLogin] = useState(false);
+  const [launchAtLoginLoading, setLaunchAtLoginLoading] = useState(true);
+
+  useEffect(() => {
+    sendQuery('getLaunchAtLogin')
+      .then((res) => {
+        if (res.success && res.data && typeof (res.data as { enabled?: boolean }).enabled === 'boolean') {
+          setLaunchAtLogin((res.data as { enabled: boolean }).enabled);
+        }
+      })
+      .catch(() => {/* non-macOS or agent not running */})
+      .finally(() => setLaunchAtLoginLoading(false));
+  }, []);
+
+  const handleLaunchAtLoginChange = async (enabled: boolean) => {
+    setLaunchAtLogin(enabled);
+    try {
+      await sendCommand('setLaunchAtLogin', { enabled });
+    } catch {
+      setLaunchAtLogin(!enabled); // revert on error
+    }
+  };
 
   const handleLanguageChange = async (lang: AppLanguage) => {
     onUpdate({ language: lang });
@@ -44,6 +70,43 @@ export function GeneralSection({ settings, onUpdate }: GeneralSectionProps) {
           {t('settings.general.subtitle')}
         </p>
       </div>
+
+      {/* Start with Login Card */}
+      {!launchAtLoginLoading && (
+        <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#8B5CF6] to-[#22D3EE] flex items-center justify-center">
+                <LogIn className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-[14px] font-medium text-[#f5f7fb]">
+                  {t('settings.general.launchAtLogin')}
+                </h3>
+                <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
+                  {t('settings.general.launchAtLoginDescription')}
+                </p>
+              </div>
+            </div>
+            <button
+              role="switch"
+              aria-checked={launchAtLogin}
+              onClick={() => handleLaunchAtLoginChange(!launchAtLogin)}
+              className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
+                launchAtLogin
+                  ? 'bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE]'
+                  : 'bg-[rgba(255,255,255,0.1)]'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                  launchAtLogin ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Language Card */}
       <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">

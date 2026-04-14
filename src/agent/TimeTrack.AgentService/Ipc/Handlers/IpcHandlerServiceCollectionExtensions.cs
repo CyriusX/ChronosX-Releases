@@ -45,6 +45,7 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcCommandHandler, UpdateSettingsCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, SetWorkHoursCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, UpdateAppCategoryCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, SetLaunchAtLoginCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, DismissActivityResumePromptCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, TestActivityResumeToastCommandHandler>(); // TODO: Remove after testing
         services.AddSingleton<IIpcCommandHandler, CheckForUpdatesCommandHandler>();
@@ -65,6 +66,7 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcQueryHandler, GetErrorsQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetSettingsQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetUpdateProgressQueryHandler>();
+        services.AddSingleton<IIpcQueryHandler, GetLaunchAtLoginQueryHandler>();
 
         // Router
         services.AddSingleton<IpcMessageRouter>();

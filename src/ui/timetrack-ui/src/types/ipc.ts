@@ -337,6 +337,7 @@ export interface CommandPayloadMap {
   recordFocusSession: RecordFocusSessionPayload;
   checkForUpdates: undefined;
   startUpdate: undefined;
+  setLaunchAtLogin: { enabled: boolean };
 }
 
 // ============================================================================
@@ -572,6 +573,7 @@ export interface QueryResponseMap {
   getErrors: ErrorsResponse;
   getSettings: LocalSettingsResponse;
   getFocusModeState: FocusModeSnapshot;
+  getLaunchAtLogin: { enabled: boolean };
 }
 
 // ============================================================================

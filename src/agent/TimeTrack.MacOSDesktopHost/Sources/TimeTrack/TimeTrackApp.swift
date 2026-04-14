@@ -62,15 +62,20 @@ struct SettingsView: View {
 }
 
 struct GeneralSettingsView: View {
-    @AppStorage("startAtLogin") private var startAtLogin = false
+    @StateObject private var loginManager = LaunchAtLoginManager.shared
     @AppStorage("showNotifications") private var showNotifications = true
     @AppStorage("idleThresholdMinutes") private var idleThresholdMinutes = 5
 
     var body: some View {
         Form {
-            Toggle("Start at Login", isOn: $startAtLogin)
+            Toggle("Start at Login", isOn: Binding(
+                get: { loginManager.isEnabled },
+                set: { loginManager.setEnabled($0) }
+            ))
+
             Toggle("Show Notifications", isOn: $showNotifications)
-            Stepper("Idle threshold: \(idleThresholdMinutes) min", value: $idleThresholdMinutes, in: 1...30)
+            Stepper("Idle threshold: \(idleThresholdMinutes) min",
+                    value: $idleThresholdMinutes, in: 1...30)
         }
         .padding(20)
     }

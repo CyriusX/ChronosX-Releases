@@ -9,8 +9,9 @@ namespace TimeTrack.AgentService.Ipc.Handlers.Queries.Dashboard;
 
 /// <summary>
 /// Returns activity sessions grouped by executable (app).
-/// Today: uses local SQLite (real-time, fast).
-/// Past days: fetches from backend cloud API (authoritative source).
+/// Always fetches from the cloud backend first (authoritative, safe source).
+/// Falls back to local SQLite only when the backend is unavailable.
+/// This ensures the Activity page always shows complete data even after a DB reset or reinstall.
 /// Consecutive sessions for the same exe are merged into a single block.
 /// Each block includes the list of window titles (tabs) used during that period.
 /// </summary>
@@ -61,18 +62,10 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         try
         {
             var targetDate = ExtractDateOrToday(request);
-            var isToday = targetDate.Date == DateTime.Today;
 
-            if (isToday)
-            {
-                // TODAY: use local SQLite (fast, real-time, includes in-memory session)
-                return await BuildFromLocalSqlite(request.RequestId, userId.Value, targetDate, ct);
-            }
-            else
-            {
-                // PAST DAYS: fetch from backend cloud API (authoritative data)
-                return await BuildFromBackendApi(request.RequestId, targetDate, userId.Value, ct);
-            }
+            // Always fetch from cloud first — it is the authoritative, safe copy.
+            // If the backend is unreachable, BuildFromBackendApi falls back to local SQLite.
+            return await BuildFromBackendApi(request.RequestId, targetDate, userId.Value, ct);
         }
         catch (Exception ex)
         {
