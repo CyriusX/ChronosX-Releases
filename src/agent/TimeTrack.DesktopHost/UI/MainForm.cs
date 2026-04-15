@@ -209,7 +209,7 @@ public sealed class MainForm : Form
             coreWebView.Settings.IsScriptEnabled = true;
             coreWebView.Settings.AreDefaultScriptDialogsEnabled = true;
             coreWebView.Settings.IsWebMessageEnabled = true;
-            coreWebView.Settings.AreDefaultContextMenusEnabled = false;
+            coreWebView.Settings.AreDefaultContextMenusEnabled = true;
 
             // Add bridge object to JavaScript
             coreWebView.AddHostObjectToScript("timeTrackBridge", _bridge);
@@ -455,9 +455,29 @@ public sealed class MainForm : Form
     private string GetUiBundlePath()
     {
 #if DEBUG
-        // In debug mode, prefer development server for hot reload and proper ES module support
+        // In debug mode, check for a pre-built dist folder first so the app can run
+        // without the Vite dev server. Falls back to the dev server if dist isn't present.
+        var execDirDebug = AppDomain.CurrentDomain.BaseDirectory;
+        var debugDistPaths = new[]
+        {
+            // Published layout
+            Path.Combine(execDirDebug, "ui", "dist", "index.html"),
+            // bin/Debug/net8.0-windows.../  (6 levels up to repo root)
+            Path.Combine(execDirDebug, "..", "..", "..", "..", "..", "..", "src", "ui", "timetrack-ui", "dist", "index.html"),
+            // bin/Debug/net8.0-windows.../win-x64/  (7 levels up to repo root)
+            Path.Combine(execDirDebug, "..", "..", "..", "..", "..", "..", "..", "src", "ui", "timetrack-ui", "dist", "index.html"),
+        };
+        foreach (var p in debugDistPaths)
+        {
+            var full = Path.GetFullPath(p);
+            if (File.Exists(full))
+            {
+                _logger.LogInformation("Debug mode: found dist bundle at {Path}", full);
+                return full;
+            }
+        }
         const string devServerUrl = "http://localhost:5173";
-        _logger.LogInformation("Debug mode: using development server at {Url}", devServerUrl);
+        _logger.LogInformation("Debug mode: dist not found, falling back to dev server at {Url}", devServerUrl);
         return devServerUrl;
 #else
         // Look for UI bundle in standard locations (production)
@@ -631,6 +651,53 @@ public sealed class MainForm : Form
         {
             _ipcClient.EventReceived -= OnIpcEventReceived;
             _ipcClient.ConnectionStateChanged -= OnConnectionStateChanged;
+        }
+    }
+
+    /// <summary>
+    /// Shows update progress in the WebView2 UI by dispatching a custom event.
+    /// Called by NotificationEventHandler when updateProgress events are received.
+    /// </summary>
+    public void ShowUpdateProgress(string? stage, int percentage, string? message, string? targetVersion)
+    {
+        if (_webView?.CoreWebView2 == null)
+        {
+            _logger.LogWarning("Cannot show update progress: WebView not ready");
+            return;
+        }
+
+        try
+        {
+            var payload = new
+            {
+                stage,
+                percentage,
+                message,
+                targetVersion,
+                timestamp = DateTime.UtcNow.ToString("O")
+            };
+
+            var payloadJson = JsonSerializer.Serialize(payload);
+            var script = $"window.timeTrackHandleEvent?.('updateProgress', '{EscapeJavaScriptString(payloadJson)}')";
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(async () =>
+                {
+                    try { await _webView.CoreWebView2.ExecuteScriptAsync(script); }
+                    catch (Exception ex) { _logger.LogError(ex, "Error sending update progress to WebView"); }
+                }));
+            }
+            else
+            {
+                _ = _webView.CoreWebView2.ExecuteScriptAsync(script);
+            }
+
+            _logger.LogDebug("Update progress sent to UI: Stage={Stage}, Percentage={Percentage}%", stage, percentage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error showing update progress");
         }
     }
 

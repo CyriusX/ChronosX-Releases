@@ -105,6 +105,11 @@ public sealed class HeartbeatRequest
     public string? IpAddress { get; init; }
     public int? UptimeSeconds { get; init; }
     public string? TrackingState { get; init; }
+    public string? HealthStatus { get; init; }
+    public bool? BackendReachable { get; init; }
+    public int? ConsecutiveSyncFailures { get; init; }
+    public DateTime? LastSuccessfulSyncAt { get; init; }
+    public bool? IpcConnected { get; init; }
 }
 
 /// <summary>
@@ -129,6 +134,8 @@ public sealed class DeviceListItem
     public string DisplayMode { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
     public string? TrackingState { get; init; }
+    public string? HealthStatus { get; init; }
+    public bool? IpcConnected { get; init; }
     public DateTime? LastSeenAt { get; init; }
     public DateTime ActivatedAt { get; init; }
     public string? UserDisplayName { get; init; }
@@ -328,6 +335,10 @@ public sealed class TeamMemberStatusItem
     /// Se o usuário está atualmente rastreando tempo
     /// </summary>
     public bool IsTracking { get; init; }
+    /// <summary>
+    /// Timestamp of the most recent activity session for this user (UTC ISO 8601)
+    /// </summary>
+    public string? LastSyncAt { get; init; }
 }
 
 /// <summary>
@@ -353,6 +364,7 @@ public sealed class TeamMemberSummaryResponse
     public int FocusScore { get; init; }
     public int SessionsCount { get; init; }
     public List<MemberProjectSummary> TopProjects { get; init; } = [];
+    public List<MemberTaskSummary> TopTasks { get; init; } = [];
     public List<MemberAppSummary> TopApplications { get; init; } = [];
     public List<MemberAppSummary>? TopAppsByExe { get; init; }
     public List<MemberCategorySummary> Categories { get; init; } = [];
@@ -365,9 +377,22 @@ public sealed class TeamMemberSummaryResponse
 
 public sealed class MemberProjectSummary
 {
+    public Guid? ProjectId { get; init; }
     public string Name { get; init; } = string.Empty;
+    public string? Color { get; init; }
     public long Duration { get; init; }
     public double Percentage { get; init; }
+}
+
+public sealed class MemberTaskSummary
+{
+    public Guid TaskId { get; init; }
+    public string Title { get; init; } = string.Empty;
+    public Guid ProjectId { get; init; }
+    public string ProjectName { get; init; } = string.Empty;
+    public string ProjectColor { get; init; } = "#4A9FFF";
+    public long Duration { get; init; }
+    public string Status { get; init; } = string.Empty;
 }
 
 public sealed class MemberAppSummary

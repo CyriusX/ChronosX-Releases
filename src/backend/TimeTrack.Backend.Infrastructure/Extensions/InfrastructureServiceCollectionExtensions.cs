@@ -1,11 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Http;
 using Resend;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.FocusScore;
+using TimeTrack.Backend.Application.Integrations;
+using TimeTrack.Backend.Application.Integrations.Linear;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using TimeTrack.Backend.Infrastructure.Integrations;
+using TimeTrack.Backend.Infrastructure.Integrations.Linear;
 using TimeTrack.Backend.Infrastructure.Jobs.Configuration;
 using TimeTrack.Backend.Infrastructure.Persistence;
 using TimeTrack.Backend.Infrastructure.Repositories;
@@ -43,6 +48,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IIdempotencyKeyRepository, IdempotencyKeyRepository>();
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<IProjectMemberRepository, ProjectMemberRepository>();
+        services.AddScoped<IProjectTaskRepository, ProjectTaskRepository>();
+        services.AddScoped<ITaskTimeEntryRepository, TaskTimeEntryRepository>();
+        services.AddScoped<IAgentNotificationInboxRepository, AgentNotificationInboxRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.AddScoped<IOrgPolicyRepository, OrgPolicyRepository>();
         services.AddScoped<IReportRepository, ReportRepository>();
@@ -62,6 +71,16 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Remote Commands
         services.AddScoped<IRemoteCommandRepository, RemoteCommandRepository>();
+
+        // User Integrations (Linear + future providers)
+        services.AddScoped<IUserIntegrationRepository, UserIntegrationRepository>();
+        services.AddScoped<ILinearSyncHistoryRepository, LinearSyncHistoryRepository>();
+        services.AddSingleton<IUserIntegrationTokenProtector, UserIntegrationTokenProtector>();
+        services.AddHttpClient<ILinearClient, LinearClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.linear.app/graphql");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
 
         // Focus Score Services
         services.AddSingleton<AppProductivityClassifier>();
@@ -93,8 +112,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpContextAccessor();
 
         // Health checks
+        // Simple liveness check (always healthy if app is running)
+        // Database check is tagged as "ready" for more granular health monitoring
         services.AddHealthChecks()
-            .AddNpgSql(connectionString, name: "database", tags: new[] { "ready" });
+            .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("OK"), tags: new[] { "live" })
+            .AddNpgSql(connectionString, name: "database", tags: new[] { "ready" }, failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
 
         // Database initialization (seeds, migrations)
         services.AddDatabaseInitializer();
@@ -104,39 +126,63 @@ public static class InfrastructureServiceCollectionExtensions
 
     private static string GetConnectionString(IConfiguration configuration)
     {
-        // Support Neon DATABASE_URL format
+        // First check for explicit connection string (takes priority)
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (!string.IsNullOrEmpty(connectionString))
+            return NormalizeConnectionString(connectionString);
+
+        // Support DATABASE_URL format (URI style)
         var databaseUrl = configuration["DATABASE_URL"];
         if (!string.IsNullOrEmpty(databaseUrl))
-        {
-            return ConvertNeonUrlToConnectionString(databaseUrl);
-        }
+            return NormalizeConnectionString(databaseUrl);
 
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
-        if (string.IsNullOrEmpty(connectionString))
-        {
-            throw new InvalidOperationException(
-                "Database connection string not found. Set DATABASE_URL or ConnectionStrings:DefaultConnection");
-        }
-
-        return connectionString;
+        throw new InvalidOperationException(
+            "Database connection string not found. Set DATABASE_URL or ConnectionStrings:DefaultConnection");
     }
 
-    private static string ConvertNeonUrlToConnectionString(string databaseUrl)
+    internal static string NormalizeConnectionString(string value)
     {
-        // Parse Neon URL format: postgres://user:password@host:port/database?sslmode=require
+        if (value.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConvertUriToConnectionString(value);
+        }
+        return value;
+    }
+
+    private static string ConvertUriToConnectionString(string databaseUrl)
+    {
+        // Parse URI format: postgres://user:password@host:port/database?sslmode=disable
         var uri = new Uri(databaseUrl);
         var userInfo = uri.UserInfo.Split(':');
+
+        // Parse sslmode query param
+        var query = uri.Query.TrimStart('?');
+        var sslMode = Npgsql.SslMode.Prefer;
+        foreach (var part in query.Split('&'))
+        {
+            if (part.StartsWith("sslmode=", StringComparison.OrdinalIgnoreCase))
+            {
+                var val = part.Substring("sslmode=".Length);
+                sslMode = val.ToLowerInvariant() switch
+                {
+                    "disable" => Npgsql.SslMode.Disable,
+                    "require" => Npgsql.SslMode.Require,
+                    "verify-ca" => Npgsql.SslMode.VerifyCA,
+                    "verify-full" => Npgsql.SslMode.VerifyFull,
+                    _ => Npgsql.SslMode.Prefer
+                };
+            }
+        }
 
         var builder = new Npgsql.NpgsqlConnectionStringBuilder
         {
             Host = uri.Host,
-            Port = uri.Port,
+            Port = uri.Port > 0 ? uri.Port : 5432,
             Username = userInfo[0],
-            Password = userInfo.Length > 1 ? userInfo[1] : string.Empty,
+            Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty,
             Database = uri.AbsolutePath.TrimStart('/'),
-            SslMode = uri.Query.Contains("sslmode=require")
-                ? Npgsql.SslMode.Require
-                : Npgsql.SslMode.Prefer
+            SslMode = sslMode
         };
 
         return builder.ToString();

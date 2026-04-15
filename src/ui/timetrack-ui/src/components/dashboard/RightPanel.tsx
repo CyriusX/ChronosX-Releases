@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, Users, MoreVertical } from 'lucide-react';
 import { LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { AppIcon } from './shared';
+import { MyTasksWidget } from './MyTasksWidget';
 import { useTeamStatus } from '../../hooks/useTeamStatus';
 import { useAuthStore } from '../../stores/authStore';
 import { formatDuration } from '../../lib/utils';
@@ -34,6 +36,7 @@ const productivityColors: Record<string, string> = {
 const cardBase = sharedCardBase + " overflow-hidden";
 
 export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selectedMemberId, onMemberSelect }: RightPanelProps) {
+  const { t } = useTranslation();
   const { members, isLoading, loadTeamStatus } = useTeamStatus();
   const currentUser = useAuthStore((state) => state.user);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -85,16 +88,19 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
       initial={{ opacity: 0, x: 16 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ type: 'spring', ...SPRING.gentle, delay: 0.2 }}
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-3 h-full overflow-hidden"
     >
+      {/* Minhas Tarefas — only on meu-dia tab */}
+      {!showTeamCard && <MyTasksWidget />}
+
       {/* Equipe Agora */}
       {showTeamCard && (
         <Card className={cardBase}>
           <CardHeader className="pb-0 pt-3 px-4">
             <CardTitle className="flex items-center justify-between">
-              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Equipe agora</span>
+              <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.teamNow')}</span>
               <span className="text-[10px] text-[rgba(245,247,251,0.4)]">
-                {activeMembers.length} membro{activeMembers.length !== 1 ? 's' : ''}
+                {activeMembers.length} {activeMembers.length !== 1 ? t('dashboard.membersPlural') : t('dashboard.members')}
               </span>
             </CardTitle>
           </CardHeader>
@@ -116,7 +122,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                         {selectedMember.displayName}
                       </p>
                       <p className="text-[9px] text-[rgba(245,247,251,0.4)]">
-                        {selectedMember.todayDurationFormatted} hoje
+                        {selectedMember.todayDurationFormatted} {t('dashboard.today')}
                       </p>
                     </div>
                   </>
@@ -124,7 +130,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                   <>
                     <Users className="w-4 h-4 text-[rgba(245,247,251,0.4)] flex-shrink-0" />
                     <span className="text-[11px] text-[rgba(245,247,251,0.5)] flex-1 text-left">
-                      Selecionar membro
+                      {t('dashboard.selectMember')}
                     </span>
                   </>
                 )}
@@ -147,7 +153,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                       {isLoading ? (
                         <div className="flex items-center justify-center gap-2 py-3">
                           <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
-                          <span className="text-[11px] text-[rgba(245,247,251,0.4)]">Carregando...</span>
+                          <span className="text-[11px] text-[rgba(245,247,251,0.4)]">{t('common.loading')}</span>
                         </div>
                       ) : activeMembers.length > 0 ? (
                         <motion.div
@@ -179,7 +185,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                                     {member.displayName}
                                   </p>
                                   <p className="text-[9px] text-[rgba(245,247,251,0.4)]">
-                                    {member.todayDurationFormatted} hoje
+                                    {member.todayDurationFormatted} {t('dashboard.today')}
                                   </p>
                                 </div>
                                 {member.isTracking && (
@@ -194,7 +200,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                         </motion.div>
                       ) : (
                         <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">
-                          Nenhum membro ativo
+                          {t('dashboard.noActiveMember')}
                         </p>
                       )}
                     </div>
@@ -210,10 +216,10 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
       {(!showTeamCard || selectedMemberId) && <Card className={cardBase}>
         <CardHeader className="pb-0 pt-3 px-4">
           <CardTitle className="flex items-center justify-between">
-            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Minha Produtividade</span>
+            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.myProductivity')}</span>
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-[rgba(245,247,251,0.4)]">{Math.floor(weeklyTotal)}h {Math.round((weeklyTotal % 1) * 60)}m</span>
-              <span className="text-[9px] text-[rgba(245,247,251,0.25)]">Semana</span>
+              <span className="text-[9px] text-[rgba(245,247,251,0.25)]">{t('dashboard.week')}</span>
               <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)] ml-1" />
             </div>
           </CardTitle>
@@ -229,7 +235,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                   : 'text-[rgba(245,247,251,0.35)] hover:text-[rgba(245,247,251,0.6)]'
               }`}
             >
-              Todos
+              {t('dashboard.all')}
             </button>
             {(summary?.topProjects ?? []).slice(0, 3).map((proj) => (
               <button
@@ -262,7 +268,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                       const totalMinutes = Math.round(Number(value) * 60);
                       const h = Math.floor(totalMinutes / 60);
                       const m = totalMinutes % 60;
-                      return [h > 0 ? `${h}h ${m}m` : `${m}m`, 'Tempo'];
+                      return [h > 0 ? `${h}h ${m}m` : `${m}m`, t('dashboard.time')];
                     }}
                   />
                   <defs>
@@ -285,13 +291,13 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
               </ResponsiveContainer>
             </div>
           ) : (
-            <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-6">Sem dados ainda</p>
+            <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-6">{t('dashboard.noDataYet')}</p>
           )}
 
           {/* Apps mais usados */}
           <div className="border-t border-[rgba(255,255,255,0.04)] pt-2.5 mt-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[12px] font-medium text-[rgba(245,247,251,0.9)]">Apps mais usados</span>
+              <span className="text-[12px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.topApps')}</span>
               <MoreVertical className="w-3 h-3 text-[rgba(245,247,251,0.2)]" />
             </div>
             <motion.div
@@ -335,7 +341,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
                   );
                 })
               ) : (
-                <p className="text-[10px] text-[rgba(245,247,251,0.4)] text-center py-1">Sem dados ainda</p>
+                <p className="text-[10px] text-[rgba(245,247,251,0.4)] text-center py-1">{t('dashboard.noDataYet')}</p>
               )}
             </motion.div>
           </div>

@@ -99,6 +99,10 @@ async function registerApi(email: string, password: string, displayName: string,
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Registration failed' }));
+    if (error.errors) {
+      const messages = Object.values(error.errors as Record<string, string[]>).flat();
+      throw new Error(messages.join('; '));
+    }
     throw new Error(error.message || error.title || 'Registration failed');
   }
 

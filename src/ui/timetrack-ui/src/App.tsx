@@ -1,7 +1,9 @@
 import { HashRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { AnimatePresence } from "motion/react";
 import { useIpc } from "./hooks/useIpc";
+import type { LocalSettings } from "./types/settings";
 import { useTrackingStore, handleTrackingStateChanged } from "./stores/trackingStore";
 import { useAuthStore } from "./stores/authStore";
 import { getIpcService } from "./services";
@@ -10,19 +12,34 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Projects from "./pages/Projects";
+import ProjectBoard from "./pages/ProjectBoard";
 import Reports from "./pages/Reports";
 import TimerPage from "./pages/Timer";
 import Activities from "./pages/Activities";
+import Teams from "./pages/Teams";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Toaster } from "./components/Toaster";
 import { AnimatedPage } from "./components/ui/AnimatedPage";
 import { SessionExpiredNotifier } from "./components/SessionExpiredNotifier";
+import { MobileBottomNav } from "./components/navigation/MobileBottomNav";
 
 function App() {
-  const { isConnected, isReady } = useIpc();
+  const { isConnected, isReady, sendQuery } = useIpc();
   const { setConnected, setReady } = useTrackingStore();
   const { isAuthenticated, tokens } = useAuthStore();
+  const { i18n } = useTranslation();
   const wasConnectedRef = useRef(false);
+
+  // Sync UI language from the Agent's stored settings on every IPC connection.
+  // Without this, the app always starts in the default language (en-US) and
+  // ignores the language the user saved in a previous session.
+  useEffect(() => {
+    if (!isReady) return;
+    sendQuery('getSettings').then((result) => {
+      const lang = (result.data as LocalSettings | undefined)?.language;
+      if (lang) i18n.changeLanguage(lang);
+    }).catch(() => { /* non-critical */ });
+  }, [isReady]);
 
   // Block browser shortcuts — this app runs as a desktop webview, not a browser
   useEffect(() => {
@@ -56,11 +73,6 @@ function App() {
       // Ctrl+G / Ctrl+F — find (allow for inputs)
     };
 
-    // Prevent context menu (right-click) — desktop apps don't show browser context menu
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-    };
-
     // Prevent drag-and-drop of files into the webview
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
@@ -70,12 +82,10 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('dragover', handleDragOver);
     document.addEventListener('drop', handleDrop);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('dragover', handleDragOver);
       document.removeEventListener('drop', handleDrop);
     };
@@ -119,11 +129,12 @@ function App() {
 
   return (
     <HashRouter>
-      <div className="min-h-screen bg-[rgb(10,12,18)] text-[#f5f7fb]">
+      <div className="h-screen overflow-hidden bg-[rgb(10,12,18)] text-[#f5f7fb]">
         <AnimatedRoutes />
         <Toaster />
         <TrackingStoppedOverlay />
         <SessionExpiredNotifier />
+        <MobileBottomNav />
       </div>
     </HashRouter>
   );
@@ -182,6 +193,22 @@ function AnimatedRoutes() {
             }
           />
           <Route
+            path="/projects/:projectId/board"
+            element={
+              <ProtectedRoute>
+                <ProjectBoard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/teams"
+            element={
+              <ProtectedRoute>
+                <Teams />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/reports"
             element={
               <ProtectedRoute>
@@ -199,6 +226,7 @@ function AnimatedRoutes() {
  * Isolated component — subscribes to tracking store without re-rendering App or AnimatedRoutes.
  */
 function TrackingStoppedOverlay() {
+  const { t } = useTranslation();
   const isTracking = useTrackingStore(s => s.isTracking);
   const isPaused = useTrackingStore(s => s.isPaused);
   const { isAuthenticated } = useAuthStore();
@@ -211,7 +239,7 @@ function TrackingStoppedOverlay() {
     <div className="fixed inset-0 pointer-events-none flex items-center justify-center" style={{ zIndex: 1 }}>
       <div className="absolute inset-0 bg-[rgba(140,20,20,0.06)]" />
       <span className="relative text-[clamp(3rem,8vw,7rem)] font-black uppercase tracking-widest text-[rgba(220,38,38,0.06)] select-none whitespace-nowrap">
-        Tracking Stopped
+        {t('sidebar.trackingStopped')}
       </span>
     </div>
   );

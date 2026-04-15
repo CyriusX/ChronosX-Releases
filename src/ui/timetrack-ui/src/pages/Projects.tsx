@@ -1,18 +1,24 @@
-import { useEffect, useState } from 'react';
-import { Plus, FolderOpen, Archive } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Plus, FolderOpen, Archive, Clock, DollarSign, LayoutGrid, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/dashboard';
 import { useProjectStore, Project } from '../stores/projectStore';
-import { ProjectCard } from '../components/projects/ProjectCard';
+import { ProjectCard, type ProjectStats } from '../components/projects/ProjectCard';
 import { ProjectModal } from '../components/projects/ProjectModal';
 import { SkeletonShimmer } from '../components/ui/SkeletonShimmer';
+import { listMyTasks, type Task } from '../services/projectsApi';
 import { fadeUp, staggerContainer, STAGGER, SPRING, TIMING } from '../lib/animation';
 
 export default function Projects() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
   const [showArchived, setShowArchived] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
 
   const {
     projects,
@@ -28,182 +34,248 @@ export default function Projects() {
 
   useEffect(() => {
     fetchProjects();
+    listMyTasks(true)
+      .then((res) => setAllTasks(res.tasks))
+      .catch(() => {});
   }, [fetchProjects]);
 
-  const activeProjects = projects.filter(p => p.status === 'Active');
-  const archivedProjects = projects.filter(p => p.status === 'Archived');
+  // Per-project stats derived from all tasks
+  const statsByProject = useMemo(() => {
+    const map = new Map<string, ProjectStats>();
+    allTasks.forEach((t) => {
+      const s = map.get(t.projectId) ?? { todoCount: 0, inProgressCount: 0, doneCount: 0, totalSecondsWorked: 0 };
+      if (t.status === 'Todo') s.todoCount++;
+      else if (t.status === 'InProgress') s.inProgressCount++;
+      else if (t.status === 'Done') s.doneCount++;
+      s.totalSecondsWorked += t.totalSecondsWorked + (t.isRunning && t.runningSeconds ? t.runningSeconds : 0);
+      map.set(t.projectId, s);
+    });
+    return map;
+  }, [allTasks]);
+
+  const activeProjects = projects.filter((p) => p.status === 'Active');
+  const archivedProjects = projects.filter((p) => p.status === 'Archived');
   const displayedProjects = showArchived ? archivedProjects : activeProjects;
 
-  const handleCreateProject = async (name: string, description: string, color: string) => {
-    const result = await createProject(name, description || undefined, color);
-    if (result) {
-      setIsModalOpen(false);
-    }
+  // Global stats across active projects
+  const totalSecondsWorked = useMemo(() => {
+    return activeProjects.reduce((sum, p) => sum + (statsByProject.get(p.id)?.totalSecondsWorked ?? 0), 0);
+  }, [activeProjects, statsByProject]);
+
+  const totalBillableValue = useMemo(() => {
+    return activeProjects.reduce((sum, p) => {
+      if (!p.isBillable || !p.hourlyRate) return sum;
+      const secs = statsByProject.get(p.id)?.totalSecondsWorked ?? 0;
+      return sum + (secs / 3600) * p.hourlyRate;
+    }, 0);
+  }, [activeProjects, statsByProject]);
+
+  const billableProjectsCount = activeProjects.filter((p) => p.isBillable).length;
+
+  function fmtDuration(s: number): string {
+    if (s <= 0) return '0h';
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
+  }
+
+  const handleCreateProject = async (name: string, description: string, color: string, isBillable: boolean, currency: string | null, hourlyRate: number | null) => {
+    const result = await createProject(name, description || undefined, color, isBillable, currency, hourlyRate);
+    if (result) setIsModalOpen(false);
   };
 
-  const handleUpdateProject = async (name: string, description: string, color: string) => {
+  const handleUpdateProject = async (name: string, description: string, color: string, isBillable: boolean, currency: string | null, hourlyRate: number | null) => {
     if (!editingProject) return;
-    const result = await updateProject(editingProject.id, name, description || undefined, color);
-    if (result) {
-      setEditingProject(null);
-      setIsModalOpen(false);
-    }
+    const result = await updateProject(editingProject.id, name, description || undefined, color, isBillable, currency, hourlyRate);
+    if (result) { setEditingProject(null); setIsModalOpen(false); }
   };
 
-  const handleArchiveProject = async (id: string) => {
-    await archiveProject(id);
-    setMenuOpenId(null);
-  };
-
-  const handleReactivateProject = async (id: string) => {
-    await reactivateProject(id);
-    setMenuOpenId(null);
-  };
-
+  const handleArchiveProject = async (id: string) => { await archiveProject(id); setMenuOpenId(null); };
+  const handleReactivateProject = async (id: string) => { await reactivateProject(id); setMenuOpenId(null); };
   const handleDeleteProject = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este projeto?')) {
-      await deleteProject(id);
-      setMenuOpenId(null);
-    }
+    if (confirm(t('projects.deleteConfirm'))) { await deleteProject(id); setMenuOpenId(null); }
   };
-
-  const openEditModal = (project: Project) => {
-    setEditingProject(project);
-    setIsModalOpen(true);
-    setMenuOpenId(null);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingProject(null);
-  };
+  const openEditModal = (project: Project) => { setEditingProject(project); setIsModalOpen(true); setMenuOpenId(null); };
+  const closeModal = () => { setIsModalOpen(false); setEditingProject(null); };
 
   return (
-    <div className="flex h-screen bg-[#0b0d14]">
+    <div className="flex h-screen bg-[#0b0d14] pb-14 md:pb-0">
       <Sidebar />
 
-      <main className="flex-1 overflow-auto bg-[#0b0d14] p-6">
-        <div className="max-w-6xl mx-auto">
+      <main className="flex-1 overflow-auto bg-[#0b0d14]">
+        <div className="max-w-6xl mx-auto px-5 py-6">
+
           {/* Header */}
           <motion.div
-            className="flex items-center justify-between mb-8"
+            className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6"
             variants={fadeUp}
             initial="hidden"
             animate="visible"
             transition={{ duration: TIMING.normal }}
           >
             <div>
-              <h1 className="text-2xl font-semibold text-[#f5f7fb]">Projetos</h1>
-              <p className="text-sm text-[rgba(245,247,251,0.6)] mt-1">
-                Gerencie os projetos da sua organizacao
+              <h1 className="text-[24px] font-bold text-[#f5f7fb] tracking-tight">{t('projects.title')}</h1>
+              <p className="text-[13px] text-[rgba(245,247,251,0.45)] mt-0.5">
+                {t('projects.subtitle')}
               </p>
             </div>
             <motion.button
-              onClick={() => {
-                setEditingProject(null);
-                setIsModalOpen(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#4A9FFF] to-[#3C7BFF] text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity"
+              onClick={() => { setEditingProject(null); setIsModalOpen(true); }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#4A9FFF] to-[#3C7BFF] text-white rounded-xl font-semibold text-[13px] shadow-[0_4px_16px_rgba(74,159,255,0.3)] hover:shadow-[0_4px_20px_rgba(74,159,255,0.45)] transition-shadow flex-shrink-0"
               whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileTap={{ scale: 0.97 }}
             >
               <Plus className="w-4 h-4" />
-              Novo Projeto
+              {t('projects.newProject')}
             </motion.button>
           </motion.div>
 
+          {/* Summary stats — only when there are active projects */}
+          {!isLoading && activeProjects.length > 0 && (
+            <motion.div
+              className="grid grid-cols-3 gap-3 mb-6"
+              variants={staggerContainer(STAGGER.cards)}
+              initial="hidden"
+              animate="visible"
+            >
+              <motion.div
+                variants={fadeUp}
+                className="px-4 py-3 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] flex items-center gap-3"
+              >
+                <div className="w-8 h-8 rounded-lg bg-[rgba(74,159,255,0.15)] flex items-center justify-center flex-shrink-0">
+                  <LayoutGrid className="w-4 h-4 text-[#4A9FFF]" />
+                </div>
+                <div>
+                  <p className="text-[18px] font-bold text-[#f5f7fb] leading-none">{activeProjects.length}</p>
+                  <p className="text-[10px] text-[rgba(245,247,251,0.45)] mt-0.5">{t('projects.activeProjects')}</p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                variants={fadeUp}
+                className="px-4 py-3 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] flex items-center gap-3"
+              >
+                <div className="w-8 h-8 rounded-lg bg-[rgba(139,92,246,0.15)] flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-4 h-4 text-[#8B5CF6]" />
+                </div>
+                <div>
+                  <p className="text-[18px] font-bold text-[#f5f7fb] leading-none">{fmtDuration(totalSecondsWorked)}</p>
+                  <p className="text-[10px] text-[rgba(245,247,251,0.45)] mt-0.5">{t('projects.totalWorked')}</p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                variants={fadeUp}
+                className="px-4 py-3 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] flex items-center gap-3"
+              >
+                <div className="w-8 h-8 rounded-lg bg-[rgba(196,181,253,0.15)] flex items-center justify-center flex-shrink-0">
+                  <DollarSign className="w-4 h-4 text-[#c4b5fd]" />
+                </div>
+                <div>
+                  <p className="text-[18px] font-bold text-[#f5f7fb] leading-none">
+                    {billableProjectsCount > 0 ? `${totalBillableValue.toFixed(2)}` : '—'}
+                  </p>
+                  <p className="text-[10px] text-[rgba(245,247,251,0.45)] mt-0.5">
+                    {billableProjectsCount > 0 ? t('projects.billableValueWithCount', { count: billableProjectsCount }) : t('projects.noBillable')}
+                  </p>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
           {/* Tabs */}
-          <div className="flex gap-4 mb-6 relative">
-            <button
-              onClick={() => setShowArchived(false)}
-              className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                !showArchived
-                  ? 'text-[#4A9FFF]'
-                  : 'text-[rgba(245,247,251,0.6)] hover:text-[#f5f7fb]'
-              }`}
-            >
-              {!showArchived && (
-                <motion.div
-                  layoutId="project-tab"
-                  className="absolute inset-0 bg-[rgba(74,159,255,0.2)] rounded-lg"
-                  transition={SPRING.snappy}
-                />
-              )}
-              <span className="relative z-10">
-                <FolderOpen className="w-4 h-4 inline-block mr-2" />
-                Ativos ({activeProjects.length})
-              </span>
-            </button>
-            <button
-              onClick={() => setShowArchived(true)}
-              className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                showArchived
-                  ? 'text-[#4A9FFF]'
-                  : 'text-[rgba(245,247,251,0.6)] hover:text-[#f5f7fb]'
-              }`}
-            >
-              {showArchived && (
-                <motion.div
-                  layoutId="project-tab"
-                  className="absolute inset-0 bg-[rgba(74,159,255,0.2)] rounded-lg"
-                  transition={SPRING.snappy}
-                />
-              )}
-              <span className="relative z-10">
-                <Archive className="w-4 h-4 inline-block mr-2" />
-                Arquivados ({archivedProjects.length})
-              </span>
-            </button>
+          <div className="flex gap-2 mb-5">
+            {[
+              { key: false, label: t('projects.active'), count: activeProjects.length, icon: FolderOpen },
+              { key: true, label: t('projects.archived'), count: archivedProjects.length, icon: Archive },
+            ].map(({ key, label, count, icon: Icon }) => (
+              <button
+                key={String(key)}
+                onClick={() => setShowArchived(key)}
+                className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium transition-colors ${
+                  showArchived === key
+                    ? 'text-[#f5f7fb]'
+                    : 'text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)]'
+                }`}
+              >
+                {showArchived === key && (
+                  <motion.div
+                    layoutId="projects-tab-bg"
+                    className="absolute inset-0 bg-[rgba(255,255,255,0.07)] rounded-xl border border-[rgba(255,255,255,0.1)]"
+                    transition={SPRING.snappy}
+                  />
+                )}
+                <Icon className="w-3.5 h-3.5 relative z-10" />
+                <span className="relative z-10">{label}</span>
+                <span className={`relative z-10 px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
+                  showArchived === key ? 'bg-[rgba(255,255,255,0.1)] text-[rgba(245,247,251,0.8)]' : 'bg-[rgba(255,255,255,0.05)] text-[rgba(245,247,251,0.4)]'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            ))}
           </div>
 
-          {/* Error Message */}
+          {/* Error */}
           {error && (
-            <div className="mb-4 p-4 bg-[rgba(255,107,122,0.1)] border border-[rgba(255,107,122,0.3)] rounded-lg text-[#FF6B7A]">
+            <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.2)] rounded-xl text-[12px] text-[#f87171]">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
           )}
 
-          {/* Loading State */}
+          {/* Loading skeletons */}
           {isLoading && projects.length === 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-[rgba(26,29,46,0.6)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4 space-y-3">
-                  <SkeletonShimmer width="40%" height={12} rounded="rounded" />
-                  <SkeletonShimmer width="80%" height={10} rounded="rounded" />
-                  <SkeletonShimmer width="60%" height={10} rounded="rounded" />
+                <div key={i} className="bg-[rgba(17,19,28,0.7)] border border-[rgba(255,255,255,0.06)] rounded-2xl overflow-hidden">
+                  <div className="h-[3px] w-full bg-[rgba(255,255,255,0.06)]" />
+                  <div className="p-4 space-y-3">
+                    <SkeletonShimmer width="55%" height={14} rounded="rounded-lg" />
+                    <SkeletonShimmer width="85%" height={10} rounded="rounded-lg" />
+                    <SkeletonShimmer width="65%" height={10} rounded="rounded-lg" />
+                    <div className="flex gap-2 pt-1">
+                      <SkeletonShimmer width={72} height={24} rounded="rounded-lg" />
+                      <SkeletonShimmer width={80} height={24} rounded="rounded-lg" />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Empty State */}
+          {/* Empty state */}
           <AnimatePresence mode="wait">
             {!isLoading && displayedProjects.length === 0 && (
               <motion.div
-                className="text-center py-12"
+                className="text-center py-16"
                 variants={fadeUp}
                 initial="hidden"
                 animate="visible"
                 exit="exit"
                 transition={{ duration: TIMING.normal }}
               >
-                <FolderOpen className="w-12 h-12 text-[rgba(245,247,251,0.2)] mx-auto mb-4 animate-float" />
-                <p className="text-[rgba(245,247,251,0.4)]">
-                  {showArchived ? 'Nenhum projeto arquivado' : 'Nenhum projeto criado ainda'}
+                <div className="w-16 h-16 rounded-2xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] flex items-center justify-center mx-auto mb-4">
+                  <FolderOpen className="w-7 h-7 text-[rgba(245,247,251,0.2)]" />
+                </div>
+                <p className="text-[14px] font-medium text-[rgba(245,247,251,0.4)]">
+                  {showArchived ? t('projects.noArchived') : t('projects.noProjects')}
                 </p>
                 {!showArchived && (
                   <button
                     onClick={() => setIsModalOpen(true)}
-                    className="mt-4 text-[#4A9FFF] hover:underline text-sm"
+                    className="mt-3 text-[13px] text-[#4A9FFF] hover:underline"
                   >
-                    Criar primeiro projeto
+                    {t('projects.createFirst')}
                   </button>
                 )}
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Projects Grid */}
+          {/* Projects grid */}
           <AnimatePresence mode="wait">
             <motion.div
               key={showArchived ? 'archived' : 'active'}
@@ -219,9 +291,15 @@ export default function Projects() {
                   variants={fadeUp}
                   layout
                   transition={{ duration: TIMING.normal }}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('button')) return;
+                    navigate(`/projects/${project.id}/board`);
+                  }}
+                  className="cursor-pointer"
                 >
                   <ProjectCard
                     project={project}
+                    stats={statsByProject.get(project.id)}
                     isMenuOpen={menuOpenId === project.id}
                     onToggleMenu={() => setMenuOpenId(menuOpenId === project.id ? null : project.id)}
                     onEdit={() => openEditModal(project)}
@@ -234,10 +312,10 @@ export default function Projects() {
               ))}
             </motion.div>
           </AnimatePresence>
+
         </div>
       </main>
 
-      {/* Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <ProjectModal

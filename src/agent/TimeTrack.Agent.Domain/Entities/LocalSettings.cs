@@ -26,9 +26,14 @@ public sealed class LocalSettings
     public bool NotificationSoundsEnabled { get; private set; } = true;
 
     /// <summary>
-    /// Idioma da interface (pt-BR, en-US)
+    /// Idioma da interface (pt-BR, en-US, fr-FR, es-ES)
     /// </summary>
     public string Language { get; private set; } = "pt-BR";
+
+    private static readonly HashSet<string> ValidLanguages = new(StringComparer.Ordinal)
+    {
+        "pt-BR", "en-US", "fr-FR", "es-ES"
+    };
 
     /// <summary>
     /// Limiar de inatividade em segundos (60–3600). Null = usar padrão do Agent (300s).
@@ -89,8 +94,8 @@ public sealed class LocalSettings
     /// </summary>
     public LocalSettings WithLanguage(string language)
     {
-        if (language != "pt-BR" && language != "en-US")
-            throw new ArgumentException("Language must be 'pt-BR' or 'en-US'", nameof(language));
+        if (!ValidLanguages.Contains(language))
+            throw new ArgumentException($"Language must be one of: {string.Join(", ", ValidLanguages)}", nameof(language));
 
         var settings = Clone();
         settings.Language = language;
@@ -129,8 +134,8 @@ public sealed class LocalSettings
 
         if (!string.IsNullOrEmpty(language))
         {
-            if (language != "pt-BR" && language != "en-US")
-                throw new ArgumentException("Language must be 'pt-BR' or 'en-US'", nameof(language));
+            if (!ValidLanguages.Contains(language))
+                throw new ArgumentException($"Language must be one of: {string.Join(", ", ValidLanguages)}", nameof(language));
             settings.Language = language;
         }
 

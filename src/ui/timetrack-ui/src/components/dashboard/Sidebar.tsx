@@ -1,23 +1,29 @@
 import { useState } from 'react';
-import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Cog, LogOut, Play, Square, Loader2, BellRing } from 'lucide-react';
+import { Timer as TimerIcon, BarChart3, FolderOpen, Activity, CalendarDays, Cog, LogOut, Play, Square, Loader2, Users } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { NavItem } from './shared';
 import { SidebarMiniDash } from './shared/SidebarMiniDash';
 import { useAuthStore } from '../../stores/authStore';
 import { useTrackingStore } from '../../stores/trackingStore';
 import { useIpc } from '../../hooks/useIpc';
+import { useAgentStatus } from '../../hooks/useAgentStatus';
+import { usePermissions } from '../../hooks/usePermissions';
 import { SPRING } from '../../lib/animation';
 import logoImg from '../../assets/logo-64.png';
 
 export function Sidebar() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuthStore();
+  const { canManageTeam } = usePermissions();
   const isTracking = useTrackingStore(s => s.isTracking);
   const isPaused = useTrackingStore(s => s.isPaused);
   const todaySummary = useTrackingStore(s => s.todaySummary);
   const { sendCommand } = useIpc();
+  const { status: agentStatus } = useAgentStatus();
   const [isBusy, setIsBusy] = useState(false);
 
   const isActive = isTracking && !isPaused;
@@ -47,9 +53,9 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-[180px] flex-shrink-0 glass-sidebar flex flex-col overflow-hidden">
-      {/* Logo + Tracking LED */}
-      <div className="px-4 py-5 flex-shrink-0">
+    <aside className="hidden md:flex w-[180px] flex-shrink-0 glass-sidebar flex-col overflow-hidden">
+      {/* Logo + Tracking LED — pt-8 clears macOS traffic light buttons */}
+      <div className="px-4 pt-8 pb-5 flex-shrink-0">
         <div className="flex items-center gap-2">
           <motion.img
             src={logoImg}
@@ -74,7 +80,7 @@ export function Sidebar() {
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.4, duration: 0.3 }}
-            title={isActive ? 'Monitoramento ativo' : 'Monitoramento inativo'}
+            title={isActive ? t('sidebar.trackingActive') : t('sidebar.trackingInactive')}
           >
             {isActive && (
               <motion.div
@@ -94,21 +100,15 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 flex flex-col gap-[2px] overflow-y-auto">
-        <NavItem icon={<BarChart3 className="w-[16px] h-[16px]" />} label="Dashboard" active={location.pathname === '/'} onClick={() => navigate('/')} />
-        <NavItem icon={<TimerIcon className="w-[16px] h-[16px]" />} label="Timer" active={location.pathname === '/timer'} onClick={() => navigate('/timer')} />
-        <NavItem icon={<FolderOpen className="w-[16px] h-[16px]" />} label="Projetos" active={location.pathname === '/projects'} onClick={() => navigate('/projects')} />
-        <NavItem icon={<Activity className="w-[16px] h-[16px]" />} label="Atividade" active={location.pathname === '/activities'} onClick={() => navigate('/activities')} />
-        <NavItem icon={<CalendarDays className="w-[16px] h-[16px]" />} label="Relatórios" active={location.pathname === '/reports'} onClick={() => navigate('/reports')} />
-        <NavItem icon={<Cog className="w-[16px] h-[16px]" />} label="Configurações" active={location.pathname === '/settings'} onClick={() => navigate('/settings')} />
-
-        {/* Dev: Test resume toast */}
-        <div className="mt-auto pt-2">
-          <NavItem
-            icon={<BellRing className="w-[16px] h-[16px]" />}
-            label="Test Toast"
-            onClick={() => sendCommand('testActivityResumeToast' as never)}
-          />
-        </div>
+        <NavItem icon={<BarChart3 className="w-[16px] h-[16px]" />} label={t('sidebar.dashboard')} active={location.pathname === '/'} onClick={() => navigate('/')} />
+        <NavItem icon={<TimerIcon className="w-[16px] h-[16px]" />} label={t('sidebar.timer')} active={location.pathname === '/timer'} onClick={() => navigate('/timer')} />
+        <NavItem icon={<FolderOpen className="w-[16px] h-[16px]" />} label={t('sidebar.projects')} active={location.pathname === '/projects'} onClick={() => navigate('/projects')} />
+        {canManageTeam && (
+          <NavItem icon={<Users className="w-[16px] h-[16px]" />} label={t('sidebar.team')} active={location.pathname === '/teams'} onClick={() => navigate('/teams')} />
+        )}
+        <NavItem icon={<Activity className="w-[16px] h-[16px]" />} label={t('sidebar.activities')} active={location.pathname === '/activities'} onClick={() => navigate('/activities')} />
+        <NavItem icon={<CalendarDays className="w-[16px] h-[16px]" />} label={t('sidebar.reports')} active={location.pathname === '/reports'} onClick={() => navigate('/reports')} />
+        <NavItem icon={<Cog className="w-[16px] h-[16px]" />} label={t('sidebar.settings')} active={location.pathname === '/settings'} onClick={() => navigate('/settings')} />
       </nav>
 
       {/* Tracking Toggle Button — above separator & user section */}
@@ -127,17 +127,17 @@ export function Sidebar() {
           {isBusy ? (
             <>
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              {isActive ? 'Parando...' : 'Iniciando...'}
+              {isActive ? t('sidebar.stopping') : t('sidebar.starting')}
             </>
           ) : isActive ? (
             <>
               <Square className="w-3.5 h-3.5" />
-              Parar Monitoramento
+              {t('sidebar.stopMonitoring')}
             </>
           ) : (
             <>
               <Play className="w-3.5 h-3.5" />
-              Retomar Monitoramento
+              {t('sidebar.resumeMonitoring')}
             </>
           )}
         </button>
@@ -146,7 +146,7 @@ export function Sidebar() {
       {/* Mini Dashboard Widget */}
       <div className="border-t border-[rgba(255,255,255,0.04)] flex-shrink-0 pt-2">
         <SidebarMiniDash
-          userName={user?.displayName || 'Usuário'}
+          userName={user?.displayName || t('common.user')}
           userInitial={user?.displayName?.charAt(0)?.toUpperCase() || '?'}
           userRole={user?.role || ''}
           totalDuration={todaySummary?.totalDuration ?? 0}
@@ -172,14 +172,21 @@ export function Sidebar() {
         />
 
         {/* Logout */}
-        <div className="px-3 pb-3">
+        <div className="px-3 pb-1">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
           >
             <LogOut className="w-[14px] h-[14px]" />
-            Sair
+            {t('sidebar.logout')}
           </button>
+        </div>
+
+        {/* Version */}
+        <div className="px-4 pb-3">
+          <span className="text-[9px] text-[rgba(245,247,251,0.2)] select-none">
+            v{agentStatus.desktopHostVersion ?? agentStatus.version}
+          </span>
         </div>
       </div>
     </aside>

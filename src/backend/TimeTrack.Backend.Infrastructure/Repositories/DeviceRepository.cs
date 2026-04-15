@@ -27,6 +27,21 @@ public sealed class DeviceRepository : IDeviceRepository
             .FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
     }
 
+    public async Task<Device?> GetByIdUnfilteredAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _context.Devices
+            .IgnoreQueryFilters()
+            .Include(d => d.User)
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+    }
+
+    public async Task<IEnumerable<Device>> GetActiveByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Devices
+            .Where(d => d.UserId == userId && d.Status == Domain.ValueObjects.DeviceStatus.Active)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IEnumerable<Device>> GetActiveByOrgIdAsync(Guid orgId, CancellationToken cancellationToken = default)
     {
         return await _context.Devices
@@ -50,5 +65,15 @@ public sealed class DeviceRepository : IDeviceRepository
     {
         _context.Devices.Update(device);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var device = await _context.Devices.FindAsync([id], cancellationToken);
+        if (device is not null)
+        {
+            _context.Devices.Remove(device);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
     }
 }

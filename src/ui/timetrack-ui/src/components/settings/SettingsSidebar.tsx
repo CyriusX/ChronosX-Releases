@@ -1,4 +1,5 @@
-import { User, Settings2, Bell, Activity, Users, Building2, Info, Cpu, EyeOff } from 'lucide-react';
+import { User, Settings2, Bell, Activity, Users, Building2, Info, Cpu, EyeOff, Zap, Wrench } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { SPRING } from '../../lib/animation';
 import type { SettingsSection, SettingsSectionDef, SettingsGroup } from '../../types/settingsNav';
@@ -11,24 +12,27 @@ interface SettingsSidebarProps {
 }
 
 const SECTIONS: SettingsSectionDef[] = [
-  { id: 'profile', label: 'Perfil', icon: User, group: 'personal' },
-  { id: 'general', label: 'Geral', icon: Settings2, group: 'personal' },
-  { id: 'notifications', label: 'Notificações', icon: Bell, group: 'personal' },
-  { id: 'timeline', label: 'Timeline', icon: EyeOff, group: 'personal' },
-  { id: 'focus-timer', label: 'Foco & Timer', icon: Activity, group: 'personal' },
-  { id: 'team', label: 'Equipe', icon: Users, group: 'management', requiresPermission: 'canManageTeam' },
-  { id: 'organization', label: 'Organização', icon: Building2, group: 'management', requiresPermission: 'canViewOrgPolicies' },
-  { id: 'agent-status', label: 'Status do Agent', icon: Cpu, group: 'system' },
-  { id: 'about', label: 'Sobre', icon: Info, group: 'system' },
+  { id: 'profile', label: 'settings.sidebar.profile', icon: User, group: 'personal' },
+  { id: 'general', label: 'settings.sidebar.general', icon: Settings2, group: 'personal' },
+  { id: 'notifications', label: 'settings.sidebar.notifications', icon: Bell, group: 'personal' },
+  { id: 'timeline', label: 'settings.sidebar.timeline', icon: EyeOff, group: 'personal' },
+  { id: 'focus-timer', label: 'settings.sidebar.focusTimer', icon: Activity, group: 'personal' },
+  { id: 'integrations', label: 'settings.sidebar.integrations', icon: Zap, group: 'personal' },
+  { id: 'team', label: 'settings.sidebar.team', icon: Users, group: 'management', requiresPermission: 'canManageTeam' },
+  { id: 'organization', label: 'settings.sidebar.organization', icon: Building2, group: 'management', requiresPermission: 'canViewOrgPolicies' },
+  { id: 'maintenance', label: 'settings.sidebar.maintenance', icon: Wrench, group: 'system' },
+  { id: 'agent-status', label: 'settings.sidebar.agentStatus', icon: Cpu, group: 'system' },
+  { id: 'about', label: 'settings.sidebar.about', icon: Info, group: 'system' },
 ];
 
-const GROUP_LABELS: Record<SettingsGroup, string> = {
-  personal: 'Pessoal',
-  management: 'Gestão',
-  system: 'Sistema',
+const GROUP_LABEL_KEYS: Record<SettingsGroup, string> = {
+  personal: 'settings.sidebar.personal',
+  management: 'settings.sidebar.management',
+  system: 'settings.sidebar.system',
 };
 
 export function SettingsSidebar({ activeSection, onSectionChange, canManageTeam, canViewOrgPolicies }: SettingsSidebarProps) {
+  const { t } = useTranslation();
   const permissions: Record<string, boolean> = {
     canManageTeam,
     canViewOrgPolicies,
@@ -58,7 +62,7 @@ export function SettingsSidebar({ activeSection, onSectionChange, canManageTeam,
           <div key={group.group}>
             {gi > 0 && <div className="h-px bg-[rgba(255,255,255,0.04)] my-2" />}
             <p className="text-[10px] uppercase tracking-wider text-[rgba(245,247,251,0.3)] px-3 pt-3 pb-1 font-medium">
-              {GROUP_LABELS[group.group]}
+              {t(GROUP_LABEL_KEYS[group.group])}
             </p>
             {group.items.map((section) => (
               <SidebarItem
@@ -85,7 +89,7 @@ export function SettingsSidebar({ activeSection, onSectionChange, canManageTeam,
             }`}
           >
             <section.icon className="w-4 h-4" />
-            <span>{section.label}</span>
+            <span>{t(section.label)}</span>
           </button>
         ))}
       </div>
@@ -104,6 +108,7 @@ interface SidebarItemProps {
 }
 
 function SidebarItem({ section, isActive, onClick }: SidebarItemProps) {
+  const { t } = useTranslation();
   return (
     <motion.button
       onClick={onClick}
@@ -123,7 +128,7 @@ function SidebarItem({ section, isActive, onClick }: SidebarItemProps) {
         />
       )}
       <section.icon className="w-4 h-4 relative z-10" />
-      <span className="relative z-10 text-[13px] font-medium">{section.label}</span>
+      <span className="relative z-10 text-[13px] font-medium">{t(section.label)}</span>
     </motion.button>
   );
 }

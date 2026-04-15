@@ -3,6 +3,7 @@ using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
@@ -64,7 +65,14 @@ try
         options.AddDefaultPolicy(policy =>
         {
             var frontendUrl = builder.Configuration["Frontend:BaseUrl"] ?? "http://localhost:5173";
-            policy.WithOrigins(frontendUrl, "http://localhost:5174", "http://localhost:3000", "https://app.local")
+            policy.WithOrigins(
+                    frontendUrl,
+                    "http://localhost:5173",
+                    "http://localhost:5174",
+                    "http://localhost:3000",
+                    "https://app.local",
+                    "https://chronosx-timetrack-web.gpoda0.easypanel.host"
+                )
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials();
@@ -151,42 +159,98 @@ try
         app.MapScalarApiReference();
     }
 
-    // Health check endpoint
-    app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-    {
-        ResponseWriter = async (context, report) =>
-        {
-            context.Response.ContentType = "application/json";
-            var response = new
-            {
-                status = report.Status.ToString(),
-                version = "1.0.0",
-                timestamp = DateTime.UtcNow,
-                checks = report.Entries.Select(e => new
-                {
-                    name = e.Key,
-                    status = e.Value.Status.ToString(),
-                    duration = e.Value.Duration.TotalMilliseconds
-                })
-            };
-            await context.Response.WriteAsJsonAsync(response);
-        }
-    });
-
     // CORS - Allow frontend to communicate with API
     app.UseCors();
+
+    // Serilog request logging - capture all requests and their outcomes
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+        {
+            diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
+            diagnosticContext.Set("RequestScheme", httpContext.Request.Scheme);
+        };
+        options.MessageTemplate = "HTTP {RequestMethod} {Path} responded {StatusCode} in {Elapsed:0.000} ms";
+    });
 
     // Security headers (must be early in pipeline)
     app.UseMiddleware<SecurityHeadersMiddleware>();
 
+    // Exception handling - must be early to catch all exceptions
     app.UseMiddleware<ExceptionHandlingMiddleware>();
-    app.UseHttpsRedirection();
+    // Note: HTTPS redirection disabled for containerized environments (EasyPanel handles SSL termination)
+    // app.UseHttpsRedirection();
 
     // Rate limiting (before authentication to protect unauthenticated endpoints)
     app.UseRateLimiter();
 
     app.UseAuthentication();
     app.UseAuthorization();
+
+    // Health check endpoints (must be after middleware to catch exceptions)
+
+    // Simple liveness check - just verifies the app is running (no database dependency)
+    app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+    {
+        Predicate = check => check.Tags.Contains("live"),
+        ResponseWriter = async (context, report) =>
+        {
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                status = report.Status.ToString(),
+                timestamp = DateTime.UtcNow
+            });
+        }
+    });
+
+    // Full health check - includes database (for Docker HEALTHCHECK)
+    app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+    {
+        // Return 200 even if unhealthy (container stays running, logs show degraded status)
+        ResultStatusCodes =
+        {
+            [HealthStatus.Unhealthy] = 200,
+            [HealthStatus.Degraded] = 200,
+            [HealthStatus.Healthy] = 200
+        },
+        ResponseWriter = async (context, report) =>
+        {
+            try
+            {
+                context.Response.ContentType = "application/json";
+
+                var checks = report.Entries.Select(e => new
+                {
+                    name = e.Key,
+                    status = e.Value.Status.ToString(),
+                    duration = e.Value.Duration.TotalMilliseconds,
+                    description = e.Value.Description ?? e.Value.Exception?.Message
+                }).ToArray();
+
+                var response = new
+                {
+                    status = report.Status.ToString(),
+                    version = "1.0.0",
+                    timestamp = DateTime.UtcNow,
+                    checks
+                };
+
+                await context.Response.WriteAsJsonAsync(response);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Health check response writer failed");
+                context.Response.StatusCode = 500;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    status = "Error",
+                    error = ex.Message,
+                    timestamp = DateTime.UtcNow
+                });
+            }
+        }
+    });
 
     // Hangfire Dashboard - protected by Admin role
     app.MapHangfireDashboard("/hangfire", new DashboardOptions

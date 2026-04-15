@@ -24,9 +24,9 @@ function overrideDesktopImports(): Plugin {
     [norm(desktopSrc, 'services/memberApi')]: norm(webSrc, 'services/memberApi.ts'),
     [norm(desktopSrc, 'services/policyApi')]: norm(webSrc, 'services/policyApi.ts'),
     [norm(desktopSrc, 'services/reportApi')]: norm(webSrc, 'services/reportApi.ts'),
-    [norm(desktopSrc, 'services/appCategoriesApi')]: norm(webSrc, 'services/appCategoriesApi.ts'),
-    // Hooks
+    [norm(desktopSrc, 'services/appCategoriesApi')]: norm(webSrc, 'services/appCategoriesApi.ts'),// Hooks
     [norm(desktopSrc, 'hooks/useIpc')]: norm(webSrc, 'hooks/useIpc.ts'),
+    [norm(desktopSrc, 'hooks/useLanguage')]: norm(webSrc, 'hooks/useLanguage.ts'),
     [norm(desktopSrc, 'hooks/usePermissions')]: norm(webSrc, 'hooks/usePermissions.ts'),
     [norm(desktopSrc, 'hooks/useMembers')]: norm(webSrc, 'hooks/useMembers.ts'),
     [norm(desktopSrc, 'hooks/useTeamStatus')]: norm(webSrc, 'hooks/useTeamStatus.ts'),
@@ -82,6 +82,7 @@ export default defineConfig({
       '@': webSrc,
       '@desktop': desktopSrc,
     },
+    dedupe: ['react', 'react-dom', 'react-router-dom', 'i18next', 'react-i18next'],
   },
   build: {
     outDir: 'dist',

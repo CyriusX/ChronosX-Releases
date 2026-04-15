@@ -12,6 +12,8 @@ export interface DeviceListItem {
   displayMode: string;
   status: string; // "active" | "offline" | "inactive"
   trackingState: string | null; // "running" | "paused" | "stopped" | null
+  healthStatus: string | null; // "healthy" | "degraded" | "unhealthy" | "offline" | null
+  ipcConnected: boolean | null;
   lastSeenAt: string | null;
   activatedAt: string;
   userDisplayName: string | null;
@@ -63,11 +65,33 @@ export interface DeviceInfoResponse {
   ipAddress: string | null;
   uptimeSeconds: number | null;
   trackingState: string | null;
+  healthStatus: string | null;
+  consecutiveSyncFailures: number | null;
+  lastSuccessfulSyncAt: string | null;
+  ipcConnected: boolean | null;
   lastHeartbeatAt: string | null;
   activatedAt: string;
   status: string;
   displayMode: string;
   userDisplayName: string | null;
+}
+
+export interface HealthAlertItem {
+  deviceId: string;
+  hostname: string;
+  userDisplayName: string | null;
+  issue: string; // "offline" | "degraded" | "unhealthy"
+  lastSeenAt: string | null;
+  healthStatus: string | null;
+}
+
+export interface HealthSummaryResponse {
+  totalDevices: number;
+  onlineCount: number;
+  offlineCount: number;
+  degradedCount: number;
+  unhealthyCount: number;
+  alerts: HealthAlertItem[];
 }
 
 export interface CommandHistoryItem {
@@ -160,5 +184,17 @@ export async function getDeviceMetrics(
 ): Promise<DeviceMetricsResponse> {
   return api.get<DeviceMetricsResponse>(
     `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}/metrics`
+  );
+}
+
+export async function getHealthSummary(orgId: string): Promise<HealthSummaryResponse> {
+  return api.get<HealthSummaryResponse>(
+    `/orgs/${encodeURIComponent(orgId)}/maintenance/health-summary`
+  );
+}
+
+export async function deleteDevice(orgId: string, deviceId: string): Promise<void> {
+  return api.delete<void>(
+    `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}`
   );
 }

@@ -14,7 +14,12 @@ public sealed record HeartbeatCommand(
     string? OsVersion = null,
     string? IpAddress = null,
     int? UptimeSeconds = null,
-    string? TrackingState = null) : IRequest<HeartbeatResponse>;
+    string? TrackingState = null,
+    string? HealthStatus = null,
+    bool? BackendReachable = null,
+    int? ConsecutiveSyncFailures = null,
+    DateTime? LastSuccessfulSyncAt = null,
+    bool? IpcConnected = null) : IRequest<HeartbeatResponse>;
 
 public sealed class HeartbeatCommandHandler : IRequestHandler<HeartbeatCommand, HeartbeatResponse>
 {
@@ -43,7 +48,12 @@ public sealed class HeartbeatCommandHandler : IRequestHandler<HeartbeatCommand, 
             request.OsVersion,
             request.IpAddress,
             request.UptimeSeconds,
-            request.TrackingState);
+            request.TrackingState,
+            request.HealthStatus,
+            request.BackendReachable,
+            request.ConsecutiveSyncFailures,
+            request.LastSuccessfulSyncAt,
+            request.IpcConnected);
         await _deviceRepository.UpdateAsync(device, cancellationToken);
 
         // Check if there are pending commands for this device

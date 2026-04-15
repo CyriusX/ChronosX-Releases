@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Notifications;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.DesktopHost.Ipc;
+using TimeTrack.DesktopHost.UI;
 
 namespace TimeTrack.DesktopHost.Notifications;
 
@@ -29,6 +30,7 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
     private readonly JsonSerializerOptions _jsonOptions;
     private bool _disposed;
     private ActivityResumeToastForm? _activeResumeToast;
+    private ActivityResumeToastForm? _activeTaskResumeToast;
 
     public NotificationEventHandler(
         IIpcClient ipcClient,
@@ -79,6 +81,26 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
 
                 case "showActivityResumePrompt":
                     HandleActivityResumePrompt(e.Payload);
+                    break;
+
+                case "showTaskResumePrompt":
+                    HandleTaskResumePrompt(e.Payload);
+                    break;
+
+                case "updateAvailable":
+                    HandleUpdateAvailableAsync(e.Payload);
+                    break;
+
+                case "updateProgress":
+                    HandleUpdateProgress(e.Payload);
+                    break;
+
+                case "updateComplete":
+                    HandleUpdateComplete(e.Payload);
+                    break;
+
+                case "updateFailed":
+                    HandleUpdateFailed(e.Payload);
                     break;
             }
         }
@@ -208,6 +230,76 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
         toast.Show();
     }
 
+    private void HandleTaskResumePrompt(JsonElement payload)
+    {
+        var countdownSeconds = 30;
+        if (payload.TryGetProperty("countdownSeconds", out var cdEl) && cdEl.ValueKind == JsonValueKind.Number)
+            countdownSeconds = cdEl.GetInt32();
+
+        var taskTitle = payload.TryGetProperty("taskTitle", out var ttEl) ? ttEl.GetString() : null;
+        var projectName = payload.TryGetProperty("projectName", out var pnEl) ? pnEl.GetString() : null;
+
+        _logger.LogInformation(
+            "Received task resume prompt — showing toast for task {Task} (countdown {Countdown}s)",
+            taskTitle, countdownSeconds);
+
+        if (System.Windows.Forms.Application.OpenForms.Count > 0)
+        {
+            var mainForm = System.Windows.Forms.Application.OpenForms[0];
+            mainForm?.BeginInvoke(() => ShowTaskResumeToast(countdownSeconds, projectName, taskTitle));
+        }
+        else
+        {
+            _logger.LogWarning("No open forms — cannot show task resume toast");
+        }
+    }
+
+    private void ShowTaskResumeToast(int countdownSeconds, string? projectName, string? taskTitle)
+    {
+        if (_activeTaskResumeToast is { Visible: true })
+        {
+            _logger.LogDebug("Task resume toast already showing — skipping");
+            return;
+        }
+
+        var subtitle = !string.IsNullOrEmpty(taskTitle) && !string.IsNullOrEmpty(projectName)
+            ? $"{projectName} · {taskTitle}"
+            : (taskTitle ?? "Tarefa em andamento");
+
+        var toast = new ActivityResumeToastForm(
+            countdownSeconds,
+            titleOverride: "Ainda trabalhando nessa tarefa?",
+            subtitleOverride: subtitle,
+            yesButtonOverride: "\u25B6   Continuar",
+            noButtonOverride: "Encerrar tarefa");
+
+        _activeTaskResumeToast = toast;
+
+        toast.PromptResult += async (_, resume) =>
+        {
+            _activeTaskResumeToast = null;
+            try
+            {
+                if (resume)
+                {
+                    _logger.LogInformation("User accepted task resume — sending ResumeOpenTask command");
+                    await _ipcClient.SendCommandAsync("ResumeOpenTask");
+                }
+                else
+                {
+                    _logger.LogInformation("User rejected task resume — sending CloseOpenTask command");
+                    await _ipcClient.SendCommandAsync("CloseOpenTask");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending IPC command after task resume prompt");
+            }
+        };
+
+        toast.Show();
+    }
+
     private AgentNotification? ParseNotification(JsonElement payload)
     {
         try
@@ -301,6 +393,138 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
         catch
         {
             return null;
+        }
+    }
+
+    private async Task HandleUpdateAvailableAsync(JsonElement payload)
+    {
+        var version = payload.TryGetProperty("latestVersion", out var v) ? v.GetString() : "unknown";
+        var fileSizeBytes = payload.TryGetProperty("fileSizeBytes", out var size) ? size.GetInt64() : 0;
+        var releaseNotes = payload.TryGetProperty("releaseNotes", out var notes) ? notes.GetString() : null;
+
+        var fileSizeMb = fileSizeBytes / (1024.0 * 1024.0);
+
+        _logger.LogInformation(
+            "Update available: Version={Version}, Size={Size:F1}MB",
+            version, fileSizeMb);
+
+        // Show notification to user (forced update - no option to defer)
+        var notification = new AgentNotification(
+            "Update Available",
+            $"A new version ({version}) is available. The update will be installed automatically.",
+            NotificationKind.System)
+        {
+            Tag = "update-available"
+        };
+
+        await _notificationService.SendAsync(notification);
+
+        // Start the update automatically after a brief delay
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(3000);
+            _logger.LogInformation("Auto-starting update to version {Version}", version);
+            await _ipcClient.SendCommandAsync("StartUpdate");
+        });
+    }
+
+    private void HandleUpdateProgress(JsonElement payload)
+    {
+        var stage = payload.TryGetProperty("stage", out var s) ? s.GetString() : "unknown";
+        var percentage = payload.TryGetProperty("percentage", out var p) ? p.GetInt32() : 0;
+        var message = payload.TryGetProperty("message", out var m) ? m.GetString() : string.Empty;
+        var targetVersion = payload.TryGetProperty("targetVersion", out var v) ? v.GetString() : null;
+
+        _logger.LogDebug(
+            "Update progress: Stage={Stage}, Percentage={Percentage}%, Message={Message}",
+            stage, percentage, message);
+
+        // Forward to WebView2 UI for UpdateModal display
+        ForwardUpdateProgressToWebView(stage, percentage, message, targetVersion);
+    }
+
+    private void ForwardUpdateProgressToWebView(string? stage, int percentage, string? message, string? targetVersion)
+    {
+        if (System.Windows.Forms.Application.OpenForms.Count > 0)
+        {
+            var mainForm = System.Windows.Forms.Application.OpenForms[0];
+            mainForm?.BeginInvoke(() =>
+            {
+                // Notify WebView2 to show/update the update modal
+                // This is handled by MainForm which forwards to WebView2
+                if (mainForm is UI.MainForm form)
+                {
+                    form.ShowUpdateProgress(stage, percentage, message, targetVersion);
+                }
+            });
+        }
+    }
+
+    private void HandleUpdateComplete(JsonElement payload)
+    {
+        var version = payload.TryGetProperty("version", out var v) ? v.GetString() : "unknown";
+        var restartRequired = payload.TryGetProperty("restartRequired", out var r) && r.GetBoolean();
+
+        _logger.LogInformation(
+            "Update complete: Version={Version}, RestartRequired={RestartRequired}",
+            version, restartRequired);
+
+        // Show completion notification
+        _ = Task.Run(async () =>
+        {
+            var notification = new AgentNotification(
+                "Update Complete",
+                $"ChronosX has been updated to version {version}. The application will restart.",
+                NotificationKind.System)
+            {
+                Tag = "update-complete"
+            };
+
+            await _notificationService.SendAsync(notification);
+
+            // Restart the application after a short delay
+            await Task.Delay(2000);
+            RestartApplication();
+        });
+    }
+
+    private void HandleUpdateFailed(JsonElement payload)
+    {
+        var error = payload.TryGetProperty("error", out var e) ? e.GetString() : "Unknown error";
+        var canRollback = payload.TryGetProperty("canRollback", out var rb) && rb.GetBoolean();
+
+        _logger.LogError(
+            "Update failed: Error={Error}, CanRollback={CanRollback}",
+            error, canRollback);
+
+        // Show error notification
+        _ = Task.Run(async () =>
+        {
+            var notification = new AgentNotification(
+                "Update Failed",
+                $"Failed to update: {error}. {(canRollback ? "Attempting rollback..." : "Please try again later.")}",
+                NotificationKind.Error)
+            {
+                Tag = "update-failed"
+            };
+
+            await _notificationService.SendAsync(notification);
+        });
+    }
+
+    private static void RestartApplication()
+    {
+        if (System.Windows.Forms.Application.OpenForms.Count > 0)
+        {
+            var mainForm = System.Windows.Forms.Application.OpenForms[0];
+            mainForm?.BeginInvoke(() =>
+            {
+                System.Windows.Forms.Application.Restart();
+            });
+        }
+        else
+        {
+            System.Windows.Forms.Application.Restart();
         }
     }
 

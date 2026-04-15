@@ -5,7 +5,7 @@
  * SOLID: ISP - Interfaces segregadas por responsabilidade
  */
 
-import type { FocusModePolicy } from './settings';
+import type { AppLanguage, FocusModePolicy } from './settings';
 
 // ============================================================================
 // BASE TYPES
@@ -39,7 +39,11 @@ export type AgentEventType =
   | 'connectionStateChanged'
   | 'focusModeChanged'
   | 'focusModeStateChanged'
-  | 'agentHealthChanged';
+  | 'agentHealthChanged'
+  | 'updateAvailable'
+  | 'updateProgress'
+  | 'updateComplete'
+  | 'updateFailed';
 
 // ============================================================================
 // EVENT PAYLOADS
@@ -157,6 +161,53 @@ export interface ConnectionStateChangedPayload {
   reconnectAttempts?: number;
 }
 
+// Kanban task events (Phase 4 integration)
+export interface NotificationReceivedPayload {
+  kind: string;
+  taskId?: string | null;
+  projectId?: string | null;
+}
+
+export interface MyTasksChangedPayload {
+  kind: string;
+  taskId?: string | null;
+}
+
+export interface TaskIdleAutoPausedPayload {
+  taskId: string;
+  taskTitle: string;
+  projectName: string;
+}
+
+// ============================================================================
+// UPDATE EVENT PAYLOADS
+// ============================================================================
+
+export interface UpdateAvailablePayload {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  fileSizeBytes: number;
+  releaseNotes: string;
+}
+
+export interface UpdateProgressPayload {
+  stage: string;
+  percentage: number;
+  message: string;
+  bytesDownloaded?: number;
+  bytesTotal?: number;
+  targetVersion?: string;
+}
+
+export interface UpdateCompletePayload {
+  version: string;
+}
+
+export interface UpdateFailedPayload {
+  error: string;
+}
+
 // Event payload map for type-safe event handling
 export interface EventPayloadMap {
   trackingStarted: TrackingStartedPayload;
@@ -171,6 +222,13 @@ export interface EventPayloadMap {
   focusModeStateChanged: FocusModeStateChangedPayload;
   agentHealthChanged: AgentHealthChangedPayload;
   connectionStateChanged: ConnectionStateChangedPayload;
+  notificationReceived: NotificationReceivedPayload;
+  myTasksChanged: MyTasksChangedPayload;
+  taskIdleAutoPaused: TaskIdleAutoPausedPayload;
+  updateAvailable: UpdateAvailablePayload;
+  updateProgress: UpdateProgressPayload;
+  updateComplete: UpdateCompletePayload;
+  updateFailed: UpdateFailedPayload;
 }
 
 // ============================================================================
@@ -193,7 +251,9 @@ export type AgentCommand =
   | 'syncNow'
   | 'updateSettings'
   | 'setWorkHours'
-  | 'recordFocusSession';
+  | 'recordFocusSession'
+  | 'checkForUpdates'
+  | 'startUpdate';
 
 // Command Payloads
 export interface StoreTokensPayload {
@@ -232,7 +292,7 @@ export interface UpdateSettingsPayload {
   // Local settings fields
   autoResumeNotificationEnabled?: boolean;
   notificationSoundsEnabled?: boolean;
-  language?: 'pt-BR' | 'en-US';
+  language?: AppLanguage;
   idleThresholdSeconds?: number;
   workGoalSeconds?: number;
 }
@@ -275,6 +335,9 @@ export interface CommandPayloadMap {
   updateSettings: UpdateSettingsPayload;
   setWorkHours: SetWorkHoursPayload;
   recordFocusSession: RecordFocusSessionPayload;
+  checkForUpdates: undefined;
+  startUpdate: undefined;
+  setLaunchAtLogin: { enabled: boolean };
 }
 
 // ============================================================================
@@ -442,6 +505,7 @@ export interface CurrentStatusResponse {
   state: 'running' | 'paused' | 'stopped' | 'idle';
   uptime: number; // seconds
   version: string;
+  desktopHostVersion?: string;
   sessionId?: string;
   lastActivity?: string;
 }
@@ -489,7 +553,7 @@ export interface TaskResponse {
 export interface LocalSettingsResponse {
   autoResumeNotificationEnabled: boolean;
   notificationSoundsEnabled: boolean;
-  language: 'pt-BR' | 'en-US';
+  language: AppLanguage;
   idleThresholdSeconds: number | null;
   workGoalSeconds: number | null;
   updatedAt: string;
@@ -509,6 +573,7 @@ export interface QueryResponseMap {
   getErrors: ErrorsResponse;
   getSettings: LocalSettingsResponse;
   getFocusModeState: FocusModeSnapshot;
+  getLaunchAtLogin: { enabled: boolean };
 }
 
 // ============================================================================

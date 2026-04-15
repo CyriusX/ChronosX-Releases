@@ -8,11 +8,15 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { useIpc } from '../../hooks/useIpc';
 import { useTrackingStore } from '../../stores/trackingStore';
+import { getDailyActivities } from '../../services/reportApi';
+import { getMyTaskEntries, type TaskEntryDto } from '../../services/projectsApi';
+import { useHiddenAppsStore } from '../../stores/hiddenAppsStore';
 import { cardBase } from './shared/styles';
 
 interface TabDetail {
@@ -47,7 +51,7 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtDuration(sec: number) {
@@ -71,6 +75,7 @@ interface ActivitySectionProps {
 }
 
 export function ActivitySection({ activities: controlledActivities, selectedDate: externalSelectedDate }: ActivitySectionProps = {}) {
+  const { t } = useTranslation();
   const [dateRange, setDateRange] = useState<DateRange>('today');
 
   // Compute selectedDate from dateRange when not externally controlled
@@ -165,6 +170,71 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     _persistedGap = gap;
   }, [isControlled, isViewingToday, isActive, localGap, activities]);
 
+  const hiddenApps = useHiddenAppsStore(s => s.hiddenApps);
+
+  // ── Task time entries ────────────────────────────────────────────────────────
+  const [taskEntries, setTaskEntries] = useState<TaskEntryDto[]>([]);
+
+  useEffect(() => {
+    const d = selectedDate ?? new Date();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    getMyTaskEntries(dateStr)
+      .then(res => setTaskEntries(res.entries ?? []))
+      .catch(() => {});
+  }, [selectedDate, now]); // re-fetch on date change; `now` ticks every 5s to keep open entry fresh
+
+  const taskBlocks = useMemo(() => {
+    return taskEntries.map((e, i) => {
+      const start = new Date(e.startedAt).getTime();
+      const end = e.endedAt ? new Date(e.endedAt).getTime() : now;
+      const left = Math.max(0, Math.min(100, ((start - dayStart) / dayMs) * 100));
+      const width = Math.max(0.2, Math.min(100 - left, ((end - start) / dayMs) * 100));
+      return { ...e, left, width, key: i };
+    });
+  }, [taskEntries, dayStart, dayMs, now]);
+
+  // ── Fast path: REST API fetch on mount (no IPC dependency) ──────────────────
+  // Fires immediately without waiting for the named pipe connection.
+  // Converts backend session DTOs to the same ActivityBlock shape IPC returns.
+  useEffect(() => {
+    if (isControlled) return;
+    const today = new Date().toISOString().split('T')[0];
+    getDailyActivities(today).then(result => {
+      if (!result?.sessions?.length) return;
+      const hiddenSet = new Set(hiddenApps.map(a => a.toLowerCase()));
+      const APP_PALETTE = [
+        '#38bdf8','#f472b6','#34d399','#fb923c','#a78bfa',
+        '#fbbf24','#22d3ee','#f87171','#4ade80','#e879f9',
+      ];
+      const colorMap = new Map<string, string>();
+      let ci = 0;
+      const blocks: ActivityBlock[] = [];
+      for (const s of result.sessions) {
+        if (hiddenSet.has(s.processName.toLowerCase())) continue;
+        if (!colorMap.has(s.processName)) {
+          colorMap.set(s.processName, APP_PALETTE[ci % APP_PALETTE.length]);
+          ci++;
+        }
+        blocks.push({
+          id: `${s.processName}-${s.startedAt}`,
+          name: s.processName,
+          startUtc: s.startedAt,
+          endUtc: s.endedAt,
+          duration: s.durationSeconds,
+          productivity: s.appCategory ?? 'neutral',
+          subcategory: s.appCategory ?? 'unknown',
+          color: colorMap.get(s.processName) ?? '#94a3b8',
+        });
+      }
+      setInternalActivities(blocks);
+    }).catch(() => { /* ignore — IPC will fill in once connected */ });
+  // Only run once on mount; IPC polling below keeps it fresh
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isControlled]);
+
+  // ── Real-time path: IPC poll (once connected) ────────────────────────────────
+  // The agent reads from local SQLite (most up-to-date, includes in-flight session).
+  // Replaces REST data as soon as the named pipe is ready.
   const fetchActivities = useCallback(async () => {
     if (isControlled) return;
     try {
@@ -185,22 +255,30 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
 
   // Build display blocks — extends or injects a live "Tracking Stopped" block when paused
   const blocks = useMemo(() => {
+    // Find the most recent "Tracking Stopped" start time so we only ever stretch
+    // the current placeholder (not historical short pauses from the same day).
+    const latestStoppedStart = activities.reduce((max, a) => {
+      if (a.name !== TRACKING_STOPPED_NAME) return max;
+      const t = new Date(a.startUtc).getTime();
+      return t > max ? t : max;
+    }, 0);
+
     const processed = activities.map(a => {
       const s = new Date(a.startUtc).getTime();
       let e = new Date(a.endUtc).getTime();
       let dur = a.duration;
       let color = a.color;
 
-      if (a.name === TRACKING_STOPPED_NAME && isViewingToday) {
-        const rawDurationMs = e - s;
-        // The backend saves a 1-second placeholder on pause. While it hasn't
-        // been extended yet (raw duration < 10s), stretch it to "now" so the
-        // block fills the gap in real-time. Once the backend returns the
-        // properly extended session (after resume + poll), the raw duration
-        // will be >> 10s and we show the final stored value instead.
-        if (rawDurationMs < 10000) {
-          e = now;
-          dur = Math.floor((e - s) / 1000);
+      if (a.name === TRACKING_STOPPED_NAME) {
+        if (isViewingToday && isTracking && isPaused && s === latestStoppedStart) {
+          // Only stretch the most recent placeholder while the user is currently paused.
+          // Historical short pauses (e.g. a 2-second pause from earlier) must NOT be
+          // stretched — they are finalized records, not live placeholders.
+          const rawDurationMs = e - s;
+          if (rawDurationMs < 10000) {
+            e = now;
+            dur = Math.floor((e - s) / 1000);
+          }
         }
         color = TRACKING_STOPPED_COLOR;
       }
@@ -281,7 +359,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                 >
                   <ChevronDown className="w-3.5 h-3.5 text-[rgba(245,247,251,0.5)]" />
                 </div>
-                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Atividade</span>
+                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.activity')}</span>
               </button>
 
               {/* Right: Date tabs + nav arrows + indicators */}
@@ -289,7 +367,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                 {/* Date filter tabs */}
                 <div className="flex items-center gap-0 bg-[rgba(255,255,255,0.03)] rounded-lg border border-[rgba(255,255,255,0.06)] p-0.5">
                   {(['today', 'yesterday', '7days'] as DateRange[]).map((range) => {
-                    const labels: Record<DateRange, string> = { today: 'Hoje', yesterday: 'Ontem', '7days': '7 dias' };
+                    const labels: Record<DateRange, string> = { today: t('dashboard.todayTab'), yesterday: t('dashboard.yesterdayTab'), '7days': t('dashboard.sevenDaysTab') };
                     const isActive = dateRange === range;
                     return (
                       <button
@@ -333,7 +411,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
             <CardContent className="pt-3 pb-3 px-4">
               {!hasBlocks ? (
                 <div className="text-center py-6">
-                  <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Nenhuma atividade registrada</p>
+                  <p className="text-[11px] text-[rgba(245,247,251,0.4)]">{t('dashboard.noActivity')}</p>
                 </div>
               ) : (
                 <div>
@@ -350,7 +428,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                     ))}
                   </div>
 
-                  {/* Timeline bar */}
+                  {/* Timeline bar — apps */}
                   <div className="relative h-[28px] rounded-md bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]">
                     {hourLabels.slice(1, -1).map((h) => (
                       <div key={h} className="absolute top-0 bottom-0 w-px bg-[rgba(255,255,255,0.03)]" style={{ left: `${(h / TOTAL_HOURS) * 100}%` }} />
@@ -377,6 +455,33 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                       </div>
                     )}
                   </div>
+
+                  {/* Task timeline — thin row showing task work periods */}
+                  {taskBlocks.length > 0 && (
+                    <div className="mt-1.5">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-[8px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.3)]">{t('dashboard.tasksTab')}</span>
+                      </div>
+                      <div className="relative h-[10px] rounded-sm bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]">
+                        {taskBlocks.map((block) => (
+                          <div
+                            key={block.key}
+                            style={{
+                              left: `${block.left}%`,
+                              width: `${block.width}%`,
+                              backgroundColor: block.projectColor,
+                              minWidth: '2px',
+                            }}
+                            className="absolute top-[1px] bottom-[1px] rounded-[2px] opacity-80 hover:opacity-100 cursor-default"
+                            title={`${block.taskTitle} · ${block.projectName}`}
+                          />
+                        ))}
+                        {nowPct >= 0 && (
+                          <div className="absolute top-0 bottom-0 w-px bg-[rgba(245,247,251,0.3)]" style={{ left: `${nowPct}%` }} />
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -394,6 +499,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
 }
 
 function ActivityTooltip({ block, anchorRect }: { block: ActivityBlock; anchorRect: DOMRect }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
@@ -429,7 +535,7 @@ function ActivityTooltip({ block, anchorRect }: { block: ActivityBlock; anchorRe
         </p>
         {block.tabs && block.tabs.length > 0 && (
           <div className="border-t border-[rgba(255,255,255,0.08)] pt-1.5 space-y-[5px]">
-            <p className="text-[8px] uppercase tracking-wider text-[rgba(245,247,251,0.25)] mb-1">Atividades</p>
+            <p className="text-[8px] uppercase tracking-wider text-[rgba(245,247,251,0.25)] mb-1">{t('dashboard.activitiesTab')}</p>
             {block.tabs.map((tab, idx) => (
               <div key={idx} className="flex items-start gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-[3px]" style={{ backgroundColor: tab.color }} />

@@ -4,6 +4,7 @@
  * CX-139: Timer Focus Card
  */
 
+import { useTranslation } from 'react-i18next';
 import { Focus, Activity, Coffee } from 'lucide-react';
 import type { FocusModeType, FocusModeState } from '../../../types/ipc';
 
@@ -20,7 +21,8 @@ export function FocusModeHeader({
   cycleNumber,
   totalCycles,
 }: FocusModeHeaderProps) {
-  const modeLabel = mode === 'Pomodoro' ? 'Pomodoro' : 'Ultradian';
+  const { t } = useTranslation();
+  const modeLabel = mode === 'Pomodoro' ? t('timer.pomodoro') : t('timer.ultradian');
   const ModeIcon = mode === 'Pomodoro' ? Focus : Activity;
 
   // Don't show if off or no mode
@@ -36,7 +38,7 @@ export function FocusModeHeader({
         <>
           <span className="text-[rgba(245,247,251,0.3)]">{'\u2022'}</span>
           <span className="text-[12px] text-[rgba(245,247,251,0.6)]">
-            Ciclo {cycleNumber} de {totalCycles}
+            {t('timer.cycleOf', { current: cycleNumber, total: totalCycles })}
           </span>
         </>
       )}
@@ -53,7 +55,8 @@ interface BreakHeaderProps {
 }
 
 export function BreakHeader({ breakType, durationMinutes }: BreakHeaderProps) {
-  const label = breakType === 'Long' ? 'Pausa longa' : 'Pausa curta';
+  const { t } = useTranslation();
+  const label = breakType === 'Long' ? t('timer.longBreak') : t('timer.shortBreak');
 
   return (
     <div className="flex items-center justify-center gap-2 mb-3">

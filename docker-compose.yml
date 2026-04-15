@@ -1,4 +1,5 @@
-version: '3.8'
+# Development docker-compose
+# For production, use docker-compose.prod.yml
 
 services:
   postgres:
@@ -18,7 +19,8 @@ services:
       timeout: 5s
       retries: 5
 
-  # Para desenvolvimento local do backend
+  # Local development backend
+  # Use .env file for secrets (see .env.example)
   api:
     build:
       context: .
@@ -26,7 +28,12 @@ services:
     container_name: timetrack-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Host=cyriusx.com;Port=4003;Database=chronosx;Username=chronos;Password=chronos;SSL Mode=Disable
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION:-Host=postgres;Database=timetrack;Username=postgres;Password=postgres}
+      - Jwt__Secret=${JWT_SECRET:-dev-secret-min-32-characters-long-for-development}
+      - Jwt__Issuer=TimeTrack
+      - Jwt__Audience=TimeTrack.Api
+      - Resend__ApiKey=${RESEND_API_KEY:-}
+      - Frontend__BaseUrl=${FRONTEND_URL:-http://localhost:5173}
     ports:
       - "5000:8080"
 

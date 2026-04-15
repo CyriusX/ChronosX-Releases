@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Mail, Loader2 } from 'lucide-react';
 import type { UserRole } from '../../types/member';
 
@@ -9,6 +10,7 @@ interface InviteFormProps {
 }
 
 export function InviteForm({ onInvite, onSuccess, onCancel }: InviteFormProps) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<UserRole>('Colaborador');
@@ -24,7 +26,7 @@ export function InviteForm({ onInvite, onSuccess, onCancel }: InviteFormProps) {
       await onInvite(email, displayName, role);
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao enviar convite');
+      setError(err instanceof Error ? err.message : t('settings.members.inviteError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -36,33 +38,33 @@ export function InviteForm({ onInvite, onSuccess, onCancel }: InviteFormProps) {
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#8B5CF6] to-[#22D3EE] flex items-center justify-center">
           <Mail className="w-4 h-4 text-white" />
         </div>
-        <h3 className="text-[14px] font-medium text-[#f5f7fb]">Novo Convite</h3>
+        <h3 className="text-[14px] font-medium text-[#f5f7fb]">{t('settings.members.newInvite')}</h3>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-[11px] text-[rgba(245,247,251,0.5)] mb-1.5">
-              Nome
+              {t('settings.members.name')}
             </label>
             <input
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Nome do colaborador"
+              placeholder={t('settings.members.namePlaceholder')}
               className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] placeholder:text-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#8B5CF6]"
               required
             />
           </div>
           <div>
             <label className="block text-[11px] text-[rgba(245,247,251,0.5)] mb-1.5">
-              Email
+              {t('settings.members.email')}
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@exemplo.com"
+              placeholder={t('settings.members.emailPlaceholder')}
               className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] placeholder:text-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#8B5CF6]"
               required
             />
@@ -71,7 +73,7 @@ export function InviteForm({ onInvite, onSuccess, onCancel }: InviteFormProps) {
 
         <div>
           <label className="block text-[11px] text-[rgba(245,247,251,0.5)] mb-1.5">
-            Função
+            {t('settings.members.role')}
           </label>
           <div className="flex gap-2">
             {(['Colaborador', 'Gestor', 'Admin'] as UserRole[]).map((r) => (
@@ -101,7 +103,7 @@ export function InviteForm({ onInvite, onSuccess, onCancel }: InviteFormProps) {
             onClick={onCancel}
             className="px-4 py-2 rounded-lg text-[13px] font-medium text-[rgba(245,247,251,0.6)] hover:text-[rgba(245,247,251,0.9)] transition-colors"
           >
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button
             type="submit"
@@ -109,7 +111,7 @@ export function InviteForm({ onInvite, onSuccess, onCancel }: InviteFormProps) {
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE] rounded-lg text-[13px] font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-            Enviar Convite
+            {t('settings.members.sendInvite')}
           </button>
         </div>
       </form>

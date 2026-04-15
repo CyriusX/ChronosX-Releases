@@ -19,17 +19,20 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
 
     private readonly IUserRepository _userRepository;
     private readonly IReportRepository _reportRepository;
+    private readonly ITaskTimeEntryRepository _taskEntryRepository;
     private readonly ICurrentUserContext _currentUser;
     private readonly ILogger<GetTeamMemberSummaryCommandHandler> _logger;
 
     public GetTeamMemberSummaryCommandHandler(
         IUserRepository userRepository,
         IReportRepository reportRepository,
+        ITaskTimeEntryRepository taskEntryRepository,
         ICurrentUserContext currentUser,
         ILogger<GetTeamMemberSummaryCommandHandler> logger)
     {
         _userRepository = userRepository;
         _reportRepository = reportRepository;
+        _taskEntryRepository = taskEntryRepository;
         _currentUser = currentUser;
         _logger = logger;
     }
@@ -59,11 +62,13 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
             activity.TotalSeconds, activity.Apps.Count(),
             activity.Apps.Sum(a => a.TotalSeconds));
 
-        // Filter out internal apps and recalculate total
+        // Internal apps are already filtered out by the repository before computing the merged total.
+        // Use activity.TotalSeconds (merged, non-overlapping) directly to avoid double-counting
+        // sessions from multiple devices that overlap in time.
         var filteredApps = activity.Apps
             .Where(a => !_internalApps.Contains(a.ProcessName))
             .ToList();
-        var totalSeconds = filteredApps.Sum(a => a.TotalSeconds);
+        var totalSeconds = activity.TotalSeconds;
 
         _logger.LogInformation(
             "[MemberSummary] After internal filter: FilteredApps={FilteredCount} FilteredSum={FilteredSum}s TotalSeconds={TotalSeconds}s",
@@ -112,6 +117,9 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
         // Use filteredApps (internal apps already excluded) so the count matches visible totals
         var sessionsCount = filteredApps.Sum(a => a.SessionCount);
 
+        // Top projects + tasks for the day, computed from TaskTimeEntry rows
+        var (topProjects, topTasks) = await BuildTaskBreakdownAsync(request.TargetUserId, today, request.Timezone, totalSeconds, cancellationToken);
+
         return new TeamMemberSummaryResponse
         {
             TotalDuration = totalSeconds,
@@ -120,13 +128,83 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
             FocusTime = 0,
             FocusScore = 0,
             SessionsCount = sessionsCount,
-            TopProjects = [],
+            TopProjects = topProjects,
+            TopTasks = topTasks,
             TopApplications = appsByName.Take(10).ToList(),
             TopAppsByExe = appsByName.Take(10).ToList(),
             Categories = categories,
             WeeklyHistory = weeklyHistory,
-            LastSyncAt = DateTime.UtcNow.ToString("o") // When this data was fetched from the backend
+            LastSyncAt = activity.LastActivity?.ToString("o")
         };
+    }
+
+    private async Task<(List<MemberProjectSummary>, List<MemberTaskSummary>)> BuildTaskBreakdownAsync(
+        Guid userId, DateTime localToday, string? timezone, long totalSeconds, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Compute UTC range for "today" in the user's local timezone
+            var tz = string.IsNullOrEmpty(timezone) ? TimeZoneInfo.Utc : TimeZoneInfo.FindSystemTimeZoneById(timezone);
+            var localStart = DateTime.SpecifyKind(localToday.Date, DateTimeKind.Unspecified);
+            var localEnd = localStart.AddDays(1);
+            var startUtc = TimeZoneInfo.ConvertTimeToUtc(localStart, tz);
+            var endUtc = TimeZoneInfo.ConvertTimeToUtc(localEnd, tz);
+
+            var entries = await _taskEntryRepository.ListForUserInRangeAsync(userId, startUtc, endUtc, cancellationToken);
+            var now = DateTime.UtcNow;
+
+            // Compute clipped duration per entry
+            long Clip(Domain.Entities.TaskTimeEntry e)
+            {
+                var s = e.StartedAt < startUtc ? startUtc : e.StartedAt;
+                var en = (e.EndedAt ?? now);
+                if (en > endUtc) en = endUtc;
+                var elapsed = (long)(en - s).TotalSeconds - e.PausedSeconds;
+                return Math.Max(0, elapsed);
+            }
+
+            var byTask = entries
+                .Where(e => e.Task != null)
+                .GroupBy(e => e.TaskId)
+                .Select(g =>
+                {
+                    var first = g.First();
+                    return new MemberTaskSummary
+                    {
+                        TaskId = first.TaskId,
+                        Title = first.Task!.Title,
+                        ProjectId = first.Task.ProjectId,
+                        ProjectName = first.Task.Project?.Name ?? string.Empty,
+                        ProjectColor = first.Task.Project?.Color ?? "#4A9FFF",
+                        Duration = g.Sum(Clip),
+                        Status = first.Task.Status.ToString()
+                    };
+                })
+                .Where(t => t.Duration > 0)
+                .OrderByDescending(t => t.Duration)
+                .ToList();
+
+            var byProject = byTask
+                .GroupBy(t => new { t.ProjectId, t.ProjectName, t.ProjectColor })
+                .Select(g => new MemberProjectSummary
+                {
+                    ProjectId = g.Key.ProjectId,
+                    Name = g.Key.ProjectName,
+                    Color = g.Key.ProjectColor,
+                    Duration = g.Sum(t => t.Duration),
+                    Percentage = totalSeconds > 0 ? Math.Round((double)g.Sum(t => t.Duration) / totalSeconds * 100, 1) : 0
+                })
+                .OrderByDescending(p => p.Duration)
+                .Take(10)
+                .ToList();
+
+            return (byProject, byTask.Take(10).ToList());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to build task breakdown for user {UserId}", userId);
+            return ([], []);
+        }
     }
 
     /// <summary>
@@ -162,10 +240,8 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
             try
             {
                 var dayActivity = await _reportRepository.GetDailyActivityAggregateAsync(userId, date, timezone, cancellationToken);
-                var filteredSeconds = dayActivity.Apps
-                    .Where(a => !_internalApps.Contains(a.ProcessName))
-                    .Sum(a => a.TotalSeconds);
-                hours = filteredSeconds / 3600.0;
+                // TotalSeconds is already the merged (non-overlapping) total with internal apps filtered out
+                hours = dayActivity.TotalSeconds / 3600.0;
             }
             catch
             {

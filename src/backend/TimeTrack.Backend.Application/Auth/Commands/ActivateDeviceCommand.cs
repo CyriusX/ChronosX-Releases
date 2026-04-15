@@ -95,6 +95,15 @@ public sealed class ActivateDeviceCommandHandler : IRequestHandler<ActivateDevic
             _ => DisplayMode.Background
         };
 
+        // Deactivate any existing active devices for this user with the same hostname
+        // (handles reinstalls that generate a new device GUID)
+        var existingForUser = await _deviceRepository.GetActiveByUserIdAsync(_currentUser.UserId.Value, cancellationToken);
+        foreach (var stale in existingForUser.Where(d => d.Hostname == request.Hostname))
+        {
+            stale.Deactivate();
+            await _deviceRepository.UpdateAsync(stale, cancellationToken);
+        }
+
         // Create new device
         var device = Domain.Entities.Device.Create(
             request.DeviceId,

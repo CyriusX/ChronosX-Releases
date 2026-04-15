@@ -332,13 +332,47 @@ public sealed class ReportRepository : IReportRepository
             }
             : null;
 
+        // Compute total as merged (non-overlapping) intervals so that sessions from
+        // multiple devices that overlap in time are not double-counted.
+        var clippedIntervals = sessions.Select(s => (
+            Start: s.StartedAt < startOfDay ? startOfDay : s.StartedAt,
+            End:   s.EndedAt   > dayEndExclusive ? dayEndExclusive : s.EndedAt
+        ));
+        var mergedTotalSeconds = ComputeMergedSeconds(clippedIntervals);
+
         return new DailyActivityAggregate
         {
-            TotalSeconds = sessions.Sum(a => a.DurationSeconds),
+            TotalSeconds = (int)mergedTotalSeconds,
             FirstActivity = timeBounds?.FirstActivity,
             LastActivity = timeBounds?.LastActivity,
             Apps = appGroups
         };
+    }
+
+    /// <summary>
+    /// Merges overlapping time intervals and returns the total non-overlapping duration in seconds.
+    /// Prevents double-counting when the same user has sessions from multiple devices.
+    /// </summary>
+    private static long ComputeMergedSeconds(IEnumerable<(DateTime Start, DateTime End)> intervals)
+    {
+        var sorted = intervals
+            .Where(i => i.End > i.Start)
+            .OrderBy(i => i.Start)
+            .ToList();
+
+        if (sorted.Count == 0) return 0;
+
+        var merged = new List<(DateTime Start, DateTime End)> { sorted[0] };
+        foreach (var (start, end) in sorted.Skip(1))
+        {
+            var last = merged[^1];
+            if (start <= last.End)
+                merged[^1] = (last.Start, end > last.End ? end : last.End);
+            else
+                merged.Add((start, end));
+        }
+
+        return (long)merged.Sum(m => (m.End - m.Start).TotalSeconds);
     }
 
     public async Task<long> GetDailyIdleSecondsAsync(
@@ -387,44 +421,54 @@ public sealed class ReportRepository : IReportRepository
     {
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
-        // Overlap query + clip: sessions crossing the range boundary contribute only the
-        // portion that falls within [start, end].
+        // Push GroupBy + Sum to the database — avoids loading every session row into memory.
+        // Clipping cross-boundary sessions is done in SQL using GREATEST/LEAST equivalents
+        // via EF's Math.Max/Min which translate correctly to PostgreSQL.
         var endExclusive = end.AddTicks(1);
-        var rawSessions = await _context.ActivitySessions
+
+        // Group by ProcessName + category in SQL, then clip and sum duration per group.
+        // EF translates this to a single aggregating query rather than fetching all rows.
+        var rawGroups = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
-            .Select(a => new { a.ProcessName, a.StartedAt, a.EndedAt, a.AppCategory, a.AppSubcategory })
+            .GroupBy(a => new { a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .Select(g => new
+            {
+                g.Key.ProcessName,
+                g.Key.AppCategory,
+                g.Key.AppSubcategory,
+                // Raw sum of durations clipped to the queried window — done in SQL
+                TotalSeconds = g.Sum(a =>
+                    (int)((a.EndedAt > endExclusive ? endExclusive : a.EndedAt) -
+                          (a.StartedAt < start ? start : a.StartedAt)).TotalSeconds),
+                SessionCount = g.Count()
+            })
             .ToListAsync(cancellationToken);
 
-        // Clip each session to the queried range boundaries
-        var sessions = rawSessions.Select(a => new {
-            a.ProcessName,
-            DurationSeconds = (int)Math.Max(0, (
-                (a.EndedAt > endExclusive ? endExclusive : a.EndedAt) -
-                (a.StartedAt < start ? start : a.StartedAt)
-            ).TotalSeconds),
-            a.AppCategory, a.AppSubcategory
-        }).ToList();
-
-        // Filter out internal/system apps to match dashboard totals
-        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+        // Filter out internal apps (can't push to SQL — HashSet uses OrdinalIgnoreCase)
+        var filteredGroups = rawGroups
+            .Where(a => !InternalApps.Contains(a.ProcessName))
+            .ToList();
 
         // Load org-level overrides for this user
         var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
-        var appGroups = sessions
+        // Merge rows that share the same ProcessName but differ by category (override may change it)
+        var appGroups = filteredGroups
             .GroupBy(a => a.ProcessName)
             .Select(g =>
             {
-                var productivity = ResolveProductivityWithOverrides(g.Key, g.First().AppCategory, overrides);
+                var totalSecs = g.Sum(a => a.TotalSeconds);
+                var dominant = g.OrderByDescending(a => a.TotalSeconds).First();
+                var productivity = ResolveProductivityWithOverrides(dominant.ProcessName, dominant.AppCategory, overrides);
                 return new AppAggregate
                 {
-                    ProcessName = g.Key,
-                    TotalSeconds = g.Sum(a => a.DurationSeconds),
-                    SessionCount = g.Count(),
+                    ProcessName = dominant.ProcessName,
+                    TotalSeconds = totalSecs,
+                    SessionCount = g.Sum(a => a.SessionCount),
                     Productivity = productivity,
-                    Subcategory = ResolveSubcategoryWithOverrides(g.Key, g.First().AppCategory, g.First().AppSubcategory, overrides),
-                    DisplayName = FormatDisplayName(g.Key)
+                    Subcategory = ResolveSubcategoryWithOverrides(dominant.ProcessName, dominant.AppCategory, dominant.AppSubcategory, overrides),
+                    DisplayName = FormatDisplayName(dominant.ProcessName)
                 };
             })
             .Where(a => productivityFilter == null ||
@@ -462,14 +506,14 @@ public sealed class ReportRepository : IReportRepository
         var rawSessionsForRange = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
-            .Select(a => new { a.StartedAt, a.EndedAt, a.ProcessName, a.AppCategory, a.AppSubcategory })
+            .Select(a => new { a.StartedAt, a.EndedAt, a.ProcessName, a.AppCategory, a.AppSubcategory, a.TaskId })
             .ToListAsync(cancellationToken);
 
         // Compute duration from timestamps to avoid stale DurationSeconds
         var sessions = rawSessionsForRange.Select(a => new {
             a.StartedAt, a.EndedAt,
             DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds,
-            a.ProcessName, a.AppCategory, a.AppSubcategory
+            a.ProcessName, a.AppCategory, a.AppSubcategory, a.TaskId
         }).ToList();
 
         // Filter out internal/system apps in-memory (EF can't translate HashSet.Contains with OrdinalIgnoreCase)
@@ -521,13 +565,25 @@ public sealed class ReportRepository : IReportRepository
                 return Math.Clamp(clippedSeconds, 0, rawDuration);
             }
 
-            var totalActive = daySessions.Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
+            // Use merged intervals to prevent double-counting overlapping sessions
+            // (e.g. from agent restarts that create new sessions for the same time window).
+            var clippedActiveIntervals = daySessions.Select(s => (
+                Start: s.StartedAt < dayStart ? dayStart : s.StartedAt,
+                End:   s.EndedAt > dayEndExclusive ? dayEndExclusive : s.EndedAt
+            ));
+            var totalActive = ComputeMergedSeconds(clippedActiveIntervals);
             var totalIdle = dayIdle.Sum(i => ClipDuration(i.StartedAt, i.EndedAt, i.DurationSeconds));
 
-            // Calcular produtividade (using clipped durations + overrides)
-            var productiveSeconds = daySessions
-                .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
-                .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
+            // Calcular produtividade (using merged intervals + overrides).
+            // A session that ran while a kanban task was in progress (TaskId set) ALWAYS counts
+            // as productive — the user explicitly opted into focused work on a tracked task.
+            var clippedProductiveIntervals = daySessions
+                .Where(s => s.TaskId != null || ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
+                .Select(s => (
+                    Start: s.StartedAt < dayStart ? dayStart : s.StartedAt,
+                    End:   s.EndedAt > dayEndExclusive ? dayEndExclusive : s.EndedAt
+                ));
+            var productiveSeconds = ComputeMergedSeconds(clippedProductiveIntervals);
 
             // DEBUG: Log productivity calculation
             var productiveCount = daySessions.Count(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive");
@@ -548,22 +604,23 @@ public sealed class ReportRepository : IReportRepository
 
             if (totalActive > 0)
             {
-                // Contar distrações (apps únicos de distração)
+                // Contar distrações (apps únicos de distração) — task-linked sessions never count.
                 distractionCount = daySessions
-                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
+                    .Where(s => s.TaskId == null && ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
                     .Select(s => s.ProcessName)
                     .Distinct()
                     .Count();
 
-                // Contar blocos de foco longo (>25min consecutivos em apps produtivos)
+                // Contar blocos de foco longo (>25min consecutivos em apps produtivos OU vinculados a tarefas)
                 // Use clipped durations for accurate day-level accounting
                 var currentFocusBlockSeconds = 0L;
                 foreach (var session in daySessions.OrderBy(s => s.StartedAt))
                 {
-                    var category = ResolveProductivityWithOverrides(session.ProcessName, session.AppCategory, overrides);
+                    var isProductive = session.TaskId != null
+                        || ResolveProductivityWithOverrides(session.ProcessName, session.AppCategory, overrides) == "productive";
                     var durationSeconds = ClipDuration(session.StartedAt, session.EndedAt, session.DurationSeconds);
 
-                    if (category == "productive")
+                    if (isProductive)
                     {
                         currentFocusBlockSeconds += durationSeconds;
                     }
@@ -580,7 +637,7 @@ public sealed class ReportRepository : IReportRepository
 
                 // Calcular Focus Score (using clipped durations)
                 var distractionMs = daySessions
-                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
+                    .Where(s => s.TaskId == null && ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
                     .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds) * 1000);
 
                 var input = FocusScoreInput.Create(

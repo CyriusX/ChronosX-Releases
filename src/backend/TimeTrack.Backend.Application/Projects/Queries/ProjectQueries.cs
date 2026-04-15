@@ -55,19 +55,30 @@ public sealed class ListProjectsQueryHandler : IRequestHandler<ListProjectsQuery
 
         return new ListProjectsResponse
         {
-            Projects = projectList.Select(p => new ProjectResponse
-            {
-                Id = p.Id,
-                Name = p.Name,
-                Description = p.Description,
-                Color = p.Color,
-                Status = p.Status.ToString(),
-                CreatedAt = p.CreatedAt,
-                UpdatedAt = p.UpdatedAt
-            }).ToList(),
+            Projects = projectList.Select(ProjectResponseMapper.Map).ToList(),
             TotalCount = totalCount
         };
     }
+}
+
+internal static class ProjectResponseMapper
+{
+    public static ProjectResponse Map(Domain.Entities.Project p) => new()
+    {
+        Id = p.Id,
+        Name = p.Name,
+        Description = p.Description,
+        Color = p.Color,
+        Status = p.Status.ToString(),
+        CreatedAt = p.CreatedAt,
+        UpdatedAt = p.UpdatedAt,
+        IsBillable = p.IsBillable,
+        Currency = p.Currency,
+        HourlyRate = p.HourlyRate,
+        SyncSource = p.SyncSource.ToString(),
+        LinearProjectId = p.LinearProjectId,
+        LastSyncedAt = p.LastSyncedAt
+    };
 }
 
 /// <summary>
@@ -91,15 +102,6 @@ public sealed class GetProjectQueryHandler : IRequestHandler<GetProjectQuery, Pr
         if (project == null)
             throw new NotFoundException("Project", request.ProjectId);
 
-        return new ProjectResponse
-        {
-            Id = project.Id,
-            Name = project.Name,
-            Description = project.Description,
-            Color = project.Color,
-            Status = project.Status.ToString(),
-            CreatedAt = project.CreatedAt,
-            UpdatedAt = project.UpdatedAt
-        };
+        return ProjectResponseMapper.Map(project);
     }
 }

@@ -60,7 +60,12 @@ public sealed class DevicesController : ControllerBase
             request?.OsVersion,
             request?.IpAddress,
             request?.UptimeSeconds,
-            request?.TrackingState));
+            request?.TrackingState,
+            request?.HealthStatus,
+            request?.BackendReachable,
+            request?.ConsecutiveSyncFailures,
+            request?.LastSuccessfulSyncAt,
+            request?.IpcConnected));
         return Ok(result);
     }
 

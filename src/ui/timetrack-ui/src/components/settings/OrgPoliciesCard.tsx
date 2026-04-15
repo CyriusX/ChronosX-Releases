@@ -1,4 +1,5 @@
 import { Building2, Clock, Ban, Focus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { OrgPolicies } from '../../types/settings';
 
 interface OrgPoliciesCardProps {
@@ -12,6 +13,7 @@ interface OrgPoliciesCardProps {
  * Elas são definidas pelo Admin e sincronizadas via cloud.
  */
 export function OrgPoliciesCard({ policies }: OrgPoliciesCardProps) {
+  const { t } = useTranslation();
   const formatWorkHours = () => {
     const { startHour, endHour } = policies.workHours;
     return `${String(startHour).padStart(2, '0')}:00 - ${String(endHour).padStart(2, '0')}:00`;
@@ -30,7 +32,7 @@ export function OrgPoliciesCard({ policies }: OrgPoliciesCardProps) {
     if (minutes > 0 && seconds > 0) {
       return `${minutes}min ${seconds}s`;
     }
-    return minutes > 0 ? `${minutes} minutos` : `${seconds} segundos`;
+    return minutes > 0 ? `${minutes} ${t('policies.idleThreshold.minutes')}` : `${seconds} ${t('policies.idleThreshold.seconds')}`;
   };
 
   return (
@@ -41,9 +43,9 @@ export function OrgPoliciesCard({ policies }: OrgPoliciesCardProps) {
           <Building2 className="w-4 h-4 text-white" />
         </div>
         <div>
-          <h3 className="text-[14px] font-medium text-[#f5f7fb]">Políticas da Organização</h3>
+          <h3 className="text-[14px] font-medium text-[#f5f7fb]">{t('policies.orgPolicies.title')}</h3>
           <p className="text-[11px] text-[rgba(245,247,251,0.4)]">
-            Configuradas pelo administrador
+            {t('policies.orgPolicies.subtitle')}
           </p>
         </div>
       </div>
@@ -56,7 +58,7 @@ export function OrgPoliciesCard({ policies }: OrgPoliciesCardProps) {
             <Clock className="w-3.5 h-3.5 text-[#8B5CF6]" />
           </div>
           <div className="flex-1">
-            <p className="text-[13px] text-[rgba(245,247,251,0.9)]">Horário de trabalho</p>
+            <p className="text-[13px] text-[rgba(245,247,251,0.9)]">{t('policies.workHours.title')}</p>
             <p className="text-[12px] text-[rgba(245,247,251,0.5)] mt-0.5">
               {formatWorkHours()} • {formatWorkDays()}
             </p>
@@ -72,7 +74,7 @@ export function OrgPoliciesCard({ policies }: OrgPoliciesCardProps) {
             <Ban className="w-3.5 h-3.5 text-[#f3d05d]" />
           </div>
           <div className="flex-1">
-            <p className="text-[13px] text-[rgba(245,247,251,0.9)]">Threshold de inatividade</p>
+            <p className="text-[13px] text-[rgba(245,247,251,0.9)]">{t('policies.idleThreshold.title')}</p>
             <p className="text-[12px] text-[rgba(245,247,251,0.5)] mt-0.5">
               {formatIdleThreshold()} sem atividade
             </p>
@@ -88,11 +90,11 @@ export function OrgPoliciesCard({ policies }: OrgPoliciesCardProps) {
             <Focus className="w-3.5 h-3.5 text-[#05df72]" />
           </div>
           <div className="flex-1">
-            <p className="text-[13px] text-[rgba(245,247,251,0.9)]">Modo de foco</p>
+            <p className="text-[13px] text-[rgba(245,247,251,0.9)]">{t('policies.focusMode.title')}</p>
             <p className="text-[12px] text-[rgba(245,247,251,0.5)] mt-0.5">
               {policies.focusMode.enabled
-                ? `Ativo (${policies.focusMode.mode === 'pomodoro' ? 'Pomodoro' : 'Ciclo Ultradian'})`
-                : 'Desativado'}
+                ? `${t('policies.focusMode.enabled')} (${policies.focusMode.mode === 'pomodoro' ? t('policies.focusMode.pomodoro') : t('policies.focusMode.ultradian')})`
+                : t('policies.focusMode.disabled')}
             </p>
           </div>
         </div>
@@ -101,7 +103,7 @@ export function OrgPoliciesCard({ policies }: OrgPoliciesCardProps) {
       {/* Footer Note */}
       <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.04)]">
         <p className="text-[11px] text-[rgba(245,247,251,0.35)] italic">
-          Estas configurações são definidas pela sua organização e não podem ser alteradas.
+          {t('policies.orgPolicies.subtitle')}
         </p>
       </div>
     </div>

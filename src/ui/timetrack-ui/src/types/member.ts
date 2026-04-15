@@ -27,6 +27,9 @@ export interface TeamMemberStatus {
   todayDurationSeconds: number;
   todayDurationFormatted: string;
   isTracking: boolean;
+  lastSyncAt?: string | null;
+  /** Productivity ratio from daily summary (0.0-1.0), enriched by useTeamStatus */
+  productivityRatio?: number;
 }
 
 export interface TeamStatusResponse {

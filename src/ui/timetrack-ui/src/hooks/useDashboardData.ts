@@ -61,23 +61,28 @@ export function useDashboardData() {
         setTrackingState(stateResponse.data as TrackingStateResponse);
       }
 
-      // Fetch today's summary from cloud API using the current-user endpoint (no role restriction)
+      // Fetch today's summary — IPC (local SQLite) is the source of truth for today.
+      // Cloud API only has data after sync, which may lag or be unavailable.
+      // We try cloud AFTER local to merge weekly history from the backend.
+      const summaryResponse = await sendQuery('getTodaySummary');
+      if (summaryResponse.success && summaryResponse.data) {
+        setTodaySummary(summaryResponse.data as TodaySummaryResponse);
+      }
+
+      // Optionally enrich with cloud data (e.g., weekly history) without overriding local
       if (currentUser?.id) {
         try {
           const cloudSummary = await getMySummary();
-          setTodaySummary(cloudSummary as unknown as TodaySummaryResponse);
-        } catch {
-          // Fallback to IPC if REST API fails
-          const summaryResponse = await sendQuery('getTodaySummary');
-          if (summaryResponse.success && summaryResponse.data) {
-            setTodaySummary(summaryResponse.data as TodaySummaryResponse);
+          if (cloudSummary) {
+            const localSummary = summaryResponse.success && summaryResponse.data
+              ? summaryResponse.data as TodaySummaryResponse
+              : null;
+            if (!localSummary) {
+              setTodaySummary(cloudSummary as unknown as TodaySummaryResponse);
+            }
           }
-        }
-      } else {
-        // Not authenticated yet — use IPC
-        const summaryResponse = await sendQuery('getTodaySummary');
-        if (summaryResponse.success && summaryResponse.data) {
-          setTodaySummary(summaryResponse.data as TodaySummaryResponse);
+        } catch {
+          // Cloud unavailable — local IPC data already set above
         }
       }
 
@@ -243,12 +248,9 @@ export function useDashboardData() {
 
     const unsubscribe = subscribeToEvent('syncCompleted', () => {
       console.log('[Dashboard] Sync completed');
-      // Refresh sync state
-      sendQuery('getSyncState').then((response) => {
-        if (response.success && response.data) {
-          setSyncState(response.data as SyncStateResponse);
-        }
-      });
+      // Refresh all dashboard data — newly synced sessions from other devices
+      // should appear in the local dashboard immediately after sync.
+      fetchDashboardData();
     });
 
     return unsubscribe;

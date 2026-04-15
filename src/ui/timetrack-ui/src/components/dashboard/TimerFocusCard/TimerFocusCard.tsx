@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Play, Pause, Square, ChevronDown, MoreVertical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { TagPill } from '../shared/TagPill';
@@ -23,7 +24,8 @@ interface TimerFocusCardProps {
 const TAG_COLORS = ['#8B5CF6', '#22D3EE', '#3B82F6', '#F59E0B', '#10B981', '#EC4899'];
 
 export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
-  const { sendQuery } = useIpc();
+  const { t } = useTranslation();
+  const { sendQuery, sendCommand } = useIpc();
 
   // --- Shared timer state from store ---
   const mode = useTimerStore(s => s.mode);
@@ -37,6 +39,11 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
   const start = useTimerStore(s => s.start);
   const togglePause = useTimerStore(s => s.togglePause);
   const stop = useTimerStore(s => s.stop);
+
+  // --- Tracking-connected handlers ---
+  const handleStart = () => { start(); sendCommand('startTracking'); };
+  const handleTogglePause = () => { togglePause(); sendCommand(isPaused ? 'resumeTracking' : 'pauseTracking'); };
+  const handleStop = () => { stop(); sendCommand('pauseTracking'); };
   const setSelectedProject = useTimerStore(s => s.setSelectedProject);
 
   // --- Local UI state ---
@@ -63,12 +70,12 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
     ? isPaused ? '#fbbf24' : '#05df72'
     : 'rgba(245,247,251,0.3)';
   const statusLabel = isRunning
-    ? isPaused ? 'Pausado' : 'Em andamento'
-    : 'Inativo';
+    ? isPaused ? t('timer.paused') : t('timer.inProgress')
+    : t('timer.inactive');
 
   const selectedProjectName = selectedProject
     ? projects.find(p => p.id === selectedProject)?.name ?? selectedProject
-    : 'Sem projeto';
+    : t('timer.noProject');
 
   const addTag = (tag: string) => {
     const trimmed = tag.trim();
@@ -87,7 +94,7 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
     <Card className={`${cardBase} h-full`}>
       <CardHeader className="pb-0 pt-3 px-4">
         <CardTitle className="flex items-center justify-between">
-          <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Timer</span>
+          <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('timer.timerTitle')}</span>
           <div className="flex items-center gap-2">
             {/* Mode toggle (compact) */}
             {!isRunning && (
@@ -121,7 +128,7 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
 
           {/* Project selector */}
           <div className="relative">
-            <label className="text-[9px] uppercase tracking-wider text-[rgba(245,247,251,0.3)] mb-1 block">Projeto</label>
+            <label className="text-[9px] uppercase tracking-wider text-[rgba(245,247,251,0.3)] mb-1 block">{t('timer.project')}</label>
             <button
               onClick={() => setShowProjectDropdown(!showProjectDropdown)}
               className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-[10px] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
@@ -131,7 +138,7 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
             </button>
             {showProjectDropdown && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-lg overflow-hidden z-10 shadow-xl max-h-[120px] overflow-y-auto">
-                <button onClick={() => { setSelectedProject(''); setShowProjectDropdown(false); }} className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors ${!selectedProject ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>Sem projeto</button>
+                <button onClick={() => { setSelectedProject(''); setShowProjectDropdown(false); }} className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors ${!selectedProject ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>{t('timer.noProject')}</button>
                 {projects.map((p) => (
                   <button key={p.id} onClick={() => { setSelectedProject(p.id); setShowProjectDropdown(false); }} className={`w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors truncate ${selectedProject === p.id ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>{p.name}</button>
                 ))}
@@ -141,7 +148,7 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
 
           {/* Tags */}
           <div>
-            <label className="text-[9px] uppercase tracking-wider text-[rgba(245,247,251,0.3)] mb-1 block">Tags</label>
+            <label className="text-[9px] uppercase tracking-wider text-[rgba(245,247,251,0.3)] mb-1 block">{t('timer.tags')}</label>
             <div className="flex flex-wrap gap-1.5 items-center">
               {tags.map((tag, i) => (
                 <TagPill
@@ -180,25 +187,25 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
           <div className="flex gap-2 mt-1">
             {phase === 'idle' ? (
               <button
-                onClick={start}
+                onClick={handleStart}
                 className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-full bg-gradient-to-r from-[#05df72] to-[#00b8db] text-[11px] font-medium text-white hover:opacity-90 transition-opacity shadow-[0_3px_12px_rgba(5,223,114,0.25)]"
               >
-                <Play className="w-3.5 h-3.5" /> Iniciar
+                <Play className="w-3.5 h-3.5" /> {t('timer.start')}
               </button>
             ) : (
               <>
                 <button
-                  onClick={togglePause}
+                  onClick={handleTogglePause}
                   className="flex items-center justify-center gap-1 flex-1 py-2 rounded-full bg-gradient-to-r from-[#05df72] to-[#00b8db] text-[11px] font-medium text-white hover:opacity-90 transition-opacity shadow-[0_3px_12px_rgba(5,223,114,0.2)]"
                 >
                   {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-                  {isPaused ? 'Retomar' : 'Pausar'}
+                  {isPaused ? t('timer.resume') : t('timer.pause')}
                 </button>
                 <button
-                  onClick={stop}
+                  onClick={handleStop}
                   className="flex items-center justify-center gap-1 px-4 py-2 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[11px] font-medium text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
                 >
-                  <Square className="w-3 h-3" /> Finalizar
+                  <Square className="w-3 h-3" /> {t('timer.finish')}
                 </button>
               </>
             )}
@@ -216,6 +223,7 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
 export function PomodoroRing({ progress, phase, phaseColor, phaseGlow, timeDisplay }: {
   progress: number; phase: TimerPhase; phaseColor: string; phaseGlow: string; timeDisplay: string;
 }) {
+  const { t } = useTranslation();
   const size = 110;
   const cx = size / 2;
   const cy = size / 2;
@@ -251,7 +259,7 @@ export function PomodoroRing({ progress, phase, phaseColor, phaseGlow, timeDispl
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-[24px] font-bold font-mono tracking-wider" style={{ color: phase === 'idle' ? 'rgba(245,247,251,0.6)' : '#f5f7fb' }}>{timeDisplay}</span>
-        {phase !== 'idle' && <span className="text-[8px] uppercase tracking-widest mt-0.5" style={{ color: phaseColor }}>{phase === 'focus' ? 'focando' : 'descansando'}</span>}
+        {phase !== 'idle' && <span className="text-[8px] uppercase tracking-widest mt-0.5" style={{ color: phaseColor }}>{phase === 'focus' ? t('timer.focusing') : t('timer.resting')}</span>}
       </div>
     </div>
   );
@@ -264,6 +272,7 @@ export function PomodoroRing({ progress, phase, phaseColor, phaseGlow, timeDispl
 export function UltradianWave({ progress, phase, timeDisplay, totalWaves, currentWave }: {
   progress: number; phase: TimerPhase; timeDisplay: string; totalWaves: number; currentWave: number;
 }) {
+  const { t } = useTranslation();
   const w = 220;
   const h = 100;
   const padX = 8;
@@ -338,7 +347,7 @@ export function UltradianWave({ progress, phase, timeDisplay, totalWaves, curren
         <span className="text-[22px] font-bold font-mono tracking-wider" style={{ color: isIdle ? 'rgba(245,247,251,0.5)' : '#f5f7fb' }}>{timeDisplay}</span>
         {!isIdle && (
           <span className="text-[8px] uppercase tracking-widest ml-2" style={{ color: activeColor }}>
-            {phase === 'focus' ? 'peak' : 'recovery'}
+            {phase === 'focus' ? t('timer.peak') : t('timer.recovery')}
           </span>
         )}
       </div>
@@ -358,7 +367,7 @@ export function UltradianWave({ progress, phase, timeDisplay, totalWaves, curren
           const cx = padX + ((i + 0.5) / totalWaves) * graphW;
           return (
             <text key={i} x={cx} y={h - 4} textAnchor="middle" fontSize="7" fill={i === currentWave && !isIdle ? 'rgba(245,247,251,0.6)' : 'rgba(245,247,251,0.2)'} fontFamily="sans-serif">
-              {totalWaves === 1 ? 'FOCUS · REST' : `Onda ${i + 1}`}
+              {totalWaves === 1 ? t('timer.focusRest') : t('timer.waveLabel', { number: i + 1 })}
             </text>
           );
         })}

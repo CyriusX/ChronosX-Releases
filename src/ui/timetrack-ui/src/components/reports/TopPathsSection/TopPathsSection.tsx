@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { ExternalLink, FolderOpen, MoreHorizontal, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
@@ -49,6 +50,7 @@ function PathItem({
   visitCount,
   maxSeconds,
 }: TopPathItem & { maxSeconds: number }) {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const isWebUrl = isUrl(path);
   const percentage = (totalSeconds / maxSeconds) * 100;
@@ -128,7 +130,7 @@ function PathItem({
               via {sourceApp}
             </span>
             <span className="text-[9px] text-[rgba(139,92,246,0.5)] opacity-0 group-hover:opacity-100 transition-opacity">
-              {isExpanded ? 'Clique para recolher' : 'Clique para expandir'}
+              {isExpanded ? t('reports.clickToCollapse') : t('reports.clickToExpand')}
             </span>
           </div>
         </div>
@@ -165,9 +167,11 @@ function PathItem({
 export function TopPathsSection({
   paths,
   isLoading = false,
-  title = 'URLs e Caminhos Mais Acessados',
+  title: titleProp,
   maxItems = 10,
 }: TopPathsSectionProps) {
+  const { t } = useTranslation();
+  const title = titleProp ?? t('reports.topPaths');
   const [showAll, setShowAll] = useState(false);
 
   const maxSeconds = useMemo(() => {
@@ -202,14 +206,14 @@ export function TopPathsSection({
         <CardTitle className="flex items-center justify-between">
           <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{title}</span>
           <span className="text-[10px] text-[rgba(245,247,251,0.4)]">
-            {paths.length} itens
+            {paths.length} {t('reports.items')}
           </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-2 pb-3 px-4 flex-1 overflow-hidden">
         {displayedPaths.length === 0 ? (
           <div className="flex items-center justify-center h-30 text-[rgba(245,247,251,0.4)] text-[12px]">
-            Sem dados para exibir
+            {t('reports.noDataToShow')}
           </div>
         ) : (
           <>
@@ -237,12 +241,12 @@ export function TopPathsSection({
               >
                 {showAll ? (
                   <>
-                    <span>Ver menos</span>
+                    <span>{t('reports.showLess')}</span>
                   </>
                 ) : (
                   <>
                     <MoreHorizontal className="w-3 h-3" />
-                    <span>Ver mais ({paths.length - maxItems} itens)</span>
+                    <span>{t('reports.showMore', { count: paths.length - maxItems })}</span>
                   </>
                 )}
               </motion.button>

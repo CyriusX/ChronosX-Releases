@@ -12,7 +12,10 @@ namespace TimeTrack.Backend.Application.Projects.Commands;
 public sealed record CreateProjectCommand(
     string Name,
     string? Description = null,
-    string? Color = null) : IRequest<ProjectResponse>;
+    string? Color = null,
+    bool? IsBillable = null,
+    string? Currency = null,
+    decimal? HourlyRate = null) : IRequest<ProjectResponse>;
 
 public sealed class CreateProjectCommandHandler : IRequestHandler<CreateProjectCommand, ProjectResponse>
 {
@@ -42,20 +45,14 @@ public sealed class CreateProjectCommandHandler : IRequestHandler<CreateProjectC
             _currentUser.OrgId.Value,
             request.Name,
             request.Description,
-            request.Color);
+            request.Color,
+            request.IsBillable ?? false,
+            request.Currency,
+            request.HourlyRate);
 
         await _projectRepository.AddAsync(project, cancellationToken);
 
-        return new ProjectResponse
-        {
-            Id = project.Id,
-            Name = project.Name,
-            Description = project.Description,
-            Color = project.Color,
-            Status = project.Status.ToString(),
-            CreatedAt = project.CreatedAt,
-            UpdatedAt = project.UpdatedAt
-        };
+        return TimeTrack.Backend.Application.Projects.Queries.ProjectResponseMapper.Map(project);
     }
 }
 
@@ -66,7 +63,10 @@ public sealed record UpdateProjectCommand(
     Guid ProjectId,
     string Name,
     string? Description = null,
-    string? Color = null) : IRequest<ProjectResponse>;
+    string? Color = null,
+    bool? IsBillable = null,
+    string? Currency = null,
+    decimal? HourlyRate = null) : IRequest<ProjectResponse>;
 
 public sealed class UpdateProjectCommandHandler : IRequestHandler<UpdateProjectCommand, ProjectResponse>
 {
@@ -94,19 +94,10 @@ public sealed class UpdateProjectCommandHandler : IRequestHandler<UpdateProjectC
         if (nameExists)
             throw new ValidationException("Name", "A project with this name already exists");
 
-        project.Update(request.Name, request.Description, request.Color);
+        project.Update(request.Name, request.Description, request.Color, request.IsBillable, request.Currency, request.HourlyRate);
         await _projectRepository.UpdateAsync(project, cancellationToken);
 
-        return new ProjectResponse
-        {
-            Id = project.Id,
-            Name = project.Name,
-            Description = project.Description,
-            Color = project.Color,
-            Status = project.Status.ToString(),
-            CreatedAt = project.CreatedAt,
-            UpdatedAt = project.UpdatedAt
-        };
+        return TimeTrack.Backend.Application.Projects.Queries.ProjectResponseMapper.Map(project);
     }
 }
 

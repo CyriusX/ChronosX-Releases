@@ -9,8 +9,9 @@ namespace TimeTrack.AgentService.Ipc.Handlers.Queries.Dashboard;
 
 /// <summary>
 /// Returns activity sessions grouped by executable (app).
-/// Today: uses local SQLite (real-time, fast).
-/// Past days: fetches from backend cloud API (authoritative source).
+/// Always fetches from the cloud backend first (authoritative, safe source).
+/// Falls back to local SQLite only when the backend is unavailable.
+/// This ensures the Activity page always shows complete data even after a DB reset or reinstall.
 /// Consecutive sessions for the same exe are merged into a single block.
 /// Each block includes the list of window titles (tabs) used during that period.
 /// </summary>
@@ -27,6 +28,9 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
     private static readonly HashSet<string> InternalApps = new(StringComparer.OrdinalIgnoreCase)
     {
         "TimeTrack.DesktopHost",
+        "ChronosX TimeTrack",
+        "TimeTrack",
+        "TimeTrack.MacOSAgentService",
         "Microsoft Edge WebView2",
         "Microsoft® Windows® Operating System",
         "Sistema operacional Microsoft® Windows®",
@@ -58,18 +62,10 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         try
         {
             var targetDate = ExtractDateOrToday(request);
-            var isToday = targetDate.Date == DateTime.Today;
 
-            if (isToday)
-            {
-                // TODAY: use local SQLite (fast, real-time, includes in-memory session)
-                return await BuildFromLocalSqlite(request.RequestId, userId.Value, targetDate, ct);
-            }
-            else
-            {
-                // PAST DAYS: fetch from backend cloud API (authoritative data)
-                return await BuildFromBackendApi(request.RequestId, targetDate, userId.Value, ct);
-            }
+            // Always fetch from cloud first — it is the authoritative, safe copy.
+            // If the backend is unreachable, BuildFromBackendApi falls back to local SQLite.
+            return await BuildFromBackendApi(request.RequestId, targetDate, userId.Value, ct);
         }
         catch (Exception ex)
         {
@@ -252,21 +248,19 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     private static string ExtractCloudAppName(DailyActivitySession session)
     {
-        var windowTitle = session.WindowTitle;
-        if (!string.IsNullOrWhiteSpace(windowTitle))
+        // For browsers, show "Safari - YouTube" format
+        if (BrowserDisplayNames.Contains(session.ProcessName)
+            && !string.IsNullOrWhiteSpace(session.WindowTitle))
         {
-            var separators = new[] { " - ", " — ", " – " };
-            foreach (var sep in separators)
+            var pageTitle = ExtractPageTitle(session.WindowTitle, session.ProcessName);
+            if (!string.IsNullOrEmpty(pageTitle) && pageTitle != session.WindowTitle)
             {
-                var lastIdx = windowTitle.LastIndexOf(sep, StringComparison.Ordinal);
-                if (lastIdx > 0)
-                {
-                    var suffix = windowTitle[(lastIdx + sep.Length)..].Trim();
-                    if (suffix.Length > 2 && suffix != session.ProcessName)
-                        return suffix;
-                }
+                if (pageTitle.Length > 40)
+                    pageTitle = pageTitle[..37] + "...";
+                return $"{session.ProcessName} - {pageTitle}";
             }
         }
+
         return session.ProcessName;
     }
 
@@ -396,7 +390,12 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     private static void AddTab(List<TabInfo> tabs, ActivitySession session, CategoryLookup categoryLookup)
     {
-        var title = session.App.DisplayName;
+        // Use the window title for the tab name so browser tabs show the page title
+        // (e.g. "YouTube", "Gmail") instead of just the app name ("Safari").
+        // For non-browser apps, fall back to the display name.
+        var title = !string.IsNullOrWhiteSpace(session.WindowTitle)
+            ? ExtractPageTitle(session.WindowTitle, session.App.DisplayName)
+            : session.App.DisplayName;
         var (prod, sub) = ResolveCategory(session, categoryLookup);
 
         tabs.Add(new TabInfo
@@ -408,23 +407,51 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         });
     }
 
-    private static string ExtractAppName(ActivitySession session)
+    /// <summary>
+    /// Extracts the page/document title from a window title by removing the app name suffix.
+    /// "YouTube - Safari" → "YouTube"
+    /// "index.ts - ProjectName - Visual Studio Code" → "index.ts - ProjectName"
+    /// </summary>
+    private static string ExtractPageTitle(string windowTitle, string appDisplayName)
     {
-        var windowTitle = session.WindowTitle;
-        if (!string.IsNullOrWhiteSpace(windowTitle))
+        var separators = new[] { " - ", " — ", " – " };
+        foreach (var sep in separators)
         {
-            var separators = new[] { " - ", " — ", " – " };
-            foreach (var sep in separators)
+            var lastIdx = windowTitle.LastIndexOf(sep, StringComparison.Ordinal);
+            if (lastIdx > 0)
             {
-                var lastIdx = windowTitle.LastIndexOf(sep, StringComparison.Ordinal);
-                if (lastIdx > 0)
-                {
-                    var suffix = windowTitle[(lastIdx + sep.Length)..].Trim();
-                    if (suffix.Length > 2 && suffix != session.App.DisplayName)
-                        return suffix;
-                }
+                var suffix = windowTitle[(lastIdx + sep.Length)..].Trim();
+                // If the suffix matches the app name, strip it to get just the page title
+                if (string.Equals(suffix, appDisplayName, StringComparison.OrdinalIgnoreCase))
+                    return windowTitle[..lastIdx].Trim();
             }
         }
+        return windowTitle;
+    }
+
+    private static readonly HashSet<string> BrowserDisplayNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Google Chrome", "Chrome", "Safari", "Firefox", "Brave Browser", "Brave",
+        "Microsoft Edge", "Opera", "Chromium", "Arc", "Vivaldi", "Orion",
+    };
+
+    private static string ExtractAppName(ActivitySession session)
+    {
+        // For browsers, show "Safari - YouTube" format so the user can see
+        // which site they were on. For other apps, just show the app name.
+        if (BrowserDisplayNames.Contains(session.App.DisplayName)
+            && !string.IsNullOrWhiteSpace(session.WindowTitle))
+        {
+            var pageTitle = ExtractPageTitle(session.WindowTitle, session.App.DisplayName);
+            if (!string.IsNullOrEmpty(pageTitle) && pageTitle != session.WindowTitle)
+            {
+                // Truncate long page titles
+                if (pageTitle.Length > 40)
+                    pageTitle = pageTitle[..37] + "...";
+                return $"{session.App.DisplayName} - {pageTitle}";
+            }
+        }
+
         return session.App.DisplayName;
     }
 

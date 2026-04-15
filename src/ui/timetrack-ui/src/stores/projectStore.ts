@@ -17,6 +17,9 @@ export interface Project {
   status: 'Active' | 'Archived';
   createdAt: string;
   updatedAt?: string;
+  isBillable: boolean;
+  currency: string | null;
+  hourlyRate: number | null;
 }
 
 interface ListProjectsResponse {
@@ -29,8 +32,8 @@ interface ProjectState {
   isLoading: boolean;
   error: string | null;
   fetchProjects: (activeOnly?: boolean) => Promise<void>;
-  createProject: (name: string, description?: string, color?: string) => Promise<Project | null>;
-  updateProject: (id: string, name: string, description?: string, color?: string) => Promise<Project | null>;
+  createProject: (name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null) => Promise<Project | null>;
+  updateProject: (id: string, name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null) => Promise<Project | null>;
   archiveProject: (id: string) => Promise<boolean>;
   reactivateProject: (id: string) => Promise<boolean>;
   deleteProject: (id: string) => Promise<boolean>;
@@ -67,12 +70,12 @@ async function fetchProjectsApi(activeOnly?: boolean): Promise<ListProjectsRespo
   return response.json();
 }
 
-async function createProjectApi(name: string, description?: string, color?: string): Promise<Project> {
+async function createProjectApi(name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null): Promise<Project> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE}/projects`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ name, description, color }),
+    body: JSON.stringify({ name, description, color, isBillable, currency, hourlyRate }),
   });
 
   if (!response.ok) {
@@ -83,12 +86,12 @@ async function createProjectApi(name: string, description?: string, color?: stri
   return response.json();
 }
 
-async function updateProjectApi(id: string, name: string, description?: string, color?: string): Promise<Project> {
+async function updateProjectApi(id: string, name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null): Promise<Project> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE}/projects/${id}`, {
     method: 'PUT',
     headers,
-    body: JSON.stringify({ name, description, color }),
+    body: JSON.stringify({ name, description, color, isBillable, currency, hourlyRate }),
   });
 
   if (!response.ok) {
@@ -159,11 +162,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  createProject: async (name: string, description?: string, color?: string) => {
+  createProject: async (name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null) => {
     set({ isLoading: true, error: null });
 
     try {
-      const project = await createProjectApi(name, description, color);
+      const project = await createProjectApi(name, description, color, isBillable, currency, hourlyRate);
       const { projects } = get();
       set({ projects: [...projects, project], isLoading: false, error: null });
       return project;
@@ -174,11 +177,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  updateProject: async (id: string, name: string, description?: string, color?: string) => {
+  updateProject: async (id: string, name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null) => {
     set({ isLoading: true, error: null });
 
     try {
-      const updatedProject = await updateProjectApi(id, name, description, color);
+      const updatedProject = await updateProjectApi(id, name, description, color, isBillable, currency, hourlyRate);
       const { projects } = get();
       set({
         projects: projects.map(p => p.id === id ? updatedProject : p),

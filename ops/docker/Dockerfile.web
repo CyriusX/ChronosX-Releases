@@ -1,0 +1,51 @@
+# Stage 1: Build the React application
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files for both projects
+COPY src/ui/timetrack-ui/package*.json ../timetrack-ui/
+COPY src/ui/timetrack-web/package*.json ./
+
+# Install dependencies for timetrack-ui first (shared components)
+RUN cd ../timetrack-ui && npm ci
+
+# Install dependencies for web
+RUN npm ci
+
+# Copy source code
+COPY src/ui/timetrack-ui/ ../timetrack-ui/
+COPY src/ui/timetrack-web/ ./
+
+# Build argument for API URL
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
+# Build the application
+RUN npm run build
+
+# Stage 2: Serve with Nginx
+FROM nginx:alpine
+
+# Install curl for health check
+RUN apk add --no-cache curl
+
+# Copy custom nginx config
+COPY ops/nginx/ui-nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy built files from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy runtime config generator script
+COPY ops/docker/config-loader.js /docker-entrypoint.d/40-config-generator.sh
+RUN chmod +x /docker-entrypoint.d/40-config-generator.sh
+
+# Expose port 80
+EXPOSE 80
+
+# Health check using curl
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:80/ || exit 1
+
+# Start nginx (docker-entrypoint.d scripts run automatically)
+CMD ["nginx", "-g", "daemon off;"]

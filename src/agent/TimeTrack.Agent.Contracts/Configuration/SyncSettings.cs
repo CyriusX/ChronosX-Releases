@@ -8,7 +8,7 @@ public sealed class SyncSettings
     /// <summary>
     /// URL base do backend
     /// </summary>
-    public string BackendUrl { get; set; } = "https://api.timetrack.local";
+    public string BackendUrl { get; set; } = "https://chronosx-timetrack-api.gpoda0.easypanel.host";
 
     /// <summary>
     /// Token JWT para autenticação
@@ -16,9 +16,9 @@ public sealed class SyncSettings
     public string? AuthToken { get; set; }
 
     /// <summary>
-    /// Intervalo entre ciclos de sync em segundos (mínimo 60s, máximo 300s)
+    /// Intervalo entre ciclos de sync em segundos
     /// </summary>
-    public int SyncIntervalSeconds { get; set; } = 60;
+    public int SyncIntervalSeconds { get; set; } = 30;
 
     /// <summary>
     /// Tamanho máximo do batch (número de itens)

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { EyeOff, Plus, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useHiddenAppsStore } from '../../stores/hiddenAppsStore';
 
 export function TimelineSection() {
+  const { t } = useTranslation();
   const { hiddenApps, hideApp, showApp } = useHiddenAppsStore();
   const [newApp, setNewApp] = useState('');
 
@@ -22,9 +24,9 @@ export function TimelineSection() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Timeline</h2>
+        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('settings.timeline.title')}</h2>
         <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-          Configure quais apps ficam ocultos na timeline de atividades
+          {t('settings.timeline.subtitle')}
         </p>
       </div>
 
@@ -34,12 +36,11 @@ export function TimelineSection() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#8B5CF6] to-[#22D3EE] flex items-center justify-center">
             <EyeOff className="w-4 h-4 text-white" />
           </div>
-          <h3 className="text-[14px] font-medium text-[#f5f7fb]">Apps ocultos</h3>
+          <h3 className="text-[14px] font-medium text-[#f5f7fb]">{t('settings.timeline.hiddenApps')}</h3>
         </div>
 
         <p className="text-[11px] text-[rgba(245,247,251,0.4)] mb-4">
-          Apps nesta lista não aparecem na timeline de atividades nem no heatmap de produtividade.
-          Use o nome do processo (ex: TimeTrack.DesktopHost, msedge).
+          {t('settings.timeline.hiddenAppsDesc')}
         </p>
 
         {/* Add new app */}
@@ -49,7 +50,7 @@ export function TimelineSection() {
             value={newApp}
             onChange={(e) => setNewApp(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Nome do processo (ex: Spotify)"
+            placeholder={t('settings.timeline.processPlaceholder')}
             className="flex-1 px-3 py-2 rounded-lg text-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[rgba(139,92,246,0.5)]"
           />
           <button
@@ -65,7 +66,7 @@ export function TimelineSection() {
         <div className="space-y-1">
           {hiddenApps.length === 0 ? (
             <p className="text-[11px] text-[rgba(245,247,251,0.3)] text-center py-4">
-              Nenhum app oculto
+              {t('settings.timeline.noHiddenApps')}
             </p>
           ) : (
             hiddenApps.map((app) => (

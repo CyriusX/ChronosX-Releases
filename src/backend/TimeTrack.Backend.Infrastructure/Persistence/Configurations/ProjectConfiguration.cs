@@ -25,8 +25,12 @@ internal sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
             .HasMaxLength(255)
             .IsRequired();
 
+        // Unique project names per org — but only for local projects. Linear-sourced
+        // projects are keyed by LinearProjectId (see index below) and may collide on
+        // name with a local project without issue.
         builder.HasIndex(p => new { p.OrgId, p.Name })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("sync_source = 'Local'");
 
         builder.Property(p => p.Description)
             .HasColumnName("description")
@@ -50,6 +54,43 @@ internal sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
 
         builder.Property(p => p.UpdatedAt)
             .HasColumnName("updated_at");
+
+        // ── Linear sync columns ──
+        builder.Property(p => p.SyncSource)
+            .HasColumnName("sync_source")
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .HasDefaultValue(Domain.ValueObjects.ProjectSyncSource.Local)
+            .IsRequired();
+
+        builder.Property(p => p.LinearProjectId)
+            .HasColumnName("linear_project_id")
+            .HasMaxLength(64);
+
+        builder.Property(p => p.LinearWorkspaceId)
+            .HasColumnName("linear_workspace_id")
+            .HasMaxLength(64);
+
+        builder.Property(p => p.LastSyncedAt)
+            .HasColumnName("last_synced_at");
+
+        // ── Billable project columns ──
+        builder.Property(p => p.IsBillable)
+            .HasColumnName("is_billable")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(p => p.Currency)
+            .HasColumnName("currency")
+            .HasMaxLength(3);
+
+        builder.Property(p => p.HourlyRate)
+            .HasColumnName("hourly_rate")
+            .HasColumnType("decimal(18,2)");
+
+        builder.HasIndex(p => new { p.OrgId, p.LinearProjectId })
+            .IsUnique()
+            .HasFilter("linear_project_id IS NOT NULL");
 
         // Relationships
         builder.HasOne(p => p.Organization)

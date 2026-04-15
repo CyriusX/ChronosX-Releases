@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Play, Pause, Square, SkipForward, ChevronDown, Focus, Activity, Coffee } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar } from '../components/dashboard';
@@ -43,6 +44,7 @@ function fmtShort(ms: number) {
 // ============================================================================
 
 export default function Timer() {
+  const { t } = useTranslation();
   const { sendQuery } = useIpc();
 
   // --- Shared timer state from store ---
@@ -118,20 +120,20 @@ export default function Timer() {
   const cardBase = "bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl";
 
   return (
-    <div className="flex h-screen bg-[#0b0d14] overflow-hidden">
+    <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0">
       <Sidebar />
 
-      <main className="flex-1 flex min-w-0 min-h-0">
+      <main className="flex-1 flex flex-col lg:flex-row min-w-0 min-h-0 overflow-y-auto lg:overflow-hidden">
         {/* Center — Timer */}
         <motion.div
-          className="flex-1 flex flex-col items-center justify-center p-8 min-w-0"
+          className="flex flex-col items-center justify-center p-4 sm:p-8 min-w-0 lg:flex-1"
           variants={fadeIn}
           initial="hidden"
           animate="visible"
           transition={{ duration: TIMING.normal }}
         >
           {/* Mode toggle */}
-          <div className="flex bg-[rgba(255,255,255,0.04)] rounded-full p-1 border border-[rgba(255,255,255,0.06)] mb-6">
+          <div className="flex bg-[rgba(255,255,255,0.04)] rounded-full p-1 border border-[rgba(255,255,255,0.06)] mb-4 sm:mb-6">
             <button
               onClick={() => setMode('pomodoro')}
               className={`relative px-5 py-1.5 rounded-full text-[12px] font-medium transition-all ${mode === 'pomodoro' ? 'text-[#0b0d14]' : 'text-[rgba(245,247,251,0.4)]'}`}
@@ -143,7 +145,7 @@ export default function Timer() {
                   transition={SPRING.snappy}
                 />
               )}
-              <span className="relative z-10"><Focus className="w-3.5 h-3.5 inline -mt-0.5 mr-1.5" />Pomodoro</span>
+              <span className="relative z-10"><Focus className="w-3.5 h-3.5 inline -mt-0.5 mr-1.5" />{t('timer.pomodoro')}</span>
             </button>
             <button
               onClick={() => setMode('ultradian')}
@@ -172,19 +174,27 @@ export default function Timer() {
             >
               {phase === 'break' && <Coffee className="w-4 h-4" style={{ color: phaseColor }} />}
               <span className="text-[14px] font-medium text-[rgba(245,247,251,0.7)]">
-                {phase === 'idle' ? (mode === 'pomodoro' ? 'Pronto para focar' : `${ultradianWaves} ${ultradianWaves === 1 ? 'onda' : 'ondas'} · ${ultradianWaves * 110}min`)
-                  : phase === 'focus' ? (mode === 'pomodoro' ? `Foco · Ciclo ${cycle + 1} de ${config.cyclesBeforeLong}` : `Peak · Onda ${cycle + 1} de ${ultradianWaves}`)
-                  : 'Pausa · Descanse'}
+                {phase === 'idle'
+                  ? (mode === 'pomodoro'
+                    ? t('timer.readyToFocus')
+                    : `${ultradianWaves} ${ultradianWaves === 1 ? t('timer.wave') : t('timer.waves')} · ${ultradianWaves * 110}min`)
+                  : phase === 'focus'
+                  ? (mode === 'pomodoro'
+                    ? `${t('timer.focusCycle')} · ${t('timer.cycleOf', { current: cycle + 1, total: config.cyclesBeforeLong })}`
+                    : `${t('timer.peakWave')} · ${t('timer.cycleOf', { current: cycle + 1, total: ultradianWaves })}`)
+                  : t('timer.breakRest')}
               </span>
             </motion.div>
           </AnimatePresence>
 
-          {/* Timer visualization */}
-          {mode === 'pomodoro' ? (
-            <LargePomodoroRing progress={progress} phase={phase} phaseColor={phaseColor} phaseGlow={phaseGlow} timeDisplay={timeDisplay} />
-          ) : (
-            <LargeUltradianWave progress={ultradianProgress} phase={phase} timeDisplay={timeDisplay} totalWaves={ultradianWaves} currentWave={cycle} />
-          )}
+          {/* Timer visualization — scales down on mobile */}
+          <div className="w-full flex justify-center" style={{ maxWidth: 'min(100%, 520px)' }}>
+            {mode === 'pomodoro' ? (
+              <LargePomodoroRing progress={progress} phase={phase} phaseColor={phaseColor} phaseGlow={phaseGlow} timeDisplay={timeDisplay} />
+            ) : (
+              <LargeUltradianWave progress={ultradianProgress} phase={phase} timeDisplay={timeDisplay} totalWaves={ultradianWaves} currentWave={cycle} />
+            )}
+          </div>
 
           {/* Cycle dots (pomodoro) */}
           {mode === 'pomodoro' && (
@@ -209,22 +219,22 @@ export default function Timer() {
           )}
 
           {/* Session name + Project selector */}
-          <div className="flex flex-col gap-2 mt-6 w-[220px]">
+          <div className="flex flex-col gap-2 mt-4 sm:mt-6 w-full max-w-[280px]">
             <input
               type="text"
               value={sessionName}
               onChange={e => setSessionName(e.target.value)}
-              placeholder="Nomear sessão..."
+              placeholder={t('timer.sessionName')}
               className="w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-[12px] text-[rgba(245,247,251,0.7)] placeholder-[rgba(245,247,251,0.2)] focus:outline-none focus:border-[rgba(255,255,255,0.15)] transition-colors"
             />
             <div className="relative">
               <button onClick={() => setShowProjectDropdown(!showProjectDropdown)} className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors">
-                <span className="text-[rgba(245,247,251,0.5)] truncate">{selectedProject ? projects.find(p => p.id === selectedProject)?.name : 'Sem projeto'}</span>
+                <span className="text-[rgba(245,247,251,0.5)] truncate">{selectedProject ? projects.find(p => p.id === selectedProject)?.name : t('timer.noProject')}</span>
                 <ChevronDown className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
               </button>
               {showProjectDropdown && (
                 <div className="absolute bottom-full left-0 right-0 mb-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-lg overflow-hidden z-10 shadow-xl max-h-[150px] overflow-y-auto">
-                  <button onClick={() => { setSelectedProject(''); setShowProjectDropdown(false); }} className={`w-full text-left px-3 py-2 text-[11px] hover:bg-[rgba(255,255,255,0.06)] ${!selectedProject ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>Sem projeto</button>
+                  <button onClick={() => { setSelectedProject(''); setShowProjectDropdown(false); }} className={`w-full text-left px-3 py-2 text-[11px] hover:bg-[rgba(255,255,255,0.06)] ${!selectedProject ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>{t('timer.noProject')}</button>
                   {projects.map(p => (
                     <button key={p.id} onClick={() => { setSelectedProject(p.id); setShowProjectDropdown(false); }} className={`w-full text-left px-3 py-2 text-[11px] hover:bg-[rgba(255,255,255,0.06)] truncate ${selectedProject === p.id ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.6)]'}`}>{p.name}</button>
                   ))}
@@ -234,7 +244,7 @@ export default function Timer() {
           </div>
 
           {/* Controls */}
-          <div className="flex gap-3 mt-6">
+          <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center">
             {phase === 'idle' ? (
               <motion.button
                 onClick={start}
@@ -242,7 +252,7 @@ export default function Timer() {
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.97 }}
               >
-                <Play className="w-5 h-5" /> Iniciar Foco
+                <Play className="w-5 h-5" /> {t('timer.startFocus')}
               </motion.button>
             ) : (
               <motion.div
@@ -263,7 +273,7 @@ export default function Timer() {
                   variants={scaleIn}
                   transition={{ duration: TIMING.fast }}
                 >
-                  {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />} {isPaused ? 'Retomar' : 'Pausar'}
+                  {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />} {isPaused ? t('timer.resume') : t('timer.pause')}
                 </motion.button>
                 <motion.button
                   onClick={skip}
@@ -271,7 +281,7 @@ export default function Timer() {
                   variants={scaleIn}
                   transition={{ duration: TIMING.fast }}
                 >
-                  <SkipForward className="w-4 h-4" /> Pular
+                  <SkipForward className="w-4 h-4" /> {t('timer.skip')}
                 </motion.button>
                 <motion.button
                   onClick={stop}
@@ -279,16 +289,68 @@ export default function Timer() {
                   variants={scaleIn}
                   transition={{ duration: TIMING.fast }}
                 >
-                  <Square className="w-4 h-4" /> Parar
+                  <Square className="w-4 h-4" /> {t('timer.stop')}
                 </motion.button>
               </motion.div>
             )}
           </div>
         </motion.div>
 
-        {/* Right — Session History */}
+        {/* Mobile inline session content — shown below timer controls on < lg */}
+        <div className="lg:hidden w-full max-w-md mx-auto px-4 pb-4">
+          <Card className={cardBase}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[12px] text-[rgba(245,247,251,0.4)] uppercase tracking-wider">{t('timer.sessionSummary')}</p>
+                {hasGroupData && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                    style={{
+                      backgroundColor: groupMode === 'pomodoro' ? 'rgba(139,92,246,0.12)' : 'rgba(194,122,255,0.12)',
+                      color: groupMode === 'pomodoro' ? '#8B5CF6' : '#c27aff',
+                    }}>
+                    {groupMode === 'pomodoro' ? t('timer.pomodoro') : t('timer.ultradian')}
+                  </span>
+                )}
+              </div>
+              {hasGroupData ? (
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center">
+                    <p className="text-[18px] font-bold text-[#f5f7fb]">{fmtShort(totalDurationMs)}</p>
+                    <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">{t('timer.duration')}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[18px] font-bold text-[#f5f7fb]">{completedCycles}</p>
+                    <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">{t('timer.cyclesLabel')}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[18px] font-bold text-[#4ade80]">{fmtShort(focusTimeMs)}</p>
+                    <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">{t('timer.focusLabel')}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-[rgba(245,247,251,0.25)] text-center py-2">
+                  {t('timer.noSessionYet')}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <div className="mt-4">
+            <FocusDayTimeline
+              sessions={sessions}
+              activities={activities}
+              currentPhase={phase}
+              currentMode={mode}
+              currentPhaseStartMs={phaseStartedAt}
+              currentCycle={cycle}
+              currentSessionName={sessionName}
+              sessionGroupStartedAt={sessionGroupStartedAt}
+            />
+          </div>
+        </div>
+
+        {/* Right — Session History (desktop only) */}
         <motion.div
-          className="w-[300px] flex-shrink-0 flex flex-col border-l border-[rgba(255,255,255,0.04)]"
+          className="hidden lg:flex w-[300px] flex-shrink-0 flex-col border-l border-[rgba(255,255,255,0.04)]"
           variants={slideLeft}
           initial="hidden"
           animate="visible"
@@ -299,14 +361,14 @@ export default function Timer() {
             <Card className={cardBase}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-[12px] text-[rgba(245,247,251,0.4)] uppercase tracking-wider">Resumo da sessão</p>
+                  <p className="text-[12px] text-[rgba(245,247,251,0.4)] uppercase tracking-wider">{t('timer.sessionSummary')}</p>
                   {hasGroupData && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
                       style={{
                         backgroundColor: groupMode === 'pomodoro' ? 'rgba(139,92,246,0.12)' : 'rgba(194,122,255,0.12)',
                         color: groupMode === 'pomodoro' ? '#8B5CF6' : '#c27aff',
                       }}>
-                      {groupMode === 'pomodoro' ? 'Pomodoro' : 'Ultradian'}
+                      {groupMode === 'pomodoro' ? t('timer.pomodoro') : t('timer.ultradian')}
                     </span>
                   )}
                 </div>
@@ -319,34 +381,34 @@ export default function Timer() {
                   >
                     <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
                       <p className="text-[18px] font-bold text-[#f5f7fb]">{fmtShort(totalDurationMs)}</p>
-                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Duração</p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">{t('timer.duration')}</p>
                     </motion.div>
                     <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
                       <p className="text-[18px] font-bold text-[#f5f7fb]">{completedCycles}</p>
-                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Ciclos</p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">{t('timer.cyclesLabel')}</p>
                     </motion.div>
                     <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
                       <p className="text-[18px] font-bold text-[#4ade80]">{fmtShort(focusTimeMs)}</p>
-                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Foco</p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">{t('timer.focusLabel')}</p>
                     </motion.div>
                     <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
                       <p className="text-[18px] font-bold text-[#8b7aff]">{fmtShort(breakTimeMs)}</p>
-                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Pausa</p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">{t('timer.breakLabel')}</p>
                     </motion.div>
                     <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
                       <p className="text-[18px] font-bold text-[#fbbf24]">{skippedBreaks}</p>
-                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Puladas</p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">{t('timer.skipped')}</p>
                     </motion.div>
                     <motion.div className="text-center" variants={fadeUp} transition={{ duration: TIMING.fast }}>
                       <p className="text-[18px] font-bold" style={{ color: groupMode === 'pomodoro' ? '#8B5CF6' : '#c27aff' }}>
-                        {groupMode === 'pomodoro' ? 'Pomo' : 'Ultra'}
+                        {groupMode === 'pomodoro' ? t('timer.pomoShort') : t('timer.ultraShort')}
                       </p>
-                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">Modo</p>
+                      <p className="text-[8px] text-[rgba(245,247,251,0.4)] uppercase">{t('timer.mode')}</p>
                     </motion.div>
                   </motion.div>
                 ) : (
                   <p className="text-[11px] text-[rgba(245,247,251,0.25)] text-center py-2">
-                    Inicie uma sessão para ver o resumo
+                    {t('timer.noSessionYet')}
                   </p>
                 )}
               </CardContent>

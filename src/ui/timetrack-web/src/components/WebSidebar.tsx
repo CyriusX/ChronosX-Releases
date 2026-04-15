@@ -1,17 +1,67 @@
-import { useState } from 'react';
-import { BarChart3, Activity, CalendarDays, Cog, LogOut, Shield, Menu, X, Wrench } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { BarChart3, Activity, CalendarDays, Cog, LogOut, Shield, Menu, X, Wrench, Bell, ChevronDown, FolderKanban } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavItem } from '@desktop/components/dashboard/shared/NavItem';
 import { useAuthStore } from '../stores/authStore';
+import { useHealthAlertStore } from '../stores/healthAlertStore';
 import { SPRING } from '@desktop/lib/animation';
 import logoImg from '@desktop/assets/logo-64.png';
+import { listOrgDevices } from '../services/maintenanceApi';
+
+function fmtAgo(isoString: string | null): string {
+  if (!isoString) return '';
+  const mins = Math.floor((Date.now() - new Date(isoString).getTime()) / 60000);
+  if (mins < 1) return ' · agora';
+  if (mins < 60) return ` · ${mins}min atrás`;
+  return ` · ${Math.floor(mins / 60)}h atrás`;
+}
 
 export function WebSidebar() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const alerts = useHealthAlertStore((state) => state.alerts);
+  const setAlerts = useHealthAlertStore((state) => state.setAlerts);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll device list every 60s (Admin only) to keep the bell in sync on any page
+  useEffect(() => {
+    if (user?.role !== 'Admin' || !user?.orgId) return;
+    const orgId = user.orgId;
+    const fetchAlerts = async () => {
+      try {
+        const data = await listOrgDevices(orgId);
+        const derived = data.devices
+          .filter(d =>
+            d.status === 'offline' ||
+            d.healthStatus === 'unhealthy' ||
+            d.healthStatus === 'degraded' ||
+            (d.status === 'active' && d.ipcConnected === false)
+          )
+          .map(d => ({
+            deviceId: d.deviceId,
+            hostname: d.hostname,
+            userDisplayName: d.userDisplayName,
+            issue: d.status === 'offline'
+              ? 'offline'
+              : (d.healthStatus === 'unhealthy' || d.healthStatus === 'degraded')
+                ? d.healthStatus
+                : 'ipc_disconnected',
+            lastSeenAt: d.lastSeenAt,
+            healthStatus: d.status === 'offline' ? 'offline' : d.healthStatus,
+          }));
+        setAlerts(derived);
+      } catch { /* non-critical */ }
+    };
+    fetchAlerts();
+    pollRef.current = setInterval(fetchAlerts, 60_000);
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [user?.role, user?.orgId, setAlerts]);
 
   const handleLogout = async () => {
     await logout();
@@ -23,20 +73,25 @@ export function WebSidebar() {
     setMobileOpen(false);
   };
 
+  const canManageProjects = user?.role === 'Admin' || user?.role === 'Gestor';
+
   const navItems = [
-    { icon: <BarChart3 className="w-[16px] h-[16px]" />, label: 'Dashboard', path: '/' },
-    { icon: <Activity className="w-[16px] h-[16px]" />, label: 'Atividade', path: '/activities' },
-    { icon: <CalendarDays className="w-[16px] h-[16px]" />, label: 'Relatorios', path: '/reports' },
-    { icon: <Cog className="w-[16px] h-[16px]" />, label: 'Configuracoes', path: '/settings' },
+    { icon: <BarChart3 className="w-[16px] h-[16px]" />, label: t('webSidebar.dashboard'), path: '/' },
+    { icon: <Activity className="w-[16px] h-[16px]" />, label: t('webSidebar.activities'), path: '/activities' },
+    { icon: <CalendarDays className="w-[16px] h-[16px]" />, label: t('webSidebar.reports'), path: '/reports' },
+    ...(canManageProjects ? [
+      { icon: <FolderKanban className="w-[16px] h-[16px]" />, label: t('webSidebar.projects'), path: '/projects' },
+    ] : []),
+    { icon: <Cog className="w-[16px] h-[16px]" />, label: t('webSidebar.settings'), path: '/settings' },
     ...(user?.role === 'Admin' ? [
-      { icon: <Wrench className="w-[16px] h-[16px]" />, label: 'Manutencao', path: '/maintenance' },
+      { icon: <Wrench className="w-[16px] h-[16px]" />, label: t('webSidebar.maintenance'), path: '/maintenance' },
     ] : []),
   ];
 
   const sidebarContent = (
     <>
       {/* Logo + Admin Badge */}
-      <div className="px-4 py-5 flex-shrink-0">
+      <div className="px-4 pt-6 pb-5 flex-shrink-0">
         <div className="flex items-center gap-2">
           <motion.img
             src={logoImg}
@@ -47,11 +102,18 @@ export function WebSidebar() {
             className="w-8 h-8 rounded-lg shadow-[0px_6px_10px_0px_rgba(139,92,246,0.25)]"
           />
           <div className="flex flex-col">
-            <span className="text-[15px] font-semibold text-[#f5f7fb] tracking-[-0.3px]">ChronosX</span>
+            <motion.span
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3, duration: 0.3 }}
+              className="text-[15px] font-semibold text-[#f5f7fb] tracking-[-0.3px]"
+            >
+              ChronosX
+            </motion.span>
             <div className="flex items-center gap-1">
               <Shield className="w-2.5 h-2.5 text-[#8B5CF6]" />
               <span className="text-[9px] text-[rgba(139,92,246,0.8)] font-medium uppercase tracking-wider">
-                Admin Portal
+                {t('webSidebar.adminPortal')}
               </span>
             </div>
           </div>
@@ -65,36 +127,119 @@ export function WebSidebar() {
             key={item.path}
             icon={item.icon}
             label={item.label}
-            active={location.pathname === item.path}
+            active={item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)}
             onClick={() => handleNav(item.path)}
           />
         ))}
       </nav>
 
-      {/* User section + Logout */}
-      <div className="border-t border-[rgba(255,255,255,0.04)] flex-shrink-0 px-3 py-3">
-        <div className="flex items-center gap-2.5 px-2 py-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
-            <span className="text-[12px] font-bold text-white">
-              {user?.displayName?.charAt(0)?.toUpperCase() || '?'}
+      {/* Notification Bell — Admin only */}
+      {user?.role === 'Admin' && (
+        <div className="px-3 pb-2 flex-shrink-0">
+          <motion.button
+            onClick={() => setNotifOpen(!notifOpen)}
+            whileHover={{ x: 3 }}
+            transition={{ type: 'spring', stiffness: SPRING.snappy.stiffness, damping: SPRING.snappy.damping }}
+            className={`w-full flex items-center gap-3 px-3 py-[10px] rounded-[12px] transition-colors ${
+              alerts.length > 0
+                ? 'text-[rgba(248,113,113,0.85)] hover:bg-[rgba(248,113,113,0.06)]'
+                : 'text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.7)] hover:bg-[rgba(255,255,255,0.04)]'
+            }`}
+          >
+            <div className="relative flex-shrink-0">
+              <Bell className="w-[16px] h-[16px]" />
+              {alerts.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-[#f87171] flex items-center justify-center animate-pulse">
+                  <span className="text-[7px] font-bold text-white leading-none">
+                    {alerts.length > 9 ? '9+' : alerts.length}
+                  </span>
+                </span>
+              )}
+            </div>
+            <span className="text-[13px] font-medium flex-1 text-left">
+              {alerts.length > 0 ? `${alerts.length} ${alerts.length > 1 ? t('webSidebar.alerts') : t('webSidebar.alert')}` : t('webSidebar.alerts')}
             </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-medium text-[rgba(245,247,251,0.9)] truncate">
-              {user?.displayName || 'Usuario'}
-            </p>
-            <p className="text-[10px] text-[rgba(245,247,251,0.4)] truncate">
-              {user?.role === 'Admin' ? 'Administrador' : 'Gestor'} · {user?.orgName}
-            </p>
-          </div>
+            <motion.div animate={{ rotate: notifOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+              <ChevronDown className="w-3 h-3 opacity-40" />
+            </motion.div>
+          </motion.button>
+
+          {/* Inline expanded alert list */}
+          <AnimatePresence>
+            {notifOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                {alerts.length === 0 ? (
+                  <p className="px-3 py-2 text-[10px] text-[rgba(245,247,251,0.3)]">{t('webSidebar.allHealthy')}</p>
+                ) : (
+                  <div className="mt-1 space-y-0.5 max-h-[200px] overflow-y-auto">
+                    {alerts.map((alert) => {
+                      const isCritical = alert.issue === 'offline' || alert.issue === 'unhealthy';
+                      const isIpcOnly = alert.issue === 'ipc_disconnected';
+                      const dotColor = isCritical ? 'bg-[#f87171]' : isIpcOnly ? 'bg-[#a78bfa]' : 'bg-[#fbbf24]';
+                      const textColor = isCritical ? 'text-[rgba(248,113,113,0.85)]' : isIpcOnly ? 'text-[#a78bfa]' : 'text-[#fbbf24]';
+                      const label = alert.issue === 'offline' ? 'OFFLINE'
+                        : alert.issue === 'unhealthy' ? 'UNHEALTHY'
+                        : alert.issue === 'ipc_disconnected' ? 'UI DESCONECTADA'
+                        : 'DEGRADADO';
+                      return (
+                        <button
+                          key={alert.deviceId}
+                          onClick={() => { handleNav(`/maintenance?device=${encodeURIComponent(alert.deviceId)}`); setNotifOpen(false); }}
+                          className="w-full flex items-start gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors text-left"
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${dotColor}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-medium text-[rgba(245,247,251,0.85)] truncate">
+                              {alert.userDisplayName || alert.hostname}
+                            </p>
+                            <p className="text-[9px] text-[rgba(245,247,251,0.4)] truncate">{alert.hostname}</p>
+                            <p className={`text-[9px] font-bold uppercase mt-0.5 ${textColor}`}>
+                              {label}
+                              <span className="font-normal normal-case">{fmtAgo(alert.lastSeenAt)}</span>
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
-        >
-          <LogOut className="w-[14px] h-[14px]" />
-          Sair
-        </button>
+      )}
+
+      {/* User section + Logout — glassmorphic card matching desktop SidebarMiniDash */}
+      <div className="border-t border-[rgba(255,255,255,0.04)] flex-shrink-0 pt-2 px-2.5 pb-2.5">
+        <div className="rounded-[16px] bg-[linear-gradient(135deg,rgba(22,25,40,0.70),rgba(14,16,26,0.70))] backdrop-blur-[16px] border border-[rgba(255,255,255,0.06)] px-2.5 py-2.5 space-y-2">
+          {/* User row */}
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
+              {user?.displayName?.charAt(0)?.toUpperCase() || '?'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-medium text-[#f5f7fb] truncate leading-tight">
+                {user?.displayName || t('webSidebar.user')}
+              </p>
+              <p className="text-[8px] text-[rgba(245,247,251,0.3)] leading-tight truncate">
+                {user?.role === 'Admin' ? t('webSidebar.admin') : t('webSidebar.manager')} · {user?.orgName}
+              </p>
+            </div>
+          </div>
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-2 py-1 rounded-lg text-[10px] text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.85)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+          >
+            <LogOut className="w-[12px] h-[12px]" />
+            {t('webSidebar.logout')}
+          </button>
+        </div>
       </div>
     </>
   );
@@ -102,7 +247,7 @@ export function WebSidebar() {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-[200px] flex-shrink-0 glass-sidebar flex-col overflow-hidden">
+      <aside className="hidden md:flex w-[180px] flex-shrink-0 glass-sidebar flex-col overflow-hidden">
         {sidebarContent}
       </aside>
 

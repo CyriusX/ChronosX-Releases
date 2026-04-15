@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import i18n from '../i18n/i18n';
 
 /**
  * Merge class names with Tailwind CSS support
@@ -31,7 +32,7 @@ export function formatDuration(seconds: number): string {
  * Format time as HH:MM
  */
 export function formatTime(date: Date): string {
-  return date.toLocaleTimeString('pt-BR', {
+  return date.toLocaleTimeString(i18n.language, {
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -41,7 +42,7 @@ export function formatTime(date: Date): string {
  * Format date as DD/MM/YYYY
  */
 export function formatDate(date: Date): string {
-  return date.toLocaleDateString('pt-BR');
+  return date.toLocaleDateString(i18n.language);
 }
 
 /**
@@ -54,10 +55,10 @@ export function getRelativeTime(date: Date): string {
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffMins < 1) return 'Agora';
-  if (diffMins < 60) return `${diffMins} min atrás`;
-  if (diffHours < 24) return `${diffHours}h atrás`;
-  if (diffDays < 7) return `${diffDays} dias atrás`;
+  if (diffMins < 1) return i18n.t('dates.now');
+  if (diffMins < 60) return i18n.t('dates.minutesAgo', { count: diffMins });
+  if (diffHours < 24) return i18n.t('dates.hoursAgo', { count: diffHours });
+  if (diffDays < 7) return i18n.t('dates.daysAgo', { count: diffDays });
 
   return formatDate(date);
 }

@@ -3,6 +3,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   TrendingUp, Globe, Briefcase, Code2, Users, MessageSquare,
   Play, Paintbrush, Video, MoreVertical
@@ -40,6 +41,7 @@ const categoryIcons: Record<string, React.ReactNode> = {
 };
 
 export function BottomCards({ summary }: BottomCardsProps) {
+  const { t } = useTranslation();
   const categories = summary?.categories ?? [];
 
   const topApplications = [...(summary?.topApplications ?? [])]
@@ -86,7 +88,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
                 <div className="w-5 h-5 rounded-md bg-gradient-to-br from-[rgba(5,223,114,0.2)] to-[rgba(0,213,190,0.2)] border border-[rgba(5,223,114,0.3)] flex items-center justify-center">
                   <TrendingUp className="w-3 h-3 text-[#05df72]" />
                 </div>
-                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Categorias</span>
+                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.categories')}</span>
               </div>
               <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
             </CardTitle>
@@ -111,7 +113,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
                   </motion.div>
                 ))
               ) : (
-                <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">Nenhuma categoria</p>
+                <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">{t('dashboard.noCategories')}</p>
               )}
             </motion.div>
           </CardContent>
@@ -127,7 +129,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
                 <div className="w-5 h-5 rounded-md bg-gradient-to-br from-[rgba(81,162,255,0.2)] to-[rgba(0,211,243,0.2)] border border-[rgba(81,162,255,0.3)] flex items-center justify-center">
                   <Globe className="w-3 h-3 text-[#51a2ff]" />
                 </div>
-                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Apps & Sites</span>
+                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.appsSites')}</span>
               </div>
               <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
             </CardTitle>
@@ -166,7 +168,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
                   );
                 })
               ) : (
-                <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">Nenhum app</p>
+                <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">{t('dashboard.noApps')}</p>
               )}
             </motion.div>
           </CardContent>
@@ -182,7 +184,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
                 <div className="w-5 h-5 rounded-md bg-gradient-to-br from-[rgba(194,122,255,0.2)] to-[rgba(246,51,154,0.2)] border border-[rgba(194,122,255,0.3)] flex items-center justify-center">
                   <Briefcase className="w-3 h-3 text-[#c27aff]" />
                 </div>
-                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">Projetos</span>
+                <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">{t('dashboard.projects')}</span>
               </div>
               <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
             </CardTitle>
@@ -214,7 +216,7 @@ export function BottomCards({ summary }: BottomCardsProps) {
                   );
                 })
               ) : (
-                <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">Nenhum projeto</p>
+                <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-3">{t('dashboard.noProjects')}</p>
               )}
             </motion.div>
           </CardContent>

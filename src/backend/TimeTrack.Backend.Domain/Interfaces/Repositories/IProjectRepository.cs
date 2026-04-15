@@ -13,4 +13,7 @@ public interface IProjectRepository
     Task AddAsync(Project project, CancellationToken cancellationToken = default);
     Task UpdateAsync(Project project, CancellationToken cancellationToken = default);
     Task DeleteAsync(Project project, CancellationToken cancellationToken = default);
+
+    /// <summary>Find a Linear-sourced project by its external identifier.</summary>
+    Task<Project?> GetByLinearProjectIdAsync(Guid orgId, string linearProjectId, CancellationToken cancellationToken = default);
 }

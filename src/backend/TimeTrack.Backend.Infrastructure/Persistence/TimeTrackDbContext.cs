@@ -33,6 +33,10 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
+    public DbSet<ProjectTask> ProjectTasks => Set<ProjectTask>();
+    public DbSet<TaskTimeEntry> TaskTimeEntries => Set<TaskTimeEntry>();
+    public DbSet<AgentNotificationInbox> AgentNotificationInbox => Set<AgentNotificationInbox>();
     public DbSet<DailySummary> DailySummaries => Set<DailySummary>();
     public DbSet<DailyFocusScore> DailyFocusScores => Set<DailyFocusScore>();
 
@@ -48,6 +52,10 @@ public sealed class TimeTrackDbContext : DbContext
     // App Categories (CX-143)
     public DbSet<AppCategoryGlobal> AppCategoryGlobals => Set<AppCategoryGlobal>();
     public DbSet<AppCategoryOverride> AppCategoryOverrides => Set<AppCategoryOverride>();
+
+    // Third-party integrations (Linear for v1)
+    public DbSet<UserIntegration> UserIntegrations => Set<UserIntegration>();
+    public DbSet<LinearSyncHistory> LinearSyncHistory => Set<LinearSyncHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -106,6 +114,22 @@ public sealed class TimeTrackDbContext : DbContext
         modelBuilder.Entity<Project>()
             .HasQueryFilter(p => !_currentUser.IsAuthenticated || p.OrgId == _currentUser.OrgId);
 
+        // Project Members
+        modelBuilder.Entity<ProjectMember>()
+            .HasQueryFilter(pm => !_currentUser.IsAuthenticated || pm.OrgId == _currentUser.OrgId);
+
+        // Project Tasks (also exclude soft-deleted)
+        modelBuilder.Entity<ProjectTask>()
+            .HasQueryFilter(t => (!_currentUser.IsAuthenticated || t.OrgId == _currentUser.OrgId) && t.DeletedAt == null);
+
+        // Task Time Entries
+        modelBuilder.Entity<TaskTimeEntry>()
+            .HasQueryFilter(e => !_currentUser.IsAuthenticated || e.OrgId == _currentUser.OrgId);
+
+        // Notification Inbox
+        modelBuilder.Entity<AgentNotificationInbox>()
+            .HasQueryFilter(n => !_currentUser.IsAuthenticated || n.OrgId == _currentUser.OrgId);
+
         // Daily Summaries
         modelBuilder.Entity<DailySummary>()
             .HasQueryFilter(d => !_currentUser.IsAuthenticated || d.OrgId == _currentUser.OrgId);
@@ -129,6 +153,14 @@ public sealed class TimeTrackDbContext : DbContext
         // Remote Commands
         modelBuilder.Entity<RemoteCommand>()
             .HasQueryFilter(rc => !_currentUser.IsAuthenticated || rc.OrgId == _currentUser.OrgId);
+
+        // User Integrations (Linear etc.)
+        modelBuilder.Entity<UserIntegration>()
+            .HasQueryFilter(i => !_currentUser.IsAuthenticated || i.OrgId == _currentUser.OrgId);
+
+        // Linear Sync History
+        modelBuilder.Entity<LinearSyncHistory>()
+            .HasQueryFilter(h => !_currentUser.IsAuthenticated || h.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()

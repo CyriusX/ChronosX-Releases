@@ -8,10 +8,19 @@
 
 import { useAuthStore } from '../stores/authStore';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+// Get API URL from runtime config (set by config.js) or fallback to default
+const getApiBaseUrl = () => {
+  // Check for runtime config (injected by config.js)
+  if (typeof window !== 'undefined' && window.__APP_CONFIG__?.VITE_API_URL) {
+    return window.__APP_CONFIG__.VITE_API_URL;
+  }
+  // Fallback to build-time env var (for development)
+  return import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+};
 
-// ============================================================================
-// TYPES
+const API_BASE = getApiBaseUrl();
+
+// ============================================================================// TYPES
 // ============================================================================
 
 interface ApiClientOptions {
@@ -27,8 +36,7 @@ interface ApiError {
   code?: string;
 }
 
-// ============================================================================
-// SESSION EXPIRED EVENT
+// ============================================================================// SESSION EXPIRED EVENT
 // ============================================================================
 
 export const SESSION_EXPIRED_EVENT = 'timetrack:session-expired';
@@ -37,8 +45,7 @@ export function dispatchSessionExpired(reason: string = 'Sessao expirada') {
   window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { reason } }));
 }
 
-// ============================================================================
-// REFRESH MANAGEMENT
+// ============================================================================// REFRESH MANAGEMENT
 // ============================================================================
 
 let isRefreshing = false;
@@ -48,79 +55,61 @@ let failedQueue: Array<{
   reject: (error: Error) => void;
 }> = [];
 
-async function refreshTokens(): Promise<boolean> {
-  const authStore = useAuthStore.getState();
-
-  if (!authStore.tokens?.refreshToken) {
-    return false;
-  }
-
-  try {
-    const response = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: authStore.tokens.refreshToken }),
-    });
-
-    if (!response.ok) {
-      return false;
-    }
-
-    const data = await response.json();
-
-    authStore.setTokens({
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      expiresAt: Date.now() + data.expiresIn * 1000,
-    });
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function handleTokenRefresh(): Promise<string | null> {
+async function refreshAccessToken(): Promise<boolean> {
   if (isRefreshing && refreshPromise) {
-    return new Promise((resolve, reject) => {
-      failedQueue.push({
-        resolve: (token) => resolve(token),
-        reject: (error) => reject(error),
-      });
-    });
+    return refreshPromise;
+  }
+
+  const { tokens } = useAuthStore.getState();
+  if (!tokens?.refreshToken) {
+    return false;
   }
 
   isRefreshing = true;
-  refreshPromise = refreshTokens();
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+      });
 
-  const success = await refreshPromise;
+      if (!response.ok) {
+        // Refresh token is invalid - clear auth and redirect to login
+        useAuthStore.getState().clearAuth();
+        dispatchSessionExpired('Token de atualização inválido');
+        return false;
+      }
 
-  isRefreshing = false;
-  refreshPromise = null;
+      const data = await response.json();
+      useAuthStore.getState().setTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken || tokens.refreshToken,
+        expiresAt: Date.now() + (data.expiresIn || 3600) * 1000,
+      });
 
-  if (success) {
-    const newToken = useAuthStore.getState().tokens?.accessToken;
-    failedQueue.forEach(({ resolve }) => {
-      if (newToken) resolve(newToken);
-    });
-    failedQueue = [];
-    return newToken || null;
-  } else {
-    const error = new Error('Session expired');
-    failedQueue.forEach(({ reject }) => reject(error));
-    failedQueue = [];
+      // Process any failed requests that were waiting
+      failedQueue.forEach(({ resolve }) => resolve(data.accessToken));
+      failedQueue = [];
 
-    dispatchSessionExpired('Sua sessao expirou. Por favor, faca login novamente.');
+      return true;
+    } catch (error) {
+      console.error('Failed to refresh token:', error);
+      useAuthStore.getState().clearAuth();
+      dispatchSessionExpired('Falha ao atualizar token');
+      return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
 
-    useAuthStore.getState().clearAuth();
-    window.location.href = '/login';
-
-    return null;
-  }
+  return refreshPromise;
 }
 
-// ============================================================================
-// API CLIENT
+// ============================================================================// API CLIENT
 // ============================================================================
 
 export async function apiClient<T>(
@@ -129,9 +118,11 @@ export async function apiClient<T>(
 ): Promise<T> {
   const { method = 'GET', body, headers = {}, skipAuth = false } = options;
 
-  const authStore = useAuthStore.getState();
-  const accessToken = authStore.tokens?.accessToken;
+  // Get fresh token from authStore
+  const { tokens } = useAuthStore.getState();
+  const accessToken = tokens?.accessToken;
 
+  // Build headers
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     ...headers,
@@ -141,59 +132,60 @@ export async function apiClient<T>(
     requestHeaders['Authorization'] = `Bearer ${accessToken}`;
   }
 
+  // Build URL
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
 
-  const makeRequest = async (token?: string): Promise<Response> => {
-    if (token) {
-      requestHeaders['Authorization'] = `Bearer ${token}`;
-    }
-
-    return fetch(url, {
+  try {
+    const response = await fetch(url, {
       method,
       headers: requestHeaders,
       body: body ? JSON.stringify(body) : undefined,
     });
-  };
 
-  let response = await makeRequest(accessToken);
-
-  if (response.status === 401 && !skipAuth) {
-    const newToken = await handleTokenRefresh();
-
-    if (newToken) {
-      response = await makeRequest(newToken);
-    } else {
-      throw new Error('Session expired. Please login again.');
-    }
-  }
-
-  if (!response.ok) {
-    let errorMessage = `HTTP ${response.status}`;
-    let errorCode: string | undefined;
-
-    try {
-      const errorData = await response.json();
-      errorMessage = errorData.message
-        || errorData.title
-        || errorData.error
-        || (typeof errorData === 'string' ? errorData : null)
-        || errorMessage;
-      errorCode = errorData.code;
-    } catch {
-      // Failed to parse error response
+    // Handle 401 - try to refresh token
+    if (response.status === 401 && !skipAuth) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        // Retry with new token
+        const newTokens = useAuthStore.getState().tokens;
+        if (newTokens?.accessToken) {
+          requestHeaders['Authorization'] = `Bearer ${newTokens.accessToken}`;
+          const retryResponse = await fetch(url, {
+            method,
+            headers: requestHeaders,
+            body: body ? JSON.stringify(body) : undefined,
+          });
+          if (retryResponse.ok) {
+            return retryResponse.json();
+          }
+        }
+      }
+      // Refresh failed - clear auth
+      useAuthStore.getState().clearAuth();
+      dispatchSessionExpired('Sessão expirada');
+      throw new Error('Sessão expirada');
     }
 
-    const error = new Error(errorMessage) as unknown as ApiError;
-    error.status = response.status;
-    error.code = errorCode;
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const error: ApiError = {
+        message: errorData.message || errorData.error || `HTTP error ${response.status}`,
+        status: response.status,
+        code: errorData.code,
+      };
+      throw error;
+    }
+
+    // Handle 204 No Content
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('API Error:', error);
     throw error;
   }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json();
 }
 
 // ============================================================================

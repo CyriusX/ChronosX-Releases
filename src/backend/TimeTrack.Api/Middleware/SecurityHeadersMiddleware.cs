@@ -25,10 +25,9 @@ public class SecurityHeadersMiddleware
     /// </summary>
     private static void AddSecurityHeaders(IHeaderDictionary headers)
     {
-        // HSTS - HTTP Strict Transport Security
-        // max-age=63072000 = 2 years in seconds
-        // includeSubDomains applies the policy to all subdomains
-        headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains";
+        // HSTS - Disabled for containerized environments (EasyPanel handles SSL termination)
+        // Only enable HSTS when the app is directly exposed via HTTPS
+        // headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains";
 
         // Prevents MIME type sniffing
         headers["X-Content-Type-Options"] = "nosniff";
@@ -36,9 +35,9 @@ public class SecurityHeadersMiddleware
         // Prevents clickjacking by disallowing the page to be embedded in iframes
         headers["X-Frame-Options"] = "DENY";
 
-        // Content Security Policy - restricts resource loading to same origin
-        // For APIs, this is a simple policy since we don't serve HTML
-        headers["Content-Security-Policy"] = "default-src 'self'";
+        // Content Security Policy - relaxed for APIs
+        // APIs don't serve HTML, so we use a minimal policy
+        headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
 
         // Controls how much referrer information is sent with requests
         headers["Referrer-Policy"] = "strict-origin-when-cross-origin";

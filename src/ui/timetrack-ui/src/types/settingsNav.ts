@@ -6,8 +6,10 @@ export type SettingsSection =
   | 'notifications'
   | 'timeline'
   | 'focus-timer'
+  | 'integrations'
   | 'team'
   | 'organization'
+  | 'maintenance'
   | 'agent-status'
   | 'about';
 

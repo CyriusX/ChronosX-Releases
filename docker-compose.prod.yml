@@ -1,0 +1,59 @@
+# Production docker-compose for Contabo deployment
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+#
+# Prerequisites:
+# 1. Create .env file with your secrets (see .env.example)
+# 2. Configure SSL certificates (use Certbot for Let's Encrypt)
+# 3. Update nginx.conf with your domain
+
+services:
+  api:
+    image: ${DOCKER_REGISTRY:-}timetrack-api:${IMAGE_TAG:-latest}
+    container_name: timetrack-api
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION}
+      - Jwt__Secret=${JWT_SECRET}
+      - Jwt__Issuer=${JWT_ISSUE:-TimeTrack}
+      - Jwt__Audience=${JWT_AUDIENCE:-TimeTrack.Api}
+      - Resend__ApiKey=${RESEND_API_KEY}
+      - Email__From=${EMAIL_FROM:-noreply@yourdomain.com}
+      - Email__FromName=${EMAIL_FROM_NAME:-TimeTrack}
+      - Frontend__BaseUrl=${FRONTEND_URL}
+    ports:
+      - "127.0.0.1:5000:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - timetrack-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: timetrack-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ops/nginx/ssl:/etc/nginx/ssl:ro
+      - ./ops/certbot/conf:/etc/letsencrypt:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - timetrack-network
+
+networks:
+  timetrack-network:
+    driver: bridge

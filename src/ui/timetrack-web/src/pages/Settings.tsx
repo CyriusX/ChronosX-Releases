@@ -11,25 +11,28 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Building2, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { Users, Building2, ArrowLeft, ShieldAlert, Globe } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { WebSidebar } from '../components/WebSidebar';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuthStore } from '../stores/authStore';
+import { useLanguage } from '../hooks/useLanguage';
 import { getOrgPolicy, updateOrgPolicy } from '../services/policyApi';
 import { clearAllEvents } from '../services/maintenanceApi';
 import { MembersSection } from '@desktop/components/settings/MembersSection';
 import { OrganizationSection } from '@desktop/components/settings/OrganizationSection';
 import { SkeletonShimmer } from '@desktop/components/ui/SkeletonShimmer';
 import { SPRING } from '@desktop/lib/animation';
-import type { OrgPolicyResponse, UpdateOrgPolicyRequest } from '@desktop/types/settings';
+import type { OrgPolicyResponse, UpdateOrgPolicyRequest, AppLanguage } from '@desktop/types/settings';
 
-type WebSettingsSection = 'team' | 'organization' | 'maintenance';
+type WebSettingsSection = 'team' | 'organization' | 'maintenance' | 'preferences';
 
 const SECTIONS: { id: WebSettingsSection; label: string; icon: typeof Users }[] = [
-  { id: 'team', label: 'Equipe', icon: Users },
-  { id: 'organization', label: 'Organizacao', icon: Building2 },
-  { id: 'maintenance', label: 'Manutencao', icon: ShieldAlert },
+  { id: 'team', label: 'settings.members.title', icon: Users },
+  { id: 'organization', label: 'settings.organization.title', icon: Building2 },
+  { id: 'maintenance', label: 'maintenance.title', icon: ShieldAlert },
+  { id: 'preferences', label: 'maintenance.preferences', icon: Globe },
 ];
 
 // ── Maintenance log preferences stored in localStorage ──────────────────────
@@ -55,6 +58,7 @@ function saveMaintenanceLogPrefs(prefs: MaintenanceLogPrefs) {
 
 export default function Settings() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { canEditOrgPolicies } = usePermissions();
   const user = useAuthStore((state) => state.user);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -78,7 +82,7 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('[Settings] Error fetching policies:', error);
-      setPolicyError('Nao foi possivel carregar as politicas da organizacao');
+      setPolicyError(t('maintenance.policyError'));
     } finally {
       setIsLoading(false);
     }
@@ -107,6 +111,8 @@ export default function Settings() {
         return <MembersSection />;
       case 'maintenance':
         return <MaintenanceSection />;
+      case 'preferences':
+        return <PreferencesSection />;
       case 'organization':
         return policy ? (
           <OrganizationSection
@@ -118,15 +124,15 @@ export default function Settings() {
         ) : policyError ? (
           <div className="space-y-6">
             <div>
-              <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Organizacao</h2>
+              <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('maintenance.orgTitle')}</h2>
               <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-                Politicas e configuracoes da organizacao
+                {t('maintenance.orgSubtitle')}
               </p>
             </div>
             <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,107,107,0.2)] rounded-2xl p-6">
               <p className="text-[14px] text-[#ff6b6b]">{policyError}</p>
               <button onClick={loadPolicy} className="mt-3 text-[12px] text-[#8B5CF6] hover:underline">
-                Tentar novamente
+                {t('common.retry')}
               </button>
             </div>
           </div>
@@ -144,7 +150,7 @@ export default function Settings() {
         {/* Settings Sidebar */}
         <nav className="hidden md:flex flex-col w-[220px] flex-shrink-0 border-r border-[rgba(255,255,255,0.04)] bg-gradient-to-b from-[rgba(11,13,20,0.3)] to-[rgba(17,19,28,0.3)] overflow-y-auto py-4 px-3 gap-1">
           <p className="text-[10px] uppercase tracking-wider text-[rgba(245,247,251,0.3)] px-3 pt-3 pb-1 font-medium">
-            Gestao
+            {t('maintenance.management')}
           </p>
           {SECTIONS.map((section) => (
             <motion.button
@@ -166,7 +172,7 @@ export default function Settings() {
                 />
               )}
               <section.icon className="w-4 h-4 relative z-10" />
-              <span className="relative z-10 text-[13px] font-medium">{section.label}</span>
+              <span className="relative z-10 text-[13px] font-medium">{t(section.label)}</span>
             </motion.button>
           ))}
         </nav>
@@ -184,7 +190,7 @@ export default function Settings() {
               }`}
             >
               <section.icon className="w-4 h-4" />
-              <span>{section.label}</span>
+              <span>{t(section.label)}</span>
             </button>
           ))}
         </div>
@@ -206,9 +212,9 @@ export default function Settings() {
               <ArrowLeft className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
             </motion.button>
             <div>
-              <h1 className="text-[20px] font-semibold text-[#f5f7fb]">Configuracoes</h1>
+              <h1 className="text-[20px] font-semibold text-[#f5f7fb]">{t('maintenance.headerTitle')}</h1>
               <p className="text-[12px] text-[rgba(245,247,251,0.4)]">
-                Gerencie a equipe e politicas da organizacao
+                {t('maintenance.headerSubtitle')}
               </p>
             </div>
           </motion.div>
@@ -241,18 +247,18 @@ export default function Settings() {
 // ── Maintenance log preferences section ──────────────────────────────────────
 
 const ALL_CATEGORIES = [
-  { id: 'system', label: 'Sistema' },
-  { id: 'error', label: 'Erros' },
-  { id: 'user_action', label: 'Acoes do usuario' },
-  { id: 'network', label: 'Rede' },
-  { id: 'performance', label: 'Performance' },
+  { id: 'system', labelKey: 'maintenance.categorySystem' },
+  { id: 'error', labelKey: 'maintenance.categoryErrors' },
+  { id: 'user_action', labelKey: 'maintenance.categoryUserActions' },
+  { id: 'network', labelKey: 'maintenance.categoryNetwork' },
+  { id: 'performance', labelKey: 'maintenance.categoryPerformance' },
 ];
 
 const ALL_SEVERITIES = [
-  { id: 'info', label: 'Info', color: 'text-[#4ade80]' },
-  { id: 'warning', label: 'Aviso', color: 'text-[#fbbf24]' },
-  { id: 'error', label: 'Erro', color: 'text-[#f87171]' },
-  { id: 'critical', label: 'Critico', color: 'text-[#ef4444]' },
+  { id: 'info', labelKey: 'maintenance.severityInfo', color: 'text-[#4ade80]' },
+  { id: 'warning', labelKey: 'maintenance.severityWarning', color: 'text-[#fbbf24]' },
+  { id: 'error', labelKey: 'maintenance.severityError', color: 'text-[#f87171]' },
+  { id: 'critical', labelKey: 'maintenance.severityCritical', color: 'text-[#ef4444]' },
 ];
 
 const LIMIT_OPTIONS = [25, 50, 100, 200, 500];
@@ -274,6 +280,7 @@ function ToggleSwitch({ on, onClick, disabled }: { on: boolean; onClick: () => v
 }
 
 function MaintenanceSection() {
+  const { t } = useTranslation();
   const orgId = useAuthStore(s => s.user?.orgId);
   const [prefs, setPrefs] = useState<MaintenanceLogPrefs>(getMaintenanceLogPrefs);
   const [saved, setSaved] = useState(false);
@@ -332,27 +339,27 @@ function MaintenanceSection() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Manutencao</h2>
+        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('maintenance.title')}</h2>
         <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-          Controle o nivel de detalhe dos logs exibidos na pagina de manutencao.
+          {t('maintenance.subtitle')}
         </p>
       </div>
 
       {/* Categories */}
       <div className={sectionCard}>
         <div>
-          <p className="text-[13px] font-semibold text-[rgba(245,247,251,0.9)]">Categorias de eventos</p>
+          <p className="text-[13px] font-semibold text-[rgba(245,247,251,0.9)]">{t('maintenance.categories')}</p>
           <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
-            Selecione quais categorias mostrar.
+            {t('maintenance.categoriesDesc')}
           </p>
         </div>
         <div className={rowBase}>
-          <span className="text-[12px] font-semibold text-[rgba(245,247,251,0.9)]">Selecionar tudo</span>
+          <span className="text-[12px] font-semibold text-[rgba(245,247,251,0.9)]">{t('maintenance.selectAll')}</span>
           <ToggleSwitch on={allCatsSelected} onClick={() => toggleSelectAll('categories')} />
         </div>
         {ALL_CATEGORIES.map(cat => (
           <div key={cat.id} className={rowBase}>
-            <span className={`text-[12px] ${allCatsSelected ? 'text-[rgba(245,247,251,0.35)]' : 'text-[rgba(245,247,251,0.7)]'}`}>{cat.label}</span>
+            <span className={`text-[12px] ${allCatsSelected ? 'text-[rgba(245,247,251,0.35)]' : 'text-[rgba(245,247,251,0.7)]'}`}>{t(cat.labelKey)}</span>
             <ToggleSwitch
               on={allCatsSelected || prefs.categories.includes(cat.id)}
               onClick={() => toggle('categories', cat.id)}
@@ -365,18 +372,18 @@ function MaintenanceSection() {
       {/* Severities */}
       <div className={sectionCard}>
         <div>
-          <p className="text-[13px] font-semibold text-[rgba(245,247,251,0.9)]">Nivel de severidade</p>
+          <p className="text-[13px] font-semibold text-[rgba(245,247,251,0.9)]">{t('maintenance.severityTitle')}</p>
           <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
-            Selecione quais severidades exibir.
+            {t('maintenance.severityDesc')}
           </p>
         </div>
         <div className={rowBase}>
-          <span className="text-[12px] font-semibold text-[rgba(245,247,251,0.9)]">Selecionar tudo</span>
+          <span className="text-[12px] font-semibold text-[rgba(245,247,251,0.9)]">{t('maintenance.selectAll')}</span>
           <ToggleSwitch on={allSevsSelected} onClick={() => toggleSelectAll('severities')} />
         </div>
         {ALL_SEVERITIES.map(sev => (
           <div key={sev.id} className={rowBase}>
-            <span className={`text-[12px] font-medium ${allSevsSelected ? 'opacity-40' : ''} ${sev.color}`}>{sev.label}</span>
+            <span className={`text-[12px] font-medium ${allSevsSelected ? 'opacity-40' : ''} ${sev.color}`}>{t(sev.labelKey)}</span>
             <ToggleSwitch
               on={allSevsSelected || prefs.severities.includes(sev.id)}
               onClick={() => toggle('severities', sev.id)}
@@ -389,8 +396,8 @@ function MaintenanceSection() {
       {/* Limit */}
       <div className={sectionCard}>
         <div>
-          <p className="text-[13px] font-semibold text-[rgba(245,247,251,0.9)]">Maximo de eventos</p>
-          <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">Quantos eventos carregar por consulta.</p>
+          <p className="text-[13px] font-semibold text-[rgba(245,247,251,0.9)]">{t('maintenance.maxEvents')}</p>
+          <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">{t('maintenance.maxEventsDesc')}</p>
         </div>
         <div className="flex gap-2 flex-wrap pt-1">
           {LIMIT_OPTIONS.map(n => (
@@ -412,9 +419,9 @@ function MaintenanceSection() {
       {/* Clear event logs */}
       <div className={sectionCard}>
         <div>
-          <p className="text-[13px] font-semibold text-[rgba(245,247,251,0.9)]">Limpar logs de eventos</p>
+          <p className="text-[13px] font-semibold text-[rgba(245,247,251,0.9)]">{t('maintenance.clearLogs')}</p>
           <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
-            Remove permanentemente todos os eventos registrados de todos os dispositivos da organizacao.
+            {t('maintenance.clearLogsDesc')}
           </p>
         </div>
         {!clearConfirm ? (
@@ -422,31 +429,31 @@ function MaintenanceSection() {
             onClick={() => setClearConfirm(true)}
             className="px-4 py-2 rounded-lg text-[12px] font-medium border border-[rgba(248,113,113,0.3)] bg-[rgba(248,113,113,0.08)] text-[#f87171] hover:bg-[rgba(248,113,113,0.15)] transition-colors"
           >
-            Limpar todos os logs
+            {t('maintenance.clearAll')}
           </button>
         ) : (
           <div className="flex items-center gap-3">
-            <span className="text-[12px] text-[rgba(245,247,251,0.6)]">Tem certeza? Esta acao nao pode ser desfeita.</span>
+            <span className="text-[12px] text-[rgba(245,247,251,0.6)]">{t('maintenance.clearConfirm')}</span>
             <button
               onClick={handleClearEvents}
               disabled={clearing}
               className="px-4 py-1.5 rounded-lg text-[12px] font-medium bg-[#f87171] hover:bg-[#ef4444] text-white transition-colors disabled:opacity-50"
             >
-              {clearing ? 'Limpando...' : 'Confirmar'}
+              {clearing ? t('maintenance.clearing') : t('common.confirm')}
             </button>
             <button
               onClick={() => setClearConfirm(false)}
               className="px-4 py-1.5 rounded-lg text-[12px] font-medium border border-[rgba(255,255,255,0.1)] text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)] transition-colors"
             >
-              Cancelar
+              {t('common.cancel')}
             </button>
           </div>
         )}
         {clearResult === 'success' && (
-          <p className="text-[12px] text-[#4ade80]">Logs removidos com sucesso.</p>
+          <p className="text-[12px] text-[#4ade80]">{t('maintenance.logsRemoved')}</p>
         )}
         {clearResult === 'error' && (
-          <p className="text-[12px] text-[#f87171]">Erro ao limpar logs. Tente novamente.</p>
+          <p className="text-[12px] text-[#f87171]">{t('maintenance.clearError')}</p>
         )}
       </div>
 
@@ -458,8 +465,58 @@ function MaintenanceSection() {
             : 'bg-[#8B5CF6] hover:bg-[#7c3aed] text-white'
         }`}
       >
-        {saved ? 'Salvo!' : 'Salvar preferencias'}
+        {saved ? t('common.saved') : t('maintenance.savePreferences')}
       </button>
+    </div>
+  );
+}
+
+// ── Preferences section (language picker) ──────────────────────────────────
+
+const LANGUAGE_OPTIONS: { code: AppLanguage; label: string }[] = [
+  { code: 'pt-BR', label: 'settings.general.ptBR' },
+  { code: 'en-US', label: 'settings.general.enUS' },
+  { code: 'fr-FR', label: 'settings.general.frFR' },
+  { code: 'es-ES', label: 'settings.general.esES' },
+];
+
+function PreferencesSection() {
+  const { t } = useTranslation();
+  const { language, changeLanguage } = useLanguage();
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('maintenance.preferences')}</h2>
+        <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
+          {t('settings.general.subtitle')}
+        </p>
+      </div>
+
+      <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#ff8904] to-[#f6339a] flex items-center justify-center">
+            <Globe className="w-4 h-4 text-white" />
+          </div>
+          <h3 className="text-[14px] font-medium text-[#f5f7fb]">{t('settings.general.language')}</h3>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {LANGUAGE_OPTIONS.map((opt) => (
+            <button
+              key={opt.code}
+              onClick={() => changeLanguage(opt.code)}
+              className={`py-2 px-4 rounded-lg text-[13px] font-medium transition-all ${
+                language === opt.code
+                  ? 'bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE] text-white'
+                  : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)]'
+              }`}
+            >
+              {t(opt.label)}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

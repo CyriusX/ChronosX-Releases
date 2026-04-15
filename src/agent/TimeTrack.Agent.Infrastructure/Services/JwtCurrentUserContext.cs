@@ -193,56 +193,77 @@ public sealed class JwtCurrentUserContext : ICurrentUserContext
         }
     }
 
-    private static (Guid? UserId, Guid? OrgId, Guid? DeviceId) ExtractClaimsFromJwt(string jwt)
+    private (Guid? UserId, Guid? OrgId, Guid? DeviceId) ExtractClaimsFromJwt(string jwt)
     {
         try
         {
             var parts = jwt.Split('.');
             if (parts.Length != 3)
+            {
+                _logger.LogWarning("JWT does not have 3 parts; cannot extract claims");
                 return (null, null, null);
+            }
 
             var payload = parts[1];
             var padding = payload.Length % 4;
             if (padding > 0)
                 payload += new string('=', 4 - padding);
 
+            // JWTs use base64url — replace URL-safe characters so FromBase64String works.
+            payload = payload.Replace('-', '+').Replace('_', '/');
+
             var jsonBytes = Convert.FromBase64String(payload);
             var json = Encoding.UTF8.GetString(jsonBytes);
             var payloadObj = JsonSerializer.Deserialize<JsonElement>(json);
 
-            Guid? userId = null;
-            Guid? orgId = null;
-            Guid? deviceId = null;
+            var userId = TryReadGuidClaim(payloadObj, "sub")
+                ?? TryReadGuidClaim(payloadObj, "user_id")
+                ?? TryReadGuidClaim(payloadObj, "userId")
+                ?? TryReadGuidClaim(payloadObj, "nameid")
+                ?? TryReadGuidClaim(payloadObj, "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
 
-            // Tentar diferentes claim names
-            if (payloadObj.TryGetProperty("sub", out var subElement))
-            {
-                if (Guid.TryParse(subElement.GetString(), out var subGuid))
-                    userId = subGuid;
-            }
-            else if (payloadObj.TryGetProperty("user_id", out var userIdElement))
-            {
-                if (Guid.TryParse(userIdElement.GetString(), out var userGuid))
-                    userId = userGuid;
-            }
+            var orgId = TryReadGuidClaim(payloadObj, "org_id")
+                ?? TryReadGuidClaim(payloadObj, "orgId")
+                ?? TryReadGuidClaim(payloadObj, "organization_id");
 
-            if (payloadObj.TryGetProperty("org_id", out var orgIdElement))
-            {
-                if (Guid.TryParse(orgIdElement.GetString(), out var orgGuid))
-                    orgId = orgGuid;
-            }
+            var deviceId = TryReadGuidClaim(payloadObj, "device_id")
+                ?? TryReadGuidClaim(payloadObj, "deviceId");
 
-            if (payloadObj.TryGetProperty("device_id", out var deviceIdElement))
+            if (userId == null)
             {
-                if (Guid.TryParse(deviceIdElement.GetString(), out var deviceGuid))
-                    deviceId = deviceGuid;
+                var availableClaims = string.Join(", ", EnumerateClaimNames(payloadObj));
+                _logger.LogWarning(
+                    "JWT parsed but no userId claim resolved to a Guid. Available claims: [{Claims}]",
+                    availableClaims);
             }
 
             return (userId, orgId, deviceId);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to parse JWT claims");
             return (null, null, null);
         }
+    }
+
+    private static Guid? TryReadGuidClaim(JsonElement payload, string claimName)
+    {
+        if (!payload.TryGetProperty(claimName, out var element))
+            return null;
+
+        if (element.ValueKind != JsonValueKind.String)
+            return null;
+
+        var value = element.GetString();
+        return Guid.TryParse(value, out var guid) ? guid : (Guid?)null;
+    }
+
+    private static IEnumerable<string> EnumerateClaimNames(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object)
+            yield break;
+
+        foreach (var prop in payload.EnumerateObject())
+            yield return prop.Name;
     }
 }

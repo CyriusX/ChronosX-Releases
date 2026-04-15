@@ -7,6 +7,12 @@
  */
 
 // ============================================================================
+// LANGUAGE
+// ============================================================================
+
+export type AppLanguage = 'pt-BR' | 'en-US' | 'fr-FR' | 'es-ES';
+
+// ============================================================================
 // LOCAL SETTINGS (Colaborador Preferences)
 // ============================================================================
 
@@ -20,8 +26,8 @@ export interface LocalSettings {
   /** Toggle para sons de notificação */
   notificationSoundsEnabled: boolean;
 
-  /** Idioma da interface (pt-BR, en-US) */
-  language: 'pt-BR' | 'en-US';
+  /** Idioma da interface */
+  language: AppLanguage;
 
   /** Limiar de inatividade em segundos (60–3600). null = padrão do Agent (300s) */
   idleThresholdSeconds: number | null;
@@ -39,7 +45,7 @@ export interface LocalSettings {
 export interface UpdateLocalSettingsRequest {
   autoResumeNotificationEnabled?: boolean;
   notificationSoundsEnabled?: boolean;
-  language?: 'pt-BR' | 'en-US';
+  language?: AppLanguage;
   idleThresholdSeconds?: number;
   workGoalSeconds?: number;
 }

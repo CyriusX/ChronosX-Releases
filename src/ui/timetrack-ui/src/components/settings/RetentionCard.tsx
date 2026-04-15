@@ -1,4 +1,5 @@
 import { Database } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { PolicyCardShell } from './PolicyCardShell';
 
 interface RetentionCardProps {
@@ -27,6 +28,7 @@ export function RetentionCard({
   isSaving,
   onRetentionChange,
 }: RetentionCardProps) {
+  const { t } = useTranslation();
   const formatRetention = () => {
     if (retentionDays >= 365) {
       const years = Math.floor(retentionDays / 365);
@@ -36,12 +38,12 @@ export function RetentionCard({
       const months = Math.floor(retentionDays / 30);
       return `${months} ${months > 1 ? 'meses' : 'mês'}`;
     }
-    return `${retentionDays} dias`;
+    return `${retentionDays} ${t('policies.retention.days')}`;
   };
 
   return (
     <PolicyCardShell
-      title="Retenção de Dados"
+      title={t('policies.retention.title')}
       icon={Database}
       iconColor="text-[#05df72]"
       iconBgColor="bg-[rgba(5,223,114,0.15)]"
@@ -55,7 +57,7 @@ export function RetentionCard({
       {isEditing ? (
         <div className="space-y-3">
           <div>
-            <label className="text-[11px] text-[rgba(245,247,251,0.5)] mb-1 block">Dias de retenção</label>
+            <label className="text-[11px] text-[rgba(245,247,251,0.5)] mb-1 block">{t('policies.retention.days')}</label>
             <input
               type="number"
               min="7"
@@ -72,8 +74,7 @@ export function RetentionCard({
           <div className="flex items-baseline gap-2">
             <span className="text-[24px] font-semibold text-[#f5f7fb]">{formatRetention()}</span>
           </div>
-          <p className="text-[13px] text-[rgba(245,247,251,0.5)]">Período de armazenamento dos dados</p>
-          <p className="text-[11px] text-[rgba(245,247,251,0.35)]">Dados mais antigos são removidos automaticamente</p>
+          <p className="text-[13px] text-[rgba(245,247,251,0.5)]">{t('policies.retention.subtitle')}</p>
         </div>
       )}
     </PolicyCardShell>

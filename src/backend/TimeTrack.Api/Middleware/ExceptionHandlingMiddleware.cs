@@ -34,32 +34,44 @@ public class ExceptionHandlingMiddleware
     {
         int statusCode;
         object response;
+        string errorDetails;
 
         switch (exception)
         {
             case UserDeactivatedException ex:
                 statusCode = (int)HttpStatusCode.Unauthorized;
                 response = new ErrorResponse(ex.Code, ex.Message);
+                errorDetails = $"UserDeactivatedException: {ex.Message}";
                 break;
             case ForbiddenException ex:
                 statusCode = (int)HttpStatusCode.Forbidden;
                 response = new ErrorResponse("forbidden", ex.Reason);
+                errorDetails = $"ForbiddenException: {ex.Reason}";
                 break;
             case NotFoundException ex:
                 statusCode = (int)HttpStatusCode.NotFound;
                 response = new ErrorResponse("not_found", $"{ex.EntityType} with key '{ex.Key}' was not found");
+                errorDetails = $"NotFoundException: {ex.EntityType} with key '{ex.Key}'";
                 break;
             case ValidationException ex:
                 statusCode = (int)HttpStatusCode.BadRequest;
                 response = new ValidationErrorResponse("validation_failed", ex.Errors);
+                errorDetails = $"ValidationException: {string.Join(", ", ex.Errors.Select(e => $"{e.Key}: {string.Join(", ", e.Value)}"))}";
                 break;
             case ConflictException ex:
                 statusCode = (int)HttpStatusCode.Conflict;
                 response = new ErrorResponse(ex.Code, ex.Message);
+                errorDetails = $"ConflictException: {ex.Code} - {ex.Message}";
+                break;
+            case UnauthorizedAccessException ex:
+                statusCode = (int)HttpStatusCode.Unauthorized;
+                response = new ErrorResponse("unauthorized", ex.Message);
+                errorDetails = $"UnauthorizedAccessException: {ex.Message}";
                 break;
             default:
                 statusCode = (int)HttpStatusCode.InternalServerError;
                 response = new ErrorResponse("internal_error", "An unexpected error occurred");
+                errorDetails = $"Unhandled exception: {exception.GetType().Name}: {exception.Message}";
                 break;
         }
 
@@ -70,7 +82,16 @@ public class ExceptionHandlingMiddleware
             _ => "unknown"
         };
 
-        _logger.LogWarning(exception, "Request failed: {StatusCode} - {ErrorCode}", statusCode, errorCode);
+        // Log full exception details for debugging
+        _logger.LogError(exception,
+            "Request failed: {RequestMethod} {RequestPath} - {StatusCode} {ErrorCode}\nExceptionType: {ExceptionType}\nMessage: {Message}\nStack Trace: {StackTrace}",
+            context.Request.Method,
+            context.Request.Path.Value,
+            statusCode,
+            errorCode,
+            exception.GetType().Name,
+            exception.Message,
+            exception.StackTrace);
 
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/json";

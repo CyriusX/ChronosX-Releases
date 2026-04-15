@@ -93,7 +93,7 @@ function subHeader(title: string): string {
  */
 function exportHeader(options: ExportOptions): string {
   const now = new Date();
-  const generatedAt = now.toLocaleString('pt-BR');
+  const generatedAt = now.toLocaleString();
 
   return `╔════════════════════════════════════════════════════════════╗
 ║              RELATÓRIO DE PRODUTIVIDADE                    ║

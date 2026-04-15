@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Plus } from 'lucide-react';
 import type { ProductivityCategory, AppSubcategory, IdentifierType } from '../../types/appCategories';
 import { PRODUCTIVITY_CONFIG as productivityConfig, SUBCATEGORIES as subcategories, SUBCATEGORIES_BY_PRODUCTIVITY } from '../../types/appCategories';
@@ -29,6 +30,7 @@ export function AddAppCategoryModal({
   onClose,
   onAdd,
 }: AddAppCategoryModalProps) {
+  const { t } = useTranslation();
   const [identifier, setIdentifier] = useState('');
   const [identifierType, setIdentifierType] = useState<IdentifierType>('exe');
   const [productivity, setProductivity] = useState<ProductivityCategory>('productive');
@@ -60,7 +62,7 @@ export function AddAppCategoryModal({
   const handleAdd = async () => {
     // Validation
     if (!identifier.trim()) {
-      setError('Nome do executável ou domínio é obrigatório');
+      setError(t('policies.appCategories.identifierRequired'));
       return;
     }
 
@@ -79,7 +81,7 @@ export function AddAppCategoryModal({
       onClose();
     } catch (err) {
       console.error('[AddAppCategoryModal] Error adding:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao adicionar classificação');
+      setError(err instanceof Error ? err.message : t('policies.appCategories.addClassificationError'));
     } finally {
       setIsSaving(false);
     }
@@ -106,7 +108,7 @@ export function AddAppCategoryModal({
               <Plus className="w-4 h-4 text-[#8B5CF6]" />
             </div>
             <h2 className="text-[16px] font-semibold text-[#f5f7fb]">
-              Adicionar classificação
+              {t('policies.appCategories.addClassification')}
             </h2>
           </div>
           <button
@@ -122,13 +124,13 @@ export function AddAppCategoryModal({
           {/* Identifier */}
           <div>
             <label className="text-[12px] text-[rgba(245,247,251,0.5)] mb-2 block">
-              Nome do executável ou domínio:
+              {t('policies.appCategories.identifierLabel')}
             </label>
             <input
               type="text"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="ex: meuapp.exe ou meusite.com.br"
+              placeholder={t('policies.appCategories.identifierPlaceholder')}
               className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2.5 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#8B5CF6]"
             />
           </div>
@@ -136,7 +138,7 @@ export function AddAppCategoryModal({
           {/* Type */}
           <div>
             <label className="text-[12px] text-[rgba(245,247,251,0.5)] mb-2 block">
-              Tipo:
+              {t('policies.appCategories.typeLabel')}
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -147,7 +149,7 @@ export function AddAppCategoryModal({
                     : 'bg-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.5)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)]'
                 }`}
               >
-                App desktop
+                {t('policies.appCategories.typeDesktop')}
               </button>
               <button
                 onClick={() => setIdentifierType('domain')}
@@ -157,7 +159,7 @@ export function AddAppCategoryModal({
                     : 'bg-[rgba(255,255,255,0.04)] text-[rgba(245,247,251,0.5)] border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.08)]'
                 }`}
               >
-                Site/Domínio
+                {t('policies.appCategories.typeDomain')}
               </button>
             </div>
           </div>
@@ -165,7 +167,7 @@ export function AddAppCategoryModal({
           {/* Productivity */}
           <div>
             <label className="text-[12px] text-[rgba(245,247,251,0.5)] mb-2 block">
-              Classificação:
+              {t('policies.appCategories.classificationLabel')}
             </label>
             <div className="grid grid-cols-3 gap-2">
               {(['productive', 'neutral', 'distraction'] as ProductivityCategory[]).map(
@@ -189,7 +191,7 @@ export function AddAppCategoryModal({
           {/* Subcategory */}
           <div>
             <label className="text-[12px] text-[rgba(245,247,251,0.5)] mb-2 block">
-              Subcategoria:
+              {t('policies.appCategories.subcategory')}
             </label>
             <select
               value={subcategory}
@@ -207,12 +209,12 @@ export function AddAppCategoryModal({
           {/* Note */}
           <div>
             <label className="text-[12px] text-[rgba(245,247,251,0.5)] mb-2 block">
-              Nota (opcional):
+              {t('policies.appCategories.noteOptional')}
             </label>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Justificativa para a classificação..."
+              placeholder={t('policies.appCategories.notePlaceholder')}
               rows={2}
               className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#f5f7fb] placeholder-[rgba(245,247,251,0.3)] focus:outline-none focus:border-[#8B5CF6] resize-none"
             />
@@ -233,14 +235,14 @@ export function AddAppCategoryModal({
             disabled={isSaving}
             className="px-4 py-2 rounded-lg text-[13px] font-medium text-[rgba(245,247,251,0.6)] hover:text-[rgba(245,247,251,0.8)] transition-colors disabled:opacity-50"
           >
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleAdd}
             disabled={isSaving}
             className="px-4 py-2 rounded-lg text-[13px] font-medium bg-[rgba(5,223,114,0.15)] text-[#05df72] border border-[rgba(5,223,114,0.3)] hover:bg-[rgba(5,223,114,0.25)] transition-colors disabled:opacity-50"
           >
-            {isSaving ? 'Adicionando...' : 'Adicionar'}
+            {isSaving ? t('policies.appCategories.adding') : t('common.add')}
           </button>
         </div>
       </div>

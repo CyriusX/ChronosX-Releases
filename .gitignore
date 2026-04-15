@@ -32,6 +32,9 @@ x86/
 *.pdb
 *.cache
 
+# Allow update installers
+!src/backend/TimeTrack.Api/updates/*.exe
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json
@@ -56,6 +59,10 @@ yarn-error.log*
 dist/
 .webpack/
 
+# TypeScript build cache (auto-generated, no need to track)
+tsconfig.tsbuildinfo
+**/*.tsbuildinfo
+
 # Environment
 .env
 .env.local
@@ -77,3 +84,8 @@ logs/
 # Claude
 CLAUDE.md
 .claude/settings.local.json
+/build/
+src/build/
+.build/
+Package.resolved
+*.png

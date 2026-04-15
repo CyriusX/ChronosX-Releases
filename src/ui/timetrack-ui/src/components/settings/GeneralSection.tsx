@@ -1,5 +1,16 @@
-import { Globe, Target } from 'lucide-react';
-import type { LocalSettings, UpdateLocalSettingsRequest } from '../../types/settings';
+import { Globe, Target, LogIn } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocalSettings, UpdateLocalSettingsRequest, AppLanguage } from '../../types/settings';
+import { useLanguage } from '../../hooks/useLanguage';
+import { useIpc } from '../../hooks/useIpc';
+
+const LANGUAGE_OPTIONS: { code: AppLanguage; label: string }[] = [
+  { code: 'pt-BR', label: 'settings.general.ptBR' },
+  { code: 'en-US', label: 'settings.general.enUS' },
+  { code: 'fr-FR', label: 'settings.general.frFR' },
+  { code: 'es-ES', label: 'settings.general.esES' },
+];
 
 const GOAL_OPTIONS = [
   { value: 3600, label: '1h' },
@@ -17,17 +28,85 @@ interface GeneralSectionProps {
 }
 
 export function GeneralSection({ settings, onUpdate }: GeneralSectionProps) {
+  const { t } = useTranslation();
+  const { changeLanguage } = useLanguage();
+  const { sendQuery, sendCommand } = useIpc();
   const currentGoal = settings.workGoalSeconds ?? 28800;
+
+  const [launchAtLogin, setLaunchAtLogin] = useState(false);
+  const [launchAtLoginLoading, setLaunchAtLoginLoading] = useState(true);
+
+  useEffect(() => {
+    sendQuery('getLaunchAtLogin')
+      .then((res) => {
+        if (res.success && res.data && typeof (res.data as { enabled?: boolean }).enabled === 'boolean') {
+          setLaunchAtLogin((res.data as { enabled: boolean }).enabled);
+        }
+      })
+      .catch(() => {/* non-macOS or agent not running */})
+      .finally(() => setLaunchAtLoginLoading(false));
+  }, []);
+
+  const handleLaunchAtLoginChange = async (enabled: boolean) => {
+    setLaunchAtLogin(enabled);
+    try {
+      await sendCommand('setLaunchAtLogin', { enabled });
+    } catch {
+      setLaunchAtLogin(!enabled); // revert on error
+    }
+  };
+
+  const handleLanguageChange = async (lang: AppLanguage) => {
+    onUpdate({ language: lang });
+    await changeLanguage(lang);
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Geral</h2>
+        <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('settings.general.title')}</h2>
         <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-          Configurações gerais da interface
+          {t('settings.general.subtitle')}
         </p>
       </div>
+
+      {/* Start with Login Card */}
+      {!launchAtLoginLoading && (
+        <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#8B5CF6] to-[#22D3EE] flex items-center justify-center">
+                <LogIn className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-[14px] font-medium text-[#f5f7fb]">
+                  {t('settings.general.launchAtLogin')}
+                </h3>
+                <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
+                  {t('settings.general.launchAtLoginDescription')}
+                </p>
+              </div>
+            </div>
+            <button
+              role="switch"
+              aria-checked={launchAtLogin}
+              onClick={() => handleLaunchAtLoginChange(!launchAtLogin)}
+              className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
+                launchAtLogin
+                  ? 'bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE]'
+                  : 'bg-[rgba(255,255,255,0.1)]'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                  launchAtLogin ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Language Card */}
       <div className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
@@ -35,30 +114,23 @@ export function GeneralSection({ settings, onUpdate }: GeneralSectionProps) {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#ff8904] to-[#f6339a] flex items-center justify-center">
             <Globe className="w-4 h-4 text-white" />
           </div>
-          <h3 className="text-[14px] font-medium text-[#f5f7fb]">Idioma</h3>
+          <h3 className="text-[14px] font-medium text-[#f5f7fb]">{t('settings.general.language')}</h3>
         </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={() => onUpdate({ language: 'pt-BR' })}
-            className={`flex-1 py-2 px-4 rounded-lg text-[13px] font-medium transition-all ${
-              settings.language === 'pt-BR'
-                ? 'bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE] text-white'
-                : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)]'
-            }`}
-          >
-            Português (BR)
-          </button>
-          <button
-            onClick={() => onUpdate({ language: 'en-US' })}
-            className={`flex-1 py-2 px-4 rounded-lg text-[13px] font-medium transition-all ${
-              settings.language === 'en-US'
-                ? 'bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE] text-white'
-                : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)]'
-            }`}
-          >
-            English (US)
-          </button>
+        <div className="grid grid-cols-2 gap-2">
+          {LANGUAGE_OPTIONS.map((opt) => (
+            <button
+              key={opt.code}
+              onClick={() => handleLanguageChange(opt.code)}
+              className={`py-2 px-4 rounded-lg text-[13px] font-medium transition-all ${
+                settings.language === opt.code
+                  ? 'bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE] text-white'
+                  : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)]'
+              }`}
+            >
+              {t(opt.label)}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -68,12 +140,12 @@ export function GeneralSection({ settings, onUpdate }: GeneralSectionProps) {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#05df72] to-[#22D3EE] flex items-center justify-center">
             <Target className="w-4 h-4 text-white" />
           </div>
-          <h3 className="text-[14px] font-medium text-[#f5f7fb]">Meta diária</h3>
+          <h3 className="text-[14px] font-medium text-[#f5f7fb]">{t('settings.general.workGoal')}</h3>
         </div>
 
         <div className="space-y-3">
           <p className="text-[11px] text-[rgba(245,247,251,0.4)]">
-            O anel de progresso no Dashboard usa essa meta como referência
+            {t('settings.general.workGoalDescription')}
           </p>
 
           <div className="flex flex-wrap gap-2">

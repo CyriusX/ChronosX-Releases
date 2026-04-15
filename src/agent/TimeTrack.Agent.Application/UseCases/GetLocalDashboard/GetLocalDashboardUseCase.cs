@@ -58,7 +58,7 @@ public sealed class GetLocalDashboardUseCase
             return new LocalDashboardResponse
             {
                 Date = date?.Date ?? DateTime.Today,
-                TrackingStatus = "NotAuthenticated",
+                TrackingStatus = "Active",
                 TotalWorkTime = TimeSpan.Zero,
                 TotalIdleTime = TimeSpan.Zero,
                 SessionCount = 0,
@@ -70,6 +70,12 @@ public sealed class GetLocalDashboardUseCase
         var targetDate = date?.Date ?? DateTime.Today;
 
         var userIdValue = userId.Value;
+
+        // Compute UTC day boundaries for session clipping (matches backend logic)
+        var startOfDayUtc = targetDate.Kind == DateTimeKind.Utc
+            ? targetDate
+            : targetDate.ToUniversalTime();
+        var endOfDayUtc = startOfDayUtc.AddDays(1);
 
         // Busca dados em paralelo (filtrados por usuário)
         var stateTask = _stateRepository.GetAsync(userIdValue, cancellationToken);
@@ -100,18 +106,21 @@ public sealed class GetLocalDashboardUseCase
         var internalApps = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "TimeTrack.DesktopHost",
+            "ChronosX TimeTrack",
+            "TimeTrack",
+            "TimeTrack.MacOSAgentService",
             "Microsoft Edge WebView2",
             "Microsoft® Windows® Operating System",
             "Sistema operacional Microsoft® Windows®",
             "Tracking Stopped",
         };
 
-        // Calcula totais (excluding our own app processes)
-        var totalWorkTime = TimeSpan.Zero;
         // Per-app aggregation: tracks total time AND time per category to pick the dominant one
         var appUsage = new Dictionary<string, (TimeSpan Time, Dictionary<string, (TimeSpan Time, string Subcategory)> CategoryBreakdown)>();
         // Aggregate by executable (ExePathHash) — groups browser tabs into their parent app
         var exeUsage = new Dictionary<string, (TimeSpan Time, string Name, Dictionary<string, (TimeSpan Time, string Subcategory)> CategoryBreakdown)>();
+        // Collect clipped intervals for merged total (prevents double-counting, matches backend)
+        var clippedIntervals = new List<(DateTime Start, DateTime End)>();
 
         foreach (var session in sessions)
         {
@@ -124,37 +133,49 @@ public sealed class GetLocalDashboardUseCase
             if (internalApps.Contains(exeName))
                 continue;
 
-            totalWorkTime += session.Duration;
+            // Clip session to day boundaries (matches backend ReportRepository logic)
+            var clippedStart = session.Period.StartUtc < startOfDayUtc ? startOfDayUtc : session.Period.StartUtc;
+            var clippedEnd = session.Period.EndUtc > endOfDayUtc ? endOfDayUtc : session.Period.EndUtc;
+            var clippedDuration = clippedEnd > clippedStart ? clippedEnd - clippedStart : TimeSpan.Zero;
+
+            // Collect interval for merged total calculation
+            if (clippedEnd > clippedStart)
+                clippedIntervals.Add((clippedStart, clippedEnd));
+
             // Resolve category from cache (includes org overrides), fall back to baked-in
             var (cat, sub) = ResolveCategory(session, categoryLookup);
 
-            // Per-app aggregation with category breakdown
+            // Per-app aggregation with category breakdown (using clipped duration)
             if (!appUsage.TryGetValue(appName, out var existing))
             {
                 existing = (TimeSpan.Zero, new Dictionary<string, (TimeSpan, string)>());
                 appUsage[appName] = existing;
             }
-            existing.Time += session.Duration;
+            existing.Time += clippedDuration;
             if (existing.CategoryBreakdown.TryGetValue(cat, out var catEntry))
-                existing.CategoryBreakdown[cat] = (catEntry.Time + session.Duration, sub);
+                existing.CategoryBreakdown[cat] = (catEntry.Time + clippedDuration, sub);
             else
-                existing.CategoryBreakdown[cat] = (session.Duration, sub);
+                existing.CategoryBreakdown[cat] = (clippedDuration, sub);
             appUsage[appName] = existing;
 
-            // Per-executable aggregation with category breakdown
+            // Per-executable aggregation with category breakdown (using clipped duration)
             var exeHash = session.App.ExePathHash;
             if (!exeUsage.TryGetValue(exeHash, out var exeExisting))
             {
                 exeExisting = (TimeSpan.Zero, exeName, new Dictionary<string, (TimeSpan, string)>());
                 exeUsage[exeHash] = exeExisting;
             }
-            exeExisting.Time += session.Duration;
+            exeExisting.Time += clippedDuration;
             if (exeExisting.CategoryBreakdown.TryGetValue(cat, out var exeCatEntry))
-                exeExisting.CategoryBreakdown[cat] = (exeCatEntry.Time + session.Duration, sub);
+                exeExisting.CategoryBreakdown[cat] = (exeCatEntry.Time + clippedDuration, sub);
             else
-                exeExisting.CategoryBreakdown[cat] = (session.Duration, sub);
+                exeExisting.CategoryBreakdown[cat] = (clippedDuration, sub);
             exeUsage[exeHash] = exeExisting;
         }
+
+        // Compute total as merged (non-overlapping) intervals — matches backend's
+        // ComputeMergedSeconds so that multi-device sessions are not double-counted.
+        var totalWorkTime = TimeSpan.FromSeconds(ComputeMergedSeconds(clippedIntervals));
 
         var totalIdleTime = idlePeriods.Aggregate(
             TimeSpan.Zero,
@@ -229,7 +250,7 @@ public sealed class GetLocalDashboardUseCase
         return new LocalDashboardResponse
         {
             Date = targetDate,
-            TrackingStatus = state?.Status.ToString() ?? "Unknown",
+            TrackingStatus = state?.Status.ToString() ?? "Active",
             TotalWorkTime = totalWorkTime,
             TotalIdleTime = totalIdleTime,
             FocusTimeMs = focusMetrics.FocusTimeMs,
@@ -327,12 +348,23 @@ public sealed class GetLocalDashboardUseCase
     /// For browsers: "YouTube - Google Chrome" → "Google Chrome"
     /// For regular apps: returns the displayName as-is.
     /// </summary>
+    private static readonly HashSet<string> BrowserDisplayNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Google Chrome", "Chrome", "Safari", "Firefox", "Brave Browser", "Brave",
+        "Microsoft Edge", "Opera", "Chromium", "Arc", "Vivaldi", "Orion",
+    };
+
     private static string ExtractExeDisplayName(string? windowTitle, string displayName)
     {
         if (string.IsNullOrWhiteSpace(windowTitle))
             return displayName;
 
-        // Check if the window title has a " - AppName" suffix (typical browser pattern)
+        // Only extract app name from window title for browsers, where the title
+        // format is "Page Title - BrowserName". For other apps (VS Code, Xcode, etc.),
+        // the suffix is a project/workspace name, not the app name.
+        if (!BrowserDisplayNames.Contains(displayName))
+            return displayName;
+
         var separators = new[] { " - ", " — ", " – " };
         foreach (var sep in separators)
         {
@@ -340,7 +372,6 @@ public sealed class GetLocalDashboardUseCase
             if (lastIdx > 0)
             {
                 var suffix = windowTitle[(lastIdx + sep.Length)..].Trim();
-                // If the suffix looks like a real app name (not too short, not the same as display)
                 if (suffix.Length > 2 && suffix != displayName)
                     return suffix;
             }
@@ -436,5 +467,32 @@ public sealed class GetLocalDashboardUseCase
 
         // 4. Fall back to baked-in category (only for apps not yet in cloud DB)
         return (session.App.Category.Productivity, session.App.Category.Subcategory);
+    }
+
+    /// <summary>
+    /// Merges overlapping time intervals and returns total non-overlapping duration in seconds.
+    /// Identical algorithm to backend's GetTeamStatusCommand.ComputeMergedSeconds and
+    /// ReportRepository.ComputeMergedSeconds — ensures Dashboard and Teams show the same total.
+    /// </summary>
+    private static long ComputeMergedSeconds(List<(DateTime Start, DateTime End)> intervals)
+    {
+        var sorted = intervals
+            .Where(i => i.End > i.Start)
+            .OrderBy(i => i.Start)
+            .ToList();
+
+        if (sorted.Count == 0) return 0;
+
+        var merged = new List<(DateTime Start, DateTime End)> { sorted[0] };
+        foreach (var (start, end) in sorted.Skip(1))
+        {
+            var last = merged[^1];
+            if (start <= last.End)
+                merged[^1] = (last.Start, end > last.End ? end : last.End);
+            else
+                merged.Add((start, end));
+        }
+
+        return (long)merged.Sum(m => (m.End - m.Start).TotalSeconds);
     }
 }

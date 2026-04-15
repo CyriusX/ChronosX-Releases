@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft,
@@ -32,8 +33,10 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useAuthStore } from '../stores/authStore';
 import { useReportsData, useReportsSummary } from '../hooks/useReportsData';
 import { listMembers } from '../services/memberApi';
+import { listUserTasks, listProjects, type Task, type ProjectItem } from '../services/projectsApi';
 import { exportReportsToCSV } from '../lib/exportReports';
 import { fadeUp, staggerContainer, STAGGER } from '../lib/animation';
+import { toLocalDateStr } from '../types/reports';
 import type { Member } from '../types/member';
 
 // Components (Composition Pattern)
@@ -45,23 +48,24 @@ import {
   TopPathsSection,
   CategoryDonut,
   DistractionSection,
+  ProjectTasksAccordion,
 } from '../components/reports';
 import type { PeriodPreset, GroupByOption } from '../types/reports';
 
-// Period preset options for dropdown
-const PERIOD_OPTIONS: { value: PeriodPreset; label: string }[] = [
-  { value: 'today', label: 'Hoje' },
-  { value: 'this_week', label: 'Esta semana' },
-  { value: 'this_month', label: 'Este mês' },
-  { value: 'last_30_days', label: 'Últimos 30 dias' },
-  { value: 'last_90_days', label: 'Últimos 90 dias' },
+// Period preset options for dropdown (labels resolved via i18n at render time)
+const PERIOD_KEYS: { value: PeriodPreset; tKey: string }[] = [
+  { value: 'today', tKey: 'reports.today' },
+  { value: 'this_week', tKey: 'reports.thisWeek' },
+  { value: 'this_month', tKey: 'reports.thisMonth' },
+  { value: 'last_30_days', tKey: 'reports.last30' },
+  { value: 'last_90_days', tKey: 'reports.last90' },
 ];
 
 // Group by options
-const GROUP_BY_OPTIONS: { value: GroupByOption; label: string }[] = [
-  { value: 'day', label: 'Dia' },
-  { value: 'week', label: 'Semana' },
-  { value: 'month', label: 'Mês' },
+const GROUP_BY_KEYS: { value: GroupByOption; tKey: string }[] = [
+  { value: 'day', tKey: 'reports.day' },
+  { value: 'week', tKey: 'reports.week' },
+  { value: 'month', tKey: 'reports.month' },
 ];
 
 function formatDuration(seconds: number): string {
@@ -75,13 +79,29 @@ function formatDuration(seconds: number): string {
 }
 
 export default function Reports() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { canManageTeam } = usePermissions();
   const user = useAuthStore((state) => state.user);
 
+  // Handler for heatmap cell click - navigates to activities page
+  const handleHeatmapCellClick = (date: Date, userId?: string) => {
+    const dateStr = toLocalDateStr(date);
+    const url = userId
+      ? `/activities?date=${dateStr}&userId=${userId}`
+      : `/activities?date=${dateStr}`;
+    navigate(url);
+  };
+
   // Team members for RBAC filter
   const [members, setMembers] = useState<Member[]>([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+
+  // Projects & Tasks accordion
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [projectsList, setProjectsList] = useState<ProjectItem[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
   const [showGroupByDropdown, setShowGroupByDropdown] = useState(false);
 
@@ -130,6 +150,17 @@ export default function Reports() {
     }
   };
 
+  useEffect(() => {
+    setTasksLoading(true);
+    Promise.all([
+      listUserTasks(selectedUserId, true).catch(() => ({ tasks: [] })),
+      listProjects(false).catch(() => ({ projects: [], totalCount: 0 })),
+    ]).then(([tasksRes, projRes]) => {
+      setAllTasks(tasksRes.tasks);
+      setProjectsList(projRes.projects);
+    }).finally(() => setTasksLoading(false));
+  }, [selectedUserId]);
+
   // Handle period change
   const handlePeriodChange = (period: PeriodPreset) => {
     setSelectedPeriod(period);
@@ -150,16 +181,16 @@ export default function Reports() {
 
   // Get selected user name
   const getSelectedUserName = () => {
-    if (!selectedUserId) return 'Meus dados';
-    if (selectedUserId === 'all') return 'Toda a equipe';
+    if (!selectedUserId) return t('reports.myData');
+    if (selectedUserId === 'all') return t('reports.allTeam');
     const member = members.find((m) => m.userId === selectedUserId);
-    return member?.displayName || 'Usuário';
+    return member?.displayName || t('common.user');
   };
 
   // Get period label
   const getPeriodLabel = () => {
-    const option = PERIOD_OPTIONS.find((o) => o.value === selectedPeriod);
-    return option?.label || 'Período customizado';
+    const option = PERIOD_KEYS.find((o) => o.value === selectedPeriod);
+    return option ? t(option.tKey) : t('reports.period');
   };
 
   // Handle export
@@ -173,31 +204,31 @@ export default function Reports() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0b0d14]">
+    <div className="flex h-screen bg-[#0b0d14] pb-14 md:pb-0">
       <Sidebar />
 
       {/* Main content */}
       <main className="flex-1 flex flex-col min-w-0 min-h-0">
         <div className="px-5 pt-4 pb-2 flex-shrink-0">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate(-1)}
-                className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors flex-shrink-0"
               >
                 <ArrowLeft className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
               </button>
               <div>
-                <h1 className="text-[20px] font-semibold text-[#f5f7fb]">Relatórios</h1>
+                <h1 className="text-[20px] font-semibold text-[#f5f7fb]">{t('reports.title')}</h1>
                 <p className="text-[12px] text-[rgba(245,247,251,0.4)]">
-                  Análise de tempo e produtividade
+                  {t('reports.subtitle')}
                 </p>
               </div>
             </div>
 
             {/* Controls */}
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
               {/* Period Selector */}
               <div className="relative" ref={periodDropdownRef}>
                 <button
@@ -221,7 +252,7 @@ export default function Reports() {
                       transition={{ duration: 0.15 }}
                       className="absolute top-full left-0 mt-1 min-w-[160px] bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-lg z-30 overflow-hidden"
                     >
-                      {PERIOD_OPTIONS.map((option) => (
+                      {PERIOD_KEYS.map((option) => (
                         <button
                           key={option.value}
                           onClick={() => {
@@ -234,7 +265,7 @@ export default function Reports() {
                               : 'text-[rgba(245,247,251,0.8)]'
                           }`}
                         >
-                          {option.label}
+                          {t(option.tKey)}
                         </button>
                       ))}
                     </motion.div>
@@ -252,7 +283,7 @@ export default function Reports() {
                   }}
                   className="flex items-center gap-2 px-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg text-[12px] text-[#f5f7fb] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
                 >
-                  <span>Agrupar: {GROUP_BY_OPTIONS.find(o => o.value === selectedGroupBy)?.label}</span>
+                  <span>{t('reports.groupBy')} {t(GROUP_BY_KEYS.find(o => o.value === selectedGroupBy)?.tKey ?? '')}</span>
                   <ChevronDown className={`w-3.5 h-3.5 text-[rgba(245,247,251,0.4)] transition-transform ${showGroupByDropdown ? 'rotate-180' : ''}`} />
                 </button>
                 <AnimatePresence>
@@ -264,7 +295,7 @@ export default function Reports() {
                       transition={{ duration: 0.15 }}
                       className="absolute top-full left-0 mt-1 min-w-[140px] bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-lg z-30 overflow-hidden"
                     >
-                      {GROUP_BY_OPTIONS.map((option) => (
+                      {GROUP_BY_KEYS.map((option) => (
                         <button
                           key={option.value}
                           onClick={() => {
@@ -277,7 +308,7 @@ export default function Reports() {
                               : 'text-[rgba(245,247,251,0.8)]'
                           }`}
                         >
-                          {option.label}
+                          {t(option.tKey)}
                         </button>
                       ))}
                     </motion.div>
@@ -294,7 +325,7 @@ export default function Reports() {
                 className="flex items-center gap-2 px-3 py-2 bg-[rgba(139,92,246,0.15)] border border-[rgba(139,92,246,0.3)] rounded-lg text-[12px] text-[#8B5CF6] hover:bg-[rgba(139,92,246,0.2)] transition-colors disabled:opacity-50"
               >
                 <Download className="w-4 h-4" />
-                Exportar CSV
+                <span className="hidden sm:inline">{t('reports.exportCsv')}</span>
               </motion.button>
 
               {/* Refresh Button */}
@@ -328,7 +359,7 @@ export default function Reports() {
                   whileTap={{ scale: 0.995 }}
                 >
                   <Users className="w-4 h-4 text-[#8B5CF6]" />
-                  <span className="text-[13px] text-[rgba(245,247,251,0.6)]">Visualizando:</span>
+                  <span className="text-[13px] text-[rgba(245,247,251,0.6)]">{t('reports.viewing')}</span>
                   <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
                     {getSelectedUserName()}
                   </span>
@@ -349,13 +380,13 @@ export default function Reports() {
                         onClick={() => { handleUserChange(undefined); setShowUserDropdown(false); }}
                         className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${!selectedUserId ? 'text-[#8B5CF6] bg-[rgba(139,92,246,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}
                       >
-                        Meus dados
+                        {t('reports.myData')}
                       </button>
                       <button
                         onClick={() => { handleUserChange('all'); setShowUserDropdown(false); }}
                         className={`w-full px-4 py-2.5 text-left text-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors ${selectedUserId === 'all' ? 'text-[#8B5CF6] bg-[rgba(139,92,246,0.1)]' : 'text-[rgba(245,247,251,0.8)]'}`}
                       >
-                        Toda a equipe
+                        {t('reports.allTeam')}
                       </button>
                       <div className="border-t border-[rgba(255,255,255,0.06)]" />
                       {members.filter((member) => member.userId !== user?.id).map((member) => (
@@ -382,7 +413,7 @@ export default function Reports() {
                   onClick={refresh}
                   className="ml-auto text-[12px] text-[#8B5CF6] hover:underline"
                 >
-                  Tentar novamente
+                  {t('common.retry')}
                 </button>
               </div>
             )}
@@ -396,9 +427,9 @@ export default function Reports() {
             >
               <motion.div variants={fadeUp}>
                 <SummaryCard
-                  title="Tempo Ativo"
+                  title={t('reports.activeTime')}
                   value={formatDuration(summary.totalActiveSeconds)}
-                  subtitle={`${summary.daysWithData} dias com dados`}
+                  subtitle={`${summary.daysWithData} ${t('reports.daysWithData')}`}
                   icon={Clock}
                   iconBgColor="rgba(139,92,246,0.15)"
                   iconColor="#8B5CF6"
@@ -407,9 +438,9 @@ export default function Reports() {
               </motion.div>
               <motion.div variants={fadeUp}>
                 <SummaryCard
-                  title="Tempo Idle"
+                  title={t('reports.idleTime')}
                   value={formatDuration(summary.totalIdleSeconds)}
-                  subtitle={summary.totalActiveSeconds > 0 ? `${Math.round((summary.totalIdleSeconds / (summary.totalActiveSeconds + summary.totalIdleSeconds)) * 100)}% do total` : '0% do total'}
+                  subtitle={summary.totalActiveSeconds > 0 ? `${Math.round((summary.totalIdleSeconds / (summary.totalActiveSeconds + summary.totalIdleSeconds)) * 100)}% ${t('reports.ofTotal')}` : `0% ${t('reports.ofTotal')}`}
                   icon={Activity}
                   iconBgColor="rgba(251,191,36,0.15)"
                   iconColor="#fbbf24"
@@ -418,9 +449,9 @@ export default function Reports() {
               </motion.div>
               <motion.div variants={fadeUp}>
                 <SummaryCard
-                  title="Score de Foco"
+                  title={t('reports.focusScore')}
                   value={`${summary.focusScore}%`}
-                  subtitle="Baseado em tempo produtivo, distrações e blocos de foco"
+                  subtitle={t('reports.focusScoreDesc')}
                   icon={Target}
                   iconBgColor="rgba(5,223,114,0.15)"
                   iconColor="#05df72"
@@ -431,9 +462,9 @@ export default function Reports() {
               </motion.div>
               <motion.div variants={fadeUp}>
                 <SummaryCard
-                  title="Período"
+                  title={t('reports.period')}
                   value={getPeriodLabel()}
-                  subtitle={`${filters.dateRange.startDate} a ${filters.dateRange.endDate}`}
+                  subtitle={`${filters.dateRange.startDate} ${t('reports.to')} ${filters.dateRange.endDate}`}
                   icon={Calendar}
                   iconBgColor="rgba(138,92,246,0.15)"
                   iconColor="#8a5cf6"
@@ -447,8 +478,9 @@ export default function Reports() {
               <ActivityHeatmap
                 days={data.dailySummaryRange?.days ?? []}
                 isLoading={isLoading}
-                title="Mapa de Atividade"
+                title={t('reports.activityHeatmap')}
                 userId={selectedUserId}
+                onCellClick={handleHeatmapCellClick}
               />
             </motion.div>
 
@@ -457,7 +489,7 @@ export default function Reports() {
               <ProductivityTrend
                 periods={data.productivityTrend?.periods ?? []}
                 isLoading={isLoading}
-                title="Tendência de Produtividade"
+                title={t('reports.productivityTrend')}
               />
             </motion.div>
 
@@ -473,7 +505,7 @@ export default function Reports() {
                 <TopAppsSection
                   apps={data.topApps?.apps ?? []}
                   isLoading={isLoading}
-                  title="Apps Mais Usados"
+                  title={t('reports.topApps')}
                   maxItems={15}
                 />
               </motion.div>
@@ -483,7 +515,7 @@ export default function Reports() {
                 <CategoryDonut
                   categories={data.categoryDistribution?.categories ?? []}
                   isLoading={isLoading}
-                  title="Distribuição por Categoria"
+                  title={t('reports.categoryDistribution')}
                 />
               </motion.div>
 
@@ -492,7 +524,7 @@ export default function Reports() {
                 <TopPathsSection
                   paths={data.topPaths?.paths ?? []}
                   isLoading={isLoading}
-                  title="URLs e Caminhos Mais Acessados"
+                  title={t('reports.topPaths')}
                   maxItems={10}
                 />
               </motion.div>
@@ -502,9 +534,24 @@ export default function Reports() {
                 <DistractionSection
                   data={data.distractionStats}
                   isLoading={isLoading}
-                  title="Análise de Distrações"
+                  title={t('reports.distractionAnalysis')}
                 />
               </motion.div>
+            </motion.div>
+
+            {/* Projects & Tasks Accordion */}
+            <motion.div variants={fadeUp} initial="hidden" animate="visible">
+              <ProjectTasksAccordion
+                tasks={allTasks}
+                projects={projectsList}
+                loading={tasksLoading}
+                expanded={expandedProjects}
+                onToggle={(id) => setExpandedProjects((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(id)) next.delete(id); else next.add(id);
+                  return next;
+                })}
+              />
             </motion.div>
           </div>
         </div>

@@ -27,4 +27,8 @@
     <ProjectReference Include="..\TimeTrack.Backend.Infrastructure\TimeTrack.Backend.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="updates\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

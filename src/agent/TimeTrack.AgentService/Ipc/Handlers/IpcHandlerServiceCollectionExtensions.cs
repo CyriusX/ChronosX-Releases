@@ -6,9 +6,11 @@ using TimeTrack.AgentService.Ipc.Handlers.Commands.FocusMode;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Settings;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Sync;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Tracking;
+using TimeTrack.AgentService.Ipc.Handlers.Commands.Update;
 using TimeTrack.AgentService.Ipc.Handlers.Queries.Dashboard;
 using TimeTrack.AgentService.Ipc.Handlers.Queries.Data;
 using TimeTrack.AgentService.Ipc.Handlers.Queries.State;
+using TimeTrack.AgentService.Ipc.Handlers.Queries.Update;
 
 namespace TimeTrack.AgentService.Ipc.Handlers;
 
@@ -38,11 +40,16 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcCommandHandler, ResetOutboxCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, AssignProjectCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, AssignTaskCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, ResumeOpenTaskCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, CloseOpenTaskCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, UpdateSettingsCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, SetWorkHoursCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, UpdateAppCategoryCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, SetLaunchAtLoginCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, DismissActivityResumePromptCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, TestActivityResumeToastCommandHandler>(); // TODO: Remove after testing
+        services.AddSingleton<IIpcCommandHandler, CheckForUpdatesCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, StartUpdateCommandHandler>();
 
         // Query Handlers
         services.AddSingleton<IIpcQueryHandler, GetCurrentSessionQueryHandler>();
@@ -55,8 +62,11 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcQueryHandler, GetFocusModeStateQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetProjectsQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetTasksQueryHandler>();
+        services.AddSingleton<IIpcQueryHandler, GetMyOpenTaskQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetErrorsQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetSettingsQueryHandler>();
+        services.AddSingleton<IIpcQueryHandler, GetUpdateProgressQueryHandler>();
+        services.AddSingleton<IIpcQueryHandler, GetLaunchAtLoginQueryHandler>();
 
         // Router
         services.AddSingleton<IpcMessageRouter>();

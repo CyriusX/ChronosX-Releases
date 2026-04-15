@@ -11,6 +11,7 @@ export function useIpc() {
   return {
     isConnected: false,
     isReady: false,
+    connectionState: 'disconnected' as const,
     sendCommand: async (_command: string, _payload?: unknown) => ({
       success: false as const,
       error: 'IPC not available in web portal',
@@ -20,8 +21,9 @@ export function useIpc() {
       error: 'IPC not available in web portal',
       data: undefined,
     }),
-    subscribe: (_event: string, _handler: (...args: unknown[]) => void) => {
+    subscribeToEvent: (_event: string, _handler: (...args: unknown[]) => void) => {
       return () => {}; // unsubscribe no-op
     },
+    reconnect: async () => {},
   };
 }

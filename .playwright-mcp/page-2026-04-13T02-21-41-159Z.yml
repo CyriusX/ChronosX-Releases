@@ -1,0 +1,661 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - navigation [ref=e3]:
+      - link "ChronosX" [ref=e4] [cursor=pointer]:
+        - /url: "#home"
+        - img [ref=e6]
+        - generic [ref=e9]: ChronosX
+      - generic [ref=e10]:
+        - link "Home" [ref=e11] [cursor=pointer]:
+          - /url: "#home"
+        - link "Product" [ref=e12] [cursor=pointer]:
+          - /url: "#features"
+        - link "Teams" [ref=e13] [cursor=pointer]:
+          - /url: "#showcase"
+        - link "Pricing" [ref=e14] [cursor=pointer]:
+          - /url: "#pricing"
+        - link "Help" [ref=e15] [cursor=pointer]:
+          - /url: "#how-it-works"
+      - link "Get Started" [ref=e17] [cursor=pointer]:
+        - /url: "#pricing"
+  - main [ref=e18]:
+    - generic [ref=e20]:
+      - generic [ref=e22]:
+        - img [ref=e23]
+        - generic [ref=e26]: Now with Focus Score AI
+      - heading "See Where Your Time Goes. Work With More Focus." [level=1] [ref=e27]:
+        - text: See Where Your Time Goes.
+        - generic [ref=e28]: Work With More Focus.
+      - paragraph [ref=e29]: ChronosX TimeTrack helps individuals and teams capture time, understand focus patterns, review distractions and breaks, and see project activity — all in one clear dashboard.
+      - generic [ref=e30]:
+        - textbox "Enter your work email" [ref=e32]
+        - button "Get Started" [ref=e33]:
+          - text: Get Started
+          - img [ref=e34]
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - generic [ref=e47]: ChronosX Dashboard
+          - generic [ref=e48]:
+            - generic [ref=e51]: Tracking
+            - generic [ref=e52]: Today · Wed, Apr 9
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - generic [ref=e55]: 6h 42m
+            - generic [ref=e56]: Time Tracked
+          - generic [ref=e57]:
+            - generic [ref=e58]: "87"
+            - generic [ref=e59]: Focus Score
+          - generic [ref=e60]:
+            - generic [ref=e61]: "4"
+            - generic [ref=e62]: Distractions
+          - generic [ref=e63]:
+            - generic [ref=e64]: "3"
+            - generic [ref=e65]: Breaks
+        - generic [ref=e66]:
+          - generic [ref=e67]:
+            - generic [ref=e68]: Today's Activity
+            - generic [ref=e69]:
+              - generic [ref=e70]: 6h 42m
+              - generic [ref=e71]: +12% vs avg
+            - generic [ref=e72]:
+              - generic [ref=e75]: 9a
+              - generic [ref=e78]: 10a
+              - generic [ref=e81]: 11a
+              - generic [ref=e84]: 12p
+              - generic [ref=e87]: 1p
+              - generic [ref=e90]: 2p
+              - generic [ref=e93]: 3p
+              - generic [ref=e96]: 4p
+              - generic [ref=e99]: 5p
+          - generic [ref=e100]:
+            - generic [ref=e101]: Focus Score
+            - generic [ref=e102]:
+              - img [ref=e103]
+              - generic [ref=e106]:
+                - generic [ref=e107]: "87"
+                - generic [ref=e108]: Excellent
+            - generic [ref=e109]:
+              - generic [ref=e110]:
+                - generic [ref=e111]: 72%
+                - generic [ref=e112]: Productive
+              - generic [ref=e113]:
+                - generic [ref=e114]: 18%
+                - generic [ref=e115]: Neutral
+              - generic [ref=e116]:
+                - generic [ref=e117]: 10%
+                - generic [ref=e118]: Distracted
+          - generic [ref=e119]:
+            - generic [ref=e120]: Project Time
+            - generic [ref=e121]:
+              - generic [ref=e123]:
+                - generic [ref=e126]: Website Redesign
+                - generic [ref=e127]: 2h 15m
+              - generic [ref=e131]:
+                - generic [ref=e134]: Mobile App
+                - generic [ref=e135]: 1h 48m
+              - generic [ref=e139]:
+                - generic [ref=e142]: API Integration
+                - generic [ref=e143]: 1h 05m
+              - generic [ref=e147]:
+                - generic [ref=e150]: Documentation
+                - generic [ref=e151]: 0h 34m
+          - generic [ref=e154]:
+            - generic [ref=e155]: Focus Mode
+            - generic [ref=e156]:
+              - img [ref=e157]
+              - generic [ref=e160]:
+                - generic [ref=e161]: 15:00
+                - generic [ref=e162]: remaining
+            - generic [ref=e163]: Pomodoro · Cycle 2/4
+    - generic [ref=e166]:
+      - generic [ref=e167]: What is ChronosX
+      - heading "Time tracking that gives you the full picture" [level=2] [ref=e168]
+      - paragraph [ref=e169]: ChronosX TimeTrack automatically captures how you spend your working hours, scores your focus quality, flags distractions, and breaks down time by project and team. No manual entries. No guesswork. Just clear, actionable time data that helps you and your team work better.
+      - link "More About Us" [ref=e171] [cursor=pointer]:
+        - /url: "#features"
+        - text: More About Us
+        - img [ref=e172]
+      - generic [ref=e174]:
+        - generic [ref=e175]: Time Tracking
+        - generic [ref=e177]: Focus Insights
+        - generic [ref=e179]: Distraction Signals
+        - generic [ref=e181]: Break Tracking
+        - generic [ref=e183]: Project Time
+        - generic [ref=e185]: Team Activity
+        - generic [ref=e187]: Live Timer
+    - generic [ref=e190]:
+      - generic [ref=e191]: Core Features
+      - heading "Everything you need to track time with clarity" [level=2] [ref=e192]
+      - paragraph [ref=e193]: Three powerful pillars that turn invisible work into visible progress.
+      - generic [ref=e194]:
+        - generic [ref=e196]:
+          - img [ref=e198]
+          - heading "Automatic Time Capture" [level=3] [ref=e200]
+          - paragraph [ref=e201]: ChronosX runs quietly in the background, recording which apps, sites, and projects you work on. No start/stop buttons needed — just work naturally and let time data build itself.
+        - generic [ref=e203]:
+          - img [ref=e205]
+          - heading "Focus & Distraction Insights" [level=3] [ref=e213]
+          - paragraph [ref=e214]: Get a daily Focus Score from 0 to 100, see exactly what pulls your attention away, and understand your break patterns. Pomodoro and Ultradian focus modes help you stay in the zone.
+        - generic [ref=e216]:
+          - img [ref=e218]
+          - heading "Team & Project Visibility" [level=3] [ref=e223]
+          - paragraph [ref=e224]: Managers see real-time team activity, project time breakdowns, and individual focus trends. Track billable hours, monitor workload distribution, and export reports in one click.
+    - generic [ref=e226]:
+      - heading "Stop guessing where the day goes" [level=2] [ref=e227]
+      - paragraph [ref=e228]: See time, focus, and project activity in one calm, powerful workspace. ChronosX turns invisible work into visible progress — so every hour counts.
+      - link "Try ChronosX Free" [ref=e230] [cursor=pointer]:
+        - /url: "#pricing"
+        - text: Try ChronosX Free
+        - img [ref=e231]
+    - generic [ref=e234]:
+      - generic [ref=e235]: Built for You
+      - heading "Everything you need to understand your workday" [level=2] [ref=e236]
+      - paragraph [ref=e237]: From live timers to deep analytics, every screen in ChronosX is designed to give you clarity without complexity.
+      - generic [ref=e238]:
+        - generic [ref=e239]:
+          - generic:
+            - generic:
+              - generic: Today's Activity
+              - generic:
+                - generic: 6h 42m
+                - generic: +12% vs avg
+              - generic:
+                - generic:
+                  - generic: 9a
+                - generic:
+                  - generic: 10a
+                - generic:
+                  - generic: 11a
+                - generic:
+                  - generic: 12p
+                - generic:
+                  - generic: 1p
+                - generic:
+                  - generic: 2p
+                - generic:
+                  - generic: 3p
+                - generic:
+                  - generic: 4p
+                - generic:
+                  - generic: 5p
+          - generic [ref=e240]:
+            - heading "Daily Dashboard" [level=3] [ref=e241]
+            - paragraph [ref=e242]: Your entire workday summarized in one glance
+        - generic [ref=e243]:
+          - generic:
+            - generic:
+              - generic: Team Activity
+              - generic:
+                - generic: 4 tracking
+                - generic: 1 break
+                - generic: 1 idle
+              - generic:
+                - generic:
+                  - generic:
+                    - generic: Sarah M.
+                  - generic: VS Code · 92%
+                - generic:
+                  - generic:
+                    - generic: Daniel P.
+                  - generic: Figma · 78%
+                - generic:
+                  - generic:
+                    - generic: Elena R.
+                  - generic: break · 65%
+                - generic:
+                  - generic:
+                    - generic: James O.
+                  - generic: Chrome · 84%
+                - generic:
+                  - generic:
+                    - generic: Maria C.
+                  - generic: idle
+                - generic:
+                  - generic:
+                    - generic: Alex K.
+                  - generic: Slack · 71%
+          - generic [ref=e244]:
+            - heading "Team Activity" [level=3] [ref=e245]
+            - paragraph [ref=e246]: See who is tracking, focused, or on break
+        - generic [ref=e247]:
+          - generic:
+            - generic:
+              - generic: Project Time
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: Website Redesign
+                    - generic: 2h 15m
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: Mobile App
+                    - generic: 1h 48m
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: API Integration
+                    - generic: 1h 05m
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: Documentation
+                    - generic: 0h 34m
+          - generic [ref=e248]:
+            - heading "Project Breakdown" [level=3] [ref=e249]
+            - paragraph [ref=e250]: Time distributed across every project and task
+        - generic [ref=e251]:
+          - generic:
+            - generic:
+              - generic: Focus Mode
+              - generic:
+                - img
+                - generic:
+                  - generic: 15:00
+                  - generic: remaining
+              - generic: Pomodoro · Cycle 2/4
+          - generic [ref=e252]:
+            - heading "Focus Timer" [level=3] [ref=e253]
+            - paragraph [ref=e254]: Pomodoro and Ultradian modes built in
+        - generic [ref=e255]:
+          - generic:
+            - generic:
+              - generic: Weekly Heatmap
+              - generic:
+                - generic:
+                  - generic: Mon
+                - generic:
+                  - generic: Tue
+                - generic:
+                  - generic: Wed
+                - generic:
+                  - generic: Thu
+                - generic:
+                  - generic: Fri
+                - generic:
+                  - generic: 9a
+                  - generic: 10a
+                  - generic: 11a
+                  - generic: 12p
+                  - generic: 1p
+                  - generic: 2p
+                  - generic: 3p
+                  - generic: 4p
+                  - generic: 5p
+          - generic [ref=e256]:
+            - heading "Productivity Analytics" [level=3] [ref=e257]
+            - paragraph [ref=e258]: Trends, heatmaps, and category breakdowns
+        - generic [ref=e259]:
+          - generic:
+            - generic:
+              - generic: App Usage Report
+              - generic: This week · 33h 42m total
+              - generic:
+                - generic:
+                  - generic:
+                    - generic: VS Code
+                    - generic: 3h 12m
+                - generic:
+                  - generic:
+                    - generic: Chrome
+                    - generic: 1h 24m
+                - generic:
+                  - generic:
+                    - generic: Figma
+                    - generic: 0h 58m
+                - generic:
+                  - generic:
+                    - generic: Slack
+                    - generic: 0h 36m
+                - generic:
+                  - generic:
+                    - generic: Other
+                    - generic: 0h 32m
+          - generic [ref=e260]:
+            - heading "Reports & Export" [level=3] [ref=e261]
+            - paragraph [ref=e262]: Generate and share reports with your team
+    - generic [ref=e264]:
+      - generic [ref=e265]: Why ChronosX
+      - heading "Outcomes that matter for your team" [level=2] [ref=e266]
+      - paragraph [ref=e267]: ChronosX doesn't just track time — it transforms how teams understand and improve their work.
+      - generic [ref=e269]:
+        - img [ref=e271]
+        - generic [ref=e274]:
+          - heading "Less Manual Reporting" [level=3] [ref=e275]
+          - paragraph [ref=e276]: Time data flows automatically into dashboards and reports. Stop filling spreadsheets and let ChronosX generate the numbers your team actually needs.
+      - generic [ref=e277]:
+        - generic [ref=e278]:
+          - img [ref=e280]
+          - heading "Clearer Accountability" [level=3] [ref=e282]
+          - paragraph [ref=e283]: Every team member can see their own tracked time, focus score, and project contribution. Managers get visibility without micromanaging.
+        - generic [ref=e284]:
+          - img [ref=e286]
+          - heading "Better Planning" [level=3] [ref=e288]
+          - paragraph [ref=e289]: Use historical time data to estimate projects more accurately, balance workloads, and set realistic goals based on real capacity.
+        - generic [ref=e290]:
+          - img [ref=e292]
+          - heading "More Focused Sessions" [level=3] [ref=e296]
+          - paragraph [ref=e297]: Built-in Pomodoro and Ultradian timers, distraction alerts, and focus scoring help your team stay in deep work longer.
+        - generic [ref=e298]:
+          - img [ref=e300]
+          - heading "Faster Time Reviews" [level=3] [ref=e303]
+          - paragraph [ref=e304]: Review an entire week of activity in under a minute. Heatmaps, trend charts, and app category breakdowns make time audits effortless.
+    - generic [ref=e306]:
+      - generic [ref=e307]:
+        - generic [ref=e308]:
+          - img [ref=e309]
+          - img [ref=e311]
+          - img [ref=e313]
+          - img [ref=e315]
+          - img [ref=e317]
+        - paragraph [ref=e319]: 4.9/5 based on 120+ reviews
+      - generic [ref=e320]:
+        - generic [ref=e321]:
+          - generic [ref=e323]: 0.0M+
+          - generic [ref=e324]: Hours Tracked
+        - generic [ref=e325]:
+          - generic [ref=e327]: 0K+
+          - generic [ref=e328]: Sessions Recorded
+        - generic [ref=e329]:
+          - generic [ref=e331]: 0+
+          - generic [ref=e332]: Teams Onboarded
+        - generic [ref=e333]:
+          - generic [ref=e335]: 0.0%
+          - generic [ref=e336]: Uptime Reliability
+      - generic [ref=e337]:
+        - paragraph [ref=e338]: Trusted by teams at
+        - generic [ref=e339]:
+          - generic [ref=e340]: Acme Corp
+          - generic [ref=e341]: TechForward
+          - generic [ref=e342]: Pixel Studio
+          - generic [ref=e343]: DataSync
+          - generic [ref=e344]: CloudNine
+          - generic [ref=e345]: BrightPath
+    - generic [ref=e347]:
+      - generic [ref=e348]: Testimonials
+      - heading "Loved by teams who value their time" [level=2] [ref=e349]
+      - paragraph [ref=e350]: See how professionals and teams use ChronosX to gain clarity and focus.
+      - generic [ref=e351]:
+        - generic [ref=e352]:
+          - generic [ref=e353]:
+            - generic [ref=e354]:
+              - img [ref=e355]
+              - img [ref=e357]
+              - img [ref=e359]
+              - img [ref=e361]
+              - img [ref=e363]
+            - paragraph [ref=e365]: “ChronosX cut our weekly reporting time by 80%. We used to spend Friday afternoons compiling timesheets — now the dashboard has everything we need in real time.”
+            - generic [ref=e366]:
+              - generic [ref=e367]: SM
+              - generic [ref=e368]:
+                - generic [ref=e369]: Sarah Mitchell
+                - generic [ref=e370]: Operations Manager, Streamline Co.
+          - generic [ref=e371]:
+            - generic [ref=e372]:
+              - img [ref=e373]
+              - img [ref=e375]
+              - img [ref=e377]
+              - img [ref=e379]
+              - img [ref=e381]
+            - paragraph [ref=e383]: “The Focus Score changed how our team thinks about deep work. We went from constant context-switching to structured focus sessions, and sprint velocity jumped noticeably.”
+            - generic [ref=e384]:
+              - generic [ref=e385]: DP
+              - generic [ref=e386]:
+                - generic [ref=e387]: Daniel Park
+                - generic [ref=e388]: Product Lead, BuildStack
+          - generic [ref=e389]:
+            - generic [ref=e390]:
+              - img [ref=e391]
+              - img [ref=e393]
+              - img [ref=e395]
+              - img [ref=e397]
+              - img [ref=e399]
+            - paragraph [ref=e401]: “We finally have visibility into project time without asking anyone to fill in a single form. ChronosX tracks everything silently and the breakdown by project is incredibly accurate.”
+            - generic [ref=e402]:
+              - generic [ref=e403]: ER
+              - generic [ref=e404]:
+                - generic [ref=e405]: Elena Rossi
+                - generic [ref=e406]: Studio Director, Forma Creative
+          - generic [ref=e407]:
+            - generic [ref=e408]:
+              - img [ref=e409]
+              - img [ref=e411]
+              - img [ref=e413]
+              - img [ref=e415]
+              - img [ref=e417]
+            - paragraph [ref=e419]: “I can see team activity at a glance — who is deep in focus, who might need support, and how time splits across projects. It replaced three tools for us.”
+            - generic [ref=e420]:
+              - generic [ref=e421]: JO
+              - generic [ref=e422]:
+                - generic [ref=e423]: James Okafor
+                - generic [ref=e424]: Engineering Manager, Nexaflow
+          - generic [ref=e425]:
+            - generic [ref=e426]:
+              - img [ref=e427]
+              - img [ref=e429]
+              - img [ref=e431]
+              - img [ref=e433]
+              - img [ref=e435]
+            - paragraph [ref=e437]: “As a freelancer, I needed something that tracks billable hours automatically without disrupting my creative flow. ChronosX does exactly that — and the reports make invoicing painless.”
+            - generic [ref=e438]:
+              - generic [ref=e439]: MC
+              - generic [ref=e440]:
+                - generic [ref=e441]: Maria Chen
+                - generic [ref=e442]: Freelance Designer, Independent
+        - generic [ref=e443]:
+          - button "Previous testimonial" [ref=e444]:
+            - img [ref=e445]
+          - generic [ref=e447]:
+            - button "Go to testimonial 1" [ref=e448]
+            - button "Go to testimonial 2" [ref=e449]
+            - button "Go to testimonial 3" [ref=e450]
+            - button "Go to testimonial 4" [ref=e451]
+            - button "Go to testimonial 5" [ref=e452]
+          - button "Next testimonial" [ref=e453]:
+            - img [ref=e454]
+    - generic [ref=e457]:
+      - generic [ref=e458]: How It Works
+      - heading "Up and running in minutes" [level=2] [ref=e459]
+      - paragraph [ref=e460]: No complex setup. Install, launch, and start seeing where your time goes — automatically.
+      - generic [ref=e461]:
+        - generic [ref=e462]:
+          - img [ref=e464]
+          - generic [ref=e466]: Step 1
+          - heading "Start Tracking" [level=3] [ref=e467]
+          - paragraph [ref=e468]: Install ChronosX on your desktop. Launch it once, and it begins capturing your work activity automatically in the background.
+        - generic [ref=e469]:
+          - img [ref=e471]
+          - generic [ref=e473]: Step 2
+          - heading "Work Naturally" [level=3] [ref=e474]
+          - paragraph [ref=e475]: Focus on your tasks. ChronosX quietly records which apps, sites, and projects you spend time on — no manual input required.
+        - generic [ref=e476]:
+          - img [ref=e478]
+          - generic [ref=e480]: Step 3
+          - heading "Review & Improve" [level=3] [ref=e481]
+          - paragraph [ref=e482]: Open your dashboard to see time breakdowns, focus scores, distraction patterns, and team insights. Export reports or share with your team.
+    - generic [ref=e484]:
+      - generic [ref=e485]: Pricing
+      - heading "Simple, transparent pricing" [level=2] [ref=e486]
+      - paragraph [ref=e487]: Start free, upgrade when you need team features. No hidden fees.
+      - generic [ref=e488]:
+        - generic [ref=e489]: Monthly
+        - switch "Toggle annual pricing" [ref=e490]
+        - generic [ref=e492]: Annual
+      - generic [ref=e493]:
+        - generic [ref=e494]:
+          - generic [ref=e495]: Starter
+          - paragraph [ref=e496]: For individuals tracking their own productivity
+          - generic [ref=e498]:
+            - generic [ref=e499]: $9
+            - generic [ref=e500]: /user/mo
+          - list [ref=e501]:
+            - listitem [ref=e502]:
+              - img [ref=e503]
+              - generic [ref=e505]: Personal time tracking
+            - listitem [ref=e506]:
+              - img [ref=e507]
+              - generic [ref=e509]: Core dashboard & analytics
+            - listitem [ref=e510]:
+              - img [ref=e511]
+              - generic [ref=e513]: Project time breakdown
+            - listitem [ref=e514]:
+              - img [ref=e515]
+              - generic [ref=e517]: Focus Score & insights
+            - listitem [ref=e518]:
+              - img [ref=e519]
+              - generic [ref=e521]: CSV export
+          - button "Start Free Trial" [ref=e522]:
+            - text: Start Free Trial
+            - img [ref=e523]
+        - generic [ref=e525]:
+          - generic [ref=e526]: Most Popular
+          - generic [ref=e527]: Team
+          - paragraph [ref=e528]: For teams that need shared visibility and reporting
+          - generic [ref=e530]:
+            - generic [ref=e531]: $19
+            - generic [ref=e532]: /user/mo
+          - list [ref=e533]:
+            - listitem [ref=e534]:
+              - img [ref=e535]
+              - generic [ref=e537]: Everything in Starter
+            - listitem [ref=e538]:
+              - img [ref=e539]
+              - generic [ref=e541]: Team activity dashboard
+            - listitem [ref=e542]:
+              - img [ref=e543]
+              - generic [ref=e545]: Shared reporting & exports
+            - listitem [ref=e546]:
+              - img [ref=e547]
+              - generic [ref=e549]: Manager visibility controls
+            - listitem [ref=e550]:
+              - img [ref=e551]
+              - generic [ref=e553]: Priority support
+          - button "Start Free Trial" [ref=e554]:
+            - text: Start Free Trial
+            - img [ref=e555]
+        - generic [ref=e557]:
+          - generic [ref=e558]: Enterprise
+          - paragraph [ref=e559]: For organizations with advanced needs
+          - generic [ref=e561]: Custom
+          - list [ref=e562]:
+            - listitem [ref=e563]:
+              - img [ref=e564]
+              - generic [ref=e566]: Everything in Team
+            - listitem [ref=e567]:
+              - img [ref=e568]
+              - generic [ref=e570]: Advanced analytics & reporting
+            - listitem [ref=e571]:
+              - img [ref=e572]
+              - generic [ref=e574]: Admin controls & policies
+            - listitem [ref=e575]:
+              - img [ref=e576]
+              - generic [ref=e578]: Dedicated onboarding
+            - listitem [ref=e579]:
+              - img [ref=e580]
+              - generic [ref=e582]: Custom deployment & SLA
+          - button "Contact Sales" [ref=e583]:
+            - text: Contact Sales
+            - img [ref=e584]
+    - generic [ref=e587]:
+      - heading "Ready to See Where Your Time Really Goes?" [level=2] [ref=e588]:
+        - text: Ready to See Where Your
+        - generic [ref=e589]: Time Really Goes?
+      - paragraph [ref=e590]: Join thousands of professionals and teams who track time with clarity, understand their focus, and make better decisions with real data.
+      - generic [ref=e591]:
+        - textbox "Enter your work email" [ref=e593]
+        - button "Get Started Free" [ref=e594]:
+          - text: Get Started Free
+          - img [ref=e595]
+  - contentinfo [ref=e597]:
+    - generic [ref=e598]:
+      - generic [ref=e599]:
+        - generic [ref=e600]:
+          - link "ChronosX" [ref=e601] [cursor=pointer]:
+            - /url: "#home"
+            - img [ref=e603]
+            - generic [ref=e606]: ChronosX
+          - paragraph [ref=e607]: Time tracking and productivity visibility for individuals and teams. See where your time goes. Work with more focus.
+          - generic [ref=e608]:
+            - paragraph [ref=e609]: Stay updated
+            - generic [ref=e610]:
+              - textbox "your@email.com" [ref=e611]
+              - button "Subscribe" [ref=e612]
+          - generic [ref=e613]:
+            - link "Website" [ref=e614] [cursor=pointer]:
+              - /url: "#"
+              - img [ref=e615]
+            - link "Community" [ref=e618] [cursor=pointer]:
+              - /url: "#"
+              - img [ref=e619]
+            - link "Contact" [ref=e621] [cursor=pointer]:
+              - /url: "#"
+              - img [ref=e622]
+        - generic [ref=e625]:
+          - heading "Product" [level=4] [ref=e626]
+          - list [ref=e627]:
+            - listitem [ref=e628]:
+              - link "Features" [ref=e629] [cursor=pointer]:
+                - /url: "#features"
+            - listitem [ref=e630]:
+              - link "Pricing" [ref=e631] [cursor=pointer]:
+                - /url: "#pricing"
+            - listitem [ref=e632]:
+              - link "Teams" [ref=e633] [cursor=pointer]:
+                - /url: "#showcase"
+            - listitem [ref=e634]:
+              - link "Integrations" [ref=e635] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e636]:
+              - link "Changelog" [ref=e637] [cursor=pointer]:
+                - /url: "#"
+        - generic [ref=e638]:
+          - heading "Company" [level=4] [ref=e639]
+          - list [ref=e640]:
+            - listitem [ref=e641]:
+              - link "About" [ref=e642] [cursor=pointer]:
+                - /url: "#about"
+            - listitem [ref=e643]:
+              - link "Blog" [ref=e644] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e645]:
+              - link "Careers" [ref=e646] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e647]:
+              - link "Contact" [ref=e648] [cursor=pointer]:
+                - /url: "#"
+        - generic [ref=e649]:
+          - heading "Resources" [level=4] [ref=e650]
+          - list [ref=e651]:
+            - listitem [ref=e652]:
+              - link "Help Center" [ref=e653] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e654]:
+              - link "Documentation" [ref=e655] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e656]:
+              - link "API Reference" [ref=e657] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e658]:
+              - link "Community" [ref=e659] [cursor=pointer]:
+                - /url: "#"
+        - generic [ref=e660]:
+          - heading "Legal" [level=4] [ref=e661]
+          - list [ref=e662]:
+            - listitem [ref=e663]:
+              - link "Privacy Policy" [ref=e664] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e665]:
+              - link "Terms of Service" [ref=e666] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e667]:
+              - link "Cookie Policy" [ref=e668] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e669]:
+              - link "GDPR" [ref=e670] [cursor=pointer]:
+                - /url: "#"
+      - generic [ref=e671]:
+        - paragraph [ref=e672]: © 2026 ChronosX TimeTrack. All rights reserved.
+        - button "Back to top" [ref=e673]:
+          - text: Back to top
+          - img [ref=e674]

@@ -176,7 +176,27 @@ export function toLocalDateStr(date: Date): string {
 /** Returns the user's IANA timezone (e.g. "America/Sao_Paulo") */
 export function getUserTimezone(): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // Validate it looks like an IANA timezone (contains '/')
+    // Abbreviations like "EDT", "PST" are NOT valid IANA identifiers
+    // and cause the backend to fall back to UTC with wrong day boundaries.
+    if (tz && tz.includes('/')) {
+      return tz;
+    }
+    // Fallback: try to resolve from the UTC offset
+    const offset = new Date().getTimezoneOffset(); // minutes, negative = ahead of UTC
+    if (offset === 180) return 'America/Sao_Paulo';
+    if (offset === 240) return 'America/New_York';
+    if (offset === 300) return 'America/Chicago';
+    if (offset === 360) return 'America/Denver';
+    if (offset === 420) return 'America/Los_Angeles';
+    if (offset === 0) return 'Europe/London';
+    if (offset === -60) return 'Europe/Berlin';
+    if (offset === -120) return 'Europe/Helsinki';
+    // Generic UTC offset as last resort
+    const h = Math.abs(Math.floor(offset / 60));
+    const sign = offset <= 0 ? '+' : '-';
+    return `Etc/GMT${sign}${h}`;
   } catch {
     return 'UTC';
   }

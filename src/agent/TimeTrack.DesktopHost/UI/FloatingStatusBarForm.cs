@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
@@ -31,6 +32,7 @@ public sealed class FloatingStatusBarForm : Form
     private readonly Label _prodIcon, _prodValue;
     private readonly Label _scoreIcon, _scoreValue;
     private readonly Label _focusDot, _focusValue;
+    private readonly Label _taskDot, _taskValue;
     private readonly PictureBox _appIcon;
 
     // Focus action icons
@@ -38,6 +40,7 @@ public sealed class FloatingStatusBarForm : Form
     private readonly FocusActionIcon _btnSkip;
 
     private bool _focusVisible;
+    private bool _taskVisible;
 
     public FloatingStatusBarForm()
     {
@@ -71,6 +74,13 @@ public sealed class FloatingStatusBarForm : Form
         // --- Focus info ---
         _focusDot = Lbl("\u25CF", new Font("Segoe UI", 7f), Purple); _focusDot.Visible = false;
         _focusValue = Lbl("", focus, Purple); _focusValue.Visible = false;
+
+        // --- Kanban task info (project-colored dot + "Project · Task · 0:42") ---
+        _taskDot = Lbl("\u25CF", new Font("Segoe UI", 7f), Cyan); _taskDot.Visible = false;
+        _taskValue = Lbl("", focus, Cyan); _taskValue.Visible = false;
+        _taskValue.Cursor = Cursors.Hand;
+        _taskValue.Click += (_, _) => RestoreRequested?.Invoke(this, EventArgs.Empty);
+        new ToolTip().SetToolTip(_taskValue, "Abrir quadro Kanban");
 
         // --- Focus action icons (clean, minimal, no button borders) ---
         _btnSkip = new FocusActionIcon("\u23ED", Cyan, "Pular pausa") { Visible = false };
@@ -201,6 +211,60 @@ public sealed class FloatingStatusBarForm : Form
         _statusDot.Pulsing = tracking && !paused;
     }
 
+    /// <summary>
+    /// Updates the kanban task section. Pass all nulls to hide it.
+    /// </summary>
+    public void UpdateTaskData(string? projectName, string? taskTitle, long? elapsedSec, string? projectColorHex)
+    {
+        var show = !string.IsNullOrEmpty(taskTitle) && elapsedSec.HasValue;
+        _taskVisible = show;
+
+        if (show)
+        {
+            var color = ParseHexColor(projectColorHex) ?? Cyan;
+            _taskDot.ForeColor = color;
+            _taskValue.ForeColor = color;
+
+            // Compact label: "Project · Task · H:MM"
+            var elapsed = TimeSpan.FromSeconds(Math.Max(0, elapsedSec!.Value));
+            var timeStr = elapsed.TotalHours >= 1
+                ? $"{(int)elapsed.TotalHours}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2}"
+                : $"{elapsed.Minutes:D2}:{elapsed.Seconds:D2}";
+
+            var project = Truncate(projectName ?? "Projeto", 14);
+            var task = Truncate(taskTitle!, 20);
+            _taskValue.Text = $"{project} · {task} · {timeStr}";
+
+            _taskDot.Visible = true;
+            _taskValue.Visible = true;
+        }
+        else
+        {
+            _taskDot.Visible = false;
+            _taskValue.Visible = false;
+        }
+
+        LayoutAll();
+    }
+
+    private static string Truncate(string s, int max)
+        => s.Length <= max ? s : s.Substring(0, Math.Max(1, max - 1)) + "…";
+
+    private static Color? ParseHexColor(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return null;
+        var h = hex.TrimStart('#');
+        if (h.Length != 6) return null;
+        try
+        {
+            var r = Convert.ToInt32(h.Substring(0, 2), 16);
+            var g = Convert.ToInt32(h.Substring(2, 2), 16);
+            var b = Convert.ToInt32(h.Substring(4, 2), 16);
+            return Color.FromArgb(r, g, b);
+        }
+        catch { return null; }
+    }
+
     private void LayoutAll()
     {
         var cy = H / 2; var x = Pad;
@@ -217,6 +281,13 @@ public sealed class FloatingStatusBarForm : Form
             Place(_focusValue, ref x, cy); x += 4;
             PlaceIcon(_btnSkip, ref x, cy);
             PlaceIcon(_btnStop, ref x, cy);
+        }
+
+        if (_taskVisible)
+        {
+            x += SepGap;
+            Place(_taskDot, ref x, cy); x += 2;
+            Place(_taskValue, ref x, cy);
         }
 
         x += SepGap + 2;
@@ -374,7 +445,9 @@ internal sealed class PulsingLedControl : Control
     private float _phase;
     private readonly System.Windows.Forms.Timer _t;
 
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public Color LedColor { get => _ledColor; set { _ledColor = value; Invalidate(); } }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool Pulsing
     {
         get => _pulsing;

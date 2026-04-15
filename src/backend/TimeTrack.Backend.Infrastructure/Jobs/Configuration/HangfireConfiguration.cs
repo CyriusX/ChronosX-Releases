@@ -2,6 +2,7 @@ using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using TimeTrack.Backend.Infrastructure.Extensions;
 using TimeTrack.Backend.Infrastructure.Jobs.Interfaces;
 using TimeTrack.Backend.Infrastructure.Jobs;
 
@@ -60,6 +61,7 @@ public static class HangfireConfiguration
         services.AddScoped<IFocusScoreJob, FocusScoreJob>();
         services.AddScoped<IActivitySessionConsolidationJob, ActivitySessionConsolidationJob>();
         services.AddScoped<IMachineMetricsCleanupJob, MachineMetricsCleanupJob>();
+        services.AddScoped<IDeadlineScanJob, DeadlineScanJob>();
 
         return services;
     }
@@ -131,46 +133,31 @@ public static class HangfireConfiguration
             {
                 TimeZone = TimeZoneInfo.Utc
             });
+
+        // Deadline scan job - runs hourly
+        // Drops a DeadlineToday notification into the inbox for every assigned,
+        // non-Done task whose DueDate lands on the current UTC day. Deduped per task per day.
+        RecurringJob.AddOrUpdate<IDeadlineScanJob>(
+            "deadline-scan",
+            job => job.ExecuteAsync(),
+            "0 * * * *", // Every hour on the :00
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
     }
 
     private static string GetConnectionString(IConfiguration configuration)
     {
-        // Support Neon DATABASE_URL format
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (!string.IsNullOrEmpty(connectionString))
+            return InfrastructureServiceCollectionExtensions.NormalizeConnectionString(connectionString);
+
         var databaseUrl = configuration["DATABASE_URL"];
         if (!string.IsNullOrEmpty(databaseUrl))
-        {
-            return ConvertNeonUrlToConnectionString(databaseUrl);
-        }
+            return InfrastructureServiceCollectionExtensions.NormalizeConnectionString(databaseUrl);
 
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
-        if (string.IsNullOrEmpty(connectionString))
-        {
-            throw new InvalidOperationException(
-                "Database connection string not found. Set DATABASE_URL or ConnectionStrings:DefaultConnection");
-        }
-
-        return connectionString;
-    }
-
-    private static string ConvertNeonUrlToConnectionString(string databaseUrl)
-    {
-        var uri = new Uri(databaseUrl);
-        var userInfo = uri.UserInfo.Split(':');
-
-        var builder = new Npgsql.NpgsqlConnectionStringBuilder
-        {
-            Host = uri.Host,
-            Port = uri.Port,
-            Username = userInfo[0],
-            Password = userInfo.Length > 1 ? userInfo[1] : string.Empty,
-            Database = uri.AbsolutePath.TrimStart('/'),
-            SslMode = uri.Query.Contains("sslmode=require")
-                ? Npgsql.SslMode.Require
-                : uri.Query.Contains("sslmode=disable")
-                    ? Npgsql.SslMode.Disable
-                    : Npgsql.SslMode.Prefer
-        };
-
-        return builder.ToString();
+        throw new InvalidOperationException(
+            "Database connection string not found. Set DATABASE_URL or ConnectionStrings:DefaultConnection");
     }
 }

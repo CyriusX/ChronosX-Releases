@@ -9,6 +9,7 @@ using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Enums;
 using TimeTrack.AgentService.Configuration;
 using TimeTrack.AgentService.Extensions;
+using TimeTrack.AgentService.Ipc;
 
 namespace TimeTrack.AgentService.Workers;
 
@@ -27,9 +28,16 @@ public sealed class TrackingWorker : BackgroundService
     private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
     private readonly RecordIdlePeriodUseCase _recordIdlePeriodUseCase;
     private readonly TrackingControlUseCase _trackingControl;
+    private readonly IIpcServer _ipcServer;
 
     private bool _isIdle = false;
     private DateTime? _idleStartedAt;
+
+    // Sleep detection: track the wall-clock time of the last completed cycle.
+    // TickCount64 freezes during sleep so Task.Delay returns immediately on wake,
+    // but the wall-clock gap between cycles will be much larger than PollingIntervalMs.
+    private DateTime _lastCycleUtc = DateTime.UtcNow;
+    private const int SleepDetectionGapMs = 30_000; // Gap > 30s = assume sleep/resume
 
     public TrackingWorker(
         ILogger<TrackingWorker> logger,
@@ -41,7 +49,8 @@ public sealed class TrackingWorker : BackgroundService
         ICurrentUserContext userContext,
         RecordActiveWindowUseCase recordActiveWindowUseCase,
         RecordIdlePeriodUseCase recordIdlePeriodUseCase,
-        TrackingControlUseCase trackingControl)
+        TrackingControlUseCase trackingControl,
+        IIpcServer ipcServer)
     {
         _logger = logger;
         _settings = settings;
@@ -53,6 +62,7 @@ public sealed class TrackingWorker : BackgroundService
         _recordActiveWindowUseCase = recordActiveWindowUseCase;
         _recordIdlePeriodUseCase = recordIdlePeriodUseCase;
         _trackingControl = trackingControl;
+        _ipcServer = ipcServer;
 
         // Configura prioridade do processo
         ServiceCollectionExtensions.ConfigureProcessPriority(_settings.ProcessPriority);
@@ -176,7 +186,7 @@ public sealed class TrackingWorker : BackgroundService
             e.PreviousUserId,
             e.NewUserId);
 
-        // If a new user is authenticated, try to auto-resume tracking
+        // If a new user is authenticated, try to auto-resume tracking and notify the UI
         if (e.NewUserId.HasValue)
         {
             _ = Task.Run(async () =>
@@ -184,6 +194,18 @@ public sealed class TrackingWorker : BackgroundService
                 try
                 {
                     await EnsureTrackingActiveAsync(CancellationToken.None);
+
+                    // Broadcast to the UI so it updates immediately without waiting for
+                    // the next poll cycle. Without this, the UI stays frozen on the
+                    // "paused" state it saw before tokens were received.
+                    if (_ipcServer.IsClientConnected)
+                    {
+                        await _ipcServer.SendEventAsync(new IpcEvent
+                        {
+                            EventType = "trackingStateChanged",
+                            Payload = new { isTracking = true, isPaused = false }
+                        }, CancellationToken.None);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -199,7 +221,6 @@ public sealed class TrackingWorker : BackgroundService
         var userId = _userContext.UserId;
         if (userId == null)
         {
-            _logger.LogDebug("Nenhum usuário autenticado. Pulando ciclo de tracking.");
             return;
         }
 
@@ -207,17 +228,55 @@ public sealed class TrackingWorker : BackgroundService
         var state = await _stateRepository.GetAsync(userId.Value, cancellationToken);
         if (state == null)
         {
-            _logger.LogInformation("Nenhum estado de tracking encontrado. Pulando ciclo.");
+            _logger.LogDebug("Nenhum estado de tracking encontrado. Pulando ciclo.");
             return;
         }
 
         if (!state.IsActive)
         {
-            _logger.LogInformation("Tracking não está ativo (Status: {Status}). Pulando ciclo.", state.Status);
+            _logger.LogDebug("Tracking não está ativo (Status: {Status}). Pulando ciclo.", state.Status);
+            _lastCycleUtc = DateTime.UtcNow;
             return;
         }
 
         _logger.LogDebug("Tracking ativo. Executando ciclo de captura...");
+
+        // 2a. Sleep/wake detection — runs before idle check.
+        // TickCount64 (and Task.Delay) freeze during system sleep. When the machine
+        // wakes, the next cycle fires almost immediately but the wall-clock gap since
+        // the last cycle equals the full sleep duration. Record that gap as idle time
+        // so the absence shows up in the timeline, then reset idle state so normal
+        // idle detection resumes cleanly from this point forward.
+        var cycleNow = DateTime.UtcNow;
+        var cycleGap = cycleNow - _lastCycleUtc;
+        if (cycleGap.TotalMilliseconds > SleepDetectionGapMs)
+        {
+            _logger.LogInformation(
+                "Wake from sleep/long pause detected: {Gap:g} gap since last cycle. Recording as idle period.",
+                cycleGap);
+
+            try
+            {
+                await _recordIdlePeriodUseCase.ExecuteAsync(
+                    new RecordIdlePeriodRequest
+                    {
+                        StartedAt = _lastCycleUtc,
+                        EndedAt = cycleNow,
+                        ThresholdSeconds = _settings.IdleThresholdSeconds,
+                        IsSystemDetected = true
+                    },
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to record sleep idle period");
+            }
+
+            // Reset idle state so the first cycle after wake starts clean
+            _isIdle = false;
+            _idleStartedAt = null;
+        }
+        _lastCycleUtc = cycleNow;
 
         // 2. Verificar idle (user setting overrides agent default)
         var idleTime = await _idleDetector.GetIdleTimeAsync(cancellationToken);
@@ -289,16 +348,11 @@ public sealed class TrackingWorker : BackgroundService
         var activeWindow = await _activeWindowProvider.GetActiveWindowAsync(cancellationToken);
         if (activeWindow == null)
         {
-            // No active window (PC sleeping/locked/etc.) — treat as idle.
-            // The idle period will be recorded when the user returns.
-            // We do NOT extend the session's end_utc here — that would inflate
-            // the session duration with idle time.
-            if (!_isIdle)
-            {
-                _isIdle = true;
-                _idleStartedAt = DateTime.UtcNow;
-                _logger.LogInformation("No active window detected (PC may be sleeping/locked). Entering idle state.");
-            }
+            // If we reached here, the idle detector (step 2) confirmed the user is NOT idle.
+            // A null active window with an active user means the frontmost app is our own
+            // DesktopHost (filtered by the provider). Don't enter idle state — just skip
+            // this cycle. Real idle is already handled by step 2 above.
+            _logger.LogDebug("No trackable active window (user is using our own app). Skipping cycle.");
             return;
         }
 

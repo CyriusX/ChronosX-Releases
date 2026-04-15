@@ -8,7 +8,9 @@ namespace TimeTrack.AgentService.Ipc.Handlers.Queries.Dashboard;
 
 /// <summary>
 /// Handles getting summary data for a given date.
-/// Today: uses local SQLite (fast, real-time).
+/// Today: queries BOTH local SQLite and cloud in parallel — uses whichever has more data.
+///   This handles DB-reset scenarios (e.g. after a reinstall) where local is fresh but
+///   the cloud already has hours of synced data from earlier in the day.
 /// Past days: fetches from backend cloud API (authoritative source), falls back to local SQLite.
 /// </summary>
 public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandler
@@ -23,6 +25,9 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     private static readonly HashSet<string> InternalApps = new(StringComparer.OrdinalIgnoreCase)
     {
         "TimeTrack.DesktopHost",
+        "ChronosX TimeTrack",
+        "TimeTrack",
+        "TimeTrack.MacOSAgentService",
         "Microsoft Edge WebView2",
         "Microsoft® Windows® Operating System",
         "Sistema operacional Microsoft® Windows®",
@@ -45,8 +50,13 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         {
             var targetDate = ExtractDateOrToday(request);
 
-            // Always use backend API as the single source of truth for categories.
-            // Fall back to local SQLite only when the backend is unreachable.
+            var isToday = targetDate.Date == DateTime.Today;
+
+            if (isToday)
+            {
+                return await BuildTodayMerged(request.RequestId, targetDate, ct);
+            }
+
             return await BuildFromBackendApi(request.RequestId, targetDate, ct);
         }
         catch (Exception ex)
@@ -57,15 +67,58 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     }
 
     /// <summary>
+    /// Fetches today's summary by querying local SQLite and cloud in parallel.
+    /// Uses cloud data when it contains more tracked time than local — this covers
+    /// DB-reset scenarios (reinstall, migration) where local is near-zero but the
+    /// cloud already has hours of synced sessions from earlier in the day.
+    /// Falls back to local if cloud is unavailable or slower.
+    /// </summary>
+    private async Task<IpcResponse> BuildTodayMerged(int requestId, DateTime targetDate, CancellationToken ct)
+    {
+        var localTask = _getDashboard.ExecuteAsync(targetDate, ct);
+        var cloudTask = TryFetchCloudReportAsync(targetDate, ct);
+
+        await Task.WhenAll(localTask, cloudTask);
+
+        var localDashboard = localTask.Result;
+        var cloudReport    = cloudTask.Result;
+
+        var localSeconds = (long)localDashboard.TotalWorkTime.TotalSeconds;
+        var cloudFilteredApps = cloudReport?.Apps
+            .Where(a => !InternalApps.Contains(
+                string.IsNullOrEmpty(a.ProcessName) ? a.DisplayName : a.ProcessName))
+            .ToList();
+        var cloudSeconds = cloudFilteredApps?.Sum(a => (long)a.TotalSeconds) ?? 0L;
+
+        if (cloudReport != null && cloudSeconds > localSeconds)
+        {
+            _logger.LogInformation(
+                "[GetTodaySummary] Cloud has more today data ({Cloud}s) than local ({Local}s) — using cloud",
+                cloudSeconds, localSeconds);
+            return await BuildResponseFromCloudReport(requestId, targetDate, cloudReport, cloudFilteredApps!, cloudSeconds, ct);
+        }
+
+        return await BuildFromLocalDashboard(requestId, targetDate, ct);
+    }
+
+    private async Task<DailyReportResult?> TryFetchCloudReportAsync(DateTime date, CancellationToken ct)
+    {
+        try { return await _reportsClient.GetDailySummaryAsync(date, ct); }
+        catch { return null; }
+    }
+
+    /// <summary>
     /// Builds summary from local SQLite (today's data, real-time).
     /// </summary>
     private async Task<IpcResponse> BuildFromLocalDashboard(int requestId, DateTime targetDate, CancellationToken ct)
     {
         var dashboard = await _getDashboard.ExecuteAsync(targetDate, ct);
 
+        var totalDurationSeconds = (long)dashboard.TotalWorkTime.TotalSeconds;
+
         var summary = new
         {
-            totalDuration  = (long)dashboard.TotalWorkTime.TotalSeconds,
+            totalDuration  = totalDurationSeconds,
             productiveTime = (long)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalSeconds,
             idleTime       = (long)dashboard.TotalIdleTime.TotalSeconds,
             focusTime      = (long)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalSeconds,
@@ -112,7 +165,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                 subcategory = a.Subcategory
             }).ToArray(),
 
-            weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, ct)
+            weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, dashboard.TotalWorkTime.TotalHours, ct)
         };
 
         return SuccessResponse(requestId, summary);
@@ -132,91 +185,13 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                 _logger.LogInformation("[GetTodaySummary] Got summary from backend for {Date}",
                     targetDate.ToString("yyyy-MM-dd"));
 
-                // Filter out internal apps — use ProcessName (canonical) with DisplayName fallback
-                // for responses from older backend versions that didn't include processName.
                 var filteredApps = report.Apps
                     .Where(a => !InternalApps.Contains(
                         string.IsNullOrEmpty(a.ProcessName) ? a.DisplayName : a.ProcessName))
                     .ToList();
+                var totalActiveSeconds = filteredApps.Sum(a => (long)a.TotalSeconds);
 
-                var totalActiveSeconds = filteredApps.Sum(a => a.TotalSeconds);
-
-                // Use cloud-resolved productivity directly (falls back to subcategory mapping)
-                string resolveProductivity(DailyReportApp a) => a.Productivity ?? MapCategoryToProductivity(a.AppCategory);
-
-                var productiveSeconds = filteredApps
-                    .Where(a => resolveProductivity(a) == "productive")
-                    .Sum(a => a.TotalSeconds);
-
-                var summary = new
-                {
-                    totalDuration  = totalActiveSeconds,
-                    productiveTime = productiveSeconds,
-                    idleTime       = report.TotalIdleSeconds,
-                    focusTime      = productiveSeconds,
-                    focusScore     = totalActiveSeconds > 0
-                        ? (int)Math.Round((double)productiveSeconds / totalActiveSeconds * 100)
-                        : 0,
-                    sessionsCount  = filteredApps.Sum(a => a.SessionCount),
-                    topProjects    = Array.Empty<object>(),
-
-                    topApplications = filteredApps.Select(a =>
-                    {
-                        var pct = totalActiveSeconds > 0
-                            ? Math.Round((double)a.TotalSeconds / totalActiveSeconds * 100, 1)
-                            : 0.0;
-                        return new
-                        {
-                            name        = a.DisplayName,
-                            duration    = a.TotalSeconds,
-                            percentage  = pct,
-                            productivity = resolveProductivity(a),
-                            subcategory = a.AppCategory ?? "unknown"
-                        };
-                    }).OrderByDescending(a => a.duration).Take(10).ToArray(),
-
-                    categories = filteredApps
-                        .GroupBy(a =>
-                        {
-                            var cat = a.AppCategory;
-                            if (string.IsNullOrEmpty(cat) || cat == "unknown")
-                                return resolveProductivity(a);
-                            if (cat == "browser_general")
-                                return "other";
-                            return cat;
-                        })
-                        .Select(g => new
-                        {
-                            name        = FormatCategoryName(g.Key),
-                            duration    = g.Sum(a => a.TotalSeconds),
-                            percentage  = totalActiveSeconds > 0
-                                ? Math.Round(g.Sum(a => (double)a.TotalSeconds) / totalActiveSeconds * 100, 1)
-                                : 0.0,
-                            color       = GetCategoryColor(g.Key),
-                            productivity = resolveProductivity(g.First())
-                        })
-                        .OrderByDescending(c => c.duration)
-                        .ToArray(),
-
-                    topAppsByExe = filteredApps.Select(a =>
-                    {
-                        var pct = totalActiveSeconds > 0
-                            ? Math.Round((double)a.TotalSeconds / totalActiveSeconds * 100, 1)
-                            : 0.0;
-                        return new
-                        {
-                            name        = a.DisplayName,
-                            duration    = a.TotalSeconds,
-                            percentage  = pct,
-                            productivity = resolveProductivity(a),
-                            subcategory = a.AppCategory ?? "unknown"
-                        };
-                    }).OrderByDescending(a => a.duration).Take(10).ToArray(),
-
-                    weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, ct)
-                };
-
-                return SuccessResponse(requestId, summary);
+                return await BuildResponseFromCloudReport(requestId, targetDate, report, filteredApps, totalActiveSeconds, ct);
             }
         }
         catch (Exception ex)
@@ -229,6 +204,95 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         _logger.LogWarning("[GetTodaySummary] No data from backend for {Date}, falling back to local",
             targetDate.ToString("yyyy-MM-dd"));
         return await BuildFromLocalDashboard(requestId, targetDate, ct);
+    }
+
+    /// <summary>
+    /// Builds the IpcResponse from an already-fetched cloud report and its pre-filtered apps.
+    /// Used by both BuildTodayMerged and BuildFromBackendApi to avoid duplicate fetch + transform code.
+    /// </summary>
+    private async Task<IpcResponse> BuildResponseFromCloudReport(
+        int requestId,
+        DateTime targetDate,
+        DailyReportResult report,
+        List<DailyReportApp> filteredApps,
+        long totalActiveSeconds,
+        CancellationToken ct)
+    {
+        string resolveProductivity(DailyReportApp a) => a.Productivity ?? MapCategoryToProductivity(a.AppCategory);
+
+        var productiveSeconds = filteredApps
+            .Where(a => resolveProductivity(a) == "productive")
+            .Sum(a => a.TotalSeconds);
+
+        var summary = new
+        {
+            totalDuration  = totalActiveSeconds,
+            productiveTime = productiveSeconds,
+            idleTime       = report.TotalIdleSeconds,
+            focusTime      = productiveSeconds,
+            focusScore     = totalActiveSeconds > 0
+                ? (int)Math.Round((double)productiveSeconds / totalActiveSeconds * 100)
+                : 0,
+            sessionsCount  = filteredApps.Sum(a => a.SessionCount),
+            topProjects    = Array.Empty<object>(),
+
+            topApplications = filteredApps.Select(a =>
+            {
+                var pct = totalActiveSeconds > 0
+                    ? Math.Round((double)a.TotalSeconds / totalActiveSeconds * 100, 1)
+                    : 0.0;
+                return new
+                {
+                    name         = a.DisplayName,
+                    duration     = a.TotalSeconds,
+                    percentage   = pct,
+                    productivity = resolveProductivity(a),
+                    subcategory  = a.AppCategory ?? "unknown"
+                };
+            }).OrderByDescending(a => a.duration).Take(10).ToArray(),
+
+            categories = filteredApps
+                .GroupBy(a =>
+                {
+                    var cat = a.AppCategory;
+                    if (string.IsNullOrEmpty(cat) || cat == "unknown")
+                        return resolveProductivity(a);
+                    if (cat == "browser_general")
+                        return "other";
+                    return cat;
+                })
+                .Select(g => new
+                {
+                    name         = FormatCategoryName(g.Key),
+                    duration     = g.Sum(a => a.TotalSeconds),
+                    percentage   = totalActiveSeconds > 0
+                        ? Math.Round(g.Sum(a => (double)a.TotalSeconds) / totalActiveSeconds * 100, 1)
+                        : 0.0,
+                    color        = GetCategoryColor(g.Key),
+                    productivity = resolveProductivity(g.First())
+                })
+                .OrderByDescending(c => c.duration)
+                .ToArray(),
+
+            topAppsByExe = filteredApps.Select(a =>
+            {
+                var pct = totalActiveSeconds > 0
+                    ? Math.Round((double)a.TotalSeconds / totalActiveSeconds * 100, 1)
+                    : 0.0;
+                return new
+                {
+                    name         = a.DisplayName,
+                    duration     = a.TotalSeconds,
+                    percentage   = pct,
+                    productivity = resolveProductivity(a),
+                    subcategory  = a.AppCategory ?? "unknown"
+                };
+            }).OrderByDescending(a => a.duration).Take(10).ToArray(),
+
+            weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, totalActiveSeconds / 3600.0, ct)
+        };
+
+        return SuccessResponse(requestId, summary);
     }
 
     /// <summary>
@@ -250,7 +314,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     /// Builds weekly history: today from local SQLite (real-time), past days from backend API (cloud).
     /// Falls back to local SQLite if the backend is unreachable.
     /// </summary>
-    private async Task<object[]> BuildWeeklyHistoryAsync(DateTime centerDate, CancellationToken ct)
+    private async Task<object[]> BuildWeeklyHistoryAsync(DateTime centerDate, double todayHours, CancellationToken ct)
     {
         var today = centerDate;
         var history = new List<object>();
@@ -263,26 +327,15 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
 
             if (i == 0)
             {
-                // TODAY: use local SQLite (fast, real-time, includes in-memory session)
-                try
-                {
-                    var dayDashboard = await _getDashboard.ExecuteAsync(date, ct);
-                    hours = dayDashboard.TotalWorkTime.TotalHours;
-                }
-                catch { /* show 0 */ }
+                hours = todayHours;
             }
             else
             {
-                // PAST DAYS: fetch from backend API (authoritative cloud data)
                 try
                 {
-                    // Small delay between API calls to avoid rate limiting (429)
-                    if (i < 6) await Task.Delay(200, ct);
-
                     var report = await _reportsClient.GetDailySummaryAsync(date, ct);
                     if (report != null)
                     {
-                        // Filter out internal apps (same filter as local dashboard)
                         var filteredSeconds = report.Apps
                             .Where(a => !InternalApps.Contains(
                                 string.IsNullOrEmpty(a.ProcessName) ? a.DisplayName : a.ProcessName))
@@ -291,7 +344,6 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                     }
                     else
                     {
-                        // Backend unavailable — fall back to local SQLite
                         var dayDashboard = await _getDashboard.ExecuteAsync(date, ct);
                         hours = dayDashboard.TotalWorkTime.TotalHours;
                     }

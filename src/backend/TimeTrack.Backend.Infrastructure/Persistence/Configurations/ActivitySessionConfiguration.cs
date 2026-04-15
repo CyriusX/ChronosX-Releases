@@ -73,8 +73,33 @@ internal sealed class ActivitySessionConfiguration : IEntityTypeConfiguration<Ac
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()");
 
+        builder.Property(a => a.ProjectId)
+            .HasColumnName("project_id");
+
+        builder.Property(a => a.TaskId)
+            .HasColumnName("task_id");
+
         // Indexes for queries
         builder.HasIndex(a => new { a.OrgId, a.UserId, a.StartedAt });
+        // Covering index for per-user date-range queries (activity page, reports).
+        // The (OrgId, UserId, StartedAt) index above cannot be used when OrgId is not
+        // in the WHERE clause — the DB falls back to a table scan. This index makes
+        // GetByUserIdAndDateRangeAsync, GetTopAppsAsync and GetDailySummaryRangeAsync fast.
+        builder.HasIndex(a => new { a.UserId, a.StartedAt })
+               .HasDatabaseName("ix_activity_sessions_user_started")
+               .IsDescending(false, true);
         builder.HasIndex(a => new { a.DeviceId, a.StartedAt });
+        builder.HasIndex(a => a.ProjectId);
+        builder.HasIndex(a => a.TaskId);
+
+        builder.HasOne(a => a.Project)
+            .WithMany()
+            .HasForeignKey(a => a.ProjectId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(a => a.Task)
+            .WithMany()
+            .HasForeignKey(a => a.TaskId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

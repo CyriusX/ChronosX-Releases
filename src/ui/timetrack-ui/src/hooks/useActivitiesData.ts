@@ -13,7 +13,7 @@ import { useHiddenAppsStore } from '../stores/hiddenAppsStore';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../types/ipc';
 import { formatDuration } from '../lib/utils';
 import { getDailySummaryRange, getDailyActivities, getTopApps } from '../services/reportApi';
-import { getMySummary } from '../services/memberApi';
+
 
 // ============================================================================
 // TYPES
@@ -124,28 +124,40 @@ export function useActivitiesData(): ActivitiesData {
     setIsLoading(true);
 
     try {
-      // Always fetch calendar range from backend for MiniCalendar colors
-      const calStart = formatDatePayload(addDays(selectedDate, -15));
-      const calEnd = formatDatePayload(new Date()); // up to today
-      const calendarPromise = getDailySummaryRange(calStart, calEnd, userId).catch(() => null);
-
       if (isToday && !userId) {
-        // Today + own data: fetch EVERYTHING from cloud in parallel for speed + consistency
-        const summaryPromise = currentUser?.id
-          ? getMySummary().catch(() => null)
-          : Promise.resolve(null);
-        const activitiesPromise = getDailyActivities(datePayload).catch(() => null);
+        // Today + own data: IPC (local SQLite) is the source of truth for real-time data.
+        // Cloud only has data after sync, which may lag or be unavailable.
+        // Load IPC data first (fast), then enrich with calendar data in the background.
+        const ipcSummaryPromise = isConnected
+          ? sendQuery('getTodaySummary', { date: datePayload })
+          : Promise.resolve({ success: false, data: null } as any);
+        const ipcActivitiesPromise = isConnected
+          ? sendQuery('getRecentActivities', { date: datePayload })
+          : Promise.resolve({ success: false, data: null } as any);
 
-        const [cloudSummary, cloudActivities, calResult] = await Promise.all([
-          summaryPromise,
-          activitiesPromise,
-          calendarPromise,
+        const [ipcSummaryRes, ipcActivitiesRes] = await Promise.all([
+          ipcSummaryPromise,
+          ipcActivitiesPromise,
         ]);
 
-        // Set summary from cloud (or fallback to IPC)
-        if (cloudSummary) {
-          const summary = cloudSummary as unknown as TodaySummaryResponse;
-          if (calResult?.days?.length) {
+        // Set summary from IPC (local, real-time) immediately
+        if (ipcSummaryRes.success && ipcSummaryRes.data) {
+          setSummary(ipcSummaryRes.data as TodaySummaryResponse);
+        }
+
+        // Set activities from IPC (local, real-time) immediately
+        if (ipcActivitiesRes.success && ipcActivitiesRes.data) {
+          setActivities(
+            ((ipcActivitiesRes.data as unknown as { activities: ActivityBlock[] }).activities) ?? [],
+          );
+        }
+
+        // Enrich with calendar data from backend in the background (non-blocking)
+        const calStart = formatDatePayload(addDays(selectedDate, -15));
+        const calEnd = formatDatePayload(new Date());
+        getDailySummaryRange(calStart, calEnd, userId).catch(() => null).then(calResult => {
+          if (calResult?.days?.length && ipcSummaryRes.success && ipcSummaryRes.data) {
+            const summary = { ...(ipcSummaryRes.data as TodaySummaryResponse) };
             const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
             summary.weeklyHistory = calResult.days.map(d => {
               const dt = new Date(d.date + 'T00:00:00');
@@ -156,26 +168,9 @@ export function useActivitiesData(): ActivitiesData {
                 isToday: d.date === datePayload,
               };
             });
+            setSummary(summary);
           }
-          setSummary(summary);
-        } else if (isConnected) {
-          const summaryRes = await sendQuery('getTodaySummary', { date: datePayload });
-          if (summaryRes.success && summaryRes.data) {
-            setSummary(summaryRes.data as TodaySummaryResponse);
-          }
-        }
-
-        // Set activities from cloud (or fallback to IPC)
-        if (cloudActivities?.sessions?.length) {
-          setActivities(convertSessionsToBlocks(cloudActivities.sessions, hiddenApps));
-        } else if (isConnected) {
-          const activitiesRes = await sendQuery('getRecentActivities', { date: datePayload });
-          if (activitiesRes.success && activitiesRes.data) {
-            setActivities(
-              ((activitiesRes.data as unknown as { activities: ActivityBlock[] }).activities) ?? [],
-            );
-          }
-        }
+        });
       } else {
         // Past days OR viewing other user's data: fetch from backend API (authoritative cloud data)
         // Use the SAME endpoints as the Reports page heatmap for consistent numbers:
@@ -421,8 +416,20 @@ function convertSessionsToBlocks(
   return blocks;
 }
 
+const BROWSER_NAMES = new Set([
+  'google chrome', 'chrome', 'safari', 'firefox', 'brave browser', 'brave',
+  'microsoft edge', 'opera', 'chromium', 'arc', 'vivaldi', 'orion',
+]);
+
 function extractAppName(windowTitle?: string, processName?: string): string {
   if (!windowTitle) return processName || 'Unknown';
+
+  // Only extract app name from window title for browsers, where the title
+  // format is "Page Title - BrowserName". For other apps (VS Code, Xcode, etc.),
+  // the suffix is a project/workspace name, not the app name.
+  if (processName && !BROWSER_NAMES.has(processName.toLowerCase()))
+    return processName;
+
   const seps = [' - ', ' — ', ' – '];
   for (const sep of seps) {
     const idx = windowTitle.lastIndexOf(sep);

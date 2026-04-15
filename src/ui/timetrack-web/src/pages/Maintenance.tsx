@@ -7,11 +7,12 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Monitor, ChevronDown, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe } from 'lucide-react';
+import { Monitor, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe, Trash2, User, AlertTriangle, Download } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
 import { useAuthStore } from '../stores/authStore';
+import { useHealthAlertStore } from '../stores/healthAlertStore';
 import { usePermissions } from '../hooks/usePermissions';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import {
   listOrgDevices,
   getDeviceMetrics,
@@ -21,12 +22,16 @@ import {
   getCommandHistory,
   clearDeviceEvents,
   clearAllEvents,
+  getHealthSummary,
+  deleteDevice,
   type DeviceListItem,
   type DeviceMetricsResponse,
   type MetricsHistoryPoint,
   type DeviceEventItem,
   type DeviceInfoResponse,
   type CommandHistoryItem,
+  type HealthSummaryResponse,
+  type HealthAlertItem,
 } from '../services/maintenanceApi';
 import { getMaintenanceLogPrefs } from './Settings';
 import { LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
@@ -55,13 +60,6 @@ function formatUptime(seconds: number): string {
   return `${m}m`;
 }
 
-function getStatusColor(status: string): string {
-  switch (status) {
-    case 'active': return 'bg-[#05df72]';
-    case 'offline': return 'bg-[rgba(245,247,251,0.3)]';
-    default: return 'bg-[rgba(248,113,113,0.6)]';
-  }
-}
 
 function TrackingStateLed({ state }: { state: string | null }) {
   if (!state || state === 'stopped' || state === 'idle') {
@@ -95,6 +93,219 @@ function getBarColor(percent: number): string {
   if (percent < 60) return '#05df72';
   if (percent < 80) return '#fbbf24';
   return '#f87171';
+}
+
+
+interface IssueSpec {
+  badge: string;           // short label shown inline
+  headline: string;        // one-line summary
+  subtext: string;         // secondary detail shown collapsed
+  component: string;       // which component is affected
+  what: string;            // plain-English explanation
+  steps: string[];         // ordered troubleshooting steps
+}
+
+function buildIssueSpec(
+  isOffline: boolean,
+  isUnhealthy: boolean,
+  isIpcOnly: boolean,
+  hostname: string,
+  device: DeviceListItem | null,
+  deviceInfo: DeviceInfoResponse | null,
+): IssueSpec {
+  if (isOffline) {
+    const lastSeen = device?.lastSeenAt;
+    let since = '';
+    if (lastSeen) {
+      const mins = Math.floor((Date.now() - new Date(lastSeen).getTime()) / 60000);
+      since = mins < 60 ? ` · last seen ${mins}min ago` : ` · last seen ${Math.floor(mins / 60)}h ago`;
+    }
+    return {
+      badge: 'OFFLINE',
+      headline: `${hostname} is not responding`,
+      subtext: `No heartbeat received${since}`,
+      component: 'Windows Service (background)',
+      what: 'The TimeTrack Agent service has not reported in over 10 minutes. Activity is NOT being recorded on this machine.',
+      steps: [
+        'Check that the computer is powered on and connected to the internet.',
+        'Open Windows Services (Win + R → services.msc) and look for "TimeTrack Agent".',
+        'If the service is Stopped: right-click → Start.',
+        'If it is Running but still offline: right-click → Restart.',
+        'If the service does not appear: re-run the ChronosX installer to reinstall it.',
+      ],
+    };
+  }
+
+  if (isUnhealthy) {
+    const failures = deviceInfo?.consecutiveSyncFailures ?? 0;
+    const lastSync = deviceInfo?.lastSuccessfulSyncAt
+      ? `last successful sync ${formatLastSeen(deviceInfo.lastSuccessfulSyncAt)}`
+      : 'no successful sync recorded';
+    return {
+      badge: 'UNHEALTHY',
+      headline: `${hostname} — agent cannot sync data`,
+      subtext: `${failures} consecutive failures · ${lastSync}`,
+      component: 'Windows Service (background)',
+      what: `The agent is running and recording activity locally, but it has failed to upload data to the server ${failures} times in a row. Recorded data is stored on-device and will sync once the connection is restored — nothing is lost yet.`,
+      steps: [
+        'Check internet connectivity on this computer.',
+        'The agent retries automatically every 60 s — wait 2–3 minutes before acting.',
+        'Open Windows Services → Restart "TimeTrack Agent" if failures keep growing.',
+        'Check the Event Logs tab below for specific error messages (look for "sync" or "http" errors).',
+        'If errors mention "401 Unauthorized": the agent token may have expired — re-install or re-activate the agent.',
+      ],
+    };
+  }
+
+  if (!isIpcOnly) {
+    // degraded
+    const failures = deviceInfo?.consecutiveSyncFailures ?? 0;
+    return {
+      badge: 'DEGRADED',
+      headline: `${hostname} — intermittent sync issues`,
+      subtext: `${failures} recent failure${failures !== 1 ? 's' : ''} · usually self-resolving`,
+      component: 'Windows Service (background)',
+      what: 'The agent had some recent sync failures. Activity recording is unaffected — data is queued locally. This is often caused by a brief network blip or a server restart.',
+      steps: [
+        'Wait 2–5 minutes — this usually clears on its own.',
+        'Check internet connectivity on this computer if it persists.',
+        'If it escalates to UNHEALTHY, check the Event Logs tab for error details.',
+      ],
+    };
+  }
+
+  // IPC only
+  return {
+    badge: 'UI DISCONNECTED',
+    headline: `${hostname} — desktop app not connected`,
+    subtext: 'Background service is running · tray app is disconnected',
+    component: 'Desktop Application (tray icon)',
+    what: 'The background Windows Service is running normally and recording activity. However, the TimeTrack desktop app (tray icon / overlay) is not connected to it. Manual timer controls and the tray UI are unavailable for this user.',
+    steps: [
+      'Ask the user to restart the TimeTrack desktop application from the Start menu or system tray.',
+      'If the tray icon is not visible, run "ChronosX" from the Start menu.',
+      'Activity recording by the background service is unaffected — no data is lost.',
+    ],
+  };
+}
+
+function DeviceStatusStripe({ device, deviceInfo }: { device: DeviceListItem | null, deviceInfo: DeviceInfoResponse | null }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const hostname = deviceInfo?.hostname ?? device?.hostname ?? 'dispositivo';
+  const effectiveHealth = deviceInfo?.healthStatus ?? device?.healthStatus;
+  const isOffline = device?.status === 'offline' || effectiveHealth === 'offline';
+  const isUnhealthy = !isOffline && effectiveHealth === 'unhealthy';
+  const isIpcOnly = !isOffline && !isUnhealthy && deviceInfo?.ipcConnected === false && effectiveHealth !== 'degraded';
+  const isDegraded = !isOffline && !isUnhealthy && (effectiveHealth === 'degraded' || deviceInfo?.ipcConnected === false);
+  const isCritical = isOffline || isUnhealthy;
+
+  if (!isCritical && !isDegraded) return null;
+
+  const spec = buildIssueSpec(isOffline, isUnhealthy, isIpcOnly, hostname, device, deviceInfo);
+  const accent = isCritical ? 'rgba(248,113,113' : '251,191,36';
+  const accentSolid = isCritical ? '#f87171' : '#fbbf24';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl mb-4 border overflow-hidden"
+      style={{
+        background: `rgba(${isCritical ? '248,113,113' : '251,191,36'},0.05)`,
+        borderColor: `rgba(${accent},0.3)`,
+      }}
+    >
+      {/* Header row — always visible */}
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+      >
+        <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accentSolid }} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded"
+              style={{ color: accentSolid, background: `rgba(${accent},0.15)` }}
+            >
+              {spec.badge}
+            </span>
+            <span className="text-[12px] font-semibold" style={{ color: accentSolid }}>
+              {spec.headline}
+            </span>
+          </div>
+          <p className="text-[11px] text-[rgba(245,247,251,0.45)] mt-0.5">{spec.subtext}</p>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+          <span className="text-[10px]" style={{ color: `rgba(${accent},0.6)` }}>
+            {expanded ? 'ocultar' : 'detalhes'}
+          </span>
+          <motion.div animate={{ rotate: expanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
+            <ChevronRight className="w-3.5 h-3.5" style={{ color: `rgba(${accent},0.6)` }} />
+          </motion.div>
+        </div>
+      </button>
+
+      {/* Expandable details */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div
+              className="px-4 pb-4 pt-1 border-t"
+              style={{ borderColor: `rgba(${accent},0.15)` }}
+            >
+              {/* Affected component */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[9px] text-[rgba(245,247,251,0.35)] uppercase tracking-wider">Componente afetado</span>
+                <span
+                  className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                  style={{ color: accentSolid, background: `rgba(${accent},0.1)` }}
+                >
+                  {spec.component}
+                </span>
+              </div>
+
+              {/* What it means */}
+              <p className="text-[11px] text-[rgba(245,247,251,0.65)] leading-relaxed mb-3">
+                {spec.what}
+              </p>
+
+              {/* Troubleshooting steps */}
+              <div>
+                <p className="text-[9px] text-[rgba(245,247,251,0.35)] uppercase tracking-wider mb-2">O que fazer</p>
+                <ol className="space-y-1.5">
+                  {spec.steps.map((step, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span
+                        className="flex-shrink-0 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center mt-0.5"
+                        style={{ color: accentSolid, background: `rgba(${accent},0.15)` }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span className="text-[11px] text-[rgba(245,247,251,0.6)] leading-relaxed">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function deviceSortKey(d: DeviceListItem): number {
+  const h = d.healthStatus;
+  if (d.status === 'offline' || h === 'offline' || h === 'unhealthy') return 0;
+  if (h === 'degraded') return 1;
+  return 2;
 }
 
 function MetricCard({
@@ -186,9 +397,16 @@ function MetricCard({
 export default function Maintenance() {
   const user = useAuthStore((state) => state.user);
   const { isAdmin } = usePermissions();
+  const [searchParams] = useSearchParams();
+  const setGlobalAlerts = useHealthAlertStore((state) => state.setAlerts);
 
   const [devices, setDevices] = useState<DeviceListItem[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(true);
+  const [healthSummary, setHealthSummary] = useState<HealthSummaryResponse | null>(null);
+  // Track which device IDs were dismissed rather than a single boolean, so the banner
+  // re-appears automatically when new devices enter the alert list or existing ones recover
+  // and then break again.
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<Set<string>>(new Set());
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<DeviceMetricsResponse | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
@@ -203,8 +421,9 @@ export default function Maintenance() {
   const [notifTitle, setNotifTitle] = useState('');
   const [notifBody, setNotifBody] = useState('');
   const [confirmRestart, setConfirmRestart] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [confirmForceUpdate, setConfirmForceUpdate] = useState(false);
+  const [deletingDeviceId, setDeletingDeviceId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Admin guard
@@ -212,34 +431,75 @@ export default function Maintenance() {
     return <Navigate to="/" replace />;
   }
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    if (!showDropdown) return;
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showDropdown]);
-
-  // Fetch devices
+  // Fetch devices + health summary
   const fetchDevices = useCallback(async () => {
     if (!user?.orgId) return;
     try {
-      const data = await listOrgDevices(user.orgId);
-      setDevices(data.devices);
+      const [devData, summary] = await Promise.all([
+        listOrgDevices(user.orgId),
+        getHealthSummary(user.orgId).catch(() => null),
+      ]);
+      const sorted = [...devData.devices].sort((a, b) => deviceSortKey(a) - deviceSortKey(b));
+      setDevices(sorted);
+
+      // Always derive alerts from device list — reliable even when health-summary fails
+      const derivedAlerts: HealthAlertItem[] = sorted
+        .filter(d =>
+          d.status === 'offline' ||
+          d.healthStatus === 'unhealthy' ||
+          d.healthStatus === 'degraded' ||
+          (d.status === 'active' && d.ipcConnected === false)
+        )
+        .map(d => ({
+          deviceId: d.deviceId,
+          hostname: d.hostname,
+          userDisplayName: d.userDisplayName,
+          issue: d.status === 'offline'
+            ? 'offline'
+            : (d.healthStatus === 'unhealthy' || d.healthStatus === 'degraded')
+              ? d.healthStatus
+              : 'ipc_disconnected',
+          lastSeenAt: d.lastSeenAt,
+          healthStatus: d.status === 'offline' ? 'offline' : d.healthStatus,
+        }));
+      setGlobalAlerts(derivedAlerts);
+
+      if (summary) setHealthSummary(summary);
+      else {
+        // Synthesise summary counts from device list so the summary bar still renders
+        const onlineCount = sorted.filter(d => d.status === 'active').length;
+        const offlineCount = sorted.filter(d => d.status === 'offline').length;
+        const degradedCount = sorted.filter(d => d.status !== 'offline' && d.healthStatus === 'degraded').length;
+        const unhealthyCount = sorted.filter(d => d.status !== 'offline' && d.healthStatus === 'unhealthy').length;
+        setHealthSummary({ totalDevices: sorted.length, onlineCount, offlineCount, degradedCount, unhealthyCount, alerts: derivedAlerts });
+      }
     } catch (err) {
       console.error('[Maintenance] Error fetching devices:', err);
     } finally {
       setDevicesLoading(false);
     }
-  }, [user?.orgId]);
+  }, [user?.orgId, setGlobalAlerts]);
 
+  // Initial load + poll device list every 30s
+  const devicePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     fetchDevices();
+    devicePollRef.current = setInterval(fetchDevices, 30_000);
+    return () => {
+      if (devicePollRef.current) { clearInterval(devicePollRef.current); devicePollRef.current = null; }
+    };
   }, [fetchDevices]);
+
+  // Prune dismissed IDs when devices recover — ensures the banner re-appears
+  // if a previously-dismissed device breaks again after recovering.
+  useEffect(() => {
+    if (!healthSummary?.alerts) return;
+    const activeAlertIds = new Set(healthSummary.alerts.map(a => a.deviceId));
+    setDismissedAlertIds(prev => {
+      const pruned = new Set([...prev].filter(id => activeAlertIds.has(id)));
+      return pruned.size !== prev.size ? pruned : prev;
+    });
+  }, [healthSummary?.alerts]);
 
   // Fetch metrics for selected device
   const fetchMetrics = useCallback(async (deviceId: string, isInitial = false) => {
@@ -310,6 +570,22 @@ export default function Maintenance() {
     }
   }, [user?.orgId, selectedDeviceId, fetchDeviceInfo]);
 
+  // Delete device
+  const handleDeleteDevice = useCallback(async (deviceId: string) => {
+    if (!user?.orgId) return;
+    setDeletingDeviceId(deviceId);
+    try {
+      await deleteDevice(user.orgId, deviceId);
+      if (selectedDeviceId === deviceId) setSelectedDeviceId(null);
+      setConfirmDeleteId(null);
+      fetchDevices();
+    } catch (err) {
+      console.error('Failed to delete device:', err);
+    } finally {
+      setDeletingDeviceId(null);
+    }
+  }, [user?.orgId, selectedDeviceId, fetchDevices]);
+
   // Poll metrics on device selection
   useEffect(() => {
     if (selectedDeviceId) {
@@ -345,6 +621,12 @@ export default function Maintenance() {
     };
   }, [selectedDeviceId, fetchEvents, eventFilter]);
 
+  // Auto-select device from URL param (?device=deviceId — set by notification bell click)
+  useEffect(() => {
+    const deviceParam = searchParams.get('device');
+    if (deviceParam) setSelectedDeviceId(deviceParam);
+  }, [searchParams]);
+
   const selectedDevice = useMemo(
     () => devices.find(d => d.deviceId === selectedDeviceId) ?? null,
     [devices, selectedDeviceId]
@@ -374,7 +656,7 @@ export default function Maintenance() {
               </p>
             </div>
             <motion.button
-              onClick={() => { fetchDevices(); if (selectedDeviceId) fetchMetrics(selectedDeviceId, true); }}
+              onClick={() => { fetchDevices(); setDismissedAlertIds(new Set()); if (selectedDeviceId) fetchMetrics(selectedDeviceId, true); }}
               whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
               className="w-9 h-9 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
             >
@@ -383,96 +665,183 @@ export default function Maintenance() {
           </header>
         </div>
 
-        {/* Device Selector */}
-        <div className="px-4 lg:px-5 pb-3 flex-shrink-0" ref={dropdownRef}>
-          <div className="relative">
-            <motion.button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[rgba(26,29,46,0.6)] to-[rgba(17,19,28,0.6)] border border-[rgba(255,255,255,0.06)] rounded-xl hover:border-[rgba(255,255,255,0.1)] transition-colors"
-              whileHover={{ scale: 1.003 }} whileTap={{ scale: 0.997 }}
-            >
-              {selectedDevice ? (
-                <>
-                  <div className="w-7 h-7 rounded-lg bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.15)] flex items-center justify-center flex-shrink-0">
-                    <Monitor className="w-3.5 h-3.5 text-[#8B5CF6]" />
-                  </div>
-                  <div className="flex-1 min-w-0 text-left">
-                    <p className="text-[13px] font-medium text-[rgba(245,247,251,0.9)] truncate">
-                      {selectedDevice.userDisplayName || selectedDevice.hostname}
-                    </p>
-                    <p className="text-[10px] text-[rgba(245,247,251,0.4)] flex items-center gap-1.5">
-                      {selectedDevice.hostname} · v{selectedDevice.agentVersion}
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${getStatusColor(selectedDevice.status)}`} />
-                      {selectedDevice.status === 'active' ? 'Online' : 'Offline'}
-                      <TrackingStateLed state={selectedDevice.trackingState} />
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <Monitor className="w-4 h-4 text-[#8B5CF6] flex-shrink-0" />
-                  <span className="text-[13px] text-[rgba(245,247,251,0.6)]">Selecionar usuario</span>
-                </>
-              )}
-              <motion.div animate={{ rotate: showDropdown ? 180 : 0 }} transition={{ duration: 0.2 }} className="ml-auto">
-                <ChevronDown className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
-              </motion.div>
-            </motion.button>
+        {/* Health Summary Bar */}
+        {healthSummary && (
+          <div className="px-4 lg:px-5 pb-3 flex-shrink-0">
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: 'Online', count: healthSummary.onlineCount, color: '#05df72' },
+                { label: 'Offline', count: healthSummary.offlineCount, color: 'rgba(248,113,113,0.8)' },
+                { label: 'Degradado', count: healthSummary.degradedCount + healthSummary.unhealthyCount, color: '#fbbf24' },
+              ].map(({ label, count, color }) => (
+                <div key={label} className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl px-3 py-2 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                  <span className="text-[10px] text-[rgba(245,247,251,0.4)] flex-1 truncate">{label}</span>
+                  <span className="text-[15px] font-semibold" style={{ color }}>{count}</span>
+                </div>
+              ))}
+            </div>
 
-            <AnimatePresence>
-              {showDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full left-0 right-0 mt-1 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-2xl z-30 max-h-[300px] overflow-y-auto"
+            {/* Alert banner — visible when any alert device hasn't been dismissed */}
+            {healthSummary.alerts.length > 0 && healthSummary.alerts.some(a => !dismissedAlertIds.has(a.deviceId)) && (
+              <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.2)]">
+                <ShieldAlert className="w-4 h-4 text-[rgba(248,113,113,0.8)] flex-shrink-0" />
+                <span className="text-[11px] text-[rgba(248,113,113,0.9)] flex-1">
+                  {healthSummary.alerts.length === 1
+                    ? `1 dispositivo precisa de atencao · ${healthSummary.alerts[0].hostname}`
+                    : `${healthSummary.alerts.length} dispositivos precisam de atencao`}
+                </span>
+                <button
+                  onClick={() => setDismissedAlertIds(new Set(healthSummary.alerts.map(a => a.deviceId)))}
+                  className="text-[rgba(248,113,113,0.5)] hover:text-[rgba(248,113,113,0.9)] transition-colors flex-shrink-0"
                 >
-                  {devicesLoading ? (
-                    <div className="flex items-center justify-center gap-2 py-4">
-                      <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
-                      <span className="text-[11px] text-[rgba(245,247,251,0.4)]">Carregando...</span>
-                    </div>
-                  ) : devices.length === 0 ? (
-                    <p className="text-[11px] text-[rgba(245,247,251,0.4)] text-center py-4">Nenhum dispositivo encontrado</p>
-                  ) : (
-                    devices.map((device) => {
-                      const isSelected = device.deviceId === selectedDeviceId;
-                      return (
-                        <button
-                          key={device.deviceId}
-                          onClick={() => { setSelectedDeviceId(device.deviceId); setShowDropdown(false); }}
-                          className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[rgba(255,255,255,0.06)] transition-colors ${
-                            isSelected ? 'bg-[rgba(139,92,246,0.08)] border-l-2 border-l-[#8B5CF6]' : ''
-                          }`}
-                        >
-                          <div className="w-6 h-6 rounded-md bg-[rgba(139,92,246,0.08)] flex items-center justify-center flex-shrink-0">
-                            <Monitor className="w-3 h-3 text-[rgba(139,92,246,0.6)]" />
-                          </div>
-                          <div className="flex-1 min-w-0 text-left">
-                            <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.9)]'}`}>
-                              {device.userDisplayName || device.hostname}
-                            </p>
-                            <p className="text-[9px] text-[rgba(245,247,251,0.4)] flex items-center gap-1">
-                              {device.hostname} · v{device.agentVersion} · Visto {formatLastSeen(device.lastSeenAt)}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <TrackingStateLed state={device.trackingState} />
-                            <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor(device.status)}`} />
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto min-h-0 px-4 lg:px-5 pb-4">
+        {/* Two-column body: device card list (left) + detail panel (right) */}
+        <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-y-auto md:overflow-hidden">
+
+          {/* ── Left: device card list ─────────────────────────────────────── */}
+          <aside className="w-full md:w-[260px] md:flex-shrink-0 border-b md:border-b-0 md:border-r border-[rgba(255,255,255,0.04)] overflow-y-auto max-h-[240px] md:max-h-none">
+            {devicesLoading ? (
+              <div className="flex items-center justify-center gap-2 py-8">
+                <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
+                <span className="text-[11px] text-[rgba(245,247,251,0.4)]">Carregando...</span>
+              </div>
+            ) : devices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <Monitor className="w-8 h-8 text-[rgba(245,247,251,0.15)] mb-2" />
+                <p className="text-[11px] text-[rgba(245,247,251,0.4)]">Nenhum dispositivo</p>
+              </div>
+            ) : (
+              <div className="p-2 space-y-1">
+                {devices.map((device) => {
+                  const isSelected = device.deviceId === selectedDeviceId;
+                  const isConfirming = confirmDeleteId === device.deviceId;
+                  const isDeleting = deletingDeviceId === device.deviceId;
+                  const isOnline = device.status === 'active';
+                  const hasIssue = device.healthStatus === 'unhealthy' || device.healthStatus === 'degraded' || (!isOnline && device.status === 'offline') || (isOnline && device.ipcConnected === false);
+                  const isCritical = !isOnline || device.healthStatus === 'unhealthy';
+
+                  return (
+                    <motion.div
+                      key={device.deviceId}
+                      layout
+                      className={`group relative rounded-xl border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-[rgba(139,92,246,0.1)] border-[rgba(139,92,246,0.3)]'
+                          : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.09)]'
+                      }`}
+                      onClick={() => { setSelectedDeviceId(device.deviceId); setConfirmDeleteId(null); }}
+                    >
+                      {/* Selected left bar */}
+                      {isSelected && (
+                        <div className="absolute left-0 top-3 bottom-3 w-0.5 rounded-full bg-[#8B5CF6]" />
+                      )}
+
+                      <div className="px-3 pt-3 pb-2.5">
+                        {/* Row 1: user name + status LED */}
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <User className="w-3 h-3 text-[rgba(139,92,246,0.6)] flex-shrink-0" />
+                            <span className={`text-[12px] font-semibold truncate ${isSelected ? 'text-[#c4b5fd]' : 'text-[rgba(245,247,251,0.9)]'}`}>
+                              {device.userDisplayName || device.hostname}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                            {hasIssue && (
+                              <AlertTriangle
+                                className={`w-3.5 h-3.5 flex-shrink-0 ${isCritical ? 'text-[#f87171]' : 'text-[#fbbf24]'}`}
+                              />
+                            )}
+                            <span
+                              className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-[#05df72]' : 'bg-[rgba(248,113,113,0.6)]'}`}
+                              title={isOnline ? 'Online' : 'Offline'}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Row 2: hostname + version badge */}
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Monitor className="w-3 h-3 text-[rgba(245,247,251,0.25)] flex-shrink-0" />
+                          <span className="text-[10px] text-[rgba(245,247,251,0.45)] truncate flex-1">
+                            {device.hostname}
+                          </span>
+                          <span className="text-[9px] font-mono text-[rgba(139,92,246,0.6)] bg-[rgba(139,92,246,0.08)] border border-[rgba(139,92,246,0.15)] px-1.5 py-0.5 rounded flex-shrink-0">
+                            v{device.agentVersion}
+                          </span>
+                        </div>
+
+                        {/* Row 3: tracking state + last seen */}
+                        <div className="flex items-center justify-between gap-2">
+                          <TrackingStateLed state={device.trackingState} />
+                          <span className="text-[9px] text-[rgba(245,247,251,0.3)] flex-shrink-0">
+                            {formatLastSeen(device.lastSeenAt)}
+                          </span>
+                        </div>
+
+                        {/* Row 4 (conditional): connection status pill */}
+                        {hasIssue && (
+                          <div className="mt-2 pt-2 border-t border-[rgba(255,255,255,0.05)]">
+                            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
+                              !isOnline
+                                ? 'text-[#f87171] bg-[rgba(248,113,113,0.1)]'
+                                : device.healthStatus === 'unhealthy'
+                                  ? 'text-[#f87171] bg-[rgba(248,113,113,0.1)]'
+                                  : device.ipcConnected === false
+                                    ? 'text-[#a78bfa] bg-[rgba(167,139,250,0.1)]'
+                                    : 'text-[#fbbf24] bg-[rgba(251,191,36,0.1)]'
+                            }`}>
+                              {!isOnline ? 'OFFLINE' : device.healthStatus === 'unhealthy' ? 'UNHEALTHY' : device.ipcConnected === false ? 'UI DESCONECTADA' : 'DEGRADADO'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Delete action */}
+                      <div className="px-3 pb-2.5">
+                        {isConfirming ? (
+                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => handleDeleteDevice(device.deviceId)}
+                              disabled={isDeleting}
+                              className="flex-1 py-1 rounded-lg text-[9px] font-semibold bg-[rgba(248,113,113,0.15)] text-[#f87171] border border-[rgba(248,113,113,0.3)] hover:bg-[rgba(248,113,113,0.25)] transition-colors text-center"
+                            >
+                              {isDeleting ? '...' : 'Confirmar remoção'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="px-2 py-1 rounded-lg text-[9px] text-[rgba(245,247,251,0.4)] hover:bg-[rgba(255,255,255,0.06)]"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(device.deviceId); }}
+                            className={`flex items-center gap-1 text-[9px] text-[rgba(248,113,113,0.5)] hover:text-[#f87171] transition-opacity ${
+                              !isOnline ? 'opacity-70' : 'opacity-0 group-hover:opacity-70'
+                            } hover:!opacity-100`}
+                            title="Remover dispositivo (historico preservado)"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Remover
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </aside>
+
+          {/* ── Right: device detail panel ─────────────────────────────────── */}
+          <div className="flex-1 md:overflow-y-auto md:min-h-0 px-4 lg:px-5 pb-4 pt-2 md:pt-0">
           {/* Empty state */}
           {!selectedDeviceId && (
             <div className="flex items-center justify-center py-16">
@@ -482,7 +851,7 @@ export default function Maintenance() {
                 </div>
                 <p className="text-[15px] font-medium text-[rgba(245,247,251,0.6)]">Selecione um usuario</p>
                 <p className="text-[12px] text-[rgba(245,247,251,0.3)] mt-1 max-w-[280px] mx-auto">
-                  Escolha um usuario acima para monitorar o dispositivo em tempo real
+                  Clique em um dispositivo na lista ao lado para monitorar em tempo real
                 </p>
               </div>
             </div>
@@ -514,9 +883,14 @@ export default function Maintenance() {
             </div>
           )}
 
+          {/* Device Status Stripe — shown when device has issues */}
+          {selectedDeviceId && !metricsLoading && (
+            <DeviceStatusStripe device={selectedDevice} deviceInfo={deviceInfo} />
+          )}
+
           {/* Device Info Card */}
           {selectedDeviceId && !metricsLoading && deviceInfo && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
               {[
                 { icon: Globe, label: 'OS', value: deviceInfo.osVersion?.replace('Microsoft ', '') || 'N/A' },
                 { icon: Monitor, label: 'Versao', value: `v${deviceInfo.agentVersion}` },
@@ -646,6 +1020,35 @@ export default function Maintenance() {
                   Notificar Usuario
                 </button>
 
+                {/* Force Update */}
+                {!confirmForceUpdate ? (
+                  <button
+                    onClick={() => setConfirmForceUpdate(true)}
+                    disabled={sendingCommand !== null}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-[rgba(34,211,238,0.3)] text-[#22D3EE] bg-[rgba(34,211,238,0.06)] hover:bg-[rgba(34,211,238,0.12)] transition-colors disabled:opacity-40"
+                  >
+                    <Download className="w-3 h-3" />
+                    Forcar Atualizacao
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleSendCommand('force_update')}
+                      disabled={sendingCommand !== null}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-[rgba(34,211,238,0.2)] text-[#22D3EE] border border-[rgba(34,211,238,0.4)] hover:bg-[rgba(34,211,238,0.3)] transition-colors"
+                    >
+                      {sendingCommand === 'force_update' ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Download className="w-3 h-3" />}
+                      Confirmar
+                    </button>
+                    <button
+                      onClick={() => setConfirmForceUpdate(false)}
+                      className="px-2 py-1.5 rounded-lg text-[11px] text-[rgba(245,247,251,0.5)] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+
                 {/* Restart Agent */}
                 {!confirmRestart ? (
                   <button
@@ -757,10 +1160,10 @@ export default function Maintenance() {
           {/* Event Log */}
           {selectedDeviceId && !metricsLoading && (
             <div className="mt-6">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
                 <ScrollText className="w-4 h-4 text-[#8B5CF6]" />
                 <h2 className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Event Log</h2>
-                <span className="text-[10px] text-[rgba(245,247,251,0.3)] ml-1">({events.length})</span>
+                <span className="text-[10px] text-[rgba(245,247,251,0.3)]">({events.length})</span>
                 <div className="ml-auto flex items-center gap-2">
                   <ClearLogsButton
                     label="Limpar usuario"
@@ -783,7 +1186,7 @@ export default function Maintenance() {
               </div>
 
               {/* Category filter chips */}
-              <div className="flex gap-2 mb-3">
+              <div className="flex flex-wrap gap-2 mb-3">
                 {[
                   { value: null, label: 'Todos' },
                   { value: 'user_action', label: 'Acoes' },
@@ -861,7 +1264,8 @@ export default function Maintenance() {
               </div>
             </div>
           )}
-        </div>
+          </div>{/* end right detail panel */}
+        </div>{/* end two-column body */}
       </main>
     </div>
   );

@@ -2,7 +2,7 @@ namespace TimeTrack.Agent.Contracts.Services;
 
 public interface IHeartbeatService
 {
-    Task<HeartbeatResult> SendHeartbeatAsync(CancellationToken cancellationToken = default);
+    Task<HeartbeatResult> SendHeartbeatAsync(AgentHealthSnapshot snapshot, CancellationToken cancellationToken = default);
 }
 
 public sealed class HeartbeatResult

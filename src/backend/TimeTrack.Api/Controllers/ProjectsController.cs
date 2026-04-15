@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Backend.Application.ProjectMembers.Commands;
+using TimeTrack.Backend.Application.ProjectMembers.DTOs;
+using TimeTrack.Backend.Application.ProjectMembers.Queries;
 using TimeTrack.Backend.Application.Projects.Commands;
 using TimeTrack.Backend.Application.Projects.DTOs;
 using TimeTrack.Backend.Application.Projects.Queries;
@@ -62,7 +65,10 @@ public sealed class ProjectsController : ControllerBase
         var result = await _mediator.Send(new CreateProjectCommand(
             request.Name,
             request.Description,
-            request.Color));
+            request.Color,
+            request.IsBillable,
+            request.Currency,
+            request.HourlyRate));
 
         return CreatedAtAction(nameof(GetProject), new { id = result.Id }, result);
     }
@@ -80,7 +86,10 @@ public sealed class ProjectsController : ControllerBase
             id,
             request.Name,
             request.Description,
-            request.Color));
+            request.Color,
+            request.IsBillable,
+            request.Currency,
+            request.HourlyRate));
 
         return Ok(result);
     }
@@ -118,6 +127,41 @@ public sealed class ProjectsController : ControllerBase
     public async Task<IActionResult> DeleteProject(Guid id)
     {
         await _mediator.Send(new DeleteProjectCommand(id));
+        return NoContent();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Project Members
+    // ─────────────────────────────────────────────────────────────────────
+
+    [HttpGet("{id:guid}/members")]
+    [ProducesResponseType(typeof(ListProjectMembersResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ListProjectMembersResponse>> ListMembers(Guid id)
+    {
+        var result = await _mediator.Send(new ListProjectMembersQuery(id));
+        return Ok(result);
+    }
+
+    [HttpPost("{id:guid}/members")]
+    [ProducesResponseType(typeof(ProjectMemberResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ProjectMemberResponse>> AddMember(Guid id, [FromBody] AddProjectMemberRequest request)
+    {
+        var result = await _mediator.Send(new AddProjectMemberCommand(id, request.UserId, request.Role));
+        return CreatedAtAction(nameof(ListMembers), new { id }, result);
+    }
+
+    [HttpDelete("{id:guid}/members/{userId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RemoveMember(Guid id, Guid userId)
+    {
+        await _mediator.Send(new RemoveProjectMemberCommand(id, userId));
         return NoContent();
     }
 }

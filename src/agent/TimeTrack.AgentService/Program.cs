@@ -8,6 +8,9 @@ var priority = Environment.GetEnvironmentVariable("TIMETRACK_PROCESS_PRIORITY") 
 ServiceCollectionExtensions.ConfigureProcessPriority(priority);
 
 IHost host = Host.CreateDefaultBuilder(args)
+    // Always use the exe's own directory as content root so appsettings.json is found
+    // regardless of working directory (Task Scheduler, Windows Service, or console dev run).
+    .UseContentRoot(AppContext.BaseDirectory)
     .UseWindowsService(options =>
     {
         options.ServiceName = "ChronosX Agent";
@@ -37,6 +40,9 @@ IHost host = Host.CreateDefaultBuilder(args)
 
         // Workers
         services.AddAgentWorkers();
+
+        // Update Services
+        services.AddUpdateServices(context.Configuration);
     })
     .Build();
 

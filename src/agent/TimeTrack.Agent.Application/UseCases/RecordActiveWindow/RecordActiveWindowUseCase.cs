@@ -102,7 +102,8 @@ public sealed class RecordActiveWindowUseCase
 
         if (activeSession != null && CanExtendSession(activeSession, appIdentity, windowHash))
         {
-            // Estende a sessão existente - não cria novo outbox item
+            // Extends the existing session. UpdateAsync also updates the outbox payload so
+            // the backend receives the latest EndedAt on the next sync cycle (≤30s lag).
             activeSession.Extend(request.CapturedAt);
             await _sessionRepository.UpdateAsync(activeSession, cancellationToken);
             session = activeSession;
@@ -114,6 +115,25 @@ public sealed class RecordActiveWindowUseCase
         }
         else
         {
+            // Trim the previous session's end time to the current capture moment before
+            // switching — this prevents the 5-second initial period from overlapping with
+            // the new session and causing overcounting in the dashboard.
+            if (activeSession != null && request.CapturedAt > activeSession.Period.StartUtc)
+            {
+                try
+                {
+                    activeSession.Extend(request.CapturedAt);
+                    await _sessionRepository.UpdateAsync(activeSession, cancellationToken);
+                    _logger.LogDebug(
+                        "Trimmed previous session {SessionId} end to {CapturedAt} before switching",
+                        activeSession.Id, request.CapturedAt);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not trim previous session {SessionId}", activeSession.Id);
+                }
+            }
+
             // Cria nova sessão (com userId e domínio)
             var period = new TimeRange(
                 request.CapturedAt,

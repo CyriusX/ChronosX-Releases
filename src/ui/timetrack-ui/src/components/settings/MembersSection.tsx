@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UserPlus, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
 import { useNotifications } from '../../stores/uiStore';
 import { useMembers } from '../../hooks/useMembers';
@@ -17,6 +18,7 @@ import { MembersList } from './MembersList';
  * - OCP: Extensível via props e composição
  */
 export function MembersSection() {
+  const { t } = useTranslation();
   const { user: currentUser } = useAuthStore();
   const { notify } = useNotifications();
   const { members, isLoading, loadMembers, invite, toggleStatus, changeRole } = useMembers();
@@ -33,26 +35,26 @@ export function MembersSection() {
   };
 
   const handleInviteSuccess = () => {
-    notify.success('Convite enviado com sucesso!');
+    notify.success(t('settings.members.inviteSuccess'));
     setShowInviteForm(false);
   };
 
   const handleToggleStatus = async (member: Parameters<typeof toggleStatus>[0]) => {
     try {
       await toggleStatus(member);
-      const action = member.status === 'Active' ? 'desativado' : 'ativado';
-      notify.success(`Membro ${action}`);
+      const action = member.status === 'Active' ? t('settings.members.deactivated') : t('settings.members.activated');
+      notify.success(`${t('settings.members.member')} ${action}`);
     } catch {
-      notify.error('Erro ao atualizar status');
+      notify.error(t('common.error'));
     }
   };
 
   const handleChangeRole = async (member: Parameters<typeof changeRole>[0], role: Parameters<typeof changeRole>[1]) => {
     try {
       await changeRole(member, role);
-      notify.success('Role atualizada');
+      notify.success(t('settings.members.roleUpdated'));
     } catch {
-      notify.error('Erro ao atualizar role');
+      notify.error(t('common.error'));
     }
   };
 
@@ -69,9 +71,9 @@ export function MembersSection() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-[20px] font-semibold text-[#f5f7fb]">Membros</h2>
+          <h2 className="text-[20px] font-semibold text-[#f5f7fb]">{t('settings.members.title')}</h2>
           <p className="text-[13px] text-[rgba(245,247,251,0.5)] mt-1">
-            Gerencie os membros da sua organização
+            {t('settings.members.subtitle')}
           </p>
         </div>
         {canInviteMembers && (
@@ -80,7 +82,7 @@ export function MembersSection() {
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#8B5CF6] to-[#22D3EE] rounded-lg text-[13px] font-medium text-white hover:opacity-90 transition-opacity"
           >
             <UserPlus className="w-4 h-4" />
-            Convidar
+            {t('settings.members.invite')}
           </button>
         )}
       </div>
