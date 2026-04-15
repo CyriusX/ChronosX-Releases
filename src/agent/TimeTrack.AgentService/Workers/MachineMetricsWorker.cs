@@ -138,10 +138,10 @@ public sealed class MachineMetricsWorker : BackgroundService
 
             await _outboxRepository.AddAsync(outboxItem, cancellationToken);
 
-            _logger.LogDebug(
-                "Métricas enfileiradas: CPU={Cpu}%, Mem={MemUsed}/{MemTotal}MB, Disk={DiskUsed}/{DiskTotal}GB",
+            _logger.LogInformation(
+                "Métricas enfileiradas no outbox: CPU={Cpu}%, Mem={MemUsed}/{MemTotal}MB, Disk={DiskUsed}/{DiskTotal}GB (snapshotId={SnapshotId})",
                 avgCpu, latest.MemoryUsedMb, latest.MemoryTotalMb,
-                latest.DiskUsedGb, latest.DiskTotalGb);
+                latest.DiskUsedGb, latest.DiskTotalGb, snapshotId);
         }
         catch (Exception ex)
         {

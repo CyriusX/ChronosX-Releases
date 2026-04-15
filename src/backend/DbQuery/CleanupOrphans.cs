@@ -4,7 +4,7 @@ using System;
 // Run with: dotnet run --project DbQuery --cleanup
 // Cleanup orphaned idempotency_keys
 
-var connectionString = "Host=ep-billowing-snow-adnjkioj-pooler.c-2.us-east-1.aws.neon.tech;Database=neondb;Username=neondb_owner;Password=npg_y6PlhoBZJ9QS;sslmode=require";
+var connectionString = "Host=cyriusx.com;Port=4003;Database=chronosx;Username=chronos;Password=chronos;SSL Mode=Disable";
 
 Console.WriteLine("=== CLEANUP ORPHANED IDEMPOTENCY KEYS ===");
 Console.WriteLine($"Timestamp: {DateTime.UtcNow:O}");

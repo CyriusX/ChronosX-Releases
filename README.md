@@ -71,11 +71,11 @@ docker-compose up -d postgres
 docker-compose exec postgres pg_isready
 ```
 
-**Opção B: Neon (Cloud)**
+**Opção B: Contabo (Cloud)**
 
-1. Criar conta em [neon.tech](https://neon.tech)
-2. Criar projeto `timetrack`
-3. Copiar connection string
+1. Conectar ao servidor Contabo (`5.189.168.51`)
+2. Container PostgreSQL: `chronosx_chronosxcontainer` (rede Docker interna: `chronos_net`)
+3. Connection string: `Host=cyriusx.com;Port=4003;Database=chronosx;Username=chronos;Password=chronos;SSL Mode=Disable`
 
 ### 3. Configurar Variáveis de Ambiente
 
