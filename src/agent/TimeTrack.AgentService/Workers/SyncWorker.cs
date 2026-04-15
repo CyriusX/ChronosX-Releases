@@ -202,7 +202,7 @@ public sealed class SyncWorker : BackgroundService
             // Garantir que o token possui device_id antes de tentar sincronizar
             if (!await EnsureDeviceActivatedAsync(cancellationToken))
             {
-                _logger.LogDebug("Skipping sync cycle: user not authenticated or device not activated.");
+                _logger.LogWarning("Skipping sync cycle: user not authenticated or device not activated (no device_id in JWT).");
                 return;
             }
 
@@ -230,7 +230,7 @@ public sealed class SyncWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "Heartbeat failed, will retry next cycle");
+                _logger.LogWarning(ex, "Heartbeat failed, will retry next cycle");
             }
 
             // Poll and execute remote commands from admin

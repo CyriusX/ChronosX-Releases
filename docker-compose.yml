@@ -36,9 +36,6 @@ services:
       - Frontend__BaseUrl=${FRONTEND_URL:-http://localhost:5173}
     ports:
       - "5000:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
 
 volumes:
   postgres_data:

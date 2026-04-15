@@ -39,7 +39,7 @@ O Backend TimeTrack é uma API ASP.NET Core 8 que roda em containers Docker.
 
 ```bash
 # Connection String
-ConnectionStrings__DefaultConnection=Host=xxx.neon.tech;Database=timetrack;Username=xxx;Password=xxx;SSL Mode=Require
+ConnectionStrings__DefaultConnection=Host=cyriusx.com;Port=4003;Database=chronosx;Username=chronos;Password=chronos;SSL Mode=Disable
 
 # JWT
 Jwt__Secret=<256-bit-secret>
