@@ -84,7 +84,8 @@
       "Bash(powershell -Command \"Get-Item 'C:\\\\Users\\\\jr_ju\\\\AppData\\\\Local\\\\TimeTrack\\\\timetrack.db' | Select-Object LastWriteTime, Length\")",
       "Read(//c/Temp/**)",
       "Bash(mkdir -p \"C:/Temp\")",
-      "Bash(choco --version)"
+      "Bash(choco --version)",
+      "Bash(find . -name \"*.cs\" -exec grep -l \"WebView2Cache\" {} \\\\;)"
     ],
     "additionalDirectories": [
       "C:\\Users\\jr_ju\\AppData\\Local\\TimeTrack"

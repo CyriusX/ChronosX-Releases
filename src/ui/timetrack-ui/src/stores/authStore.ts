@@ -41,6 +41,7 @@ interface AuthState {
   tokens: AuthTokens | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isRehydrating: boolean;
   error: string | null;
 
   // Actions
@@ -138,6 +139,7 @@ export const useAuthStore = create<AuthState>()(
       tokens: null,
       isAuthenticated: false,
       isLoading: false,
+      isRehydrating: true, // true until rehydration completes (refresh attempt or validation)
       error: null,
 
       // Actions
@@ -291,13 +293,62 @@ export const useAuthStore = create<AuthState>()(
         tokens: state.tokens,
       }),
       onRehydrateStorage: () => (state) => {
-        // Validate tokens on rehydration
-        if (state?.tokens && state.tokens.expiresAt < Date.now()) {
-          // Token expired, clear auth
-          state.clearAuth();
-        } else if (state?.user && state?.tokens) {
-          state.isAuthenticated = true;
+        const store = useAuthStore;
+
+        // No persisted data — nothing to restore
+        if (!state?.tokens || !state?.user) {
+          store.setState({ isRehydrating: false });
+          return;
         }
+
+        // Access token still valid — restore session immediately
+        if (state.tokens.expiresAt > Date.now()) {
+          store.setState({ isAuthenticated: true, isRehydrating: false });
+          return;
+        }
+
+        // Access token expired but refresh token may still be valid (90 days).
+        // Attempt silent refresh instead of immediately logging out.
+        const tryRefresh = async () => {
+          try {
+            const response = await refreshApi(state.tokens!.refreshToken);
+
+            const newTokens: AuthTokens = {
+              accessToken: response.accessToken,
+              refreshToken: response.refreshToken,
+              expiresAt: Date.now() + response.expiresIn * 1000,
+            };
+
+            store.setState({
+              tokens: newTokens,
+              isAuthenticated: true,
+              isRehydrating: false,
+            });
+
+            // Notify Agent about the refreshed tokens
+            try {
+              const { getIpcService } = await import('../services');
+              const ipcService = getIpcService();
+              await ipcService.sendCommand('storeTokens', {
+                accessToken: response.accessToken,
+                refreshToken: response.refreshToken,
+              });
+            } catch {
+              // Non-critical — Agent will receive tokens on next connection
+            }
+          } catch {
+            // Refresh failed — session truly expired, clear auth
+            store.setState({
+              user: null,
+              tokens: null,
+              isAuthenticated: false,
+              error: null,
+              isRehydrating: false,
+            });
+          }
+        };
+
+        tryRefresh();
       },
     }
   )
