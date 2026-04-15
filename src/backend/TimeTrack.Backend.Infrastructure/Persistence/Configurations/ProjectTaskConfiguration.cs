@@ -31,7 +31,7 @@ internal sealed class ProjectTaskConfiguration : IEntityTypeConfiguration<Projec
 
         builder.Property(t => t.Description)
             .HasColumnName("description")
-            .HasMaxLength(2000);
+            .HasMaxLength(5000);
 
         builder.Property(t => t.Status)
             .HasColumnName("status")
