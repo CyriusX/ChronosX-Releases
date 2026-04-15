@@ -130,36 +130,16 @@ public sealed class MacOSMachineMetricsProvider : IMachineMetricsProvider
 
     private (double usedGb, double totalGb) GetDiskInfo()
     {
+        // Only report the root volume — the previous implementation enumerated
+        // /Volumes and stat'd every mount every tick, which is expensive and
+        // double-counts APFS containers that appear as multiple firmlinked paths.
         try
         {
-            double totalGb = 0;
-            double usedGb = 0;
-
-            var volumes = Directory.GetDirectories("/Volumes");
             var rootFs = GetFileSystemInfo("/");
-            if (rootFs != null)
-            {
-                totalGb += rootFs.TotalSize / (1024.0 * 1024 * 1024);
-                usedGb += (rootFs.TotalSize - rootFs.AvailableFreeSpace) / (1024.0 * 1024 * 1024);
-            }
+            if (rootFs == null) return (0, 0);
 
-            foreach (var volume in volumes)
-            {
-                try
-                {
-                    var fs = GetFileSystemInfo(volume);
-                    if (fs != null)
-                    {
-                        totalGb += fs.TotalSize / (1024.0 * 1024 * 1024);
-                        usedGb += (fs.TotalSize - fs.AvailableFreeSpace) / (1024.0 * 1024 * 1024);
-                    }
-                }
-                catch
-                {
-                    continue;
-                }
-            }
-
+            var totalGb = rootFs.TotalSize / (1024.0 * 1024 * 1024);
+            var usedGb = (rootFs.TotalSize - rootFs.AvailableFreeSpace) / (1024.0 * 1024 * 1024);
             return (usedGb, totalGb);
         }
         catch (Exception ex)

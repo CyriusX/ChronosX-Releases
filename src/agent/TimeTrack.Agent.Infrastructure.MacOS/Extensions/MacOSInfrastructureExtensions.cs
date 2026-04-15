@@ -30,7 +30,7 @@ public static class MacOSInfrastructureExtensions
 
         services.Configure<ActiveWindowProviderOptions>(options =>
         {
-            options.CacheValidityMs = 500;
+            options.CacheValidityMs = 1500;
         });
 
         services.Configure<IdleDetectorOptions>(options =>

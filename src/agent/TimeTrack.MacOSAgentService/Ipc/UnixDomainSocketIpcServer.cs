@@ -137,7 +137,7 @@ public sealed class UnixDomainSocketIpcServer : BackgroundService, IIpcServer, I
                     break;
                 }
 
-                _logger.LogInformation("RAW IPC RECV: {Line}", line.Length > 200 ? line[..200] + "..." : line);
+                _logger.LogDebug("RAW IPC RECV: {Line}", line.Length > 200 ? line[..200] + "..." : line);
 
                 await ProcessMessageAsync(line, cancellationToken);
             }

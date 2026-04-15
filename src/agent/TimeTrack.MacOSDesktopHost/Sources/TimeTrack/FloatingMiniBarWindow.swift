@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 
 /// A floating pill-shaped status bar that appears when the main window is minimized.
 /// Shows tracking status, active time, productive time, and focus score.
@@ -28,10 +29,9 @@ final class FloatingMiniBarWindow: NSPanel {
     private let restoreButton = NSButton()
     private let stackView = NSStackView()
 
-    // Pulsing animation
-    private var pulseTimer: Timer?
-    private var pulseUp = true
-    private var currentPulseAlpha: CGFloat = 1.0
+    // Pulsing animation — driven by Core Animation so the render server handles
+    // interpolation; no per-frame work on the app main thread.
+    private static let pulseAnimationKey = "statusDotPulse"
 
     var onRestoreRequested: (() -> Void)?
 
@@ -221,22 +221,23 @@ final class FloatingMiniBarWindow: NSPanel {
     // MARK: - Pulse Animation
 
     private func startPulseAnimation() {
-        pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            if self.pulseUp {
-                self.currentPulseAlpha += 0.03
-                if self.currentPulseAlpha >= 1.0 { self.pulseUp = false }
-            } else {
-                self.currentPulseAlpha -= 0.03
-                if self.currentPulseAlpha <= 0.3 { self.pulseUp = true }
-            }
-            self.statusDot.layer?.opacity = Float(self.currentPulseAlpha)
-        }
+        statusDot.wantsLayer = true
+        guard let layer = statusDot.layer else { return }
+        layer.removeAnimation(forKey: Self.pulseAnimationKey)
+
+        let pulse = CABasicAnimation(keyPath: "opacity")
+        pulse.fromValue = 1.0
+        pulse.toValue = 0.3
+        pulse.duration = 1.2
+        pulse.autoreverses = true
+        pulse.repeatCount = .infinity
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        pulse.isRemovedOnCompletion = false
+        layer.add(pulse, forKey: Self.pulseAnimationKey)
     }
 
     func stopAnimations() {
-        pulseTimer?.invalidate()
-        pulseTimer = nil
+        statusDot.layer?.removeAnimation(forKey: Self.pulseAnimationKey)
     }
 
     // MARK: - Helpers
