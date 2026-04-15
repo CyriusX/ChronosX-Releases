@@ -228,13 +228,13 @@ public sealed class TrackingWorker : BackgroundService
         var state = await _stateRepository.GetAsync(userId.Value, cancellationToken);
         if (state == null)
         {
-            _logger.LogInformation("Nenhum estado de tracking encontrado. Pulando ciclo.");
+            _logger.LogDebug("Nenhum estado de tracking encontrado. Pulando ciclo.");
             return;
         }
 
         if (!state.IsActive)
         {
-            _logger.LogInformation("Tracking não está ativo (Status: {Status}). Pulando ciclo.", state.Status);
+            _logger.LogDebug("Tracking não está ativo (Status: {Status}). Pulando ciclo.", state.Status);
             _lastCycleUtc = DateTime.UtcNow;
             return;
         }

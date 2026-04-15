@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TimeTrack.Agent.Contracts.Providers;
@@ -21,6 +23,17 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
     private ActiveWindowInfo? _cachedWindow;
     private DateTime _lastCacheUpdate = DateTime.MinValue;
     private readonly object _cacheLock = new();
+
+    // Memoized lookups — these are stable for the lifetime of a given PID/path, so
+    // we avoid re-reading Info.plist / re-hashing / re-bridging Obj-C on every poll.
+    private readonly ConcurrentDictionary<string, string> _hashByInput = new();
+    private readonly ConcurrentDictionary<string, string> _displayNameByExePath = new();
+    private readonly ConcurrentDictionary<int, string?> _exePathByPid = new();
+
+    // Compiled once — the previous code recompiled this regex on every poll cycle.
+    private static readonly Regex s_bundleNameRegex = new(
+        @"<key>CFBundleName</key>\s*<string>([^<]+)</string>",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private bool _disposed;
 
@@ -103,7 +116,7 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 
             if (info != null)
             {
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "Tracked active window: {App} (PID={Pid}, Title={Title})",
                     appName, pid, windowTitle ?? "(null)");
                 UpdateCache(info);
@@ -122,9 +135,9 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
     {
         try
         {
-            var exePathHash = ComputeSha256Hash(exePath);
+            var exePathHash = GetOrComputeHash(exePath);
             var windowHash = !string.IsNullOrEmpty(windowTitle)
-                ? ComputeSha256Hash(windowTitle)
+                ? GetOrComputeHash(windowTitle)
                 : null;
 
             var processName = Path.GetFileNameWithoutExtension(exePath) ?? "";
@@ -269,6 +282,11 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 
     private string? GetApplicationPath(int pid)
     {
+        // The bundle path is stable for the lifetime of a given PID; memoizing avoids
+        // three Obj-C bridge calls (NSRunningApplication → bundleURL → path) per poll.
+        if (_exePathByPid.TryGetValue(pid, out var cached))
+            return cached;
+
         try
         {
             // [NSRunningApplication runningApplicationWithProcessIdentifier:pid]
@@ -283,7 +301,15 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 
             // [bundleURL path] → NSString*
             var nsPath = ObjCRuntime.SendMessage(bundleURL, s_selPath);
-            return ObjCRuntime.NSStringToManaged(nsPath);
+            var path = ObjCRuntime.NSStringToManaged(nsPath);
+            if (!string.IsNullOrEmpty(path))
+            {
+                // Bounded cache — PID values are reused as processes recycle; clear
+                // periodically to avoid unbounded growth on long-running agents.
+                if (_exePathByPid.Count > 1024) _exePathByPid.Clear();
+                _exePathByPid[pid] = path;
+            }
+            return path;
         }
         catch (Exception ex)
         {
@@ -368,10 +394,28 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
         }
     }
 
-    private static string? GetDisplayName(string appName, string exePath)
+    private string GetDisplayName(string appName, string exePath)
+    {
+        // The display name for a given bundle path never changes at runtime, so
+        // memoize it — the previous implementation read Info.plist from disk and
+        // matched a freshly compiled regex on every poll.
+        if (_displayNameByExePath.TryGetValue(exePath, out var cached))
+            return cached;
+
+        var resolved = ResolveDisplayName(appName, exePath);
+        _displayNameByExePath[exePath] = resolved;
+        return resolved;
+    }
+
+    private static string ResolveDisplayName(string appName, string exePath)
     {
         try
         {
+            // Prefer the localized name from NSRunningApplication / CGWindowOwnerName —
+            // it's already correct in almost all cases and avoids disk I/O entirely.
+            if (!string.IsNullOrWhiteSpace(appName))
+                return appName;
+
             var bundlePath = exePath.EndsWith(".app") ? exePath : Path.GetDirectoryName(exePath);
             if (bundlePath?.EndsWith(".app") == true)
             {
@@ -379,20 +423,17 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
                 if (File.Exists(infoPlistPath))
                 {
                     var content = File.ReadAllText(infoPlistPath);
-                    var match = System.Text.RegularExpressions.Regex.Match(content,
-                        "<key>CFBundleName</key>\\s*<string>([^<]+)</string>");
+                    var match = s_bundleNameRegex.Match(content);
                     if (match.Success)
-                    {
                         return match.Groups[1].Value;
-                    }
                 }
             }
 
-            return Path.GetFileNameWithoutExtension(appName);
+            return Path.GetFileNameWithoutExtension(appName) ?? appName;
         }
         catch
         {
-            return Path.GetFileNameWithoutExtension(appName);
+            return Path.GetFileNameWithoutExtension(appName) ?? appName;
         }
     }
 
@@ -425,6 +466,20 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
         // We would need to go through the ObjC runtime or shell out to /usr/bin/osascript.
         // Returning null keeps tracking functional — window title alone is still captured.
         return null;
+    }
+
+    private string GetOrComputeHash(string input)
+    {
+        // Hashes are deterministic — exe paths and window titles repeat for thousands
+        // of cycles. Memoize to avoid SHA-256 + UTF-8 encoding every poll.
+        if (_hashByInput.TryGetValue(input, out var cached))
+            return cached;
+
+        var hash = ComputeSha256Hash(input);
+
+        if (_hashByInput.Count > 4096) _hashByInput.Clear();
+        _hashByInput[input] = hash;
+        return hash;
     }
 
     private static string ComputeSha256Hash(string input)
@@ -494,7 +549,7 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 /// </summary>
 public sealed class ActiveWindowProviderOptions
 {
-    public int CacheValidityMs { get; set; } = 500;
+    public int CacheValidityMs { get; set; } = 1500;
 }
 
 /// <summary>

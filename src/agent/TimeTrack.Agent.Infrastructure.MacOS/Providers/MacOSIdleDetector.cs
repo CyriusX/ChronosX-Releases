@@ -19,6 +19,14 @@ public sealed class MacOSIdleDetector : IIdleDetector
     private DateTime _lastKnownWallTime = DateTime.MinValue;
     private const long SleepDetectionThresholdMs = 30_000;
 
+    // Multiple workers (TrackingWorker, ActivityResumeDetector, TaskIdleWatcher) call
+    // GetIdleTimeAsync independently — cache the raw CoreGraphics result briefly so
+    // overlapping calls reuse the syscall instead of re-entering the kernel.
+    private readonly object _cacheLock = new();
+    private DateTime _cacheAt = DateTime.MinValue;
+    private TimeSpan? _cachedValue;
+    private const int CacheValidityMs = 500;
+
     /// <summary>
     /// Fired when idle state changes
     /// </summary>
@@ -37,11 +45,20 @@ public sealed class MacOSIdleDetector : IIdleDetector
     {
         try
         {
+            lock (_cacheLock)
+            {
+                if ((DateTime.UtcNow - _cacheAt).TotalMilliseconds <= CacheValidityMs)
+                {
+                    return Task.FromResult(_cachedValue);
+                }
+            }
+
             var idleTime = GetIdleTimeInternal();
 
-            if (idleTime.HasValue)
+            lock (_cacheLock)
             {
-                _logger.LogDebug("Current idle time: {IdleTime}", idleTime.Value);
+                _cachedValue = idleTime;
+                _cacheAt = DateTime.UtcNow;
             }
 
             return Task.FromResult(idleTime);
