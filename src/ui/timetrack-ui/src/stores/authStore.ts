@@ -6,6 +6,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { globalEventDispatcher } from '../services/eventDispatcher';
 
 // ============================================================================
 // TYPES
@@ -286,13 +287,14 @@ export const useAuthStore = create<AuthState>()(
 
       setError: (error) => set({ error }),
 
-      clearAuth: () =>
+      clearAuth: () => {
         set({
           user: null,
           tokens: null,
           isAuthenticated: false,
           error: null,
-        }),
+        });
+      },
     }),
     {
       name: 'timetrack-auth',
@@ -318,13 +320,6 @@ export const useAuthStore = create<AuthState>()(
   )
 );
 
-// Safety: if merge() is never called (no persisted data), resolve after 2s.
-setTimeout(() => {
-  if (useAuthStore.getState().isRehydrating) {
-    useAuthStore.setState({ isRehydrating: false });
-  }
-}, 2000);
-
 // ============================================================================
 // SELECTORS
 // ============================================================================
@@ -334,3 +329,53 @@ export const selectIsAuthenticated = (state: AuthState) => state.isAuthenticated
 export const selectIsLoading = (state: AuthState) => state.isLoading;
 export const selectError = (state: AuthState) => state.error;
 export const selectAccessToken = (state: AuthState) => state.tokens?.accessToken;
+
+// ============================================================================
+// AGENT TOKEN SYNC
+// ============================================================================
+
+// When the Agent (background service) refreshes tokens, it broadcasts a
+// tokensRefreshed IPC event. Subscribe here so the UI's localStorage always
+// holds the latest valid refresh token — preventing "refresh token expired or
+// revoked" errors on the next app start.
+globalEventDispatcher.subscribe('tokensRefreshed', async (payload) => {
+  const store = useAuthStore.getState();
+
+  const newTokens = {
+    accessToken: payload.accessToken,
+    refreshToken: payload.refreshToken,
+    expiresAt: Date.now() + payload.expiresIn * 1000,
+  };
+
+  // Always store the tokens (they're guaranteed valid — the Agent just refreshed them)
+  store.setTokens(newTokens);
+
+  if (!store.user) {
+    // Session was cleared (e.g. UI's own refresh failed) but Agent has valid tokens.
+    // Use the new access token to fetch user info and restore the session.
+    try {
+      const response = await fetch(`${API_BASE}/auth/me/summary`, {
+        headers: { Authorization: `Bearer ${payload.accessToken}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        store.setUser({
+          id: data.userId ?? data.id,
+          email: data.email ?? '',
+          displayName: data.displayName ?? '',
+          role: data.role ?? 'Colaborador',
+          orgId: data.orgId ?? data.organizationId ?? '',
+          orgName: data.orgName ?? data.organizationName ?? '',
+          passwordMustChange: data.passwordMustChange ?? false,
+        });
+        console.log('[AuthStore] Session restored from Agent tokens');
+        window.location.hash = '/';
+      }
+    } catch {
+      // Can't reach backend — user will need to login manually
+    }
+    return;
+  }
+
+  console.log('[AuthStore] Tokens synced from Agent refresh');
+});

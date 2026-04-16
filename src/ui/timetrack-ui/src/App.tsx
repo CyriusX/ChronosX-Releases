@@ -107,23 +107,46 @@ function App() {
     return unsub;
   }, [subscribeToEvent]);
 
-  // Re-send tokens to agent whenever connection is (re)established
+  // Sync tokens with Agent on IPC connect.
+  // If the UI's access token is expired, ask the Agent for its (likely newer) tokens
+  // instead of overwriting the Agent's valid tokens with expired ones.
   useEffect(() => {
     const justConnected = isConnected && !wasConnectedRef.current;
     wasConnectedRef.current = isConnected;
 
-    if (justConnected && isAuthenticated && tokens) {
-      const ipcService = getIpcService();
-      ipcService.sendCommand('storeTokens', {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      }).then((result) => {
-        if (!result.success) {
-          console.warn('[App] Failed to resync tokens to Agent on connect:', result.error);
-        } else {
-          console.log('[App] Tokens resynced to Agent on connect');
-        }
-      });
+    if (!justConnected) return;
+
+    const ipcService = getIpcService();
+    const isAccessTokenExpired = tokens && tokens.expiresAt <= Date.now();
+
+    if (isAuthenticated && tokens) {
+      if (isAccessTokenExpired) {
+        // UI tokens are expired — ask Agent for fresh ones instead of sending stale tokens
+        ipcService.sendQuery('getTokens').then((result) => {
+          const data = result.data as { hasTokens?: boolean; accessToken?: string; refreshToken?: string; expiresIn?: number } | undefined;
+          if (result.success && data?.hasTokens && data.accessToken && data.refreshToken) {
+            const authStore = useAuthStore.getState();
+            if (authStore.user) {
+              authStore.setTokens({
+                accessToken: data.accessToken,
+                refreshToken: data.refreshToken,
+                expiresAt: Date.now() + (data.expiresIn ?? 3600) * 1000,
+              });
+              console.log('[App] Synced fresh tokens from Agent');
+            }
+          }
+        }).catch(() => { /* non-critical */ });
+      } else {
+        // UI has valid tokens — send them to Agent so it can track
+        ipcService.sendCommand('storeTokens', {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        }).then((result) => {
+          if (!result.success) {
+            console.warn('[App] Failed to resync tokens to Agent on connect:', result.error);
+          }
+        });
+      }
     }
   }, [isConnected, isAuthenticated, tokens]);
 

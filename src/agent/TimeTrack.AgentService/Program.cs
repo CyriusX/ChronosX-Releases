@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TimeTrack.Agent.Infrastructure.Extensions;
 using TimeTrack.AgentService.Extensions;
+using TimeTrack.AgentService.Workers;
 
 // Configura prioridade do processo o mais cedo possível
 var priority = Environment.GetEnvironmentVariable("TIMETRACK_PROCESS_PRIORITY") ?? "BelowNormal";
@@ -59,5 +60,9 @@ using (var scope = host.Services.CreateScope())
 {
     await scope.ServiceProvider.InitializeDatabaseAsync();
 }
+
+// Eagerly resolve TokenRefreshBroadcaster so it subscribes to ITokenStore.TokensStored
+// and forwards refreshed tokens to the UI via IPC.
+_ = host.Services.GetRequiredService<TokenRefreshBroadcaster>();
 
 await host.RunAsync();

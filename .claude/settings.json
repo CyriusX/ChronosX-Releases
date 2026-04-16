@@ -112,7 +112,11 @@
       "Bash(cp -r src/ui/timetrack-ui/dist build/publish/DesktopHost/ui)",
       "Read(//c/Users/jr_ju/AppData/Local/Programs/Inno Setup 6/**)",
       "Bash(powershell.exe -ExecutionPolicy Bypass -File \"installer/scripts/build-installer.ps1\" -Version \"1.0.24\" -Configuration Release)",
-      "Bash(powershell -ExecutionPolicy Bypass -File \"c:/Projetos/TimeTracking/installer/scripts/build-installer.ps1\" -Version \"1.0.24\")"
+      "Bash(powershell -ExecutionPolicy Bypass -File \"c:/Projetos/TimeTracking/installer/scripts/build-installer.ps1\" -Version \"1.0.24\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File installer/scripts/build-installer.ps1 -Version \"1.0.25\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File installer/scripts/build-installer.ps1 -Version \"1.0.26\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File installer/scripts/build-installer.ps1 -Version 1.0.26)",
+      "Bash(powershell -ExecutionPolicy Bypass -File installer/scripts/build-installer.ps1 -Version 1.0.27)"
     ],
     "additionalDirectories": [
       "C:\\Users\\jr_ju\\AppData\\Local\\TimeTrack"

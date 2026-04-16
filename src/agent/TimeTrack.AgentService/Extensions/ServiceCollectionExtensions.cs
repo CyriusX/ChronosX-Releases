@@ -181,6 +181,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<AgentStatusEventBroadcaster>();
         services.AddHostedService(sp => sp.GetRequiredService<AgentStatusEventBroadcaster>());
 
+        // Broadcast refreshed tokens to the UI so localStorage stays in sync
+        services.AddSingleton<TokenRefreshBroadcaster>();
+
         services.AddHostedService<TrackingWorker>();
         services.AddHostedService<SyncWorker>();
         services.AddHostedService<MachineMetricsWorker>();

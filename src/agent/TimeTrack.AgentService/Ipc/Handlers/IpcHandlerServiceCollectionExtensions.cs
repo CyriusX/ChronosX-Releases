@@ -7,6 +7,7 @@ using TimeTrack.AgentService.Ipc.Handlers.Commands.Settings;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Sync;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Tracking;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Update;
+using TimeTrack.AgentService.Ipc.Handlers.Queries.Auth;
 using TimeTrack.AgentService.Ipc.Handlers.Queries.Dashboard;
 using TimeTrack.AgentService.Ipc.Handlers.Queries.Data;
 using TimeTrack.AgentService.Ipc.Handlers.Queries.State;
@@ -68,6 +69,7 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcQueryHandler, GetSettingsQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetUpdateProgressQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetLaunchAtLoginQueryHandler>();
+        services.AddSingleton<IIpcQueryHandler, GetTokensQueryHandler>();
 
         // Router
         services.AddSingleton<IpcMessageRouter>();

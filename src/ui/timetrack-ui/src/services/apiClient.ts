@@ -3,6 +3,7 @@
  *
  * Features:
  * - Automatic token refresh on 401
+ * - Fallback to Agent tokens when UI's refresh token is revoked
  * - Request queueing during refresh (prevents multiple refresh calls)
  * - Logout redirect on refresh failure
  * - Consistent error handling
@@ -51,6 +52,39 @@ let failedQueue: Array<{
   reject: (error: Error) => void;
 }> = [];
 
+/**
+ * Try to get fresh tokens from the Agent via IPC.
+ * The Agent manages its own DPAPI-encrypted token store and refreshes independently.
+ * When the UI's refresh token is revoked (token rotation), the Agent may still have
+ * valid tokens.
+ */
+async function tryGetAgentTokens(): Promise<string | null> {
+  try {
+    const { getIpcService } = await import('./index');
+    const ipcService = getIpcService();
+
+    if (!ipcService.isConnected) return null;
+
+    const result = await ipcService.sendQuery('getTokens');
+    const data = result.data as { hasTokens?: boolean; accessToken?: string; refreshToken?: string; expiresIn?: number } | undefined;
+
+    if (!result.success || !data?.hasTokens || !data.accessToken || !data.refreshToken) {
+      return null;
+    }
+
+    const authStore = useAuthStore.getState();
+    authStore.setTokens({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      expiresAt: Date.now() + (data.expiresIn ?? 3600) * 1000,
+    });
+
+    return data.accessToken;
+  } catch {
+    return null;
+  }
+}
+
 async function refreshTokens(): Promise<'success' | 'auth_failed' | 'network_error'> {
   const authStore = useAuthStore.getState();
 
@@ -66,7 +100,6 @@ async function refreshTokens(): Promise<'success' | 'auth_failed' | 'network_err
     });
 
     if (!response.ok) {
-      // Server explicitly rejected the refresh token (expired, revoked, invalid)
       return 'auth_failed';
     }
 
@@ -80,7 +113,6 @@ async function refreshTokens(): Promise<'success' | 'auth_failed' | 'network_err
 
     return 'success';
   } catch {
-    // Network error (offline, DNS failure, timeout) — don't clear auth
     return 'network_error';
   }
 }
@@ -119,13 +151,22 @@ async function handleTokenRefresh(): Promise<string | null> {
     failedQueue = [];
     return null;
   } else {
-    // Auth failed (refresh token expired/revoked) — logout user
+    // UI's refresh token is revoked (token rotation by Agent).
+    // Before giving up, try to get valid tokens from the Agent via IPC.
+    const agentToken = await tryGetAgentTokens();
+    if (agentToken) {
+      failedQueue.forEach(({ resolve }) => resolve(agentToken));
+      failedQueue = [];
+      return agentToken;
+    }
+
+    // Agent also doesn't have valid tokens — truly expired session
     const error = new Error('Session expired');
     failedQueue.forEach(({ reject }) => reject(error));
     failedQueue = [];
     dispatchSessionExpired('Sua sessão expirou. Por favor, faça login novamente.');
     useAuthStore.getState().clearAuth();
-    window.location.href = '/login';
+    window.location.hash = '/login';
     return null;
   }
 }
@@ -228,7 +269,6 @@ export async function apiClient<T>(
 
     try {
       const errorData = await response.json();
-      console.error('[apiClient] Error response body:', JSON.stringify(errorData, null, 2));
       errorMessage = errorData.message
         || errorData.title
         || errorData.error

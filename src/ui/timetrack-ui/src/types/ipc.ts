@@ -208,6 +208,12 @@ export interface UpdateFailedPayload {
   error: string;
 }
 
+export interface TokensRefreshedPayload {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
 // Event payload map for type-safe event handling
 export interface EventPayloadMap {
   trackingStarted: TrackingStartedPayload;
@@ -229,6 +235,7 @@ export interface EventPayloadMap {
   updateProgress: UpdateProgressPayload;
   updateComplete: UpdateCompletePayload;
   updateFailed: UpdateFailedPayload;
+  tokensRefreshed: TokensRefreshedPayload;
 }
 
 // ============================================================================
@@ -584,6 +591,7 @@ export interface QueryResponseMap {
   getSettings: LocalSettingsResponse;
   getFocusModeState: FocusModeSnapshot;
   getLaunchAtLogin: { enabled: boolean };
+  getTokens: { hasTokens: boolean; accessToken?: string; refreshToken?: string; expiresIn?: number };
 }
 
 // ============================================================================
