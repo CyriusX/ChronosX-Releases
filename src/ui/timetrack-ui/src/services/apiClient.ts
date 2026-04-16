@@ -45,17 +45,17 @@ export function dispatchSessionExpired(reason: string = 'Sessão expirada') {
 // ============================================================================
 
 let isRefreshing = false;
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<'success' | 'auth_failed' | 'network_error'> | null = null;
 let failedQueue: Array<{
   resolve: (token: string) => void;
   reject: (error: Error) => void;
 }> = [];
 
-async function refreshTokens(): Promise<boolean> {
+async function refreshTokens(): Promise<'success' | 'auth_failed' | 'network_error'> {
   const authStore = useAuthStore.getState();
 
   if (!authStore.tokens?.refreshToken) {
-    return false;
+    return 'auth_failed';
   }
 
   try {
@@ -66,7 +66,7 @@ async function refreshTokens(): Promise<boolean> {
     });
 
     if (!response.ok) {
-      return false;
+      return 'auth_failed';
     }
 
     const data = await response.json();
@@ -77,9 +77,9 @@ async function refreshTokens(): Promise<boolean> {
       expiresAt: Date.now() + data.expiresIn * 1000,
     });
 
-    return true;
+    return 'success';
   } catch {
-    return false;
+    return 'network_error';
   }
 }
 
@@ -97,32 +97,32 @@ async function handleTokenRefresh(): Promise<string | null> {
   isRefreshing = true;
   refreshPromise = refreshTokens();
 
-  const success = await refreshPromise;
+  const result = await refreshPromise;
 
   isRefreshing = false;
   refreshPromise = null;
 
-  if (success) {
+  if (result === 'success') {
     const newToken = useAuthStore.getState().tokens?.accessToken;
-    // Process queued requests
     failedQueue.forEach(({ resolve }) => {
       if (newToken) resolve(newToken);
     });
     failedQueue = [];
     return newToken || null;
+  } else if (result === 'network_error') {
+    // Network error — don't clear auth
+    const error = new Error('Network error');
+    failedQueue.forEach(({ reject }) => reject(error));
+    failedQueue = [];
+    return null;
   } else {
-    // Refresh failed - logout user
+    // Auth failed — logout user
     const error = new Error('Session expired');
     failedQueue.forEach(({ reject }) => reject(error));
     failedQueue = [];
-
-    // Dispatch session expired event before redirect
     dispatchSessionExpired('Sua sessão expirou. Por favor, faça login novamente.');
-
-    // Clear auth and redirect to login
     useAuthStore.getState().clearAuth();
     window.location.href = '/login';
-
     return null;
   }
 }
@@ -195,8 +195,11 @@ export async function apiClient<T>(
         accessToken = newToken;
         // Retry with new token
         response = await makeRequest(newToken);
+      } else if (useAuthStore.getState().isAuthenticated) {
+        // Network error — auth preserved, just throw
+        throw new Error('Network error. Please check your connection and try again.');
       } else {
-        // Refresh failed, throw error (already handled redirect)
+        // Auth failed — already redirected to login
         throw new Error('Session expired. Please login again.');
       }
     }
