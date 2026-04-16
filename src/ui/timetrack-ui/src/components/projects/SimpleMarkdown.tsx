@@ -25,12 +25,12 @@ type Block =
 // A paragraph counts as "standalone link" if, once trimmed, it is only a URL
 // or only a single `[text](url)` — in which case we render a rich LinkEmbed
 // instead of inline text.
-const STANDALONE_URL = /^https?:\/\/\S+$/i;
+const STANDALONE_URL = /^(https?:\/\/\S+|www\.\S+)$/i;
 const STANDALONE_MD_LINK = /^\[[^\]]+\]\((https?:\/\/[^\s)]+)\)$/i;
 
 function asStandaloneEmbedUrl(paragraphText: string): string | null {
   const t = paragraphText.trim();
-  if (STANDALONE_URL.test(t)) return t;
+  if (STANDALONE_URL.test(t)) return /^www\./i.test(t) ? `https://${t}` : t;
   const m = t.match(STANDALONE_MD_LINK);
   if (m) return m[1];
   return null;
@@ -229,19 +229,23 @@ function tokenizeInline(text: string): Token[] {
       }
     }
 
-    // Bare URL autolink: http(s)://... stopping at whitespace or common terminators.
+    // Bare URL autolink: http(s)://... or www....
     // Must be at start of string or preceded by whitespace/punctuation so URLs
     // embedded inside other tokens aren't partially consumed.
-    if ((text[i] === 'h' || text[i] === 'H') && (i === 0 || /[\s([{<]/.test(text[i - 1]))) {
-      const match = text.slice(i).match(/^https?:\/\/[^\s<>"']+/i);
+    if (
+      (text[i] === 'h' || text[i] === 'H' || text[i] === 'w' || text[i] === 'W') &&
+      (i === 0 || /[\s([{<"':]/.test(text[i - 1]))
+    ) {
+      const match = text.slice(i).match(/^(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/i);
       if (match) {
-        let href = match[0];
+        let display = match[0];
         // Strip trailing punctuation that is almost certainly not part of the URL.
-        while (/[.,;:!?)\]]$/.test(href)) href = href.slice(0, -1);
+        while (/[.,;:!?)\]]$/.test(display)) display = display.slice(0, -1);
+        const href = /^www\./i.test(display) ? `https://${display}` : display;
         if (href.length > 8) {
           flush();
-          tokens.push({ kind: 'link', text: href, href });
-          i += href.length;
+          tokens.push({ kind: 'link', text: display, href });
+          i += display.length;
           continue;
         }
       }

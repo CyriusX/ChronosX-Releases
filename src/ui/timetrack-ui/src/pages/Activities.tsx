@@ -10,9 +10,11 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
+import { useSearchParams } from 'react-router-dom';
 import { Sidebar } from '../components/dashboard';
 import { BottomCards, ActivitySection } from '../components/dashboard';
 import { useIpc } from '../hooks/useIpc';
+import { isDesktopRuntime } from '../lib/runtime';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { formatDuration } from '../lib/utils';
 import { useActivitiesData } from '../hooks/useActivitiesData';
@@ -27,6 +29,7 @@ import { AppIcon } from '../components/dashboard/shared';
 import { useTimerStore, selectCurrentUserSessions } from '../stores/timerStore';
 import { Clock } from 'lucide-react';
 import { fadeUp, staggerContainer, STAGGER } from '../lib/animation';
+import { FoldersAccessedCard } from '../components/dashboard/FoldersAccessedCard';
 
 // ============================================================================
 // CONSTANTS
@@ -42,17 +45,21 @@ export default function Activities() {
   const { t } = useTranslation();
   const data = useActivitiesData();
   const { summary, activities, isLoading } = data;
-  const { sendQuery } = useIpc();
+  const { sendQuery, isConnected } = useIpc();
+  const desktopRuntime = isDesktopRuntime();
+  const [searchParams] = useSearchParams();
+  const userId = searchParams.get('userId') ?? undefined;
   const [workGoalSeconds, setWorkGoalSeconds] = useState(28800);
 
   useEffect(() => {
+    if (!desktopRuntime || !isConnected) return;
     sendQuery('getSettings').then((res) => {
       if (res.success && res.data) {
         const d = res.data as { workGoalSeconds?: number | null };
         if (d.workGoalSeconds) setWorkGoalSeconds(d.workGoalSeconds);
       }
     });
-  }, [sendQuery]);
+  }, [desktopRuntime, isConnected, sendQuery]);
 
   return (
     <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0">
@@ -133,6 +140,7 @@ export default function Activities() {
                 onDateSelect={data.setSelectedDate}
                 weeklyHistory={data.weeklyHistory}
               />
+              <FoldersAccessedCard date={data.selectedDate} userId={userId} />
               <TopAppsPanel summary={summary} />
             </div>
           </div>
@@ -145,6 +153,8 @@ export default function Activities() {
               onDateSelect={data.setSelectedDate}
               weeklyHistory={data.weeklyHistory}
             />
+
+            <FoldersAccessedCard date={data.selectedDate} userId={userId} />
 
             {/* Top Apps for the day */}
             <TopAppsPanel summary={summary} />

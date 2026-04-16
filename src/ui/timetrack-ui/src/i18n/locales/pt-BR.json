@@ -644,6 +644,7 @@
     "billableValueWithCount": "Valor faturável ({{count}} projeto)",
     "billableValueWithCount_other": "Valor faturável ({{count}} projetos)",
     "member": "membro",
+    "membersCount": "membros",
     "syncedFromLinear": "Sincronizado do Linear · última sincronização",
     "syncLinear": "Sincronizar Linear",
     "syncing": "Sincronizando…",

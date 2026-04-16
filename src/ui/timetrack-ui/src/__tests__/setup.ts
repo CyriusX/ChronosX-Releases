@@ -4,7 +4,14 @@
 
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterEach, vi } from 'vitest';
+import { afterEach, beforeAll, vi } from 'vitest';
+import i18n from '../i18n/i18n';
+
+beforeAll(async () => {
+  // Most component tests were authored against pt-BR strings.
+  // Initialize i18n and force a stable language for deterministic assertions.
+  await i18n.changeLanguage('pt-BR');
+});
 
 // Cleanup after each test
 afterEach(() => {

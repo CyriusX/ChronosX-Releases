@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useIpc } from '../hooks/useIpc';
 import { useFocusModePolicy } from '../hooks/useFocusModePolicy';
+import { isDesktopRuntime } from '../lib/runtime';
 import {
   Sidebar,
   DashboardHeader,
@@ -12,33 +13,37 @@ import {
 } from '../components/dashboard';
 
 export default function Dashboard() {
-  const { sendQuery } = useIpc();
+  const { sendQuery, sendCommand, isConnected } = useIpc();
+  const desktopRuntime = isDesktopRuntime();
   const { todaySummary, weeklyHistory, isPaused, isTracking, refreshData } = useDashboardData();
-  const { sendCommand } = useIpc();
   const { focusModePolicy } = useFocusModePolicy();
   const [workGoalSeconds, setWorkGoalSeconds] = useState<number>(28800);
 
   // Fetch work goal setting once
   useEffect(() => {
+    if (!desktopRuntime || !isConnected) return;
     sendQuery('getSettings').then((res) => {
       if (res.success && res.data) {
         const data = res.data as { workGoalSeconds?: number | null };
         if (data.workGoalSeconds) setWorkGoalSeconds(data.workGoalSeconds);
       }
     });
-  }, [sendQuery]);
+  }, [desktopRuntime, isConnected, sendQuery]);
 
   const onStartTracking = async () => {
+    if (!desktopRuntime || !isConnected) return;
     const result = await sendCommand('startTracking');
     if (result.success) refreshData();
   };
 
   const onStopTracking = async () => {
+    if (!desktopRuntime || !isConnected) return;
     const result = await sendCommand('stopTracking');
     if (result.success) refreshData();
   };
 
   const onPauseTracking = async () => {
+    if (!desktopRuntime || !isConnected) return;
     const result = await sendCommand(isPaused ? 'resumeTracking' : 'pauseTracking');
     if (result.success) refreshData();
   };

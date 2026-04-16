@@ -155,7 +155,7 @@ export default function Reports() {
     setTasksLoading(true);
     Promise.all([
       listUserTasks(selectedUserId, true).catch(() => ({ tasks: [] })),
-      listProjects(false).catch(() => ({ projects: [], totalCount: 0 })),
+      listProjects(false, !canManageTeam).catch(() => ({ projects: [], totalCount: 0 })),
     ]).then(([tasksRes, projRes]) => {
       setAllTasks(tasksRes.tasks);
       setProjectsList(projRes.projects);
