@@ -241,6 +241,56 @@ public sealed class ReportRepository : IReportRepository
         return TimeZoneInfo.Utc;
     }
 
+    /// <summary>
+    /// Extracts the directory component from a file path in a cross-platform way.
+    /// Backend runs on Linux in prod, so System.IO.Path may not parse Windows paths correctly.
+    /// </summary>
+    private static string? GetFolderPathCrossPlatform(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            return null;
+
+        var path = filePath.Trim();
+
+        if (path.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var uri = new Uri(path);
+                path = uri.LocalPath;
+            }
+            catch
+            {
+                // Ignore and fall back to raw parsing.
+            }
+        }
+
+        // Trim trailing separators, keeping roots intact.
+        while (path.Length > 1 && (path.EndsWith("\\", StringComparison.Ordinal) || path.EndsWith("/", StringComparison.Ordinal)))
+        {
+            if (path == "/")
+                break;
+            if (path.Length == 3 && char.IsLetter(path[0]) && path[1] == ':' && (path[2] == '\\' || path[2] == '/'))
+                break;
+            path = path[..^1];
+        }
+
+        var lastSlash = path.LastIndexOf('/');
+        var lastBackslash = path.LastIndexOf('\\');
+        var lastSep = Math.Max(lastSlash, lastBackslash);
+
+        if (lastSep < 0)
+            return path;
+
+        if (lastSep == 2 && path.Length >= 3 && char.IsLetter(path[0]) && path[1] == ':' && (path[2] == '\\' || path[2] == '/'))
+            return path[..3].Replace('/', '\\');
+
+        if (lastSep == 0)
+            return path[..1];
+
+        return path[..lastSep];
+    }
+
     public async Task<DailyActivityAggregate> GetDailyActivityAggregateAsync(
         Guid userId,
         DateTime date,
@@ -856,6 +906,58 @@ public sealed class ReportRepository : IReportRepository
             .ToList();
 
         return paths;
+    }
+
+    public async Task<IEnumerable<TopFolderAggregate>> GetTopFoldersAsync(
+        IReadOnlyList<Guid> userIds,
+        DateTime startDate,
+        DateTime endDate,
+        int limit,
+        string? timezone = null,
+        CancellationToken cancellationToken = default)
+    {
+        var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
+
+        var endExclusive = end.AddTicks(1);
+        var sessions = (await _context.ActivitySessions
+            .AsNoTracking()
+            .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
+            .Where(a => a.FilePath != null && a.FilePath != "")
+            .Select(a => new { a.ProcessName, a.FilePath, a.StartedAt, a.EndedAt })
+            .ToListAsync(cancellationToken))
+            .Select(a => new
+            {
+                a.ProcessName,
+                a.FilePath,
+                DurationSeconds = (int)Math.Max(0, (
+                    (a.EndedAt > endExclusive ? endExclusive : a.EndedAt) -
+                    (a.StartedAt < start ? start : a.StartedAt)
+                ).TotalSeconds)
+            })
+            .ToList();
+
+        // Filter out internal/system apps
+        sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
+        var folders = sessions
+            .Select(s => new
+            {
+                FolderPath = GetFolderPathCrossPlatform(s.FilePath!),
+                s.DurationSeconds
+            })
+            .Where(x => !string.IsNullOrWhiteSpace(x.FolderPath))
+            .GroupBy(x => x.FolderPath!)
+            .Select(g => new TopFolderAggregate
+            {
+                FolderPath = g.Key,
+                TotalSeconds = g.Sum(x => (long)x.DurationSeconds),
+                VisitCount = g.Count()
+            })
+            .OrderByDescending(f => f.TotalSeconds)
+            .Take(limit)
+            .ToList();
+
+        return folders;
     }
 
     public async Task<DistractionStats> GetDistractionStatsAsync(

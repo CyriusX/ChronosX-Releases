@@ -41,11 +41,11 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                     INSERT OR REPLACE INTO activity_sessions
                         (id, user_id, exe_path_hash, display_name, category_productivity,
                          category_subcategory, category_source, start_utc, end_utc,
-                         window_hash, window_title, domain)
+                         window_hash, window_title, file_path, domain)
                     VALUES
                         (@Id, @UserId, @ExePathHash, @DisplayName, @CategoryProductivity,
                          @CategorySubcategory, @CategorySource, @StartUtc, @EndUtc,
-                         @WindowHash, @WindowTitle, @Domain)
+                         @WindowHash, @WindowTitle, @FilePath, @Domain)
                 ";
 
                 await connection.ExecuteAsync(sessionSql, new
@@ -61,6 +61,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                     EndUtc = session.Period.EndUtc,
                     WindowHash = session.WindowHash,
                     WindowTitle = session.WindowTitle,
+                    FilePath = session.FilePath,
                     Domain = session.Domain
                 });
 
@@ -136,7 +137,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             const string sql = @"
             SELECT id, user_id, exe_path_hash, display_name, category_productivity,
                    category_subcategory, category_source, start_utc, end_utc,
-                   window_hash, window_title, domain
+                   window_hash, window_title, file_path, domain
             FROM activity_sessions
             WHERE user_id = @UserId AND start_utc < @End AND end_utc > @Start
             ORDER BY start_utc";
@@ -155,7 +156,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             const string sql = @"
             SELECT id, user_id, exe_path_hash, display_name, category_productivity,
                    category_subcategory, category_source, start_utc, end_utc,
-                   window_hash, window_title, domain
+                   window_hash, window_title, file_path, domain
             FROM activity_sessions
             WHERE user_id = @UserId
             ORDER BY end_utc DESC
@@ -179,7 +180,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             const string sql = @"
             SELECT id, user_id, exe_path_hash, display_name, category_productivity,
                    category_subcategory, category_source, start_utc, end_utc,
-                   window_hash, window_title, domain
+                   window_hash, window_title, file_path, domain
             FROM activity_sessions
             WHERE user_id = @UserId AND end_utc >= @EndThreshold
             ORDER BY end_utc DESC
@@ -230,6 +231,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                     endUtc = session.Period.EndUtc,
                     windowHash = session.WindowHash,
                     windowTitle = session.WindowTitle,
+                    filePath = session.FilePath,
                     domain = session.Domain
                 }, _jsonOptions);
 
@@ -300,11 +302,11 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             INSERT OR REPLACE INTO activity_sessions
                 (id, user_id, exe_path_hash, display_name, category_productivity,
                  category_subcategory, category_source, start_utc, end_utc,
-                 window_hash, window_title)
+                 window_hash, window_title, file_path, domain)
             VALUES
                 (@Id, @UserId, @ExePathHash, @DisplayName, @CategoryProductivity,
                  @CategorySubcategory, @CategorySource, @StartUtc, @EndUtc,
-                 @WindowHash, @WindowTitle)
+                 @WindowHash, @WindowTitle, @FilePath, @Domain)
             ";
 
             await connection.ExecuteAsync(sql, new
@@ -319,7 +321,9 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                 StartUtc = session.Period.StartUtc,
                 EndUtc = session.Period.EndUtc,
                 WindowHash = session.WindowHash,
-                WindowTitle = session.WindowTitle
+                WindowTitle = session.WindowTitle,
+                FilePath = session.FilePath,
+                Domain = session.Domain
             });
 
             _logger.LogDebug("Activity session saved: {Session}", session);
@@ -337,11 +341,11 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             INSERT OR REPLACE INTO activity_sessions
                 (id, user_id, exe_path_hash, display_name, category_productivity,
                  category_subcategory, category_source, start_utc, end_utc,
-                 window_hash, window_title)
+                 window_hash, window_title, file_path, domain)
             VALUES
                 (@Id, @UserId, @ExePathHash, @DisplayName, @CategoryProductivity,
                  @CategorySubcategory, @CategorySource, @StartUtc, @EndUtc,
-                 @WindowHash, @WindowTitle)
+                 @WindowHash, @WindowTitle, @FilePath, @Domain)
             ";
 
             var parameters = sessions.Select(s => new
@@ -357,6 +361,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                 EndUtc = s.Period.EndUtc,
                 WindowHash = s.WindowHash,
                 WindowTitle = s.WindowTitle,
+                FilePath = s.FilePath,
                 Domain = s.Domain
             });
 
@@ -428,6 +433,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
                 period,
                 dto.Window_Hash,
                 dto.Window_Title,
+                filePath: dto.File_Path,
                 domain: dto.Domain
             );
         }
@@ -448,6 +454,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             public DateTime End_Utc { get; set; }
             public string? Window_Hash { get; set; }
             public string? Window_Title { get; set; }
+            public string? File_Path { get; set; }
             public string? Domain { get; set; }
         }
     }

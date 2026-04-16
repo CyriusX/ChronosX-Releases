@@ -78,6 +78,7 @@ public sealed class SqliteContext : IAsyncDisposable
                 end_utc TEXT NOT NULL,
                 window_hash TEXT,
                 window_title TEXT,
+                file_path TEXT,
                 domain TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
@@ -126,6 +127,14 @@ public sealed class SqliteContext : IAsyncDisposable
                 auto_resume_notification_enabled INTEGER NOT NULL DEFAULT 1,
                 notification_sounds_enabled INTEGER NOT NULL DEFAULT 1,
                 language TEXT NOT NULL DEFAULT 'pt-BR',
+                updated_at TEXT NOT NULL
+            );
+
+            -- Cache de políticas da organização (fonte de verdade para idle threshold)
+            CREATE TABLE IF NOT EXISTS org_policies_cache (
+                org_id TEXT PRIMARY KEY,
+                idle_threshold_seconds INTEGER NOT NULL,
+                version INTEGER NOT NULL,
                 updated_at TEXT NOT NULL
             );
 
@@ -230,6 +239,16 @@ public sealed class SqliteContext : IAsyncDisposable
             await connection.ExecuteAsync("ALTER TABLE activity_sessions ADD COLUMN domain TEXT");
         }
 
+        // Add file_path column to activity_sessions (file/folder path tracking)
+        var filePathExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('activity_sessions') WHERE name = 'file_path'");
+
+        if (filePathExists == 0)
+        {
+            _logger.LogInformation("Adding file_path column to activity_sessions");
+            await connection.ExecuteAsync("ALTER TABLE activity_sessions ADD COLUMN file_path TEXT");
+        }
+
         // Add idle_threshold_seconds column to local_settings
         var idleThresholdExists = await connection.QueryFirstOrDefaultAsync<int>(
             "SELECT COUNT(*) FROM pragma_table_info('local_settings') WHERE name = 'idle_threshold_seconds'");
@@ -261,6 +280,7 @@ public sealed class SqliteContext : IAsyncDisposable
             CREATE INDEX IF NOT EXISTS ix_activity_sessions_user_id ON activity_sessions(user_id);
             CREATE INDEX IF NOT EXISTS ix_activity_sessions_start_utc ON activity_sessions(start_utc);
             CREATE INDEX IF NOT EXISTS ix_activity_sessions_exe_path_hash ON activity_sessions(exe_path_hash);
+            CREATE INDEX IF NOT EXISTS ix_activity_sessions_file_path ON activity_sessions(file_path);
             CREATE INDEX IF NOT EXISTS ix_idle_periods_user_id ON idle_periods(user_id);
             CREATE INDEX IF NOT EXISTS ix_idle_periods_start_utc ON idle_periods(start_utc);
             CREATE INDEX IF NOT EXISTS ix_sync_outbox_user_id ON sync_outbox(user_id);

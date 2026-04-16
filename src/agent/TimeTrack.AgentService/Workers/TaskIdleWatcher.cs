@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Providers;
+using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.AgentService.Configuration;
 using TimeTrack.AgentService.Ipc;
@@ -21,6 +22,8 @@ public sealed class TaskIdleWatcher : BackgroundService
     private readonly ICurrentUserContext _userContext;
     private readonly IIpcServer _ipcServer;
     private readonly AgentSettings _settings;
+    private readonly ILocalSettingsRepository _localSettingsRepository;
+    private readonly IOrgPolicyProvider _orgPolicyProvider;
     private readonly ILogger<TaskIdleWatcher> _logger;
 
     // Poll cadence matches the ActivityResumeDetector — cheap check, 5s is fine.
@@ -29,8 +32,10 @@ public sealed class TaskIdleWatcher : BackgroundService
     // Active threshold — idle less than this = user is working.
     private static readonly TimeSpan ActiveThreshold = TimeSpan.FromSeconds(30);
 
-    // Minimum idle time before we pause the task timer. Reuses the Settings value.
-    private int IdleThresholdSeconds => _settings.IdleThresholdSeconds;
+    // Minimum idle time before we pause the task timer (org policy -> local -> default).
+    private int _cachedEffectiveIdleThresholdSeconds;
+    private DateTime _lastThresholdRefreshUtc = DateTime.MinValue;
+    private static readonly TimeSpan ThresholdRefreshInterval = TimeSpan.FromSeconds(60);
 
     // Cached state of the most recent open task poll so we don't hit the backend on every tick.
     private OpenTaskResult? _lastKnownOpenTask;
@@ -47,6 +52,8 @@ public sealed class TaskIdleWatcher : BackgroundService
         ICurrentUserContext userContext,
         IIpcServer ipcServer,
         AgentSettings settings,
+        ILocalSettingsRepository localSettingsRepository,
+        IOrgPolicyProvider orgPolicyProvider,
         ILogger<TaskIdleWatcher> logger)
     {
         _idleDetector = idleDetector;
@@ -54,14 +61,17 @@ public sealed class TaskIdleWatcher : BackgroundService
         _userContext = userContext;
         _ipcServer = ipcServer;
         _settings = settings;
+        _localSettingsRepository = localSettingsRepository;
+        _orgPolicyProvider = orgPolicyProvider;
         _logger = logger;
+        _cachedEffectiveIdleThresholdSeconds = _settings.IdleThresholdSeconds;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation(
             "TaskIdleWatcher started. Idle threshold: {Threshold}s, Check interval: {Interval}ms",
-            IdleThresholdSeconds, CheckIntervalMs);
+            _settings.IdleThresholdSeconds, CheckIntervalMs);
 
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(CheckIntervalMs));
 
@@ -87,6 +97,24 @@ public sealed class TaskIdleWatcher : BackgroundService
         try
         {
             if (!_userContext.UserId.HasValue) return;
+
+            // Refresh the effective idle threshold periodically (org policy -> local -> default).
+            if (DateTime.UtcNow - _lastThresholdRefreshUtc >= ThresholdRefreshInterval)
+            {
+                _lastThresholdRefreshUtc = DateTime.UtcNow;
+                var org = await _orgPolicyProvider.GetIdleThresholdSecondsAsync(ct);
+                int? local = null;
+                try
+                {
+                    var s = await _localSettingsRepository.GetAsync(ct);
+                    local = s.IdleThresholdSeconds;
+                }
+                catch
+                {
+                    // ignore
+                }
+                _cachedEffectiveIdleThresholdSeconds = org ?? local ?? _settings.IdleThresholdSeconds;
+            }
 
             // Refresh our cached open-task snapshot periodically.
             if (DateTime.UtcNow - _lastTaskPollAt >= TaskPollInterval)
@@ -120,7 +148,7 @@ public sealed class TaskIdleWatcher : BackgroundService
             var idleSec = idle.Value.TotalSeconds;
 
             // Case 1: user went idle past the threshold while a task is running → pause
-            if (!_pausedByThisWatcher && !openTask.IsPaused && idleSec >= IdleThresholdSeconds)
+            if (!_pausedByThisWatcher && !openTask.IsPaused && idleSec >= _cachedEffectiveIdleThresholdSeconds)
             {
                 _logger.LogInformation(
                     "User idle for {IdleSec:F0}s with open task {TaskTitle} — pausing backend timer",
@@ -184,4 +212,3 @@ public sealed class TaskIdleWatcher : BackgroundService
         }
     }
 }
-

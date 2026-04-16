@@ -389,6 +389,155 @@ public sealed class ReportsController : ControllerBase
     // ========================================================================
 
     /// <summary>
+    /// Composite endpoint for the Reports page.
+    /// Avoids client fan-out (multiple parallel calls) which can trigger rate limiting.
+    /// </summary>
+    [HttpGet("bundle")]
+    [ProducesResponseType(typeof(ReportsBundleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetReportsBundle(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        [FromQuery] string groupBy = "day",
+        [FromQuery] int topAppsLimit = 20,
+        [FromQuery] int topPathsLimit = 20,
+        [FromQuery] int topFoldersLimit = 20,
+        [FromQuery] string? timezone = null,
+        [FromQuery] bool allTeam = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+        {
+            return BadRequest(new { error = "Start date must be before or equal to end date" });
+        }
+
+        var validGroupBy = new[] { "day", "week", "month" };
+        if (!validGroupBy.Contains(groupBy.ToLowerInvariant()))
+        {
+            return BadRequest(new { error = "groupBy must be one of: day, week, month" });
+        }
+
+        var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
+
+        var targetUserId = userId ?? _currentUser.UserId!.Value;
+        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+
+        if (isAccessingOtherUserData && teamUserIds == null)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new
+                {
+                    reportType = "bundle",
+                    startDate = startDate.ToString("yyyy-MM-dd"),
+                    endDate = endDate.ToString("yyyy-MM-dd"),
+                    groupBy
+                },
+                cancellationToken);
+        }
+
+        try
+        {
+            var dailySummaryRangeTask = _mediator.Send(new DailySummaryRangeQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ), cancellationToken);
+
+            var productivityTrendTask = _mediator.Send(new ProductivityTrendQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                GroupBy: groupBy.ToLowerInvariant(),
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ), cancellationToken);
+
+            var topAppsTask = _mediator.Send(new TopAppsQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Limit: topAppsLimit,
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ), cancellationToken);
+
+            var topPathsTask = _mediator.Send(new TopPathsQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Limit: topPathsLimit,
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ), cancellationToken);
+
+            var distractionStatsTask = _mediator.Send(new DistractionStatsQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ), cancellationToken);
+
+            var categoryDistributionTask = _mediator.Send(new CategoryDistributionQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ), cancellationToken);
+
+            var topFoldersTask = _mediator.Send(new TopFoldersQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Limit: topFoldersLimit,
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ), cancellationToken);
+
+            await Task.WhenAll(
+                dailySummaryRangeTask,
+                productivityTrendTask,
+                topAppsTask,
+                topPathsTask,
+                distractionStatsTask,
+                categoryDistributionTask,
+                topFoldersTask);
+
+            var bundle = new ReportsBundleResponse
+            {
+                DailySummaryRange = dailySummaryRangeTask.Result,
+                ProductivityTrend = productivityTrendTask.Result,
+                TopApps = topAppsTask.Result,
+                TopPaths = topPathsTask.Result,
+                DistractionStats = distractionStatsTask.Result,
+                CategoryDistribution = categoryDistributionTask.Result,
+                TopFolders = topFoldersTask.Result
+            };
+
+            return Ok(bundle);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
     /// Obtém resumo diário de um período para heatmap estilo GitHub
     /// </summary>
     /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
@@ -579,6 +728,75 @@ public sealed class ReportsController : ControllerBase
         }
 
         var query = new TopPathsQuery(
+            UserId: targetUserId,
+            StartDate: startDate,
+            EndDate: endDate,
+            Limit: Math.Clamp(limit, 1, 100),
+            Timezone: timezone,
+            UserIds: teamUserIds
+        );
+
+        try
+        {
+            var response = await _mediator.Send(query, cancellationToken);
+            return Ok(response);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
+    /// Obtém top pastas acessadas (derivadas de ActivitySessions.FilePath)
+    /// </summary>
+    /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
+    /// <param name="startDate">Data inicial do período</param>
+    /// <param name="endDate">Data final do período</param>
+    /// <param name="limit">Número máximo de pastas (padrão: 20)</param>
+    /// <param name="cancellationToken">Token de cancelamento</param>
+    /// <returns>Lista de pastas mais acessadas</returns>
+    [HttpGet("top-folders")]
+    [ProducesResponseType(typeof(TopFoldersResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetTopFolders(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        [FromQuery] int limit = 20,
+        [FromQuery] string? timezone = null,
+        [FromQuery] bool allTeam = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+        {
+            return BadRequest(new { error = "Start date must be before or equal to end date" });
+        }
+
+        var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
+
+        var targetUserId = userId ?? _currentUser.UserId!.Value;
+        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+
+        if (isAccessingOtherUserData && teamUserIds == null)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new { reportType = "top-folders", startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd"), limit },
+                cancellationToken);
+        }
+
+        var query = new TopFoldersQuery(
             UserId: targetUserId,
             StartDate: startDate,
             EndDate: endDate,

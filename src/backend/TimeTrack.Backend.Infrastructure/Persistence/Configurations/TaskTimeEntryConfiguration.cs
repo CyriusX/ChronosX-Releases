@@ -54,6 +54,12 @@ internal sealed class TaskTimeEntryConfiguration : IEntityTypeConfiguration<Task
 
         // Critical index — finding the open entry for a user is the hottest query.
         builder.HasIndex(e => new { e.UserId, e.EndedAt });
+        // Enforce at most one open entry per user at the database level (partial unique index).
+        // This is the invariant the application code assumes.
+        builder.HasIndex(e => e.UserId)
+            .IsUnique()
+            .HasDatabaseName("IX_task_time_entries_user_id_open")
+            .HasFilter("ended_at IS NULL");
         builder.HasIndex(e => new { e.OrgId, e.TaskId, e.StartedAt });
 
         builder.HasOne(e => e.Task)

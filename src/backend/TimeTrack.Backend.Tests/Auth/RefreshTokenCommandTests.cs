@@ -49,7 +49,7 @@ public class RefreshTokenCommandTests
             .ReturnsAsync(storedToken);
 
         _tokenServiceMock
-            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), false))
+            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, storedToken.DeviceId, user.Role.ToString(), false))
             .Returns("new-access-token");
 
         _tokenServiceMock

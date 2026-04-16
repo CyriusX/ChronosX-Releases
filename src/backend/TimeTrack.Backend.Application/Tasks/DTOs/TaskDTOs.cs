@@ -8,7 +8,7 @@ public sealed class CreateTaskRequest
     [MaxLength(255)]
     public string Title { get; init; } = string.Empty;
 
-    [MaxLength(2000)]
+    [MaxLength(5000)]
     public string? Description { get; init; }
 
     public Guid? AssignedUserId { get; init; }
@@ -24,7 +24,7 @@ public sealed class UpdateTaskRequest
     [MaxLength(255)]
     public string Title { get; init; } = string.Empty;
 
-    [MaxLength(2000)]
+    [MaxLength(5000)]
     public string? Description { get; init; }
 
     public Guid? AssignedUserId { get; init; }

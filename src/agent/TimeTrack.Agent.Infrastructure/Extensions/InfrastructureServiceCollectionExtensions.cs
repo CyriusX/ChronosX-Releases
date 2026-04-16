@@ -50,11 +50,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IOutboxRepository, OutboxRepository>();
         services.AddSingleton<ISyncErrorRepository, SyncErrorRepository>();
         services.AddSingleton<ILocalSettingsRepository, LocalSettingsRepository>();
+        services.AddSingleton<IOrgPolicyCacheRepository, OrgPolicyCacheRepository>();
         services.AddSingleton<IFocusCycleRepository, FocusCycleRepository>();
         services.AddSingleton<IIdempotencyKeyGenerator, IdempotencyKeyGenerator>();
         services.AddSingleton<IAppCategoryCacheRepository, AppCategoryCacheRepository>();
         services.AddSingleton<IAgentEventLogRepository, AgentEventLogRepository>();
         services.AddSingleton<IAgentEventLogger, AgentEventLogger>();
+        services.AddSingleton<IOrgPolicyProvider, OrgPolicyProvider>();
 
         return services;
     }
@@ -169,6 +171,13 @@ public static class InfrastructureServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
         });
 
+        // Org policies client (idle threshold, focus policies, etc.)
+        services.AddHttpClient<IBackendOrgPoliciesClient, BackendOrgPoliciesClient>(client =>
+        {
+            client.BaseAddress = new Uri(settings.BackendUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
+        });
+
         return services;
     }
 
@@ -183,6 +192,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IDeviceActivationService, NullDeviceActivationService>();
         services.AddSingleton<IBackendReportsClient, NullBackendReportsClient>();
         services.AddSingleton<IBackendTasksClient, NullBackendTasksClient>();
+        services.AddSingleton<IBackendOrgPoliciesClient, NullBackendOrgPoliciesClient>();
         return services;
     }
 }

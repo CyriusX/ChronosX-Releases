@@ -79,6 +79,7 @@ export function KanbanBoard({
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDescription, setNewTaskDescription] = useState('');
   const [creatingTask, setCreatingTask] = useState(false);
+  const [optimisticTask, setOptimisticTask] = useState<Task | null>(null);
   const newTaskInputRef = useRef<HTMLInputElement>(null);
 
   const COLUMNS = syncSource === 'Linear' ? LINEAR_COLUMNS : LOCAL_COLUMNS;
@@ -87,14 +88,16 @@ export function KanbanBoard({
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
 
+  const combinedTasks = useMemo(() => (optimisticTask ? [...tasks, optimisticTask] : tasks), [tasks, optimisticTask]);
+
   const columns = useMemo(() => {
     const byStatus: Record<TaskStatus, Task[]> = { Todo: [], InProgress: [], InReview: [], Done: [] };
-    tasks.forEach((t) => byStatus[t.status]?.push(t));
+    combinedTasks.forEach((t) => byStatus[t.status]?.push(t));
     (Object.keys(byStatus) as TaskStatus[]).forEach((k) =>
       byStatus[k].sort((a, b) => a.position - b.position),
     );
     return byStatus;
-  }, [tasks]);
+  }, [combinedTasks]);
 
   const startAddingTask = () => {
     setAddingTask(true);
@@ -115,13 +118,44 @@ export function KanbanBoard({
     setCreatingTask(true);
     try {
       const description = newTaskDescription.trim() || null;
+      // Optimistic placeholder so the card appears immediately even if the API call is slow.
+      const tempId = `temp-${Date.now()}`;
+      setOptimisticTask({
+        id: tempId,
+        projectId,
+        projectName: '',
+        projectColor,
+        title,
+        description,
+        status: 'Todo',
+        createdByUserId: '',
+        assignedUserId: null,
+        assignedUserDisplayName: null,
+        priority: 'Medium',
+        dueDate: null,
+        position: 1024 + combinedTasks.length * 4,
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+        movedToInProgressAt: null,
+        completedAt: null,
+        totalSecondsWorked: 0,
+        rowVersion: 0,
+        isRunning: false,
+        runningSeconds: null,
+        isLinearSourced: false,
+        linearIssueIdentifier: null,
+        linearUrl: null,
+        linearStateName: null,
+      });
       const task = await createTask(projectId, { title, description });
+      setOptimisticTask(null);
       onTaskCreated?.(task);
       setAddingTask(false);
       setNewTaskTitle('');
       setNewTaskDescription('');
     } catch (err) {
       console.error('[KanbanBoard] createTask failed', err);
+      setOptimisticTask(null);
     } finally {
       setCreatingTask(false);
     }
@@ -257,8 +291,8 @@ export function KanbanBoard({
                       key={task.id}
                       task={task}
                       projectColor={projectColor}
-                      draggable={true}
-                      onOpen={setDrawerTaskId}
+                      draggable={!task.id.startsWith('temp-')}
+                      onOpen={task.id.startsWith('temp-') ? undefined : setDrawerTaskId}
                     />
                   ))}
                   {colTasks.length === 0 && !addingTask && (

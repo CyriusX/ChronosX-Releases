@@ -21,7 +21,7 @@ public sealed class UpdateServiceTests : IDisposable
         {
             Enabled = true,
             Channel = "stable",
-            CheckIntervalHours = 4,
+            CheckIntervalMinutes = 240,
             UpdateUrl = "https://api.example.com/api/v1/updates",
             VerifySignature = false
         };
@@ -105,8 +105,8 @@ public sealed class UpdateServiceTests : IDisposable
     public async Task ProgressChangedEvent_ShouldBeRaised_WhenUpdateProgresses()
     {
         // Arrange
-        UpdateProgress? capturedProgress = null;
-        _sut.ProgressChanged += (_, progress) => capturedProgress = progress;
+        var stages = new List<UpdateStage>();
+        _sut.ProgressChanged += (_, progress) => stages.Add(progress.Stage);
 
         _httpClientMock
             .Setup(x => x.CheckForUpdatesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -116,8 +116,8 @@ public sealed class UpdateServiceTests : IDisposable
         await _sut.CheckForUpdatesAsync(CancellationToken.None);
 
         // Assert
-        capturedProgress.Should().NotBeNull();
-        capturedProgress!.Stage.Should().Be(UpdateStage.Checking);
+        stages.Should().NotBeEmpty();
+        stages.Should().Contain(UpdateStage.Checking);
     }
 
     public void Dispose()

@@ -67,7 +67,7 @@ public sealed class GetCategoryUsageStatsQueryHandler
             .Select(g => new
             {
                 ProcessName = g.Key,
-                DisplayName = g.First().WindowTitle ?? g.Key,
+                DisplayName = g.First().ProcessName,
                 TotalMinutes = (int)g.Sum(s => (s.EndedAt - s.StartedAt).TotalSeconds) / 60,
                 SessionCount = g.Count()
             })

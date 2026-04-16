@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { getTask, deleteTask, updateTask, type Task, type TaskStatus, type TaskPriority } from '../../services/projectsApi';
 import { SimpleMarkdown } from './SimpleMarkdown';
+import { DescriptionEditor } from './DescriptionEditor';
 import { AssigneeDropdown } from './AssigneeDropdown';
 import { useAuthStore, selectUser } from '../../stores';
 
@@ -408,12 +409,11 @@ function DrawerBody({
             </div>
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">{t('tasks.descriptionLabel')}</label>
-              <textarea
+              <DescriptionEditor
                 value={editDescription}
-                onChange={(e) => onEditDescription(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Escape') onCancelEdit(); }}
+                onChange={onEditDescription}
+                maxLength={5000}
                 rows={4}
-                className="w-full bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 text-[12px] text-[rgba(245,247,251,0.8)] outline-none focus:border-[rgba(74,159,255,0.5)] transition-colors resize-none"
                 placeholder={t('tasks.descriptionOptional')}
               />
             </div>

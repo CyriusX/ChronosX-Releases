@@ -9,6 +9,7 @@ import { motion } from 'motion/react';
 import { X, Loader2, Trash2, Zap, ExternalLink, Lock } from 'lucide-react';
 import { updateTask, deleteTask, type Task, type ProjectMember, type TaskPriority } from '../../services/projectsApi';
 import { SimpleMarkdown } from './SimpleMarkdown';
+import { DescriptionEditor } from './DescriptionEditor';
 
 const PRIORITIES: TaskPriority[] = ['Low', 'Medium', 'High'];
 
@@ -114,13 +115,14 @@ function EditableTaskModal({
           />
 
           <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.descriptionLabel')}</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            maxLength={2000}
-            rows={3}
-            className="w-full px-3 py-2 mb-3 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[#f5f7fb] focus:outline-none focus:border-[rgba(139,92,246,0.4)] resize-none"
-          />
+          <div className="mb-3">
+            <DescriptionEditor
+              value={description}
+              onChange={setDescription}
+              maxLength={5000}
+              rows={4}
+            />
+          </div>
 
           <label className="block text-[10px] text-[rgba(245,247,251,0.5)] uppercase tracking-wider mb-1.5">{t('tasks.assignee')}</label>
           <select

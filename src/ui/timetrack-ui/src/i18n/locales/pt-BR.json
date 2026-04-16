@@ -166,7 +166,11 @@
     "failedToLoadTasks": "Falha ao carregar tarefas",
     "failedToStartTask": "Falha ao iniciar tarefa",
     "failedToStopTask": "Falha ao parar",
-    "failedToCompleteTask": "Falha ao concluir"
+    "failedToCompleteTask": "Falha ao concluir",
+    "foldersAccessed": "Pastas acessadas",
+    "noFolders": "Nenhuma atividade em pastas ainda",
+    "visits_one": "{{count}} acesso",
+    "visits_other": "{{count}} acessos"
   },
   "activities": {
     "title": "Atividades",
@@ -780,6 +784,7 @@
     "topApps": "Apps Mais Usados",
     "categoryDistribution": "Distribuição por Categoria",
     "topPaths": "URLs e Caminhos Mais Acessados",
+    "topFolders": "Pastas Mais Acessadas",
     "distractionAnalysis": "Análise de Distrações",
     "heatmapTitle": "Heatmap de Atividade",
     "clickDayDetails": "Click em um dia para ver detalhes",

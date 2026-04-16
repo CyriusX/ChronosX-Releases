@@ -13,6 +13,8 @@ import type {
   ProductivityTrendResponse,
   TopAppsResponse,
   TopPathsResponse,
+  TopFoldersResponse,
+  ReportsBundleResponse,
   DistractionStatsResponse,
   CategoryDistributionResponse,
   GroupByOption,
@@ -35,9 +37,32 @@ export type {
   ProductivityTrendResponse,
   TopAppsResponse,
   TopPathsResponse,
+  TopFoldersResponse,
+  ReportsBundleResponse,
   DistractionStatsResponse,
   CategoryDistributionResponse,
 };
+
+export async function getReportsBundle(
+  startDate: string,
+  endDate: string,
+  groupBy: GroupByOption = 'day',
+  limits: { topApps?: number; topPaths?: number; topFolders?: number } = {},
+  userId?: string
+): Promise<ReportsBundleResponse> {
+  const params = new URLSearchParams({
+    startDate,
+    endDate,
+    groupBy,
+    timezone: getUserTimezone(),
+    topAppsLimit: String(limits.topApps ?? 20),
+    topPathsLimit: String(limits.topPaths ?? 20),
+    topFoldersLimit: String(limits.topFolders ?? 20),
+  });
+  if (userId && userId !== 'all') params.append('userId', userId);
+  if (userId === 'all') params.append('allTeam', 'true');
+  return api.get<ReportsBundleResponse>(`/reports/bundle?${params.toString()}`);
+}
 
 export async function getDailySummaryRange(
   startDate: string,
@@ -103,6 +128,23 @@ export async function getTopPaths(
   if (userId && userId !== 'all') params.append('userId', userId);
   if (userId === 'all') params.append('allTeam', 'true');
   return api.get<TopPathsResponse>(`/reports/top-paths?${params.toString()}`);
+}
+
+export async function getTopFolders(
+  startDate: string,
+  endDate: string,
+  limit: number = 20,
+  userId?: string
+): Promise<TopFoldersResponse> {
+  const params = new URLSearchParams({
+    startDate,
+    endDate,
+    limit: String(limit),
+    timezone: getUserTimezone(),
+  });
+  if (userId && userId !== 'all') params.append('userId', userId);
+  if (userId === 'all') params.append('allTeam', 'true');
+  return api.get<TopFoldersResponse>(`/reports/top-folders?${params.toString()}`);
 }
 
 export async function getDistractionStats(

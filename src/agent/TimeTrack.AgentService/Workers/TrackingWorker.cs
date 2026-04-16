@@ -25,6 +25,7 @@ public sealed class TrackingWorker : BackgroundService
     private readonly ITrackingStateRepository _stateRepository;
     private readonly ILocalSettingsRepository _localSettingsRepository;
     private readonly ICurrentUserContext _userContext;
+    private readonly IOrgPolicyProvider _orgPolicyProvider;
     private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
     private readonly RecordIdlePeriodUseCase _recordIdlePeriodUseCase;
     private readonly TrackingControlUseCase _trackingControl;
@@ -47,6 +48,7 @@ public sealed class TrackingWorker : BackgroundService
         ITrackingStateRepository stateRepository,
         ILocalSettingsRepository localSettingsRepository,
         ICurrentUserContext userContext,
+        IOrgPolicyProvider orgPolicyProvider,
         RecordActiveWindowUseCase recordActiveWindowUseCase,
         RecordIdlePeriodUseCase recordIdlePeriodUseCase,
         TrackingControlUseCase trackingControl,
@@ -59,6 +61,7 @@ public sealed class TrackingWorker : BackgroundService
         _stateRepository = stateRepository;
         _localSettingsRepository = localSettingsRepository;
         _userContext = userContext;
+        _orgPolicyProvider = orgPolicyProvider;
         _recordActiveWindowUseCase = recordActiveWindowUseCase;
         _recordIdlePeriodUseCase = recordIdlePeriodUseCase;
         _trackingControl = trackingControl;
@@ -241,6 +244,12 @@ public sealed class TrackingWorker : BackgroundService
 
         _logger.LogDebug("Tracking ativo. Executando ciclo de captura...");
 
+        // Resolve effective idle threshold (org policy -> local override -> agent default)
+        var localSettings = await _localSettingsRepository.GetAsync(cancellationToken);
+        var orgIdleThreshold = await _orgPolicyProvider.GetIdleThresholdSecondsAsync(cancellationToken);
+        var effectiveIdleThresholdSecs = orgIdleThreshold ?? localSettings.IdleThresholdSeconds ?? _settings.IdleThresholdSeconds;
+        var effectiveIdleThreshold = TimeSpan.FromSeconds(effectiveIdleThresholdSecs);
+
         // 2a. Sleep/wake detection — runs before idle check.
         // TickCount64 (and Task.Delay) freeze during system sleep. When the machine
         // wakes, the next cycle fires almost immediately but the wall-clock gap since
@@ -262,7 +271,7 @@ public sealed class TrackingWorker : BackgroundService
                     {
                         StartedAt = _lastCycleUtc,
                         EndedAt = cycleNow,
-                        ThresholdSeconds = _settings.IdleThresholdSeconds,
+                        ThresholdSeconds = effectiveIdleThresholdSecs,
                         IsSystemDetected = true
                     },
                     cancellationToken);
@@ -278,13 +287,10 @@ public sealed class TrackingWorker : BackgroundService
         }
         _lastCycleUtc = cycleNow;
 
-        // 2. Verificar idle (user setting overrides agent default)
+        // 2. Verificar idle (org policy overrides local override)
         var idleTime = await _idleDetector.GetIdleTimeAsync(cancellationToken);
-        var localSettings = await _localSettingsRepository.GetAsync(cancellationToken);
-        var idleThresholdSecs = localSettings.IdleThresholdSeconds ?? _settings.IdleThresholdSeconds;
-        var idleThreshold = TimeSpan.FromSeconds(idleThresholdSecs);
 
-        if (idleTime.HasValue && idleTime.Value >= idleThreshold)
+        if (idleTime.HasValue && idleTime.Value >= effectiveIdleThreshold)
         {
             if (!_isIdle)
             {
@@ -326,7 +332,7 @@ public sealed class TrackingWorker : BackgroundService
                     {
                         StartedAt = _idleStartedAt!.Value,
                         EndedAt = idleEndedAt,
-                        ThresholdSeconds = _settings.IdleThresholdSeconds,
+                        ThresholdSeconds = effectiveIdleThresholdSecs,
                         IsSystemDetected = true
                     },
                     cancellationToken);

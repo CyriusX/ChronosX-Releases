@@ -149,7 +149,13 @@ export function SettingsPage() {
         ) : null;
       case 'notifications':
         return settings ? (
-          <NotificationsSection settings={settings} onUpdate={handleUpdateSettings} />
+          <NotificationsSection
+            settings={settings}
+            onUpdate={handleUpdateSettings}
+            orgIdleThresholdSeconds={policy?.idleThresholdSeconds ?? null}
+            canEditOrgPolicies={canEditOrgPolicies}
+            onEditOrgPolicies={() => handleSectionChange('organization')}
+          />
         ) : null;
       case 'timeline':
         return <TimelineSection />;

@@ -11,6 +11,11 @@ IHost host = Host.CreateDefaultBuilder(args)
     .UseContentRoot(AppContext.BaseDirectory)
     .ConfigureServices((context, services) =>
     {
+        services.Configure<HostOptions>(options =>
+        {
+            options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+        });
+
         services.AddAgentConfiguration(context.Configuration);
         services.AddInfrastructurePersistence(context.Configuration);
         services.AddMacOSInfrastructureProviders();

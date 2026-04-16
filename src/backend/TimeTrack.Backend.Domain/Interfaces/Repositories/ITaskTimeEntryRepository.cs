@@ -5,6 +5,7 @@ namespace TimeTrack.Backend.Domain.Interfaces.Repositories;
 public interface ITaskTimeEntryRepository
 {
     Task<TaskTimeEntry?> GetOpenForUserAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TaskTimeEntry>> ListOpenForUserAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TaskTimeEntry>> ListForUserOnDateAsync(Guid userId, DateOnly date, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TaskTimeEntry>> ListForUserInRangeAsync(Guid userId, DateTime startUtc, DateTime endUtc, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TaskTimeEntry>> ListForTaskAsync(Guid taskId, CancellationToken cancellationToken = default);

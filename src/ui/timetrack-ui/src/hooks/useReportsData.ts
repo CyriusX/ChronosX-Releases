@@ -15,6 +15,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
+  getReportsBundle,
   getDailySummaryRange,
   getProductivityTrend,
   getTopApps,
@@ -28,6 +29,7 @@ import type {
   ProductivityTrendResponse,
   TopAppsResponse,
   TopPathsResponse,
+  TopFoldersResponse,
   DistractionStatsResponse,
   CategoryDistributionResponse,
   DateRange,
@@ -54,6 +56,8 @@ export interface ReportsDataState {
   topApps: TopAppsResponse | null;
   /** Top paths data */
   topPaths: TopPathsResponse | null;
+  /** Top folders data */
+  topFolders: TopFoldersResponse | null;
   /** Distraction stats data */
   distractionStats: DistractionStatsResponse | null;
   /** Category distribution data */
@@ -67,6 +71,7 @@ export interface ReportsFilters {
   groupBy: GroupByOption;
   topAppsLimit: number;
   topPathsLimit: number;
+  topFoldersLimit: number;
 }
 
 export interface UseReportsDataOptions {
@@ -101,6 +106,8 @@ export interface UseReportsDataReturn {
   setTopAppsLimit: (limit: number) => void;
   /** Set top paths limit */
   setTopPathsLimit: (limit: number) => void;
+  /** Set top folders limit */
+  setTopFoldersLimit: (limit: number) => void;
   /** Refresh all data */
   refresh: () => Promise<void>;
   /** Refresh specific data */
@@ -108,6 +115,7 @@ export interface UseReportsDataReturn {
   refreshProductivityTrend: () => Promise<void>;
   refreshTopApps: () => Promise<void>;
   refreshTopPaths: () => Promise<void>;
+  refreshTopFolders: () => Promise<void>;
   refreshDistractionStats: () => Promise<void>;
   refreshCategoryDistribution: () => Promise<void>;
 }
@@ -130,6 +138,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     productivityTrend: null,
     topApps: null,
     topPaths: null,
+    topFolders: null,
     distractionStats: null,
     categoryDistribution: null,
   });
@@ -146,6 +155,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     groupBy: 'day' as GroupByOption,
     topAppsLimit: 20,
     topPathsLimit: 20,
+    topFoldersLimit: 20,
   }));
 
   // Polling refs
@@ -187,6 +197,10 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
 
   const setTopPathsLimit = useCallback((limit: number) => {
     setFilters(prev => ({ ...prev, topPathsLimit: Math.max(1, Math.min(100, limit)) }));
+  }, []);
+
+  const setTopFoldersLimit = useCallback((limit: number) => {
+    setFilters(prev => ({ ...prev, topFoldersLimit: Math.max(1, Math.min(100, limit)) }));
   }, []);
 
   // ============================================================================
@@ -401,14 +415,54 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     setError(null);
 
     try {
-      await Promise.all([
-        refreshDailySummaryRange(),
-        refreshProductivityTrend(),
-        refreshTopApps(),
-        refreshTopPaths(),
-        refreshDistractionStats(),
-        refreshCategoryDistribution(),
-      ]);
+      // Single-call composite endpoint to avoid client fan-out (429 rate limiting).
+      const bundle = await getReportsBundle(
+        filters.dateRange.startDate,
+        filters.dateRange.endDate,
+        filters.groupBy,
+        {
+          topApps: filters.topAppsLimit,
+          topPaths: filters.topPathsLimit,
+          topFolders: filters.topFoldersLimit,
+        },
+        filters.userId
+      );
+
+      // Hybrid override for today (own data only): replace today's heatmap day with local IPC data.
+      const isViewingOwnData = !filters.userId;
+      const today = toLocalDateStr(new Date());
+      const includesToday = isViewingOwnData &&
+        filters.dateRange.startDate <= today &&
+        filters.dateRange.endDate >= today;
+
+      if (includesToday && isConnected) {
+        try {
+          const todayResponse = await sendQuery('getTodaySummary', { date: today });
+          if (todayResponse.success && todayResponse.data) {
+            const localTodayItem = convertTodaySummaryToDayItem(todayResponse.data, today);
+            const mergedDays = bundle.dailySummaryRange.days.map(day =>
+              day.date === today ? localTodayItem : day
+            );
+            if (!bundle.dailySummaryRange.days.some(d => d.date === today)) {
+              mergedDays.push(localTodayItem);
+              mergedDays.sort((a, b) => a.date.localeCompare(b.date));
+            }
+            bundle.dailySummaryRange.days = mergedDays;
+          }
+        } catch (ipcError) {
+          console.warn('[useReportsData] Failed to fetch today from IPC for bundle override:', ipcError);
+        }
+      }
+
+      setData({
+        dailySummaryRange: bundle.dailySummaryRange,
+        productivityTrend: bundle.productivityTrend,
+        topApps: bundle.topApps,
+        topPaths: bundle.topPaths,
+        topFolders: bundle.topFolders ?? null,
+        distractionStats: bundle.distractionStats,
+        categoryDistribution: bundle.categoryDistribution,
+      });
       console.log('[useReportsData] All data refreshed successfully');
     } catch (err) {
       console.error('[useReportsData] Error refreshing data:', err);
@@ -419,13 +473,21 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     }
   }, [
     filters.dateRange.startDate,
-    refreshDailySummaryRange,
-    refreshProductivityTrend,
-    refreshTopApps,
-    refreshTopPaths,
-    refreshDistractionStats,
-    refreshCategoryDistribution,
+    filters.dateRange.endDate,
+    filters.userId,
+    filters.groupBy,
+    filters.topAppsLimit,
+    filters.topPathsLimit,
+    filters.topFoldersLimit,
+    isConnected,
+    sendQuery,
+    convertTodaySummaryToDayItem,
   ]);
+
+  const refreshTopFolders = useCallback(async () => {
+    // Single-call bundle refresh; we keep this method for API compatibility with the hook shape.
+    await refresh();
+  }, [refresh]);
 
   // ============================================================================
   // AUTO-FETCH ON MOUNT AND FILTER CHANGES
@@ -483,6 +545,12 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
         return;
       }
 
+      // Avoid polling while tab is hidden to reduce request volume/rate limiting.
+      if (document.visibilityState !== 'visible') {
+        console.log('[useReportsData] Skipping polling refresh - tab not visible');
+        return;
+      }
+
       console.log('[useReportsData] Polling refresh triggered');
       refresh();
     }, POLLING_INTERVAL_MS);
@@ -510,11 +578,13 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     setGroupBy,
     setTopAppsLimit,
     setTopPathsLimit,
+    setTopFoldersLimit,
     refresh,
     refreshDailySummaryRange,
     refreshProductivityTrend,
     refreshTopApps,
     refreshTopPaths,
+    refreshTopFolders,
     refreshDistractionStats,
     refreshCategoryDistribution,
   };

@@ -67,7 +67,7 @@ public sealed class MachineMetricsWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogCritical(ex, "MachineMetricsWorker crashed");
-            throw;
+            // Do not crash the whole agent host. This worker is optional and can restart on next app run.
         }
 
         _logger.LogInformation("MachineMetricsWorker encerrado");
@@ -138,10 +138,10 @@ public sealed class MachineMetricsWorker : BackgroundService
 
             await _outboxRepository.AddAsync(outboxItem, cancellationToken);
 
-            _logger.LogDebug(
-                "Métricas enfileiradas: CPU={Cpu}%, Mem={MemUsed}/{MemTotal}MB, Disk={DiskUsed}/{DiskTotal}GB",
+            _logger.LogInformation(
+                "Métricas enfileiradas no outbox: CPU={Cpu}%, Mem={MemUsed}/{MemTotal}MB, Disk={DiskUsed}/{DiskTotal}GB (snapshotId={SnapshotId})",
                 avgCpu, latest.MemoryUsedMb, latest.MemoryTotalMb,
-                latest.DiskUsedGb, latest.DiskTotalGb);
+                latest.DiskUsedGb, latest.DiskTotalGb, snapshotId);
         }
         catch (Exception ex)
         {

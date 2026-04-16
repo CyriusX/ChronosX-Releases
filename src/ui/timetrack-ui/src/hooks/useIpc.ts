@@ -318,6 +318,7 @@ class MockIpcClient implements IIpcClient {
       getTrackingState: mockTrackingState,
       getTodaySummary: mockTodaySummary,
       getRecentActivities: buildMockActivities(),
+      getTopFolders: { folders: [] },
       getCurrentStatus: mockCurrentStatus,
       getSyncState: mockSyncState,
       getFocusModeState: { ...mockFocusModeState, timestamp: new Date().toISOString() },

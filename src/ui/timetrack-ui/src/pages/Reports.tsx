@@ -46,6 +46,7 @@ import {
   ProductivityTrend,
   TopAppsSection,
   TopPathsSection,
+  TopFoldersSection,
   CategoryDonut,
   DistractionSection,
   ProjectTasksAccordion,
@@ -525,6 +526,16 @@ export default function Reports() {
                   paths={data.topPaths?.paths ?? []}
                   isLoading={isLoading}
                   title={t('reports.topPaths')}
+                  maxItems={10}
+                />
+              </motion.div>
+
+              {/* Top Folders */}
+              <motion.div variants={fadeUp} className="h-full">
+                <TopFoldersSection
+                  folders={data.topFolders?.folders ?? []}
+                  isLoading={isLoading}
+                  title={t('reports.topFolders')}
                   maxItems={10}
                 />
               </motion.div>

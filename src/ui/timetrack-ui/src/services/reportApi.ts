@@ -14,6 +14,8 @@ import type {
   DailySummaryRangeResponse,
   ProductivityTrendResponse,
   TopPathsResponse,
+  TopFoldersResponse,
+  ReportsBundleResponse,
   DistractionStatsResponse,
   CategoryDistributionResponse,
   GroupByOption,
@@ -84,6 +86,35 @@ export async function getTopApps(
 // ============================================================================
 
 /**
+ * Get reports bundle (single request for the Reports page)
+ * GET /api/v1/reports/bundle?userId=&startDate=&endDate=&groupBy=&limits=&timezone=
+ */
+export async function getReportsBundle(
+  startDate: string,
+  endDate: string,
+  groupBy: GroupByOption = 'day',
+  limits: { topApps?: number; topPaths?: number; topFolders?: number } = {},
+  userId?: string
+): Promise<ReportsBundleResponse> {
+  const params = new URLSearchParams({
+    startDate,
+    endDate,
+    groupBy,
+    timezone: getUserTimezone(),
+    topAppsLimit: String(limits.topApps ?? 20),
+    topPathsLimit: String(limits.topPaths ?? 20),
+    topFoldersLimit: String(limits.topFolders ?? 20),
+  });
+  if (userId === 'all') {
+    params.append('allTeam', 'true');
+  } else if (userId) {
+    params.append('userId', userId);
+  }
+
+  return api.get<ReportsBundleResponse>(`/reports/bundle?${params.toString()}`);
+}
+
+/**
  * Get daily summary range for heatmap
  * GET /api/v1/reports/daily-summary-range?userId=&startDate=&endDate=&timezone=
  */
@@ -145,6 +176,30 @@ export async function getTopPaths(
   }
 
   return api.get<TopPathsResponse>(`/reports/top-paths?${params.toString()}`);
+}
+
+/**
+ * Get top folders (file system paths)
+ * GET /api/v1/reports/top-folders?userId=&startDate=&endDate=&limit=&timezone=
+ */
+export async function getTopFolders(
+  startDate: string,
+  endDate: string,
+  limit: number = 20,
+  userId?: string
+): Promise<TopFoldersResponse> {
+  const params = new URLSearchParams({
+    startDate,
+    endDate,
+    limit: limit.toString(),
+    timezone: getUserTimezone(),
+  });
+  if (userId === 'all') {
+    params.append('allTeam', 'true');
+  } else if (userId) {
+    params.append('userId', userId);
+  }
+  return api.get<TopFoldersResponse>(`/reports/top-folders?${params.toString()}`);
 }
 
 /**
