@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Repo root (Build/ -> TimeTrack.MacOSDesktopHost/ -> agent/ -> src/ -> repo)
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build/macos"
 APP_NAME="TimeTrack"
 APP_BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
@@ -19,7 +21,13 @@ mkdir -p "${APP_BUNDLE}/Contents/Frameworks"
 echo "[1/6] Building React UI..."
 UI_DIR="${PROJECT_ROOT}/src/ui/timetrack-ui"
 if [ -d "${UI_DIR}" ]; then
-    (cd "${UI_DIR}" && npm install && npm run build)
+    (
+        cd "${UI_DIR}"
+        if [ ! -d "node_modules" ]; then
+            npm install
+        fi
+        npm run build
+    )
     cp -r "${UI_DIR}/dist" "${APP_BUNDLE}/Contents/Resources/dist"
     echo "  React UI copied to bundle"
 else
