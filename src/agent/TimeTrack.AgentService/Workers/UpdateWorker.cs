@@ -18,7 +18,6 @@ public sealed class UpdateWorker : BackgroundService
     private readonly UpdateEventBroadcaster _eventBroadcaster;
 
     private DateTime _lastCheck = DateTime.MinValue;
-    private bool _updateInProgress;
 
     public UpdateWorker(
         ILogger<UpdateWorker> logger,
@@ -80,12 +79,6 @@ public sealed class UpdateWorker : BackgroundService
 
     private async Task CheckForUpdatesAsync(CancellationToken cancellationToken)
     {
-        if (_updateInProgress)
-        {
-            _logger.LogDebug("Skipping update check - update already in progress");
-            return;
-        }
-
         _logger.LogInformation("Checking for updates...");
 
         try
@@ -96,21 +89,16 @@ public sealed class UpdateWorker : BackgroundService
             if (result?.HasUpdate == true)
             {
                 _logger.LogInformation(
-                    "Update available: {Version}. Starting forced update...",
+                    "Update available: {Version}. Notifying user...",
                     result.LatestVersion);
 
-                // Broadcast update available event
                 await _eventBroadcaster.BroadcastUpdateAvailableAsync(result);
 
-                // Start forced update with try/finally to guarantee _updateInProgress is reset
-                _updateInProgress = true;
-                try
+                // Only auto-start update when ForceUpdate is enabled
+                if (_settings.ForceUpdate)
                 {
+                    _logger.LogInformation("ForceUpdate enabled — starting update automatically");
                     await _updateService.StartUpdateAsync(cancellationToken);
-                }
-                finally
-                {
-                    _updateInProgress = false;
                 }
             }
             else
@@ -121,7 +109,6 @@ public sealed class UpdateWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to check for updates");
-            _updateInProgress = false;
         }
     }
 

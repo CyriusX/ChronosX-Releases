@@ -51,6 +51,7 @@ export function useUpdate() {
     message: '',
   });
   const [error, setError] = useState<string | null>(null);
+  const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
 
   const lastProgressRef = useRef<number>(Date.now());
   const staleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -136,12 +137,19 @@ export function useUpdate() {
   // Subscribe to update events
   useEffect(() => {
     const unsubAvailable = subscribeToEvent('updateAvailable', (payload: UpdateAvailablePayload) => {
-      setUpdateInfo({
-        hasUpdate: payload.hasUpdate,
-        currentVersion: payload.currentVersion,
-        latestVersion: payload.latestVersion,
-        fileSizeBytes: payload.fileSizeBytes,
-        releaseNotes: payload.releaseNotes,
+      const newVersion = payload.latestVersion;
+      setUpdateInfo(prev => {
+        // Reset dismissed if the version changed
+        if (prev?.latestVersion !== newVersion) {
+          setDismissedVersion(null);
+        }
+        return {
+          hasUpdate: payload.hasUpdate,
+          currentVersion: payload.currentVersion,
+          latestVersion: newVersion,
+          fileSizeBytes: payload.fileSizeBytes,
+          releaseNotes: payload.releaseNotes,
+        };
       });
       setProgress({ stage: 'idle', percentage: 0, message: '' });
       setError(null);
@@ -219,12 +227,24 @@ export function useUpdate() {
     }
   }, [sendCommand, updateInfo, markPending, clearPending, startStaleTimer]);
 
+  const dismissUpdate = useCallback(() => {
+    if (updateInfo) setDismissedVersion(updateInfo.latestVersion);
+  }, [updateInfo]);
+
+  const shouldShowModal = !!(
+    updateInfo?.hasUpdate
+    && updateInfo.latestVersion !== dismissedVersion
+    && (progress.stage === 'idle' || progress.stage === 'downloading' || progress.stage === 'installing' || progress.stage === 'updateInProgress' || progress.stage === 'complete' || progress.stage === 'failed')
+  );
+
   return {
     updateInfo,
     progress,
     error,
     isChecking: progress.stage === 'checking',
     isUpdating: progress.stage === 'downloading' || progress.stage === 'installing' || progress.stage === 'updateInProgress',
+    shouldShowModal,
+    dismissUpdate,
     checkForUpdates,
     startUpdate,
   };

@@ -408,24 +408,16 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
             "Update available: Version={Version}, Size={Size:F1}MB",
             version, fileSizeMb);
 
-        // Show notification to user (forced update - no option to defer)
+        // Show notification to user (opt-in — user decides when to update)
         var notification = new AgentNotification(
             "Update Available",
-            $"A new version ({version}) is available. The update will be installed automatically.",
+            $"A new version ({version}) is available. Open the app to update.",
             NotificationKind.System)
         {
             Tag = "update-available"
         };
 
         await _notificationService.SendAsync(notification);
-
-        // Start the update automatically after a brief delay
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(3000);
-            _logger.LogInformation("Auto-starting update to version {Version}", version);
-            await _ipcClient.SendCommandAsync("StartUpdate");
-        });
     }
 
     private void HandleUpdateProgress(JsonElement payload)

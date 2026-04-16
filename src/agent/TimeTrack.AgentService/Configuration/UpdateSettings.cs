@@ -59,4 +59,10 @@ public sealed class UpdateSettings
     /// Delay between retry attempts (in seconds)
     /// </summary>
     public int RetryDelaySeconds { get; set; } = 30;
+
+    /// <summary>
+    /// When true, updates are installed automatically without user confirmation.
+    /// When false (default), the user is prompted via a modal before installing.
+    /// </summary>
+    public bool ForceUpdate { get; set; } = false;
 }
