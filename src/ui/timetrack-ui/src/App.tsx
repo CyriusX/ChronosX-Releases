@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence } from "motion/react";
 import { useIpc } from "./hooks/useIpc";
+import { useUpdate } from "./hooks/useUpdate";
 import type { LocalSettings } from "./types/settings";
 import { useTrackingStore, handleTrackingStateChanged } from "./stores/trackingStore";
 import { useAuthStore } from "./stores/authStore";
@@ -22,6 +23,7 @@ import { Toaster } from "./components/Toaster";
 import { AnimatedPage } from "./components/ui/AnimatedPage";
 import { SessionExpiredNotifier } from "./components/SessionExpiredNotifier";
 import { MobileBottomNav } from "./components/navigation/MobileBottomNav";
+import { UpdateNotificationModal } from "./components/update/UpdateNotificationModal";
 
 function App() {
   const { isConnected, isReady, sendQuery } = useIpc();
@@ -157,6 +159,7 @@ function App() {
         <Toaster />
         <TrackingStoppedOverlay />
         <SessionExpiredNotifier />
+        <UpdateNotificationOverlay />
         <MobileBottomNav />
       </div>
     </HashRouter>
@@ -265,6 +268,51 @@ function TrackingStoppedOverlay() {
         {t('sidebar.trackingStopped')}
       </span>
     </div>
+  );
+}
+
+/**
+ * Global update notification modal — appears when the agent detects a new version.
+ * Subscribes to IPC events independently so it works on any page.
+ */
+function UpdateNotificationOverlay() {
+  const { isAuthenticated } = useAuthStore();
+  const {
+    updateInfo,
+    progress,
+    error,
+    isUpdating,
+    shouldShowModal,
+    dismissUpdate,
+    checkForUpdates,
+    startUpdate,
+  } = useUpdate();
+
+  if (!isAuthenticated || !shouldShowModal) return null;
+
+  const modalStage = isUpdating
+    ? progress.stage === 'updateInProgress'
+      ? 'updateInProgress' as const
+      : progress.stage === 'installing'
+        ? 'installing' as const
+        : 'downloading' as const
+    : progress.stage === 'complete'
+      ? 'complete' as const
+      : progress.stage === 'failed'
+        ? 'failed' as const
+        : 'available' as const;
+
+  return (
+    <UpdateNotificationModal
+      open={true}
+      stage={modalStage}
+      updateInfo={updateInfo}
+      progress={progress}
+      error={error}
+      onInstall={startUpdate}
+      onDismiss={dismissUpdate}
+      onRetry={() => { checkForUpdates(); }}
+    />
   );
 }
 
