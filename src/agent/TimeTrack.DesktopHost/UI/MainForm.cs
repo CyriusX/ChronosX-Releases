@@ -1,10 +1,14 @@
 using System;
 using System.Drawing;
 using System.IO;
+using System.Net;
+using System.Net.Http;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Windows.Forms;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -30,6 +34,8 @@ public sealed class MainForm : Form
     private readonly IIpcClient _ipcClient;
     private readonly WebViewBridge _bridge;
     private readonly ILogger<MainForm> _logger;
+    private readonly string _backendBaseUrl;
+    private readonly HttpClient _proxyHttpClient;
 
     private WebView2? _webView;
     private bool _isInitialized;
@@ -46,12 +52,21 @@ public sealed class MainForm : Form
         DesktopHostSettings settings,
         IIpcClient ipcClient,
         WebViewBridge bridge,
-        ILogger<MainForm> logger)
+        ILogger<MainForm> logger,
+        IConfiguration configuration)
     {
         _settings = settings;
         _ipcClient = ipcClient;
         _bridge = bridge;
         _logger = logger;
+        _backendBaseUrl = (configuration["Agent:Sync:BackendUrl"] ?? "https://chronosx-timetrack-api.gpoda0.easypanel.host").TrimEnd('/');
+        _proxyHttpClient = new HttpClient(new HttpClientHandler
+        {
+            AutomaticDecompression = DecompressionMethods.All
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(60)
+        };
 
         InitializeComponent();
     }
@@ -205,6 +220,7 @@ public sealed class MainForm : Form
             _logger.LogInformation("WebView2 initialized successfully");
 
             var coreWebView = _webView!.CoreWebView2!;
+            coreWebView.NavigationCompleted += (_, _) => FocusWebViewContent();
 
 #if DEBUG
             // Open DevTools in debug mode
@@ -241,6 +257,15 @@ public sealed class MainForm : Form
             // This MUST run BEFORE React loads, so we use AddScriptToExecuteOnDocumentCreatedAsync
             _ = coreWebView.AddScriptToExecuteOnDocumentCreatedAsync(@"
                 (function() {
+                    // Provide a same-origin API base so the UI never calls production directly
+                    // (production CORS should remain locked down). Requests to /api/* are proxied
+                    // by the DesktopHost via WebResourceRequested.
+                    try {
+                        if (location && location.hostname === 'app.local') {
+                            window.__APP_CONFIG__ = Object.assign({}, window.__APP_CONFIG__ || {}, { VITE_API_URL: '/api/v1' });
+                        }
+                    } catch(e) {}
+
                     // Override console.log to send messages to C# for diagnostics
                     var origLog = console.log;
                     var origError = console.error;
@@ -296,15 +321,154 @@ public sealed class MainForm : Form
                 })();
             ");
 
+            ConfigureApiProxy(coreWebView);
+
             // Subscribe to IPC events
             _ipcClient.EventReceived += OnIpcEventReceived;
             _ipcClient.ConnectionStateChanged += OnConnectionStateChanged;
 
             _logger.LogInformation("Bridge setup complete, IPC client connected: {IsConnected}", _ipcClient.IsConnected);
+
+            // Initial focus so login inputs can be typed into without requiring a manual click/reload.
+            FocusWebViewContent();
         }
         else
         {
             _logger.LogError("WebView2 initialization failed: {Error}", e.InitializationException);
+        }
+    }
+
+    private void ConfigureApiProxy(CoreWebView2 coreWebView)
+    {
+        try
+        {
+            coreWebView.AddWebResourceRequestedFilter("https://app.local/api/*", CoreWebView2WebResourceContext.All);
+            coreWebView.WebResourceRequested += OnWebResourceRequested;
+            _logger.LogInformation("API proxy enabled: https://app.local/api/* -> {Backend}", _backendBaseUrl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to configure API proxy");
+        }
+    }
+
+    private async void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
+    {
+        // Proxy /api/* from the embedded UI origin to the real backend.
+        if (!e.Request.Uri.StartsWith("https://app.local/api/", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var deferral = e.GetDeferral();
+        try
+        {
+            var incoming = new Uri(e.Request.Uri);
+            var targetUri = new Uri($"{_backendBaseUrl}{incoming.PathAndQuery}");
+
+            using var request = new HttpRequestMessage(new HttpMethod(e.Request.Method), targetUri);
+
+            var auth = e.Request.Headers.GetHeader("Authorization");
+            if (!string.IsNullOrWhiteSpace(auth))
+            {
+                request.Headers.TryAddWithoutValidation("Authorization", auth);
+            }
+
+            var accept = e.Request.Headers.GetHeader("Accept");
+            if (!string.IsNullOrWhiteSpace(accept))
+            {
+                request.Headers.TryAddWithoutValidation("Accept", accept);
+            }
+
+            var contentType = e.Request.Headers.GetHeader("Content-Type");
+            Stream? bodyStream = e.Request.Content;
+            if (bodyStream != null)
+            {
+                using var ms = new MemoryStream();
+                await bodyStream.CopyToAsync(ms);
+                var bytes = ms.ToArray();
+                request.Content = new ByteArrayContent(bytes);
+                if (!string.IsNullOrWhiteSpace(contentType))
+                {
+                    request.Content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+                }
+            }
+
+            using var response = await _proxyHttpClient.SendAsync(request);
+
+            var responseBytes = await response.Content.ReadAsByteArrayAsync();
+            var responseStream = new MemoryStream(responseBytes);
+
+            var headersBuilder = new StringBuilder();
+            if (response.Content.Headers.ContentType != null)
+            {
+                headersBuilder.Append("Content-Type: ").Append(response.Content.Headers.ContentType.ToString()).Append("\r\n");
+            }
+            if (response.Headers.TryGetValues("Cache-Control", out var cache))
+            {
+                headersBuilder.Append("Cache-Control: ").Append(string.Join(", ", cache)).Append("\r\n");
+            }
+
+            e.Response = e.Environment.CreateWebResourceResponse(
+                responseStream,
+                (int)response.StatusCode,
+                response.ReasonPhrase ?? "",
+                headersBuilder.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "API proxy failed for {Uri}", e.Request.Uri);
+
+            var body = Encoding.UTF8.GetBytes("{\"message\":\"DesktopHost API proxy error\",\"status\":502,\"code\":\"bad_gateway\"}");
+            var stream = new MemoryStream(body);
+            e.Response = e.Environment.CreateWebResourceResponse(
+                stream,
+                502,
+                "Bad Gateway",
+                "Content-Type: application/json\r\n");
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
+    private void FocusWebViewContent()
+    {
+        if (_webView?.CoreWebView2 == null || _isClosing) return;
+
+        try
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(FocusWebViewContent));
+                return;
+            }
+
+            _webView.Focus();
+            ActiveControl = _webView;
+
+            try
+            {
+                _webView.CoreWebView2Controller?.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);
+            }
+            catch
+            {
+                // Some WebView2 versions may not expose controller focus; ignore.
+            }
+
+            _ = _webView.CoreWebView2.ExecuteScriptAsync(@"
+                try {
+                    setTimeout(function() {
+                        var el = document.querySelector('input[autofocus], input, textarea, [contenteditable=""true""]');
+                        if (el && el.focus) el.focus();
+                    }, 50);
+                } catch(e) {}
+            ");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to focus WebView2 content");
         }
     }
 
@@ -712,6 +876,7 @@ public sealed class MainForm : Form
         if (disposing)
         {
             _webView?.Dispose();
+            _proxyHttpClient.Dispose();
         }
 
         base.Dispose(disposing);

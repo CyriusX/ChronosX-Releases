@@ -4,6 +4,7 @@
 
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
+import { getApiBaseUrl } from '../services/apiBase';
 
 // ============================================================================
 // TYPES
@@ -44,7 +45,7 @@ interface ProjectState {
 // API HELPERS
 // ============================================================================
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const apiBase = () => getApiBaseUrl();
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   const tokens = useAuthStore.getState().tokens;
@@ -60,7 +61,7 @@ async function fetchProjectsApi(activeOnly?: boolean, mineOnly?: boolean): Promi
   if (activeOnly) params.append('activeOnly', 'true');
   if (mineOnly) params.append('mineOnly', 'true');
 
-  const url = `${API_BASE}/projects${params.toString() ? `?${params.toString()}` : ''}`;
+  const url = `${apiBase()}/projects${params.toString() ? `?${params.toString()}` : ''}`;
   const response = await fetch(url, { headers });
 
   if (!response.ok) {
@@ -73,7 +74,7 @@ async function fetchProjectsApi(activeOnly?: boolean, mineOnly?: boolean): Promi
 
 async function createProjectApi(name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null): Promise<Project> {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/projects`, {
+  const response = await fetch(`${apiBase()}/projects`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ name, description, color, isBillable, currency, hourlyRate }),
@@ -89,7 +90,7 @@ async function createProjectApi(name: string, description?: string, color?: stri
 
 async function updateProjectApi(id: string, name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null): Promise<Project> {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/projects/${id}`, {
+  const response = await fetch(`${apiBase()}/projects/${id}`, {
     method: 'PUT',
     headers,
     body: JSON.stringify({ name, description, color, isBillable, currency, hourlyRate }),
@@ -105,7 +106,7 @@ async function updateProjectApi(id: string, name: string, description?: string, 
 
 async function archiveProjectApi(id: string): Promise<void> {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/projects/${id}/archive`, {
+  const response = await fetch(`${apiBase()}/projects/${id}/archive`, {
     method: 'POST',
     headers,
   });
@@ -118,7 +119,7 @@ async function archiveProjectApi(id: string): Promise<void> {
 
 async function reactivateProjectApi(id: string): Promise<void> {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/projects/${id}/reactivate`, {
+  const response = await fetch(`${apiBase()}/projects/${id}/reactivate`, {
     method: 'POST',
     headers,
   });
@@ -131,7 +132,7 @@ async function reactivateProjectApi(id: string): Promise<void> {
 
 async function deleteProjectApi(id: string): Promise<void> {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/projects/${id}`, {
+  const response = await fetch(`${apiBase()}/projects/${id}`, {
     method: 'DELETE',
     headers,
   });

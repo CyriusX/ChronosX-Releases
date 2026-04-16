@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../stores/authStore';
 import { shakeX, SPRING, TIMING } from '../lib/animation';
 import logoImg from '../assets/logo-128.png';
+import { isDesktopRuntime } from '../lib/runtime';
 
 export default function Login() {
   const { t } = useTranslation();
@@ -12,6 +13,21 @@ export default function Login() {
   const { login, isLoading, error, setError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const shouldAnimate = !isDesktopRuntime();
+  const emailRef = useRef<HTMLInputElement | null>(null);
+
+  // Webviews sometimes ignore HTML autofocus; force-focus on mount and shortly after.
+  useEffect(() => {
+    const focus = () => emailRef.current?.focus();
+    const t1 = window.setTimeout(focus, 0);
+    const t2 = window.setTimeout(focus, 150);
+    const t3 = window.setTimeout(focus, 600);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +40,11 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0d14] flex items-center justify-center p-4">
+    <div
+      className="min-h-screen bg-[#0b0d14] flex items-center justify-center p-4"
+      onMouseDown={() => emailRef.current?.focus()}
+      onTouchStart={() => emailRef.current?.focus()}
+    >
       <div className="w-full max-w-md">
         {/* Logo/Title */}
         <div className="text-center mb-8">
@@ -32,13 +52,13 @@ export default function Login() {
             src={logoImg}
             alt="ChronosX"
             className="w-20 h-20 mx-auto mb-4 drop-shadow-[0_0_20px_rgba(139,92,246,0.3)]"
-            initial={{ opacity: 0, scale: 0.8 }}
+            initial={shouldAnimate ? { opacity: 0, scale: 0.8 } : false}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: 'spring', stiffness: SPRING.gentle.stiffness, damping: SPRING.gentle.damping, delay: 0.1 }}
           />
           <motion.h1
             className="text-3xl font-bold text-white mb-2"
-            initial={{ opacity: 0, y: 20 }}
+            initial={shouldAnimate ? { opacity: 0, y: 20 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
@@ -46,7 +66,7 @@ export default function Login() {
           </motion.h1>
           <motion.p
             className="text-zinc-400"
-            initial={{ opacity: 0, y: 20 }}
+            initial={shouldAnimate ? { opacity: 0, y: 20 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
@@ -58,7 +78,7 @@ export default function Login() {
         <motion.form
           onSubmit={handleSubmit}
           className="bg-[#12141c] rounded-xl p-6 shadow-xl"
-          initial={{ opacity: 0, y: 30 }}
+          initial={shouldAnimate ? { opacity: 0, y: 30 } : false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...SPRING.gentle, delay: 0.3 }}
         >
@@ -80,7 +100,7 @@ export default function Login() {
           {/* Email Field */}
           <motion.div
             className="mb-4"
-            initial={{ opacity: 0, y: 12 }}
+            initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: TIMING.normal, delay: 0.38 }}
           >
@@ -90,6 +110,7 @@ export default function Login() {
             <input
               type="email"
               id="email"
+              ref={emailRef}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -102,7 +123,7 @@ export default function Login() {
           {/* Password Field */}
           <motion.div
             className="mb-6"
-            initial={{ opacity: 0, y: 12 }}
+            initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: TIMING.normal, delay: 0.46 }}
           >
@@ -167,7 +188,7 @@ export default function Login() {
         {/* Footer */}
         <motion.p
           className="text-center text-zinc-500 text-sm mt-6"
-          initial={{ opacity: 0, y: 12 }}
+          initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: TIMING.normal, delay: 0.6 }}
         >

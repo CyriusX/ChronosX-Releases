@@ -67,6 +67,12 @@ public sealed class ReportsController : ControllerBase
         return orgMembers.Select(m => m.Id).ToList();
     }
 
+    private bool TryGetCurrentUserId(out Guid userId)
+    {
+        userId = _currentUser.UserId ?? Guid.Empty;
+        return userId != Guid.Empty;
+    }
+
     /// <summary>
     /// Exporta dados de atividade em formato CSV com streaming
     /// </summary>
@@ -100,9 +106,14 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         // Determine target userId
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         // Validate authorization - if requesting another user's data
         if (isAccessingOtherUserData)
@@ -190,9 +201,14 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         // Determine target userId
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         // Validate authorization - if requesting another user's data
         if (isAccessingOtherUserData)
@@ -259,8 +275,13 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData)
         {
@@ -333,12 +354,17 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         // Resolve team user IDs if allTeam is requested
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
         // Determine target userId
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         // Validate authorization - if requesting another user's data
         if (isAccessingOtherUserData && teamUserIds == null)
@@ -425,10 +451,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "groupBy must be one of: day, week, month" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {
@@ -616,10 +647,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {
@@ -690,10 +726,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "groupBy must be one of: day, week, month" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {
@@ -759,10 +800,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {
@@ -828,10 +874,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {
@@ -895,10 +946,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {
@@ -961,10 +1017,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {

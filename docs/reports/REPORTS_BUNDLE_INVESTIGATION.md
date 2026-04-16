@@ -8,6 +8,7 @@ Stop `/api/v1/reports/bundle` from failing (500) on both Web UI and Desktop Host
 - [x] Made bundle queries sequential and added per-section timings.
 - [x] Optimized `DailySummaryRange` to avoid O(days × sessions) behavior.
 - [x] Added non-fatal partial-bundle support (`errors[]`) so a single failing section no longer breaks the entire page.
+- [x] Fixed DesktopHost CORS root cause: UI was computing API base at module import time, before host-injected config was available.
 - [ ] Deploy backend + UI to production (EasyPanel) and confirm `/reports/bundle` returns 200.
 - [ ] If `errors[]` is present: capture which section(s) failed and fix the underlying query/repository method.
 
@@ -18,4 +19,3 @@ Stop `/api/v1/reports/bundle` from failing (500) on both Web UI and Desktop Host
 4. In API logs, search for `ReportsBundle:` entries:
    - timings: `ReportsBundle: <Section> in <Ms>ms`
    - failures: `ReportsBundle: <Section> failed` (with exception details)
-

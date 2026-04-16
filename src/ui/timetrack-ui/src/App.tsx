@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, useLocation } from "react-router-dom";
+import { HashRouter, MemoryRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence } from "motion/react";
@@ -8,6 +8,9 @@ import type { LocalSettings } from "./types/settings";
 import { useTrackingStore, handleTrackingStateChanged } from "./stores/trackingStore";
 import { useAuthStore } from "./stores/authStore";
 import { getIpcService } from "./services";
+import { SESSION_EXPIRED_EVENT } from "./services/apiClient";
+import { NAVIGATE_EVENT, type NavigateDetail } from "./services/navigationEvents";
+import { isDesktopRuntime } from "./lib/runtime";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
@@ -31,6 +34,24 @@ function App() {
   const { isAuthenticated, tokens } = useAuthStore();
   const { i18n } = useTranslation();
   const wasConnectedRef = useRef(false);
+  const desktop = isDesktopRuntime();
+  const desktopInitialEntriesRef = useRef<string[] | null>(null);
+
+  if (desktop && !desktopInitialEntriesRef.current) {
+    // Avoid a blank/black screen on first boot: start on /login unless a persisted
+    // session exists. Dashboard routing still happens normally after hydration.
+    let initialPath = '/login';
+    try {
+      const raw = localStorage.getItem('timetrack-auth');
+      if (raw) {
+        const parsed = JSON.parse(raw) as { state?: { tokens?: unknown; user?: unknown } } | null;
+        if (parsed?.state?.tokens && parsed?.state?.user) initialPath = '/';
+      }
+    } catch {
+      // localStorage may be unavailable in some webview states — default to /login.
+    }
+    desktopInitialEntriesRef.current = [initialPath];
+  }
 
   // Sync UI language from the Agent's stored settings on every IPC connection.
   // Without this, the app always starts in the default language (en-US) and
@@ -152,9 +173,22 @@ function App() {
     }
   }, [isConnected, isAuthenticated, tokens]);
 
-  return (
+  return desktop ? (
+    <MemoryRouter initialEntries={desktopInitialEntriesRef.current ?? ['/login']}>
+      <div className="h-screen overflow-hidden bg-[rgb(10,12,18)] text-[#f5f7fb]">
+        <NavigationEventBridge />
+        <AnimatedRoutes />
+        <Toaster />
+        <TrackingStoppedOverlay />
+        <SessionExpiredNotifier />
+        <UpdateNotificationOverlay />
+        <MobileBottomNav />
+      </div>
+    </MemoryRouter>
+  ) : (
     <HashRouter>
       <div className="h-screen overflow-hidden bg-[rgb(10,12,18)] text-[#f5f7fb]">
+        <NavigationEventBridge />
         <AnimatedRoutes />
         <Toaster />
         <TrackingStoppedOverlay />
@@ -164,6 +198,31 @@ function App() {
       </div>
     </HashRouter>
   );
+}
+
+function NavigationEventBridge() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const onSessionExpired = () => {
+      navigate('/login', { replace: true });
+    };
+
+    const onNavigate = (e: Event) => {
+      const detail = (e as CustomEvent<NavigateDetail>).detail;
+      if (!detail?.to) return;
+      navigate(detail.to, { replace: detail.replace ?? true });
+    };
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    window.addEventListener(NAVIGATE_EVENT, onNavigate);
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+      window.removeEventListener(NAVIGATE_EVENT, onNavigate);
+    };
+  }, [navigate]);
+
+  return null;
 }
 
 function AnimatedRoutes() {

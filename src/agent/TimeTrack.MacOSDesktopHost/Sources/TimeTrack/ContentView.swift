@@ -69,6 +69,7 @@ struct WebViewContainer: NSViewRepresentable {
     @ObservedObject var ipcClient: IpcClient
     @Binding var webView: WKWebView?
     static var schemeHandler: TimeTrackSchemeHandler?
+    static var localServer: LocalHTTPServer?
 
     private static func resolveDistURL() -> URL? {
         let fm = FileManager.default
@@ -119,14 +120,30 @@ struct WebViewContainer: NSViewRepresentable {
         NSLog("[WebView] resourceURL: %@", Bundle.main.resourceURL?.path ?? "nil")
         NSLog("[WebView] distPath: %@ exists=%d", distURL?.path ?? "nil", distExists ? 1 : 0)
 
-        // Register scheme handler so timetrack://app/api/... proxies to backend
+        // Prefer a localhost origin for the UI bundle to avoid WebKit treating the origin as "null"
+        // (custom URL schemes can break react-router's hash history with history.replaceState throttling).
         if let distURL = distURL {
-            let handler = TimeTrackSchemeHandler(resourcePath: distURL.path)
-            Self.schemeHandler = handler
-            config.setURLSchemeHandler(handler, forURLScheme: "timetrack")
-            NSLog("[WebView] Scheme handler registered for dist: %@", distURL.path)
+            if let server = LocalHTTPServer(resourcePath: distURL.path) {
+                Self.localServer = server
+                NSLog("[WebView] LocalHTTPServer started at %@", server.baseURL)
+
+                // Provide the UI with a same-origin API base that proxies to production.
+                let apiBase = "/api/v1"
+                let configScript = "window.__APP_CONFIG__ = Object.assign({}, window.__APP_CONFIG__ || {}, { VITE_API_URL: '\(apiBase)' });"
+                userContentController.addUserScript(WKUserScript(
+                    source: configScript,
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: true
+                ))
+            } else {
+                NSLog("[WebView] WARNING: failed to start LocalHTTPServer, falling back to timetrack:// scheme handler")
+                let handler = TimeTrackSchemeHandler(resourcePath: distURL.path)
+                Self.schemeHandler = handler
+                config.setURLSchemeHandler(handler, forURLScheme: "timetrack")
+                NSLog("[WebView] Scheme handler registered for dist: %@", distURL.path)
+            }
         } else {
-            NSLog("[WebView] WARNING: dist not found, no scheme handler registered")
+            NSLog("[WebView] WARNING: dist not found, no local server or scheme handler registered")
         }
 
         let webView = WKWebView(frame: .zero, configuration: config)
@@ -138,9 +155,17 @@ struct WebViewContainer: NSViewRepresentable {
         self.webView = webView
 
         if distExists {
-            let url = URL(string: "timetrack://app/")!
-            NSLog("[WebView] Loading timetrack://app/")
-            webView.load(URLRequest(url: url))
+            let url: URL
+            if let server = Self.localServer, let u = URL(string: "\(server.baseURL)/index.html") {
+                url = u
+                NSLog("[WebView] Loading %@", url.absoluteString)
+            } else {
+                url = URL(string: "timetrack://app/")!
+                NSLog("[WebView] Loading timetrack://app/")
+            }
+
+            // Delay to next runloop so the view is in a window before first navigation.
+            DispatchQueue.main.async { webView.load(URLRequest(url: url)) }
         } else {
             let html = """
             <html><body style="background:#0a0c12;display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui;color:#f5f7fb;">
@@ -161,7 +186,109 @@ struct WebViewContainer: NSViewRepresentable {
     class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             NSLog("[WebView] didFinish: %@", webView.url?.absoluteString ?? "nil")
-        }
+#if DEBUG
+            let debugScript = """
+            (function() {
+              try {
+                var hasBridge = !!window.timeTrackBridge;
+                var proto = window.location && window.location.protocol ? window.location.protocol : "unknown";
+                var apiBase = (window.__APP_CONFIG__ && window.__APP_CONFIG__.VITE_API_URL) ? window.__APP_CONFIG__.VITE_API_URL : null;
+                var storageOk = false;
+                try {
+                  if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('__tt_ping', '1');
+                    localStorage.removeItem('__tt_ping');
+                    storageOk = true;
+                  }
+                } catch(e) {}
+                return JSON.stringify({ protocol: proto, hasBridge: hasBridge, localStorageOk: storageOk, apiBase: apiBase });
+              } catch(e) {
+                return "error:" + (e && e.message ? e.message : String(e));
+              }
+            })();
+            """
+            webView.evaluateJavaScript(debugScript) { result, error in
+                if let error = error {
+                    NSLog("[WebView] debug eval error: %@", error.localizedDescription)
+                } else if let s = result as? String {
+                    NSLog("[WebView] debug: %@", s)
+                } else {
+                    NSLog("[WebView] debug: (no string)")
+                }
+            }
+
+	            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+	                let snapshotScript = """
+	                (function() {
+	                  try {
+	                    var hash = window.location && window.location.hash ? window.location.hash : "";
+	                    var title = document.title || "";
+	                    var text = (document.body && document.body.innerText) ? document.body.innerText : "";
+	                    text = text.replace(/\\s+/g,' ').trim().slice(0, 180);
+	                    var root = document.getElementById('root');
+	                    var rootChildCount = root ? root.childElementCount : -1;
+	                    var rootHtmlLen = root && root.innerHTML ? root.innerHTML.length : 0;
+	                    var inputCount = document.querySelectorAll('input').length;
+	                    var errors = (window.__TT_ERRORS__ && Array.isArray(window.__TT_ERRORS__)) ? window.__TT_ERRORS__ : [];
+	                    var lastError = errors.length ? errors[errors.length - 1] : null;
+	                    var authRaw = null;
+	                    var authLen = 0;
+	                    var authParseOk = false;
+	                    try {
+	                      authRaw = (typeof localStorage !== 'undefined') ? localStorage.getItem('timetrack-auth') : null;
+	                      authLen = authRaw ? authRaw.length : 0;
+	                      if (authRaw) {
+	                        JSON.parse(authRaw);
+	                        authParseOk = true;
+	                      }
+	                    } catch(e) {}
+	                    return JSON.stringify({
+	                      hash: hash,
+	                      title: title,
+	                      bodyText: text,
+	                      rootChildCount: rootChildCount,
+	                      rootHtmlLen: rootHtmlLen,
+	                      inputCount: inputCount,
+	                      errorsCount: errors.length,
+	                      lastError: lastError,
+	                      authLen: authLen,
+	                      authParseOk: authParseOk
+	                    });
+	                  } catch(e) {
+	                    return "error:" + (e && e.message ? e.message : String(e));
+	                  }
+	                })();
+	                """
+                webView.evaluateJavaScript(snapshotScript) { result, error in
+                    if let error = error {
+                        NSLog("[WebView] snapshot eval error: %@", error.localizedDescription)
+                    } else if let s = result as? String {
+                        NSLog("[WebView] snapshot: %@", s)
+                    } else {
+                        NSLog("[WebView] snapshot: (no string)")
+                    }
+                }
+            }
+	#endif
+
+	            // Ensure the webview can receive keyboard input immediately (login form typing).
+	            DispatchQueue.main.async {
+	                NSApp.activate(ignoringOtherApps: true)
+	                webView.window?.makeKeyAndOrderFront(nil)
+	                webView.window?.makeFirstResponder(webView)
+	            }
+
+	            // Best-effort focus first input (some webviews ignore HTML autofocus).
+	            let focusScript = """
+	            try {
+	              setTimeout(function() {
+	                var el = document.querySelector('input[autofocus], input, textarea, [contenteditable=\"true\"]');
+	                if (el && el.focus) el.focus();
+	              }, 50);
+	            } catch (e) {}
+	            """
+	            webView.evaluateJavaScript(focusScript, completionHandler: nil)
+	        }
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             NSLog("[WebView] didFail: %@", error.localizedDescription)
         }
@@ -262,6 +389,31 @@ struct WebViewContainer: NSViewRepresentable {
 
     static let bridgeJavaScript = """
     (function() {
+        // Basic error capture so we can diagnose "black screen" boots without devtools.
+        window.__TT_ERRORS__ = window.__TT_ERRORS__ || [];
+        function _ttPush(kind, args) {
+            try {
+                var arr = window.__TT_ERRORS__;
+                var msg = Array.from(args || []).map(function(a) {
+                    try { return typeof a === 'object' ? JSON.stringify(a) : String(a); }
+                    catch(e) { return String(a); }
+                }).join(' ');
+                arr.push({ kind: kind, message: msg, ts: Date.now() });
+                if (arr.length > 50) arr.shift();
+            } catch(e) {}
+        }
+        try {
+            window.addEventListener('error', function(e) {
+                _ttPush('window.error', [e.message, e.filename, e.lineno, e.colno, (e.error && e.error.stack) ? e.error.stack : '']);
+            });
+            window.addEventListener('unhandledrejection', function(e) {
+                var r = e && e.reason;
+                _ttPush('unhandledrejection', [r && r.stack ? r.stack : String(r)]);
+            });
+            var _origErr = console.error;
+            console.error = function() { _ttPush('console.error', arguments); return _origErr.apply(console, arguments); };
+        } catch(e) {}
+
         var _nextId = 1;
         var _pending = {};
 
@@ -337,24 +489,8 @@ struct WebViewContainer: NSViewRepresentable {
 
         console.log('[MacOSDesktopHost] Bridge injected successfully');
 
-        // Rewrite remote API URLs to same-origin timetrack:// scheme so WKURLSchemeHandler
-        // proxies them natively — eliminates the CORS "Origin timetrack://app" rejection.
-        var _origFetch = window.fetch;
-        var _remoteBase = 'https://chronosx-timetrack-api.gpoda0.easypanel.host/api/v1';
-        var _localBase = 'timetrack://app/api/v1';
-        window.fetch = function(input, init) {
-            var url = (typeof input === 'string') ? input : (input instanceof Request ? input.url : String(input));
-            if (url.indexOf(_remoteBase) === 0) {
-                var newUrl = _localBase + url.substring(_remoteBase.length);
-                if (typeof input === 'string') {
-                    input = newUrl;
-                } else if (input instanceof Request) {
-                    input = new Request(newUrl, input);
-                }
-            }
-            return _origFetch.call(window, input, init);
-        };
-        console.log('[MacOSDesktopHost] API proxy active via timetrack:// scheme');
+        // API base is provided by the host via window.__APP_CONFIG__.VITE_API_URL
+        // and points at the embedded localhost proxy.
     })();
     """
 }
