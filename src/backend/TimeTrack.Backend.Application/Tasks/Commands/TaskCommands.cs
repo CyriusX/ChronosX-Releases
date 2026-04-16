@@ -61,6 +61,13 @@ public sealed class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand
         var project = await _projects.GetByIdAsync(request.ProjectId, ct)
             ?? throw new NotFoundException("Project", request.ProjectId);
 
+        if (!isManager)
+        {
+            var isMember = await _members.IsMemberAsync(project.Id, _currentUser.UserId.Value, ct);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
+
         // Default to the current user when no assignee is specified.
         // Managers may explicitly assign to others; everyone else always gets self-assigned.
         var assignedUserId = isManager
@@ -170,6 +177,13 @@ public sealed class UpdateTaskCommandHandler : IRequestHandler<UpdateTaskCommand
         if (project is null)
             throw new NotFoundException("Project", task.ProjectId);
 
+        if (!isManager)
+        {
+            var isMember = await _members.IsMemberAsync(project.Id, _currentUser.UserId.Value, ct);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
+
         var previousAssignee = task.AssignedUserId;
 
         if (request.AssignedUserId.HasValue && request.AssignedUserId != previousAssignee)
@@ -221,6 +235,7 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
     private readonly IProjectTaskRepository _tasks;
     private readonly IProjectRepository _projects;
     private readonly ITaskTimeEntryRepository _entries;
+    private readonly IProjectMemberRepository _members;
     private readonly IUserIntegrationRepository _integrations;
     private readonly ILinearClient _linear;
     private readonly IUserIntegrationTokenProtector _protector;
@@ -231,6 +246,7 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
         IProjectTaskRepository tasks,
         IProjectRepository projects,
         ITaskTimeEntryRepository entries,
+        IProjectMemberRepository members,
         IUserIntegrationRepository integrations,
         ILinearClient linear,
         IUserIntegrationTokenProtector protector,
@@ -240,6 +256,7 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
         _tasks = tasks;
         _projects = projects;
         _entries = entries;
+        _members = members;
         _integrations = integrations;
         _linear = linear;
         _protector = protector;
@@ -254,6 +271,15 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
 
         var task = await _tasks.GetByIdAsync(request.TaskId, ct)
             ?? throw new NotFoundException("Task", request.TaskId);
+
+        var role = _currentUser.Role;
+        var isManager = role == UserRole.Admin || role == UserRole.Gestor;
+        if (!isManager)
+        {
+            var isMember = await _members.IsMemberAsync(task.ProjectId, _currentUser.UserId.Value, ct);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
 
         if (request.RowVersion.HasValue && request.RowVersion.Value != task.RowVersion)
             throw new ConflictException("task_version_stale", "Task has been modified by someone else. Reload and retry.");
@@ -473,15 +499,18 @@ public sealed class DeleteTaskCommandHandler : IRequestHandler<DeleteTaskCommand
 {
     private readonly IProjectTaskRepository _tasks;
     private readonly ITaskTimeEntryRepository _entries;
+    private readonly IProjectMemberRepository _members;
     private readonly ICurrentUserContext _currentUser;
 
     public DeleteTaskCommandHandler(
         IProjectTaskRepository tasks,
         ITaskTimeEntryRepository entries,
+        IProjectMemberRepository members,
         ICurrentUserContext currentUser)
     {
         _tasks = tasks;
         _entries = entries;
+        _members = members;
         _currentUser = currentUser;
     }
 
@@ -498,6 +527,13 @@ public sealed class DeleteTaskCommandHandler : IRequestHandler<DeleteTaskCommand
 
         if (!isManager && task.CreatedByUserId != _currentUser.UserId.Value)
             throw new ForbiddenException("You can only delete tasks you created");
+
+        if (!isManager)
+        {
+            var isMember = await _members.IsMemberAsync(task.ProjectId, _currentUser.UserId.Value, ct);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
 
         // Close any in-progress entry tied to this task.
         if (task.Status == ProjectTaskStatus.InProgress && task.AssignedUserId.HasValue)

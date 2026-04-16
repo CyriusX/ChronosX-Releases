@@ -17,17 +17,20 @@ public sealed record ListProjectTasksQuery(Guid ProjectId) : IRequest<ListTasksR
 public sealed class ListProjectTasksQueryHandler : IRequestHandler<ListProjectTasksQuery, ListTasksResponse>
 {
     private readonly IProjectRepository _projects;
+    private readonly IProjectMemberRepository _members;
     private readonly IProjectTaskRepository _tasks;
     private readonly ITaskTimeEntryRepository _entries;
     private readonly ICurrentUserContext _currentUser;
 
     public ListProjectTasksQueryHandler(
         IProjectRepository projects,
+        IProjectMemberRepository members,
         IProjectTaskRepository tasks,
         ITaskTimeEntryRepository entries,
         ICurrentUserContext currentUser)
     {
         _projects = projects;
+        _members = members;
         _tasks = tasks;
         _entries = entries;
         _currentUser = currentUser;
@@ -35,8 +38,20 @@ public sealed class ListProjectTasksQueryHandler : IRequestHandler<ListProjectTa
 
     public async Task<ListTasksResponse> Handle(ListProjectTasksQuery request, CancellationToken ct)
     {
+        if (!_currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException();
+
         var project = await _projects.GetByIdAsync(request.ProjectId, ct)
             ?? throw new NotFoundException("Project", request.ProjectId);
+
+        var role = _currentUser.Role;
+        var isManager = role == UserRole.Admin || role == UserRole.Gestor;
+        if (!isManager)
+        {
+            var isMember = await _members.IsMemberAsync(project.Id, _currentUser.UserId.Value, ct);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
 
         var tasks = await _tasks.ListByProjectAsync(project.Id, ct);
 
@@ -277,17 +292,20 @@ public sealed class GetTaskByIdQueryHandler : IRequestHandler<GetTaskByIdQuery, 
     private readonly IProjectTaskRepository _tasks;
     private readonly IProjectRepository _projects;
     private readonly ITaskTimeEntryRepository _entries;
+    private readonly IProjectMemberRepository _members;
     private readonly ICurrentUserContext _currentUser;
 
     public GetTaskByIdQueryHandler(
         IProjectTaskRepository tasks,
         IProjectRepository projects,
         ITaskTimeEntryRepository entries,
+        IProjectMemberRepository members,
         ICurrentUserContext currentUser)
     {
         _tasks = tasks;
         _projects = projects;
         _entries = entries;
+        _members = members;
         _currentUser = currentUser;
     }
 
@@ -297,6 +315,15 @@ public sealed class GetTaskByIdQueryHandler : IRequestHandler<GetTaskByIdQuery, 
 
         var task = await _tasks.GetByIdAsync(request.TaskId, ct)
             ?? throw new NotFoundException("Task", request.TaskId);
+
+        var role = _currentUser.Role;
+        var isManager = role == UserRole.Admin || role == UserRole.Gestor;
+        if (!isManager)
+        {
+            var isMember = await _members.IsMemberAsync(task.ProjectId, _currentUser.UserId.Value, ct);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
 
         var project = task.Project ?? await _projects.GetByIdAsync(task.ProjectId, ct);
 

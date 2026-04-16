@@ -35,10 +35,11 @@ public sealed class ProjectsController : ControllerBase
     [ProducesResponseType(typeof(ListProjectsResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ListProjectsResponse>> ListProjects(
         [FromQuery] bool? activeOnly = null,
+        [FromQuery] bool mineOnly = false,
         [FromQuery] int? page = null,
         [FromQuery] int? pageSize = null)
     {
-        var result = await _mediator.Send(new ListProjectsQuery(activeOnly, page, pageSize));
+        var result = await _mediator.Send(new ListProjectsQuery(activeOnly, mineOnly, page, pageSize));
         return Ok(result);
     }
 
