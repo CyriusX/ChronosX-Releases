@@ -166,7 +166,11 @@
     "failedToLoadTasks": "Échec du chargement des tâches",
     "failedToStartTask": "Échec du démarrage de la tâche",
     "failedToStopTask": "Échec de l'arrêt",
-    "failedToCompleteTask": "Échec de la complétion"
+    "failedToCompleteTask": "Échec de la complétion",
+    "foldersAccessed": "Dossiers consultés",
+    "noFolders": "Aucune activité de dossiers pour l'instant",
+    "visits_one": "{{count}} visite",
+    "visits_other": "{{count}} visites"
   },
   "activities": {
     "title": "Activités",
@@ -780,6 +784,7 @@
     "topApps": "Apps les Plus Utilisées",
     "categoryDistribution": "Distribution par Catégorie",
     "topPaths": "URLs et Chemins les Plus Accédés",
+    "topFolders": "Dossiers les Plus Accédés",
     "distractionAnalysis": "Analyse des Distractions",
     "heatmapTitle": "Carte d'Activité",
     "clickDayDetails": "Cliquez sur un jour pour voir les détails",

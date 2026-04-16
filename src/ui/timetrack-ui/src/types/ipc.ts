@@ -349,6 +349,7 @@ export type AgentQuery =
   | 'getTodaySummary'
   | 'getRecentActivities'
   | 'getRecentApps'
+  | 'getTopFolders'
   | 'getProjects'
   | 'getTasks'
   | 'getTrackingState'
@@ -494,6 +495,14 @@ export interface RecentAppsResponse {
   since: string;
 }
 
+export interface TopFoldersResponse {
+  folders: Array<{
+    folderPath: string;
+    totalSeconds: number;
+    visitCount: number;
+  }>;
+}
+
 export interface TrackingStateResponse {
   isTracking: boolean;
   isPaused: boolean;
@@ -565,6 +574,7 @@ export interface QueryResponseMap {
   getTodaySummary: TodaySummaryResponse;
   getRecentActivities: RecentActivityResponse;
   getRecentApps: RecentAppsResponse;
+  getTopFolders: TopFoldersResponse;
   getProjects: ProjectResponse[];
   getTasks: TaskResponse[];
   getTrackingState: TrackingStateResponse;

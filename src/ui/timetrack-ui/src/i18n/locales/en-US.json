@@ -166,7 +166,11 @@
     "failedToLoadTasks": "Failed to load tasks",
     "failedToStartTask": "Failed to start task",
     "failedToStopTask": "Failed to stop",
-    "failedToCompleteTask": "Failed to complete"
+    "failedToCompleteTask": "Failed to complete",
+    "foldersAccessed": "Folders accessed",
+    "noFolders": "No folder activity yet",
+    "visits_one": "{{count}} visit",
+    "visits_other": "{{count}} visits"
   },
   "activities": {
     "title": "Activities",
@@ -780,6 +784,7 @@
     "topApps": "Most Used Apps",
     "categoryDistribution": "Category Distribution",
     "topPaths": "Most Accessed URLs and Paths",
+    "topFolders": "Most Accessed Folders",
     "distractionAnalysis": "Distraction Analysis",
     "heatmapTitle": "Activity Heatmap",
     "clickDayDetails": "Click on a day to see details",

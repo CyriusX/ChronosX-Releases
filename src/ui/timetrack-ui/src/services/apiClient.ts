@@ -156,6 +156,17 @@ export async function apiClient<T>(
   // Build URL
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
 
+  const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+  const getRetryAfterMs = (response: Response) => {
+    const raw = response.headers.get('Retry-After');
+    if (!raw) return 1000;
+    const asSeconds = Number(raw);
+    if (!Number.isNaN(asSeconds)) return Math.max(0, asSeconds) * 1000;
+    const asDate = Date.parse(raw);
+    if (!Number.isNaN(asDate)) return Math.max(0, asDate - Date.now());
+    return 1000;
+  };
+
   // Make request
   const makeRequest = async (token?: string): Promise<Response> => {
     if (token) {
@@ -169,19 +180,39 @@ export async function apiClient<T>(
     });
   };
 
-  let response = await makeRequest(accessToken);
+  const max429Retries = 3;
+  let attempt429 = 0;
+  let response: Response;
 
-  // Handle 401 - try refresh
-  if (response.status === 401 && !skipAuth) {
-    const newToken = await handleTokenRefresh();
+  while (true) {
+    response = await makeRequest(accessToken);
 
-    if (newToken) {
-      // Retry with new token
-      response = await makeRequest(newToken);
-    } else {
-      // Refresh failed, throw error (already handled redirect)
-      throw new Error('Session expired. Please login again.');
+    // Handle 401 - try refresh
+    if (response.status === 401 && !skipAuth) {
+      const newToken = await handleTokenRefresh();
+
+      if (newToken) {
+        accessToken = newToken;
+        // Retry with new token
+        response = await makeRequest(newToken);
+      } else {
+        // Refresh failed, throw error (already handled redirect)
+        throw new Error('Session expired. Please login again.');
+      }
     }
+
+    // Handle 429 (rate limiting) with bounded backoff; GET-only to avoid double-posting.
+    if (response.status === 429 && method === 'GET' && attempt429 < max429Retries) {
+      attempt429 += 1;
+      const delayMs = Math.min(getRetryAfterMs(response), 30000);
+      console.warn(`[apiClient] 429 Rate limit. Retrying in ${delayMs}ms (attempt ${attempt429}/${max429Retries})`, {
+        endpoint: url,
+      });
+      await sleep(delayMs);
+      continue;
+    }
+
+    break;
   }
 
   // Handle response
