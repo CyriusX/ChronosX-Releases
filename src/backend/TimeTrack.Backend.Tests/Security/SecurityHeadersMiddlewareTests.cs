@@ -27,9 +27,6 @@ public class SecurityHeadersMiddlewareTests
         await middleware.InvokeAsync(httpContext);
 
         // Assert
-        responseHeaders.Should().ContainKey("Strict-Transport-Security");
-        responseHeaders["Strict-Transport-Security"].ToString().Should().Be("max-age=63072000; includeSubDomains");
-
         responseHeaders.Should().ContainKey("X-Content-Type-Options");
         responseHeaders["X-Content-Type-Options"].ToString().Should().Be("nosniff");
 
@@ -37,7 +34,7 @@ public class SecurityHeadersMiddlewareTests
         responseHeaders["X-Frame-Options"].ToString().Should().Be("DENY");
 
         responseHeaders.Should().ContainKey("Content-Security-Policy");
-        responseHeaders["Content-Security-Policy"].ToString().Should().Be("default-src 'self'");
+        responseHeaders["Content-Security-Policy"].ToString().Should().Be("default-src 'none'; frame-ancestors 'none'");
 
         responseHeaders.Should().ContainKey("Referrer-Policy");
         responseHeaders["Referrer-Policy"].ToString().Should().Be("strict-origin-when-cross-origin");

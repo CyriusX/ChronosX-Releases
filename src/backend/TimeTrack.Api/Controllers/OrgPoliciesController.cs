@@ -57,14 +57,14 @@ public sealed class OrgPoliciesController : ControllerBase
     }
 
     /// <summary>
-    /// Updates the organization's policy (Admin only)
+    /// Updates the organization's policy (Admin/Gestor)
     /// </summary>
     /// <param name="orgId">Organization ID</param>
     /// <param name="request">Policy update request</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The updated policy</returns>
     [HttpPut]
-    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [ProducesResponseType(typeof(OrgPolicyResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

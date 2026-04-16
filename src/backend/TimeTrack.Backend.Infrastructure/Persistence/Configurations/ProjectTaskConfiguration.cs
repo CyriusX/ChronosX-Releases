@@ -113,8 +113,13 @@ internal sealed class ProjectTaskConfiguration : IEntityTypeConfiguration<Projec
 
         builder.Ignore(t => t.IsLinearSourced);
 
-        builder.HasIndex(t => new { t.OrgId, t.ProjectId, t.Status });
-        builder.HasIndex(t => new { t.AssignedUserId, t.Status });
+        // Hot-path indexes (kanban + dashboard widgets):
+        // - Per-project columns sorted by position
+        // - Per-user assigned tasks by status (also sorted by position)
+        builder.HasIndex(t => new { t.OrgId, t.ProjectId, t.Status, t.Position })
+            .HasDatabaseName("IX_project_tasks_org_id_project_id_status_position");
+        builder.HasIndex(t => new { t.AssignedUserId, t.Status, t.Position })
+            .HasDatabaseName("IX_project_tasks_assigned_user_id_status_position");
         builder.HasIndex(t => new { t.OrgId, t.LinearIssueId })
             .IsUnique()
             .HasFilter("linear_issue_id IS NOT NULL");
