@@ -10,6 +10,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useIpc } from './useIpc';
 import { useAuthStore } from '../stores/authStore';
 import { useHiddenAppsStore } from '../stores/hiddenAppsStore';
+import { isDesktopRuntime } from '../lib/runtime';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../types/ipc';
 import { formatDuration } from '../lib/utils';
 import { getDailySummaryRange, getDailyActivities, getTopApps } from '../services/reportApi';
@@ -83,6 +84,7 @@ export function useActivitiesData(): ActivitiesData {
   const { sendQuery, isConnected } = useIpc();
   const currentUser = useAuthStore(s => s.user);
   const hiddenApps = useHiddenAppsStore(s => s.hiddenApps);
+  const desktopRuntime = isDesktopRuntime();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Initialize from URL ?date= parameter (e.g., /activities?date=2026-03-25)
@@ -124,7 +126,7 @@ export function useActivitiesData(): ActivitiesData {
     setIsLoading(true);
 
     try {
-      if (isToday && !userId) {
+      if (isToday && !userId && desktopRuntime && isConnected) {
         // Today + own data: IPC (local SQLite) is the source of truth for real-time data.
         // Cloud only has data after sync, which may lag or be unavailable.
         // Load IPC data first (fast), then enrich with calendar data in the background.
@@ -256,7 +258,7 @@ export function useActivitiesData(): ActivitiesData {
       isFetchingRef.current = false;
       setIsLoading(false);
     }
-  }, [sendQuery, isConnected, datePayload, isToday, userId, currentUser?.id]);
+  }, [sendQuery, desktopRuntime, isConnected, datePayload, isToday, userId, currentUser?.id]);
 
   // Re-fetch when date changes or connection established
   useEffect(() => {

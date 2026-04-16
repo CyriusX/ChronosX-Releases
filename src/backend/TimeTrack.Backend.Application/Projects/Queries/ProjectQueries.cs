@@ -11,19 +11,23 @@ namespace TimeTrack.Backend.Application.Projects.Queries;
 /// </summary>
 public sealed record ListProjectsQuery(
     bool? ActiveOnly = null,
+    bool MineOnly = false,
     int? Page = null,
     int? PageSize = null) : IRequest<ListProjectsResponse>;
 
 public sealed class ListProjectsQueryHandler : IRequestHandler<ListProjectsQuery, ListProjectsResponse>
 {
     private readonly IProjectRepository _projectRepository;
+    private readonly IProjectMemberRepository _projectMembers;
     private readonly ICurrentUserContext _currentUser;
 
     public ListProjectsQueryHandler(
         IProjectRepository projectRepository,
+        IProjectMemberRepository projectMembers,
         ICurrentUserContext currentUser)
     {
         _projectRepository = projectRepository;
+        _projectMembers = projectMembers;
         _currentUser = currentUser;
     }
 
@@ -31,6 +35,9 @@ public sealed class ListProjectsQueryHandler : IRequestHandler<ListProjectsQuery
     {
         if (!_currentUser.OrgId.HasValue)
             throw new UnauthorizedAccessException("User not associated with an organization");
+
+        if (!_currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException("User not authenticated");
 
         IEnumerable<Domain.Entities.Project> projects;
 
@@ -41,6 +48,21 @@ public sealed class ListProjectsQueryHandler : IRequestHandler<ListProjectsQuery
         else
         {
             projects = await _projectRepository.GetByOrgIdAsync(_currentUser.OrgId.Value, cancellationToken);
+        }
+
+        // Default behavior for non-managers: only return projects the user is a member of.
+        // Managers/admins can explicitly request all org projects via mineOnly=false.
+        var role = _currentUser.Role;
+        var isManager = role == Domain.ValueObjects.UserRole.Admin || role == Domain.ValueObjects.UserRole.Gestor;
+        var mineOnlyEffective = request.MineOnly || !isManager;
+
+        if (mineOnlyEffective)
+        {
+            var myProjectIds = await _projectMembers.ListProjectIdsForUserAsync(_currentUser.UserId.Value, cancellationToken);
+            var set = myProjectIds.Count > 0
+                ? myProjectIds.ToHashSet()
+                : new HashSet<Guid>();
+            projects = projects.Where(p => set.Contains(p.Id));
         }
 
         var projectList = projects.ToList();
@@ -89,18 +111,37 @@ public sealed record GetProjectQuery(Guid ProjectId) : IRequest<ProjectResponse>
 public sealed class GetProjectQueryHandler : IRequestHandler<GetProjectQuery, ProjectResponse>
 {
     private readonly IProjectRepository _projectRepository;
+    private readonly IProjectMemberRepository _projectMembers;
+    private readonly ICurrentUserContext _currentUser;
 
-    public GetProjectQueryHandler(IProjectRepository projectRepository)
+    public GetProjectQueryHandler(
+        IProjectRepository projectRepository,
+        IProjectMemberRepository projectMembers,
+        ICurrentUserContext currentUser)
     {
         _projectRepository = projectRepository;
+        _projectMembers = projectMembers;
+        _currentUser = currentUser;
     }
 
     public async Task<ProjectResponse> Handle(GetProjectQuery request, CancellationToken cancellationToken)
     {
+        if (!_currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException();
+
         var project = await _projectRepository.GetByIdAsync(request.ProjectId, cancellationToken);
 
         if (project == null)
             throw new NotFoundException("Project", request.ProjectId);
+
+        var role = _currentUser.Role;
+        var isManager = role == Domain.ValueObjects.UserRole.Admin || role == Domain.ValueObjects.UserRole.Gestor;
+        if (!isManager)
+        {
+            var isMember = await _projectMembers.IsMemberAsync(project.Id, _currentUser.UserId.Value, cancellationToken);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
 
         return ProjectResponseMapper.Map(project);
     }

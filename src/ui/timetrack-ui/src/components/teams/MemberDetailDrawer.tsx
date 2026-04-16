@@ -114,7 +114,8 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
   // Load available projects for add-task form
   useEffect(() => {
     if (showAddTask && availableProjects.length === 0) {
-      listProjects(true).then(r => {
+      // Managers can assign tasks to this member in any org project.
+      listProjects(true, false).then(r => {
         setAvailableProjects(r.projects ?? []);
         if (r.projects?.length > 0) setNewTaskProjectId(r.projects[0].id);
       }).catch(() => {});

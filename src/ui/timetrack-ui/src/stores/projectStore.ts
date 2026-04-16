@@ -31,7 +31,7 @@ interface ProjectState {
   projects: Project[];
   isLoading: boolean;
   error: string | null;
-  fetchProjects: (activeOnly?: boolean) => Promise<void>;
+  fetchProjects: (activeOnly?: boolean, mineOnly?: boolean) => Promise<void>;
   createProject: (name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null) => Promise<Project | null>;
   updateProject: (id: string, name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null) => Promise<Project | null>;
   archiveProject: (id: string) => Promise<boolean>;
@@ -54,10 +54,11 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   };
 }
 
-async function fetchProjectsApi(activeOnly?: boolean): Promise<ListProjectsResponse> {
+async function fetchProjectsApi(activeOnly?: boolean, mineOnly?: boolean): Promise<ListProjectsResponse> {
   const headers = await getAuthHeaders();
   const params = new URLSearchParams();
   if (activeOnly) params.append('activeOnly', 'true');
+  if (mineOnly) params.append('mineOnly', 'true');
 
   const url = `${API_BASE}/projects${params.toString() ? `?${params.toString()}` : ''}`;
   const response = await fetch(url, { headers });
@@ -150,11 +151,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchProjects: async (activeOnly?: boolean) => {
+  fetchProjects: async (activeOnly?: boolean, mineOnly?: boolean) => {
     set({ isLoading: true, error: null });
 
     try {
-      const result = await fetchProjectsApi(activeOnly);
+      const result = await fetchProjectsApi(activeOnly, mineOnly);
       set({ projects: result.projects, isLoading: false, error: null });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch projects';
