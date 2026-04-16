@@ -99,6 +99,12 @@ public static class MacOSInfrastructureExtensions
             client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
         });
 
+        services.AddHttpClient<IBackendMembersClient, BackendMembersClient>(client =>
+        {
+            client.BaseAddress = new Uri(settings.BackendUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.HttpTimeoutSeconds);
+        });
+
         services.AddHttpClient<IBackendTasksClient, BackendTasksClient>(client =>
         {
             client.BaseAddress = new Uri(settings.BackendUrl);

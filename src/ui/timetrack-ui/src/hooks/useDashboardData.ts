@@ -12,9 +12,11 @@ import { useTrackingStore, handleTrackingStateChanged, handleSessionUpdated } fr
 import { useAuthStore } from '../stores/authStore';
 import { useIpc } from './useIpc';
 import { getMySummary } from '../services/memberApi';
+import { isDesktopRuntime } from '../lib/runtime';
 import type { TodaySummaryResponse, TrackingStateResponse, SyncStateResponse } from '../types/ipc';
 
 const POLLING_INTERVAL_MS = 5000; // 5 seconds — keeps dashboard live without waiting for sessionUpdated events
+const WEB_POLLING_INTERVAL_MS = 60_000;
 
 /**
  * Hook that manages dashboard data fetching, polling, and event subscriptions
@@ -28,6 +30,7 @@ const POLLING_INTERVAL_MS = 5000; // 5 seconds — keeps dashboard live without 
 export function useDashboardData() {
   const { isConnected, sendQuery, subscribeToEvent, sendCommand } = useIpc();
   const currentUser = useAuthStore(s => s.user);
+  const desktopRuntime = isDesktopRuntime();
 
   const {
     setTrackingState,
@@ -55,6 +58,31 @@ export function useDashboardData() {
     isFetchingRef.current = true;
 
     try {
+      // WebUI: there is no IPC. Load backend summary and keep tracking "stopped".
+      if (!desktopRuntime) {
+        if (currentUser?.id) {
+          try {
+            const cloudSummary = await getMySummary();
+            if (cloudSummary) {
+              setTodaySummary(cloudSummary as unknown as TodaySummaryResponse);
+            }
+          } catch {
+            // Backend unavailable — keep whatever is currently shown
+          }
+        }
+
+        setTrackingState({
+          isTracking: false,
+          isPaused: false,
+          isFocusMode: false,
+        });
+
+        return;
+      }
+
+      // Desktop runtime: wait until IPC is connected.
+      if (!isConnected) return;
+
       // Fetch tracking state
       const stateResponse = await sendQuery('getTrackingState');
       if (stateResponse.success && stateResponse.data) {
@@ -96,13 +124,14 @@ export function useDashboardData() {
     } finally {
       isFetchingRef.current = false;
     }
-  }, [sendQuery, setTrackingState, setTodaySummary, setSyncState]);
+  }, [desktopRuntime, isConnected, currentUser?.id, sendQuery, setTrackingState, setTodaySummary, setSyncState]);
 
   // ============================================================================
   // TRACKING ACTIONS
   // ============================================================================
 
   const handlePauseTracking = useCallback(async () => {
+    if (!desktopRuntime || !isConnected) return;
     try {
       const response = await sendQuery('getTrackingState');
       const currentState = response.data as TrackingStateResponse | undefined;
@@ -118,51 +147,58 @@ export function useDashboardData() {
     } catch (error) {
       console.error('[Dashboard] Error toggling pause:', error);
     }
-  }, [sendQuery, sendCommand, setPaused]);
+  }, [desktopRuntime, isConnected, sendQuery, sendCommand, setPaused]);
 
   const handleStopTracking = useCallback(async () => {
+    if (!desktopRuntime || !isConnected) return;
     try {
       await sendCommand('stopTracking');
     } catch (error) {
       console.error('[Dashboard] Error stopping tracking:', error);
     }
-  }, [sendCommand]);
+  }, [desktopRuntime, isConnected, sendCommand]);
 
   const handleSyncNow = useCallback(async () => {
+    if (!desktopRuntime || !isConnected) return;
     try {
       await sendCommand('syncNow');
     } catch (error) {
       console.error('[Dashboard] Error triggering sync:', error);
     }
-  }, [sendCommand]);
+  }, [desktopRuntime, isConnected, sendCommand]);
 
   // ============================================================================
   // LIFECYCLE - Initial fetch
   // ============================================================================
 
   useEffect(() => {
-    if (isConnected) {
-      fetchDashboardData();
+    if (desktopRuntime) {
+      if (isConnected) fetchDashboardData();
+      return;
     }
-  }, [isConnected, fetchDashboardData]);
+    fetchDashboardData();
+  }, [desktopRuntime, isConnected, fetchDashboardData]);
 
   // ============================================================================
   // LIFECYCLE - Polling
   // ============================================================================
 
   useEffect(() => {
-    if (!isConnected) return;
+    if (desktopRuntime && !isConnected) return;
 
+    const intervalMs = desktopRuntime ? POLLING_INTERVAL_MS : WEB_POLLING_INTERVAL_MS;
     pollingIntervalRef.current = setInterval(() => {
+      // Avoid backend polling when tab is hidden (WebUI).
+      if (!desktopRuntime && document.visibilityState !== 'visible') return;
       fetchDashboardData();
-    }, POLLING_INTERVAL_MS);
+    }, intervalMs);
 
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
     };
-  }, [isConnected, fetchDashboardData]);
+  }, [desktopRuntime, isConnected, fetchDashboardData]);
 
   // ============================================================================
   // LIFECYCLE - Event subscriptions
@@ -170,7 +206,7 @@ export function useDashboardData() {
 
   // Tracking started
   useEffect(() => {
-    if (!isConnected) return;
+    if (!desktopRuntime || !isConnected) return;
 
     const unsubscribe = subscribeToEvent('trackingStarted', () => {
       console.log('[Dashboard] Tracking started event received');
@@ -178,11 +214,11 @@ export function useDashboardData() {
     });
 
     return unsubscribe;
-  }, [isConnected, subscribeToEvent, fetchDashboardData]);
+  }, [desktopRuntime, isConnected, subscribeToEvent, fetchDashboardData]);
 
   // Tracking stopped
   useEffect(() => {
-    if (!isConnected) return;
+    if (!desktopRuntime || !isConnected) return;
 
     const unsubscribe = subscribeToEvent('trackingStopped', () => {
       console.log('[Dashboard] Tracking stopped event received');
@@ -190,11 +226,11 @@ export function useDashboardData() {
     });
 
     return unsubscribe;
-  }, [isConnected, subscribeToEvent, fetchDashboardData]);
+  }, [desktopRuntime, isConnected, subscribeToEvent, fetchDashboardData]);
 
   // Tracking state changed
   useEffect(() => {
-    if (!isConnected) return;
+    if (!desktopRuntime || !isConnected) return;
 
     const unsubscribe = subscribeToEvent('trackingStateChanged', (payload) => {
       console.log('[Dashboard] Tracking state changed:', payload);
@@ -202,11 +238,11 @@ export function useDashboardData() {
     });
 
     return unsubscribe;
-  }, [isConnected, subscribeToEvent]);
+  }, [desktopRuntime, isConnected, subscribeToEvent]);
 
   // Session updated
   useEffect(() => {
-    if (!isConnected) return;
+    if (!desktopRuntime || !isConnected) return;
 
     const unsubscribe = subscribeToEvent('sessionUpdated', (payload) => {
       console.log('[Dashboard] Session updated:', payload);
@@ -221,11 +257,11 @@ export function useDashboardData() {
     });
 
     return unsubscribe;
-  }, [isConnected, subscribeToEvent, sendQuery, setTodaySummary]);
+  }, [desktopRuntime, isConnected, subscribeToEvent, sendQuery, setTodaySummary]);
 
   // Sync progress changed
   useEffect(() => {
-    if (!isConnected) return;
+    if (!desktopRuntime || !isConnected) return;
 
     const unsubscribe = subscribeToEvent('syncProgressChanged', (payload) => {
       console.log('[Dashboard] Sync progress:', payload);
@@ -240,11 +276,11 @@ export function useDashboardData() {
     });
 
     return unsubscribe;
-  }, [isConnected, subscribeToEvent, syncState, setSyncState]);
+  }, [desktopRuntime, isConnected, subscribeToEvent, syncState, setSyncState]);
 
   // Sync completed
   useEffect(() => {
-    if (!isConnected) return;
+    if (!desktopRuntime || !isConnected) return;
 
     const unsubscribe = subscribeToEvent('syncCompleted', () => {
       console.log('[Dashboard] Sync completed');
@@ -254,11 +290,11 @@ export function useDashboardData() {
     });
 
     return unsubscribe;
-  }, [isConnected, subscribeToEvent, sendQuery, setSyncState]);
+  }, [desktopRuntime, isConnected, subscribeToEvent, sendQuery, setSyncState]);
 
   // Agent health changed
   useEffect(() => {
-    if (!isConnected) return;
+    if (!desktopRuntime || !isConnected) return;
 
     const unsubscribe = subscribeToEvent('agentHealthChanged', (payload) => {
       console.log('[Dashboard] Agent health changed:', payload);
@@ -266,7 +302,7 @@ export function useDashboardData() {
     });
 
     return unsubscribe;
-  }, [isConnected, subscribeToEvent]);
+  }, [desktopRuntime, isConnected, subscribeToEvent]);
 
   // Refresh when window becomes visible (restored from tray)
   useEffect(() => {

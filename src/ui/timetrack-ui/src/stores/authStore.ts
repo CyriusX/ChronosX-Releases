@@ -147,7 +147,7 @@ export const useAuthStore = create<AuthState>()(
       tokens: null,
       isAuthenticated: false,
       isLoading: false,
-      isRehydrating: true, // true until merge() completes
+      isRehydrating: true, // true until rehydration completes
       error: null,
 
       // Actions
@@ -301,7 +301,8 @@ export const useAuthStore = create<AuthState>()(
         tokens: state.tokens,
       }),
       // Use synchronous merge to restore session immediately.
-      // onRehydrateStorage does NOT fire reliably in WebView2/Zustand v4.5.
+      // This is more reliable than onRehydrateStorage which may not fire
+      // in certain WebView2/Zustand timing scenarios.
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<PersistedAuth>;
         const hasSession = !!(persisted.tokens && persisted.user);

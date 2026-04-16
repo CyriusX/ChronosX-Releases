@@ -93,7 +93,7 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
     >
       {/* Minhas Tarefas — only on meu-dia tab */}
       {!showTeamCard && <MyTasksWidget />}
-      {!showTeamCard && <FoldersAccessedCard />}
+      <FoldersAccessedCard userId={showTeamCard ? (selectedMemberId ?? undefined) : undefined} />
 
       {/* Equipe Agora */}
       {showTeamCard && (

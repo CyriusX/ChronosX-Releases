@@ -9,12 +9,15 @@ import { ProjectCard, type ProjectStats } from '../components/projects/ProjectCa
 import { ProjectModal } from '../components/projects/ProjectModal';
 import { SkeletonShimmer } from '../components/ui/SkeletonShimmer';
 import { listMyTasks, type Task } from '../services/projectsApi';
+import { usePermissions } from '../hooks/usePermissions';
 import { fadeUp, staggerContainer, STAGGER, SPRING, TIMING } from '../lib/animation';
 
 export default function Projects() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canManageTeam } = usePermissions();
   const [showArchived, setShowArchived] = useState(false);
+  const [mineOnly, setMineOnly] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
@@ -33,11 +36,11 @@ export default function Projects() {
   } = useProjectStore();
 
   useEffect(() => {
-    fetchProjects();
+    fetchProjects(undefined, mineOnly);
     listMyTasks(true)
       .then((res) => setAllTasks(res.tasks))
       .catch(() => {});
-  }, [fetchProjects]);
+  }, [fetchProjects, mineOnly]);
 
   // Per-project stats derived from all tasks
   const statsByProject = useMemo(() => {
@@ -53,8 +56,8 @@ export default function Projects() {
     return map;
   }, [allTasks]);
 
-  const activeProjects = projects.filter((p) => p.status === 'Active');
-  const archivedProjects = projects.filter((p) => p.status === 'Archived');
+  const activeProjects = projects.filter((p) => (p.status ?? '').toLowerCase() === 'active');
+  const archivedProjects = projects.filter((p) => (p.status ?? '').toLowerCase() === 'archived');
   const displayedProjects = showArchived ? archivedProjects : activeProjects;
 
   // Global stats across active projects
@@ -186,36 +189,63 @@ export default function Projects() {
           )}
 
           {/* Tabs */}
-          <div className="flex gap-2 mb-5">
-            {[
-              { key: false, label: t('projects.active'), count: activeProjects.length, icon: FolderOpen },
-              { key: true, label: t('projects.archived'), count: archivedProjects.length, icon: Archive },
-            ].map(({ key, label, count, icon: Icon }) => (
-              <button
-                key={String(key)}
-                onClick={() => setShowArchived(key)}
-                className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium transition-colors ${
-                  showArchived === key
-                    ? 'text-[#f5f7fb]'
-                    : 'text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)]'
-                }`}
-              >
-                {showArchived === key && (
-                  <motion.div
-                    layoutId="projects-tab-bg"
-                    className="absolute inset-0 bg-[rgba(255,255,255,0.07)] rounded-xl border border-[rgba(255,255,255,0.1)]"
-                    transition={SPRING.snappy}
-                  />
-                )}
-                <Icon className="w-3.5 h-3.5 relative z-10" />
-                <span className="relative z-10">{label}</span>
-                <span className={`relative z-10 px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
-                  showArchived === key ? 'bg-[rgba(255,255,255,0.1)] text-[rgba(245,247,251,0.8)]' : 'bg-[rgba(255,255,255,0.05)] text-[rgba(245,247,251,0.4)]'
-                }`}>
-                  {count}
-                </span>
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2 mb-5">
+            {canManageTeam && (
+              <div className="flex items-center gap-1.5 px-1.5 py-1 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]">
+                <button
+                  onClick={() => setMineOnly(true)}
+                  className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors ${
+                    mineOnly
+                      ? 'bg-[rgba(139,92,246,0.14)] text-[#8B5CF6] border border-[rgba(139,92,246,0.25)]'
+                      : 'text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)]'
+                  }`}
+                >
+                  {t('reports.myData')}
+                </button>
+                <button
+                  onClick={() => setMineOnly(false)}
+                  className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors ${
+                    !mineOnly
+                      ? 'bg-[rgba(139,92,246,0.14)] text-[#8B5CF6] border border-[rgba(139,92,246,0.25)]'
+                      : 'text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)]'
+                  }`}
+                >
+                  {t('reports.allTeam')}
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              {[
+                { key: false, label: t('projects.active'), count: activeProjects.length, icon: FolderOpen },
+                { key: true, label: t('projects.archived'), count: archivedProjects.length, icon: Archive },
+              ].map(({ key, label, count, icon: Icon }) => (
+                <button
+                  key={String(key)}
+                  onClick={() => setShowArchived(key)}
+                  className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium transition-colors ${
+                    showArchived === key
+                      ? 'text-[#f5f7fb]'
+                      : 'text-[rgba(245,247,251,0.5)] hover:text-[rgba(245,247,251,0.8)]'
+                  }`}
+                >
+                  {showArchived === key && (
+                    <motion.div
+                      layoutId="projects-tab-bg"
+                      className="absolute inset-0 bg-[rgba(255,255,255,0.07)] rounded-xl border border-[rgba(255,255,255,0.1)]"
+                      transition={SPRING.snappy}
+                    />
+                  )}
+                  <Icon className="w-3.5 h-3.5 relative z-10" />
+                  <span className="relative z-10">{label}</span>
+                  <span className={`relative z-10 px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
+                    showArchived === key ? 'bg-[rgba(255,255,255,0.1)] text-[rgba(245,247,251,0.8)]' : 'bg-[rgba(255,255,255,0.05)] text-[rgba(245,247,251,0.4)]'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Error */}

@@ -153,8 +153,11 @@ export interface ListNotificationsResponse {
 // API
 // ============================================================================
 
-export function listProjects(activeOnly: boolean = true): Promise<ListProjectsResponse> {
-  return api.get<ListProjectsResponse>(`/projects?activeOnly=${activeOnly}`);
+export function listProjects(activeOnly: boolean = true, mineOnly: boolean = true): Promise<ListProjectsResponse> {
+  const params = new URLSearchParams();
+  params.set('activeOnly', String(activeOnly));
+  if (mineOnly) params.set('mineOnly', 'true');
+  return api.get<ListProjectsResponse>(`/projects?${params.toString()}`);
 }
 
 export function getProject(id: string): Promise<ProjectItem> {

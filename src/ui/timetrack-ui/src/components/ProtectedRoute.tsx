@@ -20,7 +20,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const isRehydrating = useAuthStore((state) => state.isRehydrating);
   const location = useLocation();
 
-  // Show loading state while rehydrating or during explicit operations
+  // Show loading state while rehydrating (silent token refresh) or checking auth
   if (isRehydrating || isLoading) {
     return (
       <div className="min-h-screen bg-[#0b0d14] flex items-center justify-center">

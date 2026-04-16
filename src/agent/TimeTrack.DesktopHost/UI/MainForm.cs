@@ -177,6 +177,8 @@ public sealed class MainForm : Form
                     "app.local",
                     distFolder,
                     CoreWebView2HostResourceAccessKind.Allow);
+
+
                 // Append version as query parameter to bust WebView2 HTTP cache.
                 // Vite hashes JS/CSS filenames, but the index.html itself can be
                 // cached. The ?v= parameter forces a fresh fetch on each new version.

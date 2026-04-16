@@ -495,6 +495,8 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
 
   // Track if we've already done initial fetch with connected IPC
   const hasConnectedFetchRef = useRef(false);
+  // Track whether we already refreshed once with IPC available for today-overlay.
+  const fetchedWithIpcOverlayRef = useRef(false);
   // Track which filters were used for the last fetch to detect changes
   const lastFetchFiltersRef = useRef<string>('');
 
@@ -506,24 +508,28 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       filters.dateRange.startDate <= today &&
       filters.dateRange.endDate >= today;
 
-    // If period includes today AND viewing own data, wait for IPC to connect
-    if (includesToday && !isConnected) {
-      console.log('[useReportsData] Waiting for IPC connection before fetching (period includes today)');
-      return;
-    }
-
     // Build a fingerprint of the current filters to detect changes
     const filterKey = `${filters.dateRange.startDate}|${filters.dateRange.endDate}|${filters.userId ?? ''}|${filters.groupBy}`;
 
     // Reset the flag if filters changed (userId, dates, groupBy)
     if (lastFetchFiltersRef.current !== filterKey) {
       hasConnectedFetchRef.current = false;
+      fetchedWithIpcOverlayRef.current = false;
     }
 
     // Fetch data if we haven't fetched with these filters yet
     if (!hasConnectedFetchRef.current) {
       hasConnectedFetchRef.current = true;
       lastFetchFiltersRef.current = filterKey;
+      fetchedWithIpcOverlayRef.current = includesToday && isConnected;
+      refresh();
+      return;
+    }
+
+    // If we already fetched backend-only but IPC connected later, do one extra refresh
+    // to overlay today's local IPC day into the heatmap.
+    if (includesToday && isConnected && !fetchedWithIpcOverlayRef.current) {
+      fetchedWithIpcOverlayRef.current = true;
       refresh();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

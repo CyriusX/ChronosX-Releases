@@ -19,6 +19,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
 
     private readonly GetLocalDashboardUseCase _getDashboard;
     private readonly IBackendReportsClient _reportsClient;
+    private readonly IBackendMembersClient _membersClient;
     private readonly ILogger<GetTodaySummaryQueryHandler> _logger;
 
     // Internal apps excluded from dashboard totals (must match all other views)
@@ -37,10 +38,12 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     public GetTodaySummaryQueryHandler(
         GetLocalDashboardUseCase getDashboard,
         IBackendReportsClient reportsClient,
+        IBackendMembersClient membersClient,
         ILogger<GetTodaySummaryQueryHandler> logger)
     {
         _getDashboard = getDashboard;
         _reportsClient = reportsClient;
+        _membersClient = membersClient;
         _logger = logger;
     }
 
@@ -77,11 +80,13 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     {
         var localTask = _getDashboard.ExecuteAsync(targetDate, ct);
         var cloudTask = TryFetchCloudReportAsync(targetDate, ct);
+        var memberTask = TryFetchMemberSummaryAsync(ct);
 
-        await Task.WhenAll(localTask, cloudTask);
+        await Task.WhenAll(localTask, cloudTask, memberTask);
 
         var localDashboard = localTask.Result;
         var cloudReport    = cloudTask.Result;
+        var topProjects = MapTopProjects(memberTask.Result);
 
         var localSeconds = (long)localDashboard.TotalWorkTime.TotalSeconds;
         var cloudFilteredApps = cloudReport?.Apps
@@ -95,10 +100,10 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
             _logger.LogInformation(
                 "[GetTodaySummary] Cloud has more today data ({Cloud}s) than local ({Local}s) — using cloud",
                 cloudSeconds, localSeconds);
-            return await BuildResponseFromCloudReport(requestId, targetDate, cloudReport, cloudFilteredApps!, cloudSeconds, ct);
+            return await BuildResponseFromCloudReport(requestId, targetDate, cloudReport, cloudFilteredApps!, cloudSeconds, topProjects, ct);
         }
 
-        return await BuildFromLocalDashboard(requestId, targetDate, ct);
+        return await BuildFromLocalDashboard(requestId, targetDate, topProjects, ct);
     }
 
     private async Task<DailyReportResult?> TryFetchCloudReportAsync(DateTime date, CancellationToken ct)
@@ -107,10 +112,29 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         catch { return null; }
     }
 
+    private async Task<MemberSummaryResult?> TryFetchMemberSummaryAsync(CancellationToken ct)
+    {
+        try { return await _membersClient.GetMySummaryAsync(ct); }
+        catch { return null; }
+    }
+
+    private static object[] MapTopProjects(MemberSummaryResult? summary)
+    {
+        if (summary?.TopProjects == null || summary.TopProjects.Count == 0)
+            return Array.Empty<object>();
+
+        return summary.TopProjects.Select(p => new
+        {
+            name = p.Name,
+            duration = p.Duration,
+            percentage = p.Percentage
+        }).Cast<object>().ToArray();
+    }
+
     /// <summary>
     /// Builds summary from local SQLite (today's data, real-time).
     /// </summary>
-    private async Task<IpcResponse> BuildFromLocalDashboard(int requestId, DateTime targetDate, CancellationToken ct)
+    private async Task<IpcResponse> BuildFromLocalDashboard(int requestId, DateTime targetDate, object[]? topProjects, CancellationToken ct)
     {
         var dashboard = await _getDashboard.ExecuteAsync(targetDate, ct);
 
@@ -124,7 +148,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
             focusTime      = (long)TimeSpan.FromMilliseconds(dashboard.FocusTimeMs).TotalSeconds,
             focusScore     = dashboard.FocusScore,
             sessionsCount  = dashboard.SessionCount,
-            topProjects    = Array.Empty<object>(),
+            topProjects    = topProjects ?? Array.Empty<object>(),
 
             topApplications = dashboard.TopApplications.Select(a => new
             {
@@ -191,7 +215,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                     .ToList();
                 var totalActiveSeconds = filteredApps.Sum(a => (long)a.TotalSeconds);
 
-                return await BuildResponseFromCloudReport(requestId, targetDate, report, filteredApps, totalActiveSeconds, ct);
+                return await BuildResponseFromCloudReport(requestId, targetDate, report, filteredApps, totalActiveSeconds, Array.Empty<object>(), ct);
             }
         }
         catch (Exception ex)
@@ -203,7 +227,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         // Fallback: try local SQLite
         _logger.LogWarning("[GetTodaySummary] No data from backend for {Date}, falling back to local",
             targetDate.ToString("yyyy-MM-dd"));
-        return await BuildFromLocalDashboard(requestId, targetDate, ct);
+        return await BuildFromLocalDashboard(requestId, targetDate, Array.Empty<object>(), ct);
     }
 
     /// <summary>
@@ -216,6 +240,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         DailyReportResult report,
         List<DailyReportApp> filteredApps,
         long totalActiveSeconds,
+        object[]? topProjects,
         CancellationToken ct)
     {
         string resolveProductivity(DailyReportApp a) => a.Productivity ?? MapCategoryToProductivity(a.AppCategory);
@@ -234,7 +259,7 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
                 ? (int)Math.Round((double)productiveSeconds / totalActiveSeconds * 100)
                 : 0,
             sessionsCount  = filteredApps.Sum(a => a.SessionCount),
-            topProjects    = Array.Empty<object>(),
+            topProjects    = topProjects ?? Array.Empty<object>(),
 
             topApplications = filteredApps.Select(a =>
             {

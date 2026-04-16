@@ -66,6 +66,7 @@ async function refreshTokens(): Promise<'success' | 'auth_failed' | 'network_err
     });
 
     if (!response.ok) {
+      // Server explicitly rejected the refresh token (expired, revoked, invalid)
       return 'auth_failed';
     }
 
@@ -79,6 +80,7 @@ async function refreshTokens(): Promise<'success' | 'auth_failed' | 'network_err
 
     return 'success';
   } catch {
+    // Network error (offline, DNS failure, timeout) — don't clear auth
     return 'network_error';
   }
 }
@@ -110,13 +112,14 @@ async function handleTokenRefresh(): Promise<string | null> {
     failedQueue = [];
     return newToken || null;
   } else if (result === 'network_error') {
-    // Network error — don't clear auth
+    // Network error — don't clear auth. The user is still authenticated,
+    // they just can't reach the server right now.
     const error = new Error('Network error');
     failedQueue.forEach(({ reject }) => reject(error));
     failedQueue = [];
     return null;
   } else {
-    // Auth failed — logout user
+    // Auth failed (refresh token expired/revoked) — logout user
     const error = new Error('Session expired');
     failedQueue.forEach(({ reject }) => reject(error));
     failedQueue = [];
@@ -196,10 +199,10 @@ export async function apiClient<T>(
         // Retry with new token
         response = await makeRequest(newToken);
       } else if (useAuthStore.getState().isAuthenticated) {
-        // Network error — auth preserved, just throw
+        // Refresh failed due to network error — auth state is preserved, just throw
         throw new Error('Network error. Please check your connection and try again.');
       } else {
-        // Auth failed — already redirected to login
+        // Refresh failed due to auth error — already redirected to login
         throw new Error('Session expired. Please login again.');
       }
     }

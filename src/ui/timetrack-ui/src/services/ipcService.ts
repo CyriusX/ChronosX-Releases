@@ -107,14 +107,23 @@ export class IpcService implements IIpcClient {
     try {
       const payloadJson = payload !== undefined ? JSON.stringify(payload) : undefined;
 
-      // Bridge is either a postMessage-based bridge (returns native Promises)
-      // or a COM proxy. Both expose SendCommand returning Promise<string>.
-      const responseJson = await (bridge as unknown as {
-        SendCommand: (command: string, payloadJson?: string) => Promise<string>;
-      }).SendCommand(command, payloadJson);
+      // Bridge implementations differ:
+      // - Some expose `SendCommand/SendQuery` and return JSON string payloads (COM/WV2 proxy).
+      // - Others expose `sendCommand/sendQuery` and return objects directly (postMessage shims / tests).
+      const b = bridge as unknown as Record<string, unknown>;
+      const fn =
+        (b.SendCommand as ((c: string, p?: string) => Promise<unknown>) | undefined) ??
+        (b.sendCommand as ((c: string, p?: string) => Promise<unknown>) | undefined);
 
-      const response = JSON.parse(responseJson);
-      return response as IpcResponse<void>;
+      if (!fn) {
+        return { success: false, error: 'Bridge command method not available' };
+      }
+
+      const raw = await fn(command, payloadJson);
+      if (typeof raw === 'string') {
+        return JSON.parse(raw) as IpcResponse<void>;
+      }
+      return raw as IpcResponse<void>;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { success: false, error: errorMessage };
@@ -137,14 +146,20 @@ export class IpcService implements IIpcClient {
     }
 
     try {
-      // Bridge is either a postMessage-based bridge (returns native Promises)
-      // or a COM proxy. Both expose SendQuery returning Promise<string>.
-      const responseJson = await (bridge as unknown as {
-        SendQuery: (query: string, payloadJson?: string) => Promise<string>;
-      }).SendQuery(query as string, payloadJson);
+      const b = bridge as unknown as Record<string, unknown>;
+      const fn =
+        (b.SendQuery as ((q: string, p?: string) => Promise<unknown>) | undefined) ??
+        (b.sendQuery as ((q: string, p?: string) => Promise<unknown>) | undefined);
 
-      const response = JSON.parse(responseJson);
-      return response as IpcResponse<QueryResponseMap[K]>;
+      if (!fn) {
+        return { success: false, error: 'Bridge query method not available' };
+      }
+
+      const raw = await fn(query as string, payloadJson);
+      if (typeof raw === 'string') {
+        return JSON.parse(raw) as IpcResponse<QueryResponseMap[K]>;
+      }
+      return raw as IpcResponse<QueryResponseMap[K]>;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[IpcService] Error sending query ${query}:`, errorMessage);

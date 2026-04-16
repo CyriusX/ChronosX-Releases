@@ -6,42 +6,66 @@ import { cardBase as sharedCardBase } from './shared/styles';
 import { formatDuration } from '../../lib/utils';
 import { toLocalDateStr } from '../../types/reports';
 import { useIpc } from '../../hooks/useIpc';
+import { isDesktopRuntime } from '../../lib/runtime';
+import { getTopFolders } from '../../services/reportApi';
 import type { TopFoldersResponse } from '../../types/ipc';
 
 const POLL_INTERVAL_MS = 30_000;
 const cardBase = sharedCardBase + ' overflow-hidden';
 
-export function FoldersAccessedCard() {
+export function FoldersAccessedCard({
+  date,
+  limit = 5,
+  userId,
+}: {
+  date?: Date;
+  limit?: number;
+  userId?: string;
+} = {}) {
   const { t } = useTranslation();
   const { sendQuery, isConnected } = useIpc();
+  const desktopRuntime = isDesktopRuntime();
 
   const [data, setData] = useState<TopFoldersResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const dateStr = useMemo(() => toLocalDateStr(date ?? new Date()), [date]);
+  const isToday = useMemo(() => dateStr === toLocalDateStr(new Date()), [dateStr]);
+  const shouldUseIpc = desktopRuntime && isConnected && isToday && !userId;
+
   const fetchFolders = useCallback(async () => {
-    if (!isConnected) return;
     try {
-      const today = toLocalDateStr(new Date());
-      const res = await sendQuery('getTopFolders', { date: today, limit: 5 });
-      if (res.success) {
-        setData(res.data ?? { folders: [] });
+      if (shouldUseIpc) {
+        const res = await sendQuery('getTopFolders', { date: dateStr, limit });
+        if (res.success) {
+          setData(res.data ?? { folders: [] });
+        }
+        return;
       }
+
+      const backend = await getTopFolders(dateStr, dateStr, limit, userId);
+      setData(backend as unknown as TopFoldersResponse);
+    } catch {
+      setData({ folders: [] });
     } finally {
       setLoading(false);
     }
-  }, [isConnected, sendQuery]);
+  }, [shouldUseIpc, sendQuery, dateStr, limit, userId]);
 
   useEffect(() => {
     fetchFolders();
-    pollRef.current = setInterval(fetchFolders, POLL_INTERVAL_MS);
+    // Poll only when using IPC (today, desktop) for near real-time updates.
+    if (shouldUseIpc) {
+      pollRef.current = setInterval(fetchFolders, POLL_INTERVAL_MS);
+    }
     return () => {
       if (pollRef.current) {
         clearInterval(pollRef.current);
         pollRef.current = null;
       }
     };
-  }, [fetchFolders]);
+  }, [fetchFolders, shouldUseIpc]);
 
   const folders = useMemo(() => data?.folders ?? [], [data]);
 
@@ -92,4 +116,3 @@ export function FoldersAccessedCard() {
     </Card>
   );
 }
-
