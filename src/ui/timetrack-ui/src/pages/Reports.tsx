@@ -12,7 +12,7 @@
  * - DIP: Usa hook useReportsData para dados, componentes para UI
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -134,6 +134,31 @@ export default function Reports() {
 
   // Calculate summary statistics
   const summary = useReportsSummary(data);
+
+  // Some desktop webview navigation paths can render the page before the initial
+  // reports fetch is triggered (resulting in an all-zero UI until a filter changes).
+  // This one-time fallback ensures we fetch once on first mount if no data is present.
+  const hasAnyReportData = useMemo(() => {
+    const dailyHasAny = !!data.dailySummaryRange?.days?.some((d) => (d.totalActiveSeconds ?? 0) > 0);
+    const appsHasAny = (data.topApps?.apps?.length ?? 0) > 0;
+    const pathsHasAny = (data.topPaths?.paths?.length ?? 0) > 0;
+    const foldersHasAny = (data.topFolders?.folders?.length ?? 0) > 0;
+    const trendHasAny = !!data.productivityTrend?.periods?.some((p) =>
+      ((p.productiveSeconds ?? 0) + (p.neutralSeconds ?? 0) + (p.distractionSeconds ?? 0) + (p.idleSeconds ?? 0)) > 0
+    );
+    return dailyHasAny || appsHasAny || pathsHasAny || foldersHasAny || trendHasAny;
+  }, [data]);
+
+  const didInitialFetchFixupRef = useRef(false);
+  useEffect(() => {
+    if (didInitialFetchFixupRef.current) return;
+    if (isLoading || error) return;
+    if (hasAnyReportData) return;
+
+    didInitialFetchFixupRef.current = true;
+    const t = window.setTimeout(() => refresh(), 0);
+    return () => window.clearTimeout(t);
+  }, [isLoading, error, hasAnyReportData, refresh]);
 
   // Load team members for Admin/Manager
   useEffect(() => {
