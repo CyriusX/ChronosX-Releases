@@ -409,7 +409,7 @@ public sealed class MainForm : Form
                 headersBuilder.Append("Cache-Control: ").Append(string.Join(", ", cache)).Append("\r\n");
             }
 
-            e.Response = e.Environment.CreateWebResourceResponse(
+            e.Response = _webView?.CoreWebView2?.Environment?.CreateWebResourceResponse(
                 responseStream,
                 (int)response.StatusCode,
                 response.ReasonPhrase ?? "",
@@ -421,7 +421,7 @@ public sealed class MainForm : Form
 
             var body = Encoding.UTF8.GetBytes("{\"message\":\"DesktopHost API proxy error\",\"status\":502,\"code\":\"bad_gateway\"}");
             var stream = new MemoryStream(body);
-            e.Response = e.Environment.CreateWebResourceResponse(
+            e.Response = _webView?.CoreWebView2?.Environment?.CreateWebResourceResponse(
                 stream,
                 502,
                 "Bad Gateway",
@@ -450,7 +450,10 @@ public sealed class MainForm : Form
 
             try
             {
-                _webView.CoreWebView2Controller?.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);
+                if (_webView is { IsHandleCreated: true })
+                {
+                    _webView.Focus();
+                }
             }
             catch
             {

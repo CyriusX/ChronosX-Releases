@@ -7,7 +7,7 @@
     <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>TimeTrack.DesktopHost</RootNamespace>
-    <Version>1.0.30</Version>
+    <Version>1.0.31</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Resources\app-icon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
