@@ -147,7 +147,7 @@ export const useAuthStore = create<AuthState>()(
       tokens: null,
       isAuthenticated: false,
       isLoading: false,
-      isRehydrating: false,
+      isRehydrating: true, // true until rehydration completes
       error: null,
 
       // Actions
@@ -300,73 +300,19 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         tokens: state.tokens,
       }),
-      onRehydrateStorage: () => (state) => {
-        const store = useAuthStore;
+      // Use synchronous merge to restore session immediately.
+      // This is more reliable than onRehydrateStorage which may not fire
+      // in certain WebView2/Zustand timing scenarios.
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<PersistedAuth>;
+        const hasSession = !!(persisted.tokens && persisted.user);
 
-        // No persisted data — nothing to restore
-        if (!state?.tokens || !state?.user) {
-          return;
-        }
-
-        // Access token still valid — restore session immediately
-        if (state.tokens.expiresAt > Date.now()) {
-          store.setState({ isAuthenticated: true });
-          return;
-        }
-
-        // Access token expired — try silent refresh in the background.
-        // Do NOT block the UI: set a flag so the app can show a non-blocking
-        // "restoring session..." overlay while the refresh is in flight.
-        store.setState({ isRehydrating: true });
-
-        const tryRefresh = async () => {
-          try {
-            const response = await refreshApi(state.tokens!.refreshToken);
-
-            const newTokens: AuthTokens = {
-              accessToken: response.accessToken,
-              refreshToken: response.refreshToken,
-              expiresAt: Date.now() + response.expiresIn * 1000,
-            };
-
-            store.setState({
-              tokens: newTokens,
-              isAuthenticated: true,
-              isRehydrating: false,
-            });
-
-            // Notify Agent about the refreshed tokens
-            try {
-              const { getIpcService } = await import('../services');
-              const ipcService = getIpcService();
-              await ipcService.sendCommand('storeTokens', {
-                accessToken: response.accessToken,
-                refreshToken: response.refreshToken,
-              });
-            } catch {
-              // Non-critical
-            }
-          } catch {
-            // Refresh failed — session expired, clear auth
-            store.setState({
-              user: null,
-              tokens: null,
-              isAuthenticated: false,
-              error: null,
-              isRehydrating: false,
-            });
-          }
+        return {
+          ...currentState,
+          ...persisted,
+          isAuthenticated: hasSession,
+          isRehydrating: false,
         };
-
-        // Safety: force resolve after 10s no matter what
-        const safety = setTimeout(() => {
-          const current = store.getState();
-          if (current.isRehydrating) {
-            store.setState({ isRehydrating: false });
-          }
-        }, 10000);
-
-        tryRefresh().finally(() => clearTimeout(safety));
       },
     }
   )

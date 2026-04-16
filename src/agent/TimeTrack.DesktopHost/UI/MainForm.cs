@@ -161,10 +161,6 @@ public sealed class MainForm : Form
             // Initialize WebView2
             await _webView.EnsureCoreWebView2Async(env);
 
-            // Clear HTTP cache when the app version changes so the WebView
-            // always loads the latest UI assets instead of stale cached ones.
-            await ClearCacheOnVersionChangeAsync();
-
             // Set source after initialization
             if (bundlePath.StartsWith("http"))
             {
@@ -181,7 +177,12 @@ public sealed class MainForm : Form
                     "app.local",
                     distFolder,
                     CoreWebView2HostResourceAccessKind.Allow);
-                _webView.Source = new Uri("https://app.local/index.html");
+
+                // Append version as query parameter to bust WebView2 HTTP cache.
+                // Vite hashes JS/CSS filenames, but the index.html itself can be
+                // cached. The ?v= parameter forces a fresh fetch on each new version.
+                var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0";
+                _webView.Source = new Uri($"https://app.local/index.html?v={version}");
             }
         }
         catch (Exception ex)
@@ -453,50 +454,6 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error notifying connection state change");
-        }
-    }
-
-    /// <summary>
-    /// Clears the WebView2 HTTP cache when the application version changes.
-    /// This ensures users always get the latest UI assets after an update
-    /// instead of stale cached JavaScript/CSS bundles.
-    /// </summary>
-    private async Task ClearCacheOnVersionChangeAsync()
-    {
-        try
-        {
-            var currentVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
-            var markerPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "TimeTrack",
-                "last-version.txt");
-
-            string? lastVersion = null;
-            if (File.Exists(markerPath))
-            {
-                lastVersion = (await File.ReadAllTextAsync(markerPath)).Trim();
-            }
-
-            if (lastVersion == currentVersion)
-                return; // Same version — no cache clear needed
-
-            _logger.LogInformation(
-                "App version changed: {OldVersion} → {NewVersion}. Clearing WebView2 cache...",
-                lastVersion ?? "unknown", currentVersion);
-
-            // Clear the browser cache (JS, CSS, HTML, images)
-            await _webView!.CoreWebView2.Profile.ClearBrowsingDataAsync(
-                Microsoft.Web.WebView2.Core.CoreWebView2BrowsingDataKinds.AllProfile);
-
-            // Write the new version marker
-            Directory.CreateDirectory(Path.GetDirectoryName(markerPath)!);
-            await File.WriteAllTextAsync(markerPath, currentVersion);
-
-            _logger.LogInformation("WebView2 cache cleared successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to clear WebView2 cache on version change — continuing");
         }
     }
 
