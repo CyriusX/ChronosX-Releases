@@ -502,46 +502,50 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
   // ============================================================================
 
   // Track if we've already done initial fetch with connected IPC
-  const hasConnectedFetchRef = useRef(false);
-  // Track whether we already refreshed once with IPC available for today-overlay.
-  const fetchedWithIpcOverlayRef = useRef(false);
-  // Track which filters were used for the last fetch to detect changes
-  const lastFetchFiltersRef = useRef<string>('');
+  const lastFetchKeyRef = useRef<string | null>(null);
+  const lastFetchHadIpcOverlayRef = useRef(false);
 
   useEffect(() => {
-    if (!autoFetch || !filters.dateRange.startDate) return;
+    if (!autoFetch) return;
+    if (!filters.dateRange.startDate) return;
 
     const today = toLocalDateStr(new Date());
     const includesToday = !filters.userId &&
       filters.dateRange.startDate <= today &&
       filters.dateRange.endDate >= today;
+    const hasIpcOverlayNow = includesToday && isConnected;
 
-    // Build a fingerprint of the current filters to detect changes
-    const filterKey = `${filters.dateRange.startDate}|${filters.dateRange.endDate}|${filters.userId ?? ''}|${filters.groupBy}`;
+    // Include all inputs that affect the bundle response.
+    const key = [
+      filters.dateRange.startDate,
+      filters.dateRange.endDate,
+      filters.userId ?? '',
+      filters.groupBy,
+      String(filters.topAppsLimit),
+      String(filters.topPathsLimit),
+      String(filters.topFoldersLimit),
+    ].join('|');
 
-    // Reset the flag if filters changed (userId, dates, groupBy)
-    if (lastFetchFiltersRef.current !== filterKey) {
-      hasConnectedFetchRef.current = false;
-      fetchedWithIpcOverlayRef.current = false;
-    }
+    const isNewKey = lastFetchKeyRef.current !== key;
+    const needsOverlayRefetch = !isNewKey && hasIpcOverlayNow && !lastFetchHadIpcOverlayRef.current;
 
-    // Fetch data if we haven't fetched with these filters yet
-    if (!hasConnectedFetchRef.current) {
-      hasConnectedFetchRef.current = true;
-      lastFetchFiltersRef.current = filterKey;
-      fetchedWithIpcOverlayRef.current = includesToday && isConnected;
-      refresh();
-      return;
-    }
-
-    // If we already fetched backend-only but IPC connected later, do one extra refresh
-    // to overlay today's local IPC day into the heatmap.
-    if (includesToday && isConnected && !fetchedWithIpcOverlayRef.current) {
-      fetchedWithIpcOverlayRef.current = true;
+    if (isNewKey || needsOverlayRefetch) {
+      lastFetchKeyRef.current = key;
+      lastFetchHadIpcOverlayRef.current = hasIpcOverlayNow;
       refresh();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoFetch, filters.dateRange, filters.userId, filters.groupBy, isConnected]);
+  }, [
+    autoFetch,
+    filters.dateRange.startDate,
+    filters.dateRange.endDate,
+    filters.userId,
+    filters.groupBy,
+    filters.topAppsLimit,
+    filters.topPathsLimit,
+    filters.topFoldersLimit,
+    isConnected,
+    refresh,
+  ]);
 
   // ============================================================================
   // POLLING - Automatic refresh every 60 seconds

@@ -141,7 +141,9 @@ try
     builder.Services.AddScoped<IUserAuthorizationService, UserAuthorizationService>();
 
     // Rate Limiting
-    builder.Services.AddRateLimitingPolicies();
+    // Disabled: the desktop + web UI make bursty report requests and this was
+    // causing 429s/slow loads in real usage.
+    // builder.Services.AddRateLimitingPolicies();
 
     // Application Layer (MediatR, FluentValidation)
     builder.Services.AddApplication();
@@ -181,8 +183,8 @@ try
     // Note: HTTPS redirection disabled for containerized environments (EasyPanel handles SSL termination)
     // app.UseHttpsRedirection();
 
-    // Rate limiting (before authentication to protect unauthenticated endpoints)
-    app.UseRateLimiter();
+    // Rate limiting disabled (see above)
+    // app.UseRateLimiter();
 
     app.UseAuthentication();
     app.UseAuthorization();
