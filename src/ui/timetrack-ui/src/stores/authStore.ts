@@ -75,7 +75,21 @@ async function loginApi(email: string, password: string) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Login failed' }));
-    throw new Error(error.message || error.title || 'Login failed');
+
+    // Handles:
+    // - ValidationException: { code:"validation_failed", errors:{ Credentials:["Invalid..."] } }
+    // - ASP.NET model validation: { title:"One or more validation errors occurred.", errors:{ Email:["..."] } }
+    const errorsObj = (error as any)?.errors;
+    if (errorsObj && typeof errorsObj === 'object') {
+      const messages = Object.values(errorsObj as Record<string, string[] | string>)
+        .flatMap((v) => (Array.isArray(v) ? v : [String(v)]))
+        .filter(Boolean);
+      if (messages.length > 0) {
+        throw new Error(messages.join('; '));
+      }
+    }
+
+    throw new Error((error as any).message || (error as any).title || 'Login failed');
   }
 
   return response.json();
