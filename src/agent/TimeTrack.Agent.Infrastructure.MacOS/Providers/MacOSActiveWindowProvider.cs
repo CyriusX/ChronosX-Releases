@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Infrastructure.MacOS.Interop;
+using TimeTrack.Agent.Infrastructure.Providers.Windows;
 
 namespace TimeTrack.Agent.Infrastructure.MacOS.Providers;
 
@@ -141,15 +142,17 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
                 : null;
 
             var processName = Path.GetFileNameWithoutExtension(exePath) ?? "";
-            var filePath = _filePathExtractor.ExtractFilePath(IntPtr.Zero, processName, windowTitle);
+            // Prefer AXDocument (full path) when available; fall back to title parsing.
+            var axDocumentPath = GetActiveWindowDocumentPath(pid);
+            var filePath = axDocumentPath ?? _filePathExtractor.ExtractFilePath(IntPtr.Zero, processName, windowTitle);
+
+            var displayName = GetDisplayName(appName, exePath);
 
             string? browserUrl = null;
             if (IsBrowserBundle(appName, exePath))
             {
-                browserUrl = ExtractBrowserUrl(pid, windowTitle);
+                browserUrl = BrowserUrlExtractor.ExtractSiteFromTitle(windowTitle, displayName);
             }
-
-            var displayName = GetDisplayName(appName, exePath);
 
             return new ActiveWindowInfo
             {
@@ -394,6 +397,79 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
         }
     }
 
+    private string? GetActiveWindowDocumentPath(int pid)
+    {
+        try
+        {
+            var appRef = AXUIElementCreateApplication(pid);
+            if (appRef == IntPtr.Zero)
+                return null;
+
+            try
+            {
+                var focusedWindowRef = IntPtr.Zero;
+                var result = AXUIElementCopyAttributeValue(
+                    appRef,
+                    kAXFocusedWindowAttribute,
+                    out focusedWindowRef);
+
+                if (result != 0 || focusedWindowRef == IntPtr.Zero)
+                    return null;
+
+                try
+                {
+                    var docValue = IntPtr.Zero;
+                    result = AXUIElementCopyAttributeValue(
+                        focusedWindowRef,
+                        kAXDocumentAttribute,
+                        out docValue);
+
+                    if (result != 0 || docValue == IntPtr.Zero)
+                        return null;
+
+                    try
+                    {
+                        var raw = ObjCRuntime.NSStringToManaged(docValue);
+                        if (string.IsNullOrWhiteSpace(raw))
+                            return null;
+
+                        if (raw.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                var uri = new Uri(raw);
+                                return uri.LocalPath;
+                            }
+                            catch
+                            {
+                                // fall through to raw
+                            }
+                        }
+
+                        return raw;
+                    }
+                    finally
+                    {
+                        CFRelease(docValue);
+                    }
+                }
+                finally
+                {
+                    CFRelease(focusedWindowRef);
+                }
+            }
+            finally
+            {
+                CFRelease(appRef);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Error getting active window document path for PID {Pid}", pid);
+            return null;
+        }
+    }
+
     private string GetDisplayName(string appName, string exePath)
     {
         // The display name for a given bundle path never changes at runtime, so
@@ -540,6 +616,7 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 
     private static readonly IntPtr kAXFocusedWindowAttribute = CoreFoundationNative.CFStringCreate("AXFocusedWindow");
     private static readonly IntPtr kAXTitleAttribute = CoreFoundationNative.CFStringCreate("AXTitle");
+    private static readonly IntPtr kAXDocumentAttribute = CoreFoundationNative.CFStringCreate("AXDocument");
 
     #endregion
 }

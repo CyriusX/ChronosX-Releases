@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Providers;
 
@@ -99,13 +100,13 @@ public sealed class BrowserUrlExtractor : IBrowserUrlExtractor
             {
                 var site = stripped[(lastIdx + sep.Length)..].Trim();
                 if (site.Length > 1 && !IsGenericTitle(site))
-                    return site;
+                    return NormalizeSiteName(site);
             }
         }
 
         // No segments — the entire stripped title is the site name (e.g., "YouTube")
         if (!IsGenericTitle(stripped))
-            return stripped;
+            return NormalizeSiteName(stripped);
 
         return null;
     }
@@ -126,5 +127,27 @@ public sealed class BrowserUrlExtractor : IBrowserUrlExtractor
         return lower is "new tab" or "nova guia" or "nova aba"
             or "about:blank" or "start page" or "home"
             or "untitled" or "sem título";
+    }
+
+    /// <summary>
+    /// Removes dynamic content from a site name so the same site always
+    /// produces the same string regardless of notification counts or meeting IDs.
+    /// Examples:
+    ///   "(55) WhatsApp Web" → "WhatsApp Web"
+    ///   "Meet · abc-xyz-def" → "Google Meet"
+    /// </summary>
+    public static string NormalizeSiteName(string site)
+    {
+        if (string.IsNullOrWhiteSpace(site))
+            return site;
+
+        // Strip leading notification/badge counts: "(55) WhatsApp Web" → "WhatsApp Web"
+        site = Regex.Replace(site, @"^\(\d+\)\s+", string.Empty).Trim();
+
+        // Normalize Google Meet: "Meet · abc-xyz" or "Meet: abc-xyz" → "Google Meet"
+        if (Regex.IsMatch(site, @"^Meet\s*[·:\-]", RegexOptions.IgnoreCase))
+            return "Google Meet";
+
+        return site;
     }
 }

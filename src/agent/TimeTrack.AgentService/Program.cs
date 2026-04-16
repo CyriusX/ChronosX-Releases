@@ -17,6 +17,14 @@ IHost host = Host.CreateDefaultBuilder(args)
     })
     .ConfigureServices((context, services) =>
     {
+        // By default, an unhandled exception in any BackgroundService stops the whole host.
+        // We prefer resiliency: log and keep the agent service alive, relying on health/events
+        // to surface issues instead of hard-crashing the tracking process.
+        services.Configure<HostOptions>(options =>
+        {
+            options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+        });
+
         // Configuration
         services.AddAgentConfiguration(context.Configuration);
 

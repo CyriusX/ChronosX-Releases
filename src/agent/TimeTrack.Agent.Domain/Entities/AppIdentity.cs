@@ -29,6 +29,7 @@ public sealed class AppIdentity : EntityBase
         string exePathHash,
         string displayName,
         AppCategory? category = null)
+        : base(Guid.NewGuid())
     {
         if (string.IsNullOrWhiteSpace(exePathHash))
             throw DomainException.RequiredField(nameof(exePathHash));

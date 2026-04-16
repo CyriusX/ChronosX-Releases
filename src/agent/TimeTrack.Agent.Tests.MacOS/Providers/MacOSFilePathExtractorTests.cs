@@ -12,11 +12,11 @@ public class MacOSFilePathExtractorTests
 
     public MacOSFilePathExtractorTests()
     {
-        _extractor = new MacOSFilePathExtractor();
+        _extractor = new MacOSFilePathExtractor(new Mock<ILogger<MacOSFilePathExtractor>>().Object);
     }
 
     [Theory]
-    [InlineData("Finder", "Documents — john", "/Users/john/Documents")]
+    [InlineData("Finder", "/Users/john/Documents", "/Users/john/Documents")]
     [InlineData("Finder", "Projects", null)]
     public void ExtractFilePath_Should_HandleFinderTitles(string appName, string windowTitle, string? expectedPath)
     {
@@ -26,15 +26,19 @@ public class MacOSFilePathExtractorTests
         {
             result.Should().Be(expectedPath);
         }
+        else
+        {
+            result.Should().BeNull();
+        }
     }
 
     [Theory]
-    [InlineData("Code", "main.cs - TimeTrack - Visual Studio Code", "main.cs")]
-    public void ExtractFilePath_Should_HandleVSCodeTitles(string appName, string windowTitle, string expectedFileName)
+    [InlineData("Code", "/Users/john/TimeTrack/main.cs - Visual Studio Code", "/Users/john/TimeTrack/main.cs")]
+    public void ExtractFilePath_Should_HandleVSCodeTitles(string appName, string windowTitle, string expectedPath)
     {
         var result = _extractor.ExtractFilePath(IntPtr.Zero, appName, windowTitle);
 
-        result.Should().Contain(expectedFileName);
+        result.Should().Be(expectedPath);
     }
 
     [Theory]

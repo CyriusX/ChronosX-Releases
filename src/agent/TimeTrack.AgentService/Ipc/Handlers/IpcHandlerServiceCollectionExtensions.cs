@@ -56,6 +56,7 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcQueryHandler, GetTodaySummaryQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetRecentActivitiesQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetRecentAppsQueryHandler>();
+        services.AddSingleton<IIpcQueryHandler, GetTopFoldersQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetTrackingStateQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetCurrentStatusQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetSyncStateQueryHandler>();

@@ -109,29 +109,57 @@ public sealed class SyncWorker : BackgroundService
         try
         {
             // Redefinir itens presos no outbox ao iniciar (recuperação de backoff acumulado)
-            var resetCount = await _outboxRepository.ResetStuckItemsAsync(stoppingToken);
-            if (resetCount > 0)
+            try
             {
-                _logger.LogInformation(
-                    "SyncWorker: {Count} itens do outbox presos foram redefinidos na inicialização.",
-                    resetCount);
+                var resetCount = await _outboxRepository.ResetStuckItemsAsync(stoppingToken);
+                if (resetCount > 0)
+                {
+                    _logger.LogInformation(
+                        "SyncWorker: {Count} itens do outbox presos foram redefinidos na inicialização.",
+                        resetCount);
 
-                await _eventLogger.LogAsync("outbox.stuck_reset", AgentEventCategory.Error, AgentEventSeverity.Warning,
-                    $"{resetCount} itens do outbox presos foram redefinidos na inicialização",
-                    new { resetCount }, stoppingToken);
+                    await _eventLogger.LogAsync("outbox.stuck_reset", AgentEventCategory.Error, AgentEventSeverity.Warning,
+                        $"{resetCount} itens do outbox presos foram redefinidos na inicialização",
+                        new { resetCount }, stoppingToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SyncWorker failed to reset stuck outbox items on startup");
             }
 
             // Cleanup old data on startup — SQLite should only hold today's data + cache.
             // Runs independently of authentication: stale data from previous sessions must go.
-            await CleanupOldDataAsync(stoppingToken);
+            try
+            {
+                await CleanupOldDataAsync(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SyncWorker cleanup on startup failed, will retry in next cycles");
+            }
 
             // Primeira execução imediata
-            await ExecuteSyncCycleAsync(stoppingToken);
+            try
+            {
+                await ExecuteSyncCycleAsync(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "SyncWorker initial sync cycle failed");
+            }
 
             while (!stoppingToken.IsCancellationRequested &&
                    await periodicTimer.WaitForNextTickAsync(stoppingToken))
             {
-                await ExecuteSyncCycleAsync(stoppingToken);
+                try
+                {
+                    await ExecuteSyncCycleAsync(stoppingToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "SyncWorker sync cycle failed");
+                }
             }
         }
         catch (OperationCanceledException)
@@ -140,8 +168,7 @@ public sealed class SyncWorker : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogCritical(ex, "SyncWorker crashed");
-            throw;
+            _logger.LogCritical(ex, "SyncWorker crashed (outer loop). Worker will stop but host will remain alive.");
         }
 
         _logger.LogInformation("SyncWorker encerrado");
