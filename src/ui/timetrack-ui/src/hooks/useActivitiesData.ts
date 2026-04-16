@@ -182,11 +182,11 @@ export function useActivitiesData(): ActivitiesData {
         // - getDailyActivities: for timeline blocks
         const calStart = formatDatePayload(addDays(selectedDate, -15));
         const calEnd = formatDatePayload(addDays(selectedDate, 15));
-        const [rangeResult, topAppsResult, activitiesResult] = await Promise.all([
-          getDailySummaryRange(calStart, calEnd, userId).catch(() => null),
-          getTopApps(datePayload, datePayload, 20, userId).catch(() => null),
-          getDailyActivities(datePayload, userId).catch(() => null),
-        ]);
+        // NOTE: Intentionally sequential to avoid triggering the Reports rate limiter (429),
+        // which can cause long UI stalls due to retry/backoff.
+        const rangeResult = await getDailySummaryRange(calStart, calEnd, userId).catch(() => null);
+        const topAppsResult = await getTopApps(datePayload, datePayload, 20, userId).catch(() => null);
+        const activitiesResult = await getDailyActivities(datePayload, userId).catch(() => null);
 
         if (rangeResult) {
           // Find the specific day in the range

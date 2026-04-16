@@ -2,21 +2,40 @@ import AppKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // When running via `swift run` (not an app bundle), macOS may treat this as a background
+        // process: no Dock icon and the window may not receive keyboard focus (keystrokes go to the
+        // previously active app, e.g. VS Code). Force a regular activation policy.
+        NSApp.setActivationPolicy(.regular)
+        NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+
         // Ensure the background agent service is running. This covers the case
         // where the user launched the app directly (e.g. double-click, Spotlight)
         // without the LaunchAgent having started the service first.
         ensureAgentRunning()
+
+        // Bring the main window front and give it focus once SwiftUI has created it.
+        for delay in [0.1, 0.4, 1.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                NSApp.windows.first?.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 
     // MARK: - Agent lifecycle
 
     /// Launches the .NET background agent if it is not already running.
     private func ensureAgentRunning() {
-        let agentPath = Bundle.main.bundlePath
-            .appending("/Contents/Resources/agent/TimeTrack.MacOSAgentService")
+        let bundlePath = Bundle.main.bundlePath
+        let candidates = [
+            // Preferred: resources/agent (common macOS layout)
+            bundlePath.appending("/Contents/Resources/agent/TimeTrack.MacOSAgentService"),
+            // Our SPM build script currently publishes to Contents/MacOS/agent
+            bundlePath.appending("/Contents/MacOS/agent/TimeTrack.MacOSAgentService"),
+        ]
 
-        guard FileManager.default.fileExists(atPath: agentPath) else {
-            NSLog("[AppDelegate] Agent executable not found at: %@", agentPath)
+        guard let agentPath = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+            NSLog("[AppDelegate] Agent executable not found. Tried: %@", candidates.joined(separator: " | "))
             return
         }
 

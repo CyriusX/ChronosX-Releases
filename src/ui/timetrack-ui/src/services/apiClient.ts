@@ -11,8 +11,10 @@
  */
 
 import { useAuthStore } from '../stores/authStore';
+import { getApiBaseUrl } from './apiBase';
+import { dispatchNavigate } from './navigationEvents';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const apiBase = () => getApiBaseUrl();
 
 // ============================================================================
 // TYPES
@@ -51,6 +53,7 @@ let failedQueue: Array<{
   resolve: (token: string) => void;
   reject: (error: Error) => void;
 }> = [];
+let sessionExpiredDispatched = false;
 
 /**
  * Try to get fresh tokens from the Agent via IPC.
@@ -93,7 +96,7 @@ async function refreshTokens(): Promise<'success' | 'auth_failed' | 'network_err
   }
 
   try {
-    const response = await fetch(`${API_BASE}/auth/refresh`, {
+    const response = await fetch(`${apiBase()}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: authStore.tokens.refreshToken }),
@@ -164,9 +167,12 @@ async function handleTokenRefresh(): Promise<string | null> {
     const error = new Error('Session expired');
     failedQueue.forEach(({ reject }) => reject(error));
     failedQueue = [];
-    dispatchSessionExpired('Sua sessão expirou. Por favor, faça login novamente.');
+    if (!sessionExpiredDispatched) {
+      sessionExpiredDispatched = true;
+      dispatchSessionExpired('Sua sessão expirou. Por favor, faça login novamente.');
+      dispatchNavigate('/login', true);
+    }
     useAuthStore.getState().clearAuth();
-    window.location.hash = '/login';
     return null;
   }
 }
@@ -198,7 +204,7 @@ export async function apiClient<T>(
   }
 
   // Build URL
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+  const url = endpoint.startsWith('http') ? endpoint : `${apiBase()}${endpoint}`;
 
   const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
   const getRetryAfterMs = (response: Response) => {

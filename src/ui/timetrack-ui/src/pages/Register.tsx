@@ -1,21 +1,36 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../stores/authStore';
 import { shakeX, SPRING, TIMING } from '../lib/animation';
 import logoImg from '../assets/logo-128.png';
+import { isDesktopRuntime } from '../lib/runtime';
 
 export default function Register() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { register, isLoading, error, setError } = useAuthStore();
+  const shouldAnimate = !isDesktopRuntime();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [organizationName, setOrganizationName] = useState('');
   const [success, setSuccess] = useState(false);
+  const displayNameRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const focus = () => displayNameRef.current?.focus();
+    const t1 = window.setTimeout(focus, 0);
+    const t2 = window.setTimeout(focus, 150);
+    const t3 = window.setTimeout(focus, 600);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +60,7 @@ export default function Register() {
       <div className="min-h-screen bg-[#0b0d14] flex items-center justify-center p-4">
         <motion.div
           className="w-full max-w-md text-center"
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={shouldAnimate ? { opacity: 0, scale: 0.95 } : false}
           animate={{ opacity: 1, scale: 1 }}
           transition={SPRING.gentle}
         >
@@ -64,7 +79,11 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0d14] flex items-center justify-center p-4">
+    <div
+      className="min-h-screen bg-[#0b0d14] flex items-center justify-center p-4"
+      onMouseDown={() => displayNameRef.current?.focus()}
+      onTouchStart={() => displayNameRef.current?.focus()}
+    >
       <div className="w-full max-w-md">
         {/* Logo/Title */}
         <div className="text-center mb-8">
@@ -72,13 +91,13 @@ export default function Register() {
             src={logoImg}
             alt="ChronosX"
             className="w-20 h-20 mx-auto mb-4 drop-shadow-[0_0_20px_rgba(139,92,246,0.3)]"
-            initial={{ opacity: 0, scale: 0.8 }}
+            initial={shouldAnimate ? { opacity: 0, scale: 0.8 } : false}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: 'spring', stiffness: SPRING.gentle.stiffness, damping: SPRING.gentle.damping, delay: 0.1 }}
           />
           <motion.h1
             className="text-3xl font-bold text-white mb-2"
-            initial={{ opacity: 0, y: 20 }}
+            initial={shouldAnimate ? { opacity: 0, y: 20 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
@@ -86,7 +105,7 @@ export default function Register() {
           </motion.h1>
           <motion.p
             className="text-zinc-400"
-            initial={{ opacity: 0, y: 20 }}
+            initial={shouldAnimate ? { opacity: 0, y: 20 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
@@ -98,7 +117,7 @@ export default function Register() {
         <motion.form
           onSubmit={handleSubmit}
           className="bg-[#12141c] rounded-xl p-6 shadow-xl"
-          initial={{ opacity: 0, y: 30 }}
+          initial={shouldAnimate ? { opacity: 0, y: 30 } : false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...SPRING.gentle, delay: 0.3 }}
         >
@@ -107,7 +126,7 @@ export default function Register() {
             {error && (
               <motion.div
                 className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg overflow-hidden"
-                initial={{ opacity: 0, height: 0 }}
+                initial={shouldAnimate ? { opacity: 0, height: 0 } : false}
                 animate={{ opacity: 1, height: 'auto', ...shakeX }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: TIMING.normal }}
@@ -120,7 +139,7 @@ export default function Register() {
           {/* Name Field */}
           <motion.div
             className="mb-4"
-            initial={{ opacity: 0, y: 12 }}
+            initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: TIMING.normal, delay: 0.38 }}
           >
@@ -130,6 +149,7 @@ export default function Register() {
             <input
               type="text"
               id="displayName"
+              ref={displayNameRef}
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               required
@@ -142,7 +162,7 @@ export default function Register() {
           {/* Organization Name Field */}
           <motion.div
             className="mb-4"
-            initial={{ opacity: 0, y: 12 }}
+            initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: TIMING.normal, delay: 0.46 }}
           >
@@ -163,7 +183,7 @@ export default function Register() {
           {/* Email Field */}
           <motion.div
             className="mb-4"
-            initial={{ opacity: 0, y: 12 }}
+            initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: TIMING.normal, delay: 0.54 }}
           >
@@ -184,7 +204,7 @@ export default function Register() {
           {/* Password Field */}
           <motion.div
             className="mb-4"
-            initial={{ opacity: 0, y: 12 }}
+            initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: TIMING.normal, delay: 0.62 }}
           >
@@ -207,7 +227,7 @@ export default function Register() {
           {/* Confirm Password Field */}
           <motion.div
             className="mb-6"
-            initial={{ opacity: 0, y: 12 }}
+            initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: TIMING.normal, delay: 0.7 }}
           >
@@ -263,7 +283,7 @@ export default function Register() {
         {/* Footer */}
         <motion.p
           className="text-center text-zinc-500 text-sm mt-6"
-          initial={{ opacity: 0, y: 12 }}
+          initial={shouldAnimate ? { opacity: 0, y: 12 } : false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: TIMING.normal, delay: 0.8 }}
         >
