@@ -1,6 +1,16 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace TimeTrack.Backend.Application.Reports.DTOs;
+
+public sealed class ReportsBundleError
+{
+    [JsonPropertyName("section")]
+    public string Section { get; init; } = string.Empty;
+
+    [JsonPropertyName("code")]
+    public string Code { get; init; } = "internal_error";
+}
 
 /// <summary>
 /// Composite response for the reports page to avoid client-side fan-out and rate limiting.
@@ -31,5 +41,10 @@ public sealed class ReportsBundleResponse
     /// </summary>
     [JsonPropertyName("topFolders")]
     public TopFoldersResponse? TopFolders { get; init; }
-}
 
+    /// <summary>
+    /// Non-fatal errors: if present, the bundle returned partial data with the failed sections listed here.
+    /// </summary>
+    [JsonPropertyName("errors")]
+    public List<ReportsBundleError> Errors { get; init; } = [];
+}

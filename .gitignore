@@ -89,3 +89,9 @@ src/build/
 .build/
 Package.resolved
 *.png
+
+# Internal pitch docs (generated for presentations)
+Pitch Docs/
+
+# Local editor / tooling artifacts
+.kilo/

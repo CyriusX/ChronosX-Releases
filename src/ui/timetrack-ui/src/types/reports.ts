@@ -172,6 +172,7 @@ export interface ReportsBundleResponse {
   topFolders?: TopFoldersResponse;
   distractionStats: DistractionStatsResponse;
   categoryDistribution: CategoryDistributionResponse;
+  errors?: Array<{ section: string; code: string }>;
 }
 
 // ============================================================================

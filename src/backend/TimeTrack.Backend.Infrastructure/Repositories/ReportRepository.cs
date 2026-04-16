@@ -489,8 +489,8 @@ public sealed class ReportRepository : IReportRepository
                 g.Key.AppSubcategory,
                 // Raw sum of durations clipped to the queried window — done in SQL
                 TotalSeconds = g.Sum(a =>
-                    (int)((a.EndedAt > endExclusive ? endExclusive : a.EndedAt) -
-                          (a.StartedAt < start ? start : a.StartedAt)).TotalSeconds),
+                    (long)((a.EndedAt > endExclusive ? endExclusive : a.EndedAt) -
+                           (a.StartedAt < start ? start : a.StartedAt)).TotalSeconds),
                 SessionCount = g.Count()
             })
             .ToListAsync(cancellationToken);
@@ -537,6 +537,33 @@ public sealed class ReportRepository : IReportRepository
     // Threshold for long focus block: 25 minutes in seconds
     private const long LongFocusBlockThresholdSeconds = 25 * 60;
 
+    private sealed record SessionRangeRow(
+        DateTime StartedAt,
+        DateTime EndedAt,
+        string ProcessName,
+        string? AppCategory,
+        string? AppSubcategory,
+        Guid? TaskId);
+
+    private sealed record IdleRangeRow(DateTime StartedAt, DateTime EndedAt);
+
+    private sealed record FocusSlice(
+        DateTime StartedAtUtc,
+        long DurationSeconds,
+        bool IsProductive,
+        bool IsDistraction,
+        string ProcessName);
+
+    private sealed class DayBucket
+    {
+        public List<(DateTime Start, DateTime End)> ActiveIntervals { get; } = [];
+        public List<(DateTime Start, DateTime End)> ProductiveIntervals { get; } = [];
+        public List<(DateTime Start, DateTime End)> IdleIntervals { get; } = [];
+        public List<FocusSlice> Slices { get; } = [];
+        public HashSet<string> DistractionApps { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public long DistractionMs { get; set; }
+    }
+
     public async Task<IEnumerable<DailySummaryItem>> GetDailySummaryRangeAsync(
         IReadOnlyList<Guid> userIds,
         DateTime startDate,
@@ -544,27 +571,25 @@ public sealed class ReportRepository : IReportRepository
         string? timezone = null,
         CancellationToken cancellationToken = default)
     {
+        if (userIds.Count == 0) return [];
+
         var tz = GetTimezone(timezone);
         var (start, end) = GetUtcBoundaries(startDate, endDate, timezone);
 
-        // Buscar sessões and idle periods — include EndedAt for proper midnight-crossing handling.
-        // Exclude internal/system apps (same as agent's local dashboard) to avoid inflating totals
-        // with "Tracking Stopped" placeholder sessions and our own UI processes.
-        // Use overlap query: include sessions that OVERLAP with the range, not just ones that
-        // start within it. A session starting just before local midnight that ends in the range
-        // (cross-midnight session) must be included so ClipDuration can split it correctly.
-        var rawSessionsForRange = await _context.ActivitySessions
+        // Load sessions + idle periods that OVERLAP with the range.
+        // We'll split them into per-day slices in a single pass (O(n)), instead of
+        // repeatedly scanning all sessions for each day (O(n * days)).
+        var sessions = await _context.ActivitySessions
             .AsNoTracking()
             .Where(a => userIds.Contains(a.UserId) && a.StartedAt <= end && a.EndedAt > start)
-            .Select(a => new { a.StartedAt, a.EndedAt, a.ProcessName, a.AppCategory, a.AppSubcategory, a.TaskId })
+            .Select(a => new SessionRangeRow(
+                a.StartedAt,
+                a.EndedAt,
+                a.ProcessName,
+                a.AppCategory,
+                a.AppSubcategory,
+                a.TaskId))
             .ToListAsync(cancellationToken);
-
-        // Compute duration from timestamps to avoid stale DurationSeconds
-        var sessions = rawSessionsForRange.Select(a => new {
-            a.StartedAt, a.EndedAt,
-            DurationSeconds = (int)(a.EndedAt - a.StartedAt).TotalSeconds,
-            a.ProcessName, a.AppCategory, a.AppSubcategory, a.TaskId
-        }).ToList();
 
         // Filter out internal/system apps in-memory (EF can't translate HashSet.Contains with OrdinalIgnoreCase)
         sessions = sessions
@@ -574,105 +599,128 @@ public sealed class ReportRepository : IReportRepository
         // Load org-level overrides for this user
         var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
-        // Overlap query for idle periods: include periods crossing day boundaries.
-        // Keep EndedAt so ClipDuration can split cross-midnight idle periods correctly.
-        var idlePeriods = (await _context.IdlePeriods
+        var idlePeriods = await _context.IdlePeriods
             .AsNoTracking()
             .Where(i => userIds.Contains(i.UserId) && i.StartedAt <= end && i.EndedAt > start)
-            .Select(i => new { i.StartedAt, i.EndedAt })
-            .ToListAsync(cancellationToken))
-            .Select(i => new { i.StartedAt, i.EndedAt, DurationSeconds = (int)(i.EndedAt - i.StartedAt).TotalSeconds })
-            .ToList();
+            .Select(i => new IdleRangeRow(i.StartedAt, i.EndedAt))
+            .ToListAsync(cancellationToken);
 
-        // Agrupar por local date — iterate local days and compute UTC boundaries per day.
-        // Sessions are clipped to day boundaries so midnight-crossing sessions are split
-        // proportionally: only the portion that overlaps the day counts.
-        var result = new List<DailySummaryItem>();
+        // Pre-compute UTC boundaries for each local day once.
+        var dayBounds = new Dictionary<DateTime, (DateTime StartUtc, DateTime EndUtcExclusive)>();
+        var buckets = new Dictionary<DateTime, DayBucket>();
         for (var localDate = startDate.Date; localDate <= endDate.Date; localDate = localDate.AddDays(1))
         {
             var (dayStart, dayEnd) = GetUtcBoundaries(localDate, localDate, timezone);
-            var dayEndExclusive = dayEnd.AddTicks(1); // use exclusive end for arithmetic
+            dayBounds[localDate] = (dayStart, dayEnd.AddTicks(1));
+            buckets[localDate] = new DayBucket();
+        }
 
-            // Include sessions that OVERLAP with this day (not just StartedAt within it).
-            // A session overlaps if it started before dayEnd AND ended after dayStart.
-            var daySessions = sessions
-                .Where(s => s.StartedAt <= dayEnd && s.EndedAt > dayStart)
-                .ToList();
-            // Overlap filter for idle: include any idle period that overlaps with this day
-            var dayIdle = idlePeriods
-                .Where(i => i.StartedAt < dayEndExclusive && i.EndedAt > dayStart)
-                .ToList();
+        static DateTime AsUtc(DateTime dt) => DateTime.SpecifyKind(dt, DateTimeKind.Utc);
 
-            // Clip each session's duration to the day boundaries.
-            // If a session is entirely within the day, use full DurationSeconds.
-            // If it crosses midnight, only count the portion that falls in this day.
-            long ClipDuration(DateTime sessStart, DateTime sessEnd, int rawDuration)
+        static DateTime LocalInclusiveEnd(DateTime localEnd)
+            => localEnd == DateTime.MinValue ? localEnd : localEnd.AddTicks(-1);
+
+        // Slice sessions into day buckets (single pass).
+        foreach (var s in sessions)
+        {
+            var startUtc = AsUtc(s.StartedAt);
+            var endUtc = AsUtc(s.EndedAt);
+            if (endUtc <= startUtc) continue;
+
+            var localStart = TimeZoneInfo.ConvertTimeFromUtc(startUtc, tz);
+            var localEnd = TimeZoneInfo.ConvertTimeFromUtc(endUtc, tz);
+            var firstDay = localStart.Date;
+            var lastDay = LocalInclusiveEnd(localEnd).Date;
+
+            var storedProductivity = ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides);
+            var isProductive = s.TaskId != null || storedProductivity == "productive";
+            var isDistraction = s.TaskId == null && storedProductivity == "distraction";
+
+            for (var day = firstDay; day <= lastDay; day = day.AddDays(1))
             {
-                var clippedStart = sessStart < dayStart ? dayStart : sessStart;
-                var clippedEnd = sessEnd > dayEndExclusive ? dayEndExclusive : sessEnd;
-                var clippedSeconds = (long)(clippedEnd - clippedStart).TotalSeconds;
-                // Never exceed the raw duration (avoid rounding issues)
-                return Math.Clamp(clippedSeconds, 0, rawDuration);
+                if (!dayBounds.TryGetValue(day, out var bounds)) continue;
+
+                var clippedStart = startUtc < bounds.StartUtc ? bounds.StartUtc : startUtc;
+                var clippedEnd = endUtc > bounds.EndUtcExclusive ? bounds.EndUtcExclusive : endUtc;
+                if (clippedEnd <= clippedStart) continue;
+
+                var durationSeconds = (long)(clippedEnd - clippedStart).TotalSeconds;
+                if (durationSeconds <= 0) continue;
+
+                var bucket = buckets[day];
+                bucket.ActiveIntervals.Add((clippedStart, clippedEnd));
+                if (isProductive)
+                    bucket.ProductiveIntervals.Add((clippedStart, clippedEnd));
+
+                bucket.Slices.Add(new FocusSlice(
+                    StartedAtUtc: clippedStart,
+                    DurationSeconds: durationSeconds,
+                    IsProductive: isProductive,
+                    IsDistraction: isDistraction,
+                    ProcessName: s.ProcessName));
+
+                if (isDistraction)
+                {
+                    bucket.DistractionApps.Add(s.ProcessName);
+                    bucket.DistractionMs += durationSeconds * 1000;
+                }
             }
+        }
 
-            // Use merged intervals to prevent double-counting overlapping sessions
-            // (e.g. from agent restarts that create new sessions for the same time window).
-            var clippedActiveIntervals = daySessions.Select(s => (
-                Start: s.StartedAt < dayStart ? dayStart : s.StartedAt,
-                End:   s.EndedAt > dayEndExclusive ? dayEndExclusive : s.EndedAt
-            ));
-            var totalActive = ComputeMergedSeconds(clippedActiveIntervals);
-            var totalIdle = dayIdle.Sum(i => ClipDuration(i.StartedAt, i.EndedAt, i.DurationSeconds));
+        // Slice idle periods (single pass).
+        foreach (var idle in idlePeriods)
+        {
+            var startUtc = AsUtc(idle.StartedAt);
+            var endUtc = AsUtc(idle.EndedAt);
+            if (endUtc <= startUtc) continue;
 
-            // Calcular produtividade (using merged intervals + overrides).
-            // A session that ran while a kanban task was in progress (TaskId set) ALWAYS counts
-            // as productive — the user explicitly opted into focused work on a tracked task.
-            var clippedProductiveIntervals = daySessions
-                .Where(s => s.TaskId != null || ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
-                .Select(s => (
-                    Start: s.StartedAt < dayStart ? dayStart : s.StartedAt,
-                    End:   s.EndedAt > dayEndExclusive ? dayEndExclusive : s.EndedAt
-                ));
-            var productiveSeconds = ComputeMergedSeconds(clippedProductiveIntervals);
+            var localStart = TimeZoneInfo.ConvertTimeFromUtc(startUtc, tz);
+            var localEnd = TimeZoneInfo.ConvertTimeFromUtc(endUtc, tz);
+            var firstDay = localStart.Date;
+            var lastDay = LocalInclusiveEnd(localEnd).Date;
 
-            // DEBUG: Log productivity calculation
-            var productiveCount = daySessions.Count(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive");
-            var neutralCount = daySessions.Count(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "neutral");
-            var distractionCountDebug = daySessions.Count(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction");
-            _logger?.LogInformation(
-                "GetDailySummaryRangeAsync Day={Date}: TotalActive={TotalActive}s, Productive={Productive}s ({ProductiveCount} sessions), Neutral={NeutralCount} sessions, Distraction={DistractionCount} sessions",
-                localDate, totalActive, productiveSeconds, productiveCount, neutralCount, distractionCountDebug);
+            for (var day = firstDay; day <= lastDay; day = day.AddDays(1))
+            {
+                if (!dayBounds.TryGetValue(day, out var bounds)) continue;
+
+                var clippedStart = startUtc < bounds.StartUtc ? bounds.StartUtc : startUtc;
+                var clippedEnd = endUtc > bounds.EndUtcExclusive ? bounds.EndUtcExclusive : endUtc;
+                if (clippedEnd <= clippedStart) continue;
+
+                buckets[day].IdleIntervals.Add((clippedStart, clippedEnd));
+            }
+        }
+
+        // Materialize results ordered by day (same shape/semantics as before).
+        var result = new List<DailySummaryItem>(buckets.Count);
+        for (var localDate = startDate.Date; localDate <= endDate.Date; localDate = localDate.AddDays(1))
+        {
+            var bucket = buckets[localDate];
+
+            var totalActive = ComputeMergedSeconds(bucket.ActiveIntervals);
+            var productiveSeconds = ComputeMergedSeconds(bucket.ProductiveIntervals);
+
+            // Keep the old behavior (sum clipped durations) for idle seconds.
+            var totalIdle = (long)bucket.IdleIntervals.Sum(i => (i.End - i.Start).TotalSeconds);
 
             var productivityRatio = totalActive > 0
                 ? (double)productiveSeconds / totalActive
                 : 0;
 
-            // Calcular Focus Score inline
             short focusScore = 0;
             var distractionCount = 0;
             var longFocusBlockCount = 0;
 
             if (totalActive > 0)
             {
-                // Contar distrações (apps únicos de distração) — task-linked sessions never count.
-                distractionCount = daySessions
-                    .Where(s => s.TaskId == null && ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
-                    .Select(s => s.ProcessName)
-                    .Distinct()
-                    .Count();
+                distractionCount = bucket.DistractionApps.Count;
 
-                // Contar blocos de foco longo (>25min consecutivos em apps produtivos OU vinculados a tarefas)
-                // Use clipped durations for accurate day-level accounting
                 var currentFocusBlockSeconds = 0L;
-                foreach (var session in daySessions.OrderBy(s => s.StartedAt))
+                foreach (var slice in bucket.Slices.OrderBy(s => s.StartedAtUtc))
                 {
-                    var isProductive = session.TaskId != null
-                        || ResolveProductivityWithOverrides(session.ProcessName, session.AppCategory, overrides) == "productive";
-                    var durationSeconds = ClipDuration(session.StartedAt, session.EndedAt, session.DurationSeconds);
-
-                    if (isProductive)
+                    if (slice.IsProductive)
                     {
-                        currentFocusBlockSeconds += durationSeconds;
+                        currentFocusBlockSeconds += slice.DurationSeconds;
                     }
                     else
                     {
@@ -681,19 +729,13 @@ public sealed class ReportRepository : IReportRepository
                         currentFocusBlockSeconds = 0;
                     }
                 }
-                // Flush final block
                 if (currentFocusBlockSeconds >= LongFocusBlockThresholdSeconds)
                     longFocusBlockCount++;
-
-                // Calcular Focus Score (using clipped durations)
-                var distractionMs = daySessions
-                    .Where(s => s.TaskId == null && ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
-                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds) * 1000);
 
                 var input = FocusScoreInput.Create(
                     totalTrackedMs: totalActive * 1000,
                     focusTimeMs: productiveSeconds * 1000,
-                    distractionMs: distractionMs,
+                    distractionMs: bucket.DistractionMs,
                     distractionCount: distractionCount,
                     pauseCount: 0,
                     idleCount: 0,
@@ -768,42 +810,92 @@ public sealed class ReportRepository : IReportRepository
         // For "week"/"month" grouping, use StartedAt-based grouping with full durations.
         if (groupBy.Equals("day", StringComparison.OrdinalIgnoreCase))
         {
-            var result = new List<ProductivityTrendItem>();
+            // Pre-compute UTC boundaries for each local day once.
+            var dayBounds = new Dictionary<DateTime, (DateTime StartUtc, DateTime EndUtcExclusive)>();
+            var acc = new Dictionary<DateTime, (long Productive, long Neutral, long Distraction, long Idle)>();
+
             for (var localDate = startDate.Date; localDate <= endDate.Date; localDate = localDate.AddDays(1))
             {
                 var (dayStart, dayEnd) = GetUtcBoundaries(localDate, localDate, timezone);
-                var dayEndExclusive = dayEnd.AddTicks(1);
+                dayBounds[localDate] = (dayStart, dayEnd.AddTicks(1));
+                acc[localDate] = (0, 0, 0, 0);
+            }
 
-                // Sessions that OVERLAP this day (same logic as DailySummaryRange)
-                var daySessions = sessions.Where(s => s.StartedAt <= dayEnd && s.EndedAt > dayStart).ToList();
-                var dayIdle = idlePeriods.Where(i => i.StartedAt < dayEndExclusive && i.EndedAt > dayStart).ToList();
+            static DateTime AsUtc(DateTime dt) => DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+            static DateTime LocalInclusiveEnd(DateTime localEnd) => localEnd.AddTicks(-1);
 
-                // Clip durations to day boundaries
-                long ClipDuration(DateTime sessStart, DateTime sessEnd, int rawDuration)
+            foreach (var s in sessions)
+            {
+                var startUtc = AsUtc(s.StartedAt);
+                var endUtc = AsUtc(s.EndedAt);
+                if (endUtc <= startUtc) continue;
+
+                var localStart = ToLocal(startUtc);
+                var localEnd = ToLocal(endUtc);
+                var firstDay = localStart.Date;
+                var lastDay = LocalInclusiveEnd(localEnd).Date;
+
+                var prod = ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) ?? "neutral";
+
+                for (var day = firstDay; day <= lastDay; day = day.AddDays(1))
                 {
-                    var clippedStart = sessStart < dayStart ? dayStart : sessStart;
-                    var clippedEnd = sessEnd > dayEndExclusive ? dayEndExclusive : sessEnd;
-                    return Math.Clamp((long)(clippedEnd - clippedStart).TotalSeconds, 0, rawDuration);
+                    if (!dayBounds.TryGetValue(day, out var bounds)) continue;
+
+                    var clippedStart = startUtc < bounds.StartUtc ? bounds.StartUtc : startUtc;
+                    var clippedEnd = endUtc > bounds.EndUtcExclusive ? bounds.EndUtcExclusive : endUtc;
+                    if (clippedEnd <= clippedStart) continue;
+
+                    var seconds = (long)(clippedEnd - clippedStart).TotalSeconds;
+                    if (seconds <= 0) continue;
+
+                    var cur = acc[day];
+                    acc[day] = prod switch
+                    {
+                        "productive" => (cur.Productive + seconds, cur.Neutral, cur.Distraction, cur.Idle),
+                        "distraction" => (cur.Productive, cur.Neutral, cur.Distraction + seconds, cur.Idle),
+                        _ => (cur.Productive, cur.Neutral + seconds, cur.Distraction, cur.Idle)
+                    };
                 }
+            }
 
-                var productive = daySessions
-                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "productive")
-                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
-                var distraction = daySessions
-                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "distraction")
-                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
-                var neutral = daySessions
-                    .Where(s => ResolveProductivityWithOverrides(s.ProcessName, s.AppCategory, overrides) == "neutral")
-                    .Sum(s => ClipDuration(s.StartedAt, s.EndedAt, s.DurationSeconds));
-                var idleSeconds = dayIdle.Sum(i => ClipDuration(i.StartedAt, i.EndedAt, i.DurationSeconds));
+            foreach (var i in idlePeriods)
+            {
+                var startUtc = AsUtc(i.StartedAt);
+                var endUtc = AsUtc(i.EndedAt);
+                if (endUtc <= startUtc) continue;
 
+                var localStart = ToLocal(startUtc);
+                var localEnd = ToLocal(endUtc);
+                var firstDay = localStart.Date;
+                var lastDay = LocalInclusiveEnd(localEnd).Date;
+
+                for (var day = firstDay; day <= lastDay; day = day.AddDays(1))
+                {
+                    if (!dayBounds.TryGetValue(day, out var bounds)) continue;
+
+                    var clippedStart = startUtc < bounds.StartUtc ? bounds.StartUtc : startUtc;
+                    var clippedEnd = endUtc > bounds.EndUtcExclusive ? bounds.EndUtcExclusive : endUtc;
+                    if (clippedEnd <= clippedStart) continue;
+
+                    var seconds = (long)(clippedEnd - clippedStart).TotalSeconds;
+                    if (seconds <= 0) continue;
+
+                    var cur = acc[day];
+                    acc[day] = (cur.Productive, cur.Neutral, cur.Distraction, cur.Idle + seconds);
+                }
+            }
+
+            var result = new List<ProductivityTrendItem>(acc.Count);
+            for (var localDate = startDate.Date; localDate <= endDate.Date; localDate = localDate.AddDays(1))
+            {
+                var v = acc[localDate];
                 result.Add(new ProductivityTrendItem
                 {
                     Period = localDate.ToString("yyyy-MM-dd"),
-                    ProductiveSeconds = productive,
-                    NeutralSeconds = neutral,
-                    DistractionSeconds = distraction,
-                    IdleSeconds = idleSeconds
+                    ProductiveSeconds = v.Productive,
+                    NeutralSeconds = v.Neutral,
+                    DistractionSeconds = v.Distraction,
+                    IdleSeconds = v.Idle
                 });
             }
             return result;
@@ -869,7 +961,7 @@ public sealed class ReportRepository : IReportRepository
             .ToListAsync(cancellationToken))
             .Select(a => new {
                 a.ProcessName, a.WindowTitle, a.FilePath,
-                DurationSeconds = (int)Math.Max(0, (
+                DurationSeconds = (long)Math.Max(0, (
                     (a.EndedAt > endExclusivePaths ? endExclusivePaths : a.EndedAt) -
                     (a.StartedAt < start ? start : a.StartedAt)
                 ).TotalSeconds)
@@ -929,7 +1021,7 @@ public sealed class ReportRepository : IReportRepository
             {
                 a.ProcessName,
                 a.FilePath,
-                DurationSeconds = (int)Math.Max(0, (
+                DurationSeconds = (long)Math.Max(0, (
                     (a.EndedAt > endExclusive ? endExclusive : a.EndedAt) -
                     (a.StartedAt < start ? start : a.StartedAt)
                 ).TotalSeconds)
@@ -950,7 +1042,7 @@ public sealed class ReportRepository : IReportRepository
             .Select(g => new TopFolderAggregate
             {
                 FolderPath = g.Key,
-                TotalSeconds = g.Sum(x => (long)x.DurationSeconds),
+                TotalSeconds = g.Sum(x => x.DurationSeconds),
                 VisitCount = g.Count()
             })
             .OrderByDescending(f => f.TotalSeconds)
@@ -978,7 +1070,7 @@ public sealed class ReportRepository : IReportRepository
             .ToListAsync(cancellationToken))
             .Select(a => new {
                 a.StartedAt, a.ProcessName,
-                DurationSeconds = (int)Math.Max(0, (
+                DurationSeconds = (long)Math.Max(0, (
                     (a.EndedAt > endExclusiveDistr ? endExclusiveDistr : a.EndedAt) -
                     (a.StartedAt < start ? start : a.StartedAt)
                 ).TotalSeconds),
@@ -1050,7 +1142,7 @@ public sealed class ReportRepository : IReportRepository
             .ToListAsync(cancellationToken))
             .Select(a => new {
                 a.ProcessName,
-                DurationSeconds = (int)Math.Max(0, (
+                DurationSeconds = (long)Math.Max(0, (
                     (a.EndedAt > endExclusiveCat ? endExclusiveCat : a.EndedAt) -
                     (a.StartedAt < start ? start : a.StartedAt)
                 ).TotalSeconds),

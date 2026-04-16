@@ -73,7 +73,6 @@ public sealed class DailyActivitiesQueryHandler : IRequestHandler<DailyActivitie
         var overrideLookup = await BuildOverrideLookupAsync(sessions, cancellationToken);
 
         var sessionDtos = sessions
-            .OrderBy(s => s.StartedAt)
             .Select(s => new ActivitySessionDto
             {
                 ProcessName = s.ProcessName,

@@ -1,8 +1,10 @@
+using System.Collections.Generic;
 using System.Text;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Logging;
 using TimeTrack.Api.Extensions;
 using TimeTrack.Backend.Application.Common.Exceptions;
 using TimeTrack.Backend.Application.Common.Interfaces;
@@ -29,19 +31,22 @@ public sealed class ReportsController : ControllerBase
     private readonly ICurrentUserContext _currentUser;
     private readonly IAuditLogService _auditLogService;
     private readonly IUserRepository _userRepository;
+    private readonly ILogger<ReportsController> _logger;
 
     public ReportsController(
         ISender mediator,
         IUserAuthorizationService authorizationService,
         ICurrentUserContext currentUser,
         IAuditLogService auditLogService,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        ILogger<ReportsController> logger)
     {
         _mediator = mediator;
         _authorizationService = authorizationService;
         _currentUser = currentUser;
         _auditLogService = auditLogService;
         _userRepository = userRepository;
+        _logger = logger;
     }
 
     /// <summary>
@@ -447,87 +452,135 @@ public sealed class ReportsController : ControllerBase
                 cancellationToken);
         }
 
+        Response.Headers["X-Trace-Id"] = HttpContext.TraceIdentifier;
+
         try
         {
-            var dailySummaryRangeTask = _mediator.Send(new DailySummaryRangeQuery(
+            // IMPORTANT: do NOT run these queries concurrently.
+            // Each query ultimately uses the same scoped DbContext via repositories,
+            // and EF Core DbContext is not thread-safe (concurrent operations throw).
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var lastMs = 0L;
+            var errors = new List<ReportsBundleError>();
+
+            async Task<TResponse> SendSafe<TResponse>(string section, IRequest<TResponse> request)
+                where TResponse : new()
+            {
+                try
+                {
+                    return await _mediator.Send(request, cancellationToken);
+                }
+                catch (ForbiddenException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ReportsBundle: {Section} failed", section);
+                    errors.Add(new ReportsBundleError { Section = section, Code = "internal_error" });
+                    return new TResponse();
+                }
+            }
+
+            var dailySummaryRange = await SendSafe("dailySummaryRange", new DailySummaryRangeQuery(
                 UserId: targetUserId,
                 StartDate: startDate,
                 EndDate: endDate,
                 Timezone: timezone,
                 UserIds: teamUserIds
-            ), cancellationToken);
+            ));
+            var nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: DailySummaryRange in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
 
-            var productivityTrendTask = _mediator.Send(new ProductivityTrendQuery(
+            var productivityTrend = await SendSafe("productivityTrend", new ProductivityTrendQuery(
                 UserId: targetUserId,
                 StartDate: startDate,
                 EndDate: endDate,
                 GroupBy: groupBy.ToLowerInvariant(),
                 Timezone: timezone,
                 UserIds: teamUserIds
-            ), cancellationToken);
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: ProductivityTrend in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
 
-            var topAppsTask = _mediator.Send(new TopAppsQuery(
+            var topApps = await SendSafe("topApps", new TopAppsQuery(
                 UserId: targetUserId,
                 StartDate: startDate,
                 EndDate: endDate,
-                Limit: topAppsLimit,
+                Limit: Math.Clamp(topAppsLimit, 1, 100),
                 Timezone: timezone,
                 UserIds: teamUserIds
-            ), cancellationToken);
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: TopApps in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
 
-            var topPathsTask = _mediator.Send(new TopPathsQuery(
+            var topPaths = await SendSafe("topPaths", new TopPathsQuery(
                 UserId: targetUserId,
                 StartDate: startDate,
                 EndDate: endDate,
-                Limit: topPathsLimit,
+                Limit: Math.Clamp(topPathsLimit, 1, 100),
                 Timezone: timezone,
                 UserIds: teamUserIds
-            ), cancellationToken);
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: TopPaths in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
 
-            var distractionStatsTask = _mediator.Send(new DistractionStatsQuery(
+            var distractionStats = await SendSafe("distractionStats", new DistractionStatsQuery(
                 UserId: targetUserId,
                 StartDate: startDate,
                 EndDate: endDate,
                 Timezone: timezone,
                 UserIds: teamUserIds
-            ), cancellationToken);
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: DistractionStats in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
 
-            var categoryDistributionTask = _mediator.Send(new CategoryDistributionQuery(
+            var categoryDistribution = await SendSafe("categoryDistribution", new CategoryDistributionQuery(
                 UserId: targetUserId,
                 StartDate: startDate,
                 EndDate: endDate,
                 Timezone: timezone,
                 UserIds: teamUserIds
-            ), cancellationToken);
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: CategoryDistribution in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
 
-            var topFoldersTask = _mediator.Send(new TopFoldersQuery(
+            var topFolders = await SendSafe("topFolders", new TopFoldersQuery(
                 UserId: targetUserId,
                 StartDate: startDate,
                 EndDate: endDate,
-                Limit: topFoldersLimit,
+                Limit: Math.Clamp(topFoldersLimit, 1, 100),
                 Timezone: timezone,
                 UserIds: teamUserIds
-            ), cancellationToken);
-
-            await Task.WhenAll(
-                dailySummaryRangeTask,
-                productivityTrendTask,
-                topAppsTask,
-                topPathsTask,
-                distractionStatsTask,
-                categoryDistributionTask,
-                topFoldersTask);
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: TopFolders in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
 
             var bundle = new ReportsBundleResponse
             {
-                DailySummaryRange = dailySummaryRangeTask.Result,
-                ProductivityTrend = productivityTrendTask.Result,
-                TopApps = topAppsTask.Result,
-                TopPaths = topPathsTask.Result,
-                DistractionStats = distractionStatsTask.Result,
-                CategoryDistribution = categoryDistributionTask.Result,
-                TopFolders = topFoldersTask.Result
+                DailySummaryRange = dailySummaryRange,
+                ProductivityTrend = productivityTrend,
+                TopApps = topApps,
+                TopPaths = topPaths,
+                DistractionStats = distractionStats,
+                CategoryDistribution = categoryDistribution,
+                TopFolders = topFolders,
+                Errors = errors
             };
+
+            var etag = ETagGenerator.Generate(bundle);
+            Response.Headers.ETag = $"\"{etag}\"";
+            if (ETagGenerator.Matches(Request.Headers.IfNoneMatch, etag))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
 
             return Ok(bundle);
         }

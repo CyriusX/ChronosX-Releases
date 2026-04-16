@@ -70,6 +70,33 @@ struct WebViewContainer: NSViewRepresentable {
     @Binding var webView: WKWebView?
     static var schemeHandler: TimeTrackSchemeHandler?
 
+    private static func resolveDistURL() -> URL? {
+        let fm = FileManager.default
+
+        // 1) Production app bundle: Contents/Resources/dist
+        if let bundleDist = Bundle.main.resourceURL?.appendingPathComponent("dist"),
+           fm.fileExists(atPath: bundleDist.path) {
+            return bundleDist
+        }
+
+        // 2) Dev (SwiftPM): run from repo root or package dir
+        let cwd = URL(fileURLWithPath: fm.currentDirectoryPath)
+        let candidates: [URL] = [
+            cwd.appendingPathComponent("dist"),
+            cwd.appendingPathComponent("../../ui/timetrack-ui/dist"),
+            cwd.appendingPathComponent("../../../ui/timetrack-ui/dist"),
+            cwd.appendingPathComponent("../../../../src/ui/timetrack-ui/dist"),
+        ].map { $0.standardizedFileURL }
+
+        for url in candidates {
+            if fm.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+
+        return nil
+    }
+
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         let userContentController = WKUserContentController()
@@ -86,16 +113,14 @@ struct WebViewContainer: NSViewRepresentable {
         config.userContentController = userContentController
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
-        // Resolve dist directory — use resourceURL for reliable directory lookup
-        // (Bundle.path(forResource:ofType:) can fail for directories on some OS versions)
-        let distURL = Bundle.main.resourceURL?.appendingPathComponent("dist")
-        let distExists = distURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+        let distURL = Self.resolveDistURL()
+        let distExists = distURL != nil
 
         NSLog("[WebView] resourceURL: %@", Bundle.main.resourceURL?.path ?? "nil")
         NSLog("[WebView] distPath: %@ exists=%d", distURL?.path ?? "nil", distExists ? 1 : 0)
 
         // Register scheme handler so timetrack://app/api/... proxies to backend
-        if distExists, let distURL = distURL {
+        if let distURL = distURL {
             let handler = TimeTrackSchemeHandler(resourcePath: distURL.path)
             Self.schemeHandler = handler
             config.setURLSchemeHandler(handler, forURLScheme: "timetrack")

@@ -454,6 +454,14 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
         }
       }
 
+      const failedSections = (bundle.errors ?? [])
+        .map(e => e.section)
+        .filter(Boolean);
+      if (failedSections.length > 0) {
+        console.warn('[useReportsData] Bundle returned partial data:', bundle.errors);
+        setError(`Some report sections failed to load: ${failedSections.join(', ')}`);
+      }
+
       setData({
         dailySummaryRange: bundle.dailySummaryRange,
         productivityTrend: bundle.productivityTrend,

@@ -3,11 +3,14 @@ import UserNotifications
 
 @MainActor
 class NotificationManager: NSObject, ObservableObject {
+    private let isAvailable: Bool
+
     override init() {
-        super.init()
         // UNUserNotificationCenter requires a properly signed app bundle.
         // Skip on unsigned/dev builds to avoid SIGABRT at startup.
-        guard Bundle.main.bundleIdentifier != nil else {
+        self.isAvailable = Bundle.main.bundleIdentifier != nil
+        super.init()
+        guard isAvailable else {
             print("[NotificationManager] No bundle identifier — skipping UNUserNotificationCenter setup")
             return
         }
@@ -15,6 +18,7 @@ class NotificationManager: NSObject, ObservableObject {
     }
 
     func requestAuthorization() {
+        guard isAvailable else { return }
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if granted {
                 print("Notification authorization granted")
@@ -25,6 +29,7 @@ class NotificationManager: NSObject, ObservableObject {
     }
 
     func sendNotification(title: String, body: String, identifier: String? = nil) {
+        guard isAvailable else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -40,6 +45,7 @@ class NotificationManager: NSObject, ObservableObject {
     }
 
     func sendNotification(title: String, body: String, actions: [NotificationAction], identifier: String? = nil) {
+        guard isAvailable else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -72,10 +78,12 @@ class NotificationManager: NSObject, ObservableObject {
     }
 
     func clearNotification(identifier: String) {
+        guard isAvailable else { return }
         UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [identifier])
     }
 
     func clearAllNotifications() {
+        guard isAvailable else { return }
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
     }
 }

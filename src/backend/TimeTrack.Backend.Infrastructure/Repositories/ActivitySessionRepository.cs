@@ -53,8 +53,9 @@ public sealed class ActivitySessionRepository : IActivitySessionRepository
         // ones that start within it. Cross-midnight sessions that start just before startDate
         // and end within the range are included so the timeline shows them.
         return await _context.ActivitySessions
+            .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt < endDate && a.EndedAt >= startDate)
-            .OrderByDescending(a => a.StartedAt)
+            .OrderBy(a => a.StartedAt)
             .ToListAsync(cancellationToken);
     }
 
