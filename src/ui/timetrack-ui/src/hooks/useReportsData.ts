@@ -24,6 +24,7 @@ import {
   getCategoryDistribution,
 } from '../services/reportApi';
 import { useIpc } from './useIpc';
+import { isDesktopRuntime } from '../lib/runtime';
 import type {
   DailySummaryRangeResponse,
   ProductivityTrendResponse,
@@ -161,6 +162,8 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
   // Polling refs
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFetchingRef = useRef(false);
+  const pendingRefreshRef = useRef(false);
+  const refreshImplRef = useRef<() => Promise<void>>(async () => {});
 
   // ============================================================================
   // FILTER SETTERS
@@ -207,7 +210,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
   // IPC FOR LOCAL DATA (Today only)
   // ============================================================================
 
-  const { sendQuery, isConnected } = useIpc();
+  const { sendQuery, subscribeToEvent, isConnected } = useIpc();
 
   // ============================================================================
   // DATA FETCHERS
@@ -392,7 +395,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
   // REFRESH ALL
   // ============================================================================
 
-  const refresh = useCallback(async () => {
+  const refreshImpl = useCallback(async () => {
     console.log('[useReportsData] Refresh called', {
       startDate: filters.dateRange.startDate,
       endDate: filters.dateRange.endDate,
@@ -404,13 +407,15 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       return;
     }
 
-    // Prevent concurrent fetches
+    // Prevent concurrent fetches (queue a refresh instead of dropping it).
     if (isFetchingRef.current) {
-      console.log('[useReportsData] Skipping refresh - fetch already in progress');
+      pendingRefreshRef.current = true;
+      console.log('[useReportsData] Queued refresh - fetch already in progress');
       return;
     }
 
     isFetchingRef.current = true;
+    pendingRefreshRef.current = false;
     setIsLoading(true);
     setError(null);
 
@@ -478,6 +483,15 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     } finally {
       setIsLoading(false);
       isFetchingRef.current = false;
+
+      // If a refresh was requested while we were fetching (e.g. syncCompleted / IPC overlay ready),
+      // run it once more with the latest filters.
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        queueMicrotask(() => {
+          void refreshImplRef.current();
+        });
+      }
     }
   }, [
     filters.dateRange.startDate,
@@ -491,6 +505,12 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     sendQuery,
     convertTodaySummaryToDayItem,
   ]);
+
+  useEffect(() => {
+    refreshImplRef.current = refreshImpl;
+  }, [refreshImpl]);
+
+  const refresh = useCallback(async () => refreshImplRef.current(), []);
 
   const refreshTopFolders = useCallback(async () => {
     // Single-call bundle refresh; we keep this method for API compatibility with the hook shape.
@@ -580,6 +600,36 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       }
     };
   }, [autoFetch, filters.dateRange.startDate, refresh]);
+
+  // ============================================================================
+  // DESKTOP IPC EVENTS - Refresh after sync completes
+  // ============================================================================
+
+  useEffect(() => {
+    if (!autoFetch) return;
+    if (!isDesktopRuntime()) return;
+    if (!isConnected) return;
+
+    const unsubscribe = subscribeToEvent('syncCompleted', () => {
+      console.log('[useReportsData] Sync completed - refreshing reports');
+      refresh();
+    });
+
+    return unsubscribe;
+  }, [autoFetch, isConnected, subscribeToEvent, refresh]);
+
+  // Refresh when window becomes visible (restored from tray) on Desktop.
+  useEffect(() => {
+    if (!autoFetch) return;
+    if (!isDesktopRuntime()) return;
+
+    const handleAppVisible = () => {
+      console.log('[useReportsData] App became visible - refreshing reports');
+      refresh();
+    };
+    window.addEventListener('app-visible', handleAppVisible);
+    return () => window.removeEventListener('app-visible', handleAppVisible);
+  }, [autoFetch, refresh]);
 
   // ============================================================================
   // RETURN
