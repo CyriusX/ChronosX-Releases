@@ -9,9 +9,10 @@ interface ProtectedRouteProps {
 /**
  * ProtectedRoute - Guards routes that require authentication
  *
- * Shows a loading spinner while rehydrating tokens (e.g. silent refresh on startup)
- * or while an explicit loading operation is in progress.
- * Redirects to /login only when rehydration finishes and user is not authenticated.
+ * Redirects to /login if user is not authenticated.
+ * Shows a loading spinner only during an explicit loading operation (e.g. login).
+ * isRehydrating (silent token refresh) does NOT block the UI — the user sees
+ * the login page immediately and gets redirected back once refresh succeeds.
  */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { t } = useTranslation();
@@ -20,8 +21,9 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const isRehydrating = useAuthStore((state) => state.isRehydrating);
   const location = useLocation();
 
-  // Show loading state while rehydrating (silent token refresh) or checking auth
-  if (isRehydrating || isLoading) {
+  // Show loading spinner only during explicit operations (login/register),
+  // NOT during background token refresh.
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0b0d14] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -47,10 +49,12 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // Redirect to login if not authenticated
-  if (!isAuthenticated) {
+  // Not authenticated and not in the middle of a background refresh → login
+  if (!isAuthenticated && !isRehydrating) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Authenticated OR rehydrating in background → show the protected content.
+  // If rehydrating fails, the store will clear auth and a re-render will redirect.
   return <>{children}</>;
 }

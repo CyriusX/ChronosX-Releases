@@ -78,17 +78,25 @@ async function loginApi(email: string, password: string) {
 }
 
 async function refreshApi(refreshToken: string) {
-  const response = await fetch(`${API_BASE}/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-  if (!response.ok) {
-    throw new Error('Token refresh failed');
+  try {
+    const response = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error('Token refresh failed');
+    }
+
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return response.json();
 }
 
 async function registerApi(email: string, password: string, displayName: string, organizationName: string): Promise<RegisterResponse> {
@@ -139,7 +147,7 @@ export const useAuthStore = create<AuthState>()(
       tokens: null,
       isAuthenticated: false,
       isLoading: false,
-      isRehydrating: true, // true until rehydration completes (refresh attempt or validation)
+      isRehydrating: false,
       error: null,
 
       // Actions
@@ -297,18 +305,20 @@ export const useAuthStore = create<AuthState>()(
 
         // No persisted data — nothing to restore
         if (!state?.tokens || !state?.user) {
-          store.setState({ isRehydrating: false });
           return;
         }
 
         // Access token still valid — restore session immediately
         if (state.tokens.expiresAt > Date.now()) {
-          store.setState({ isAuthenticated: true, isRehydrating: false });
+          store.setState({ isAuthenticated: true });
           return;
         }
 
-        // Access token expired but refresh token may still be valid (90 days).
-        // Attempt silent refresh instead of immediately logging out.
+        // Access token expired — try silent refresh in the background.
+        // Do NOT block the UI: set a flag so the app can show a non-blocking
+        // "restoring session..." overlay while the refresh is in flight.
+        store.setState({ isRehydrating: true });
+
         const tryRefresh = async () => {
           try {
             const response = await refreshApi(state.tokens!.refreshToken);
@@ -334,10 +344,10 @@ export const useAuthStore = create<AuthState>()(
                 refreshToken: response.refreshToken,
               });
             } catch {
-              // Non-critical — Agent will receive tokens on next connection
+              // Non-critical
             }
           } catch {
-            // Refresh failed — session truly expired, clear auth
+            // Refresh failed — session expired, clear auth
             store.setState({
               user: null,
               tokens: null,
@@ -348,7 +358,15 @@ export const useAuthStore = create<AuthState>()(
           }
         };
 
-        tryRefresh();
+        // Safety: force resolve after 10s no matter what
+        const safety = setTimeout(() => {
+          const current = store.getState();
+          if (current.isRehydrating) {
+            store.setState({ isRehydrating: false });
+          }
+        }, 10000);
+
+        tryRefresh().finally(() => clearTimeout(safety));
       },
     }
   )

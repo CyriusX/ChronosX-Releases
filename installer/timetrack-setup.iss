@@ -11,7 +11,7 @@
 
 ; Version - updated by build script
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.22"
+  #define MyAppVersion "1.0.23"
 #endif
 #define MyAppVersionStr StringChange(MyAppVersion, ".", "") + ".0"
 
