@@ -341,7 +341,7 @@ export default function Projects() {
                     onArchive={() => handleArchiveProject(project.id)}
                     onReactivate={() => handleReactivateProject(project.id)}
                     onDelete={() => handleDeleteProject(project.id)}
-                    isArchived={project.status === 'Archived'}
+                    isArchived={(project.status ?? '').toLowerCase() === 'archived'}
                   />
                 </motion.div>
               ))}

@@ -54,7 +54,7 @@ public sealed class ProjectMembershipInvariantTests
     {
         var orgId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var project = Project.Create(orgId, "P1");
+        var project = Project.Create(orgId, userId, "P1");
 
         var projectsRepo = new Mock<IProjectRepository>();
         projectsRepo.Setup(r => r.GetByIdAsync(project.Id, It.IsAny<CancellationToken>()))
@@ -100,4 +100,3 @@ public sealed class ProjectMembershipInvariantTests
         addedMember.Role.Should().Be(ProjectMemberRole.Member);
     }
 }
-

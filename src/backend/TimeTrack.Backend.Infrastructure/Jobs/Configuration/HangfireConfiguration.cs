@@ -62,6 +62,7 @@ public static class HangfireConfiguration
         services.AddScoped<IActivitySessionConsolidationJob, ActivitySessionConsolidationJob>();
         services.AddScoped<IMachineMetricsCleanupJob, MachineMetricsCleanupJob>();
         services.AddScoped<IDeadlineScanJob, DeadlineScanJob>();
+        services.AddScoped<IProjectPurgeJob, ProjectPurgeJob>();
 
         return services;
     }
@@ -141,6 +142,17 @@ public static class HangfireConfiguration
             "deadline-scan",
             job => job.ExecuteAsync(),
             "0 * * * *", // Every hour on the :00
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Project purge job - runs daily at 02:00 UTC
+        // Hard-deletes projects soft-deleted more than 30 days ago.
+        RecurringJob.AddOrUpdate<IProjectPurgeJob>(
+            "project-purge",
+            job => job.ExecuteAsync(),
+            "0 2 * * *", // Daily at 02:00 UTC
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc

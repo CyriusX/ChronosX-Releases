@@ -77,7 +77,7 @@ public sealed class ListProjectsQueryHandler : IRequestHandler<ListProjectsQuery
 
         return new ListProjectsResponse
         {
-            Projects = projectList.Select(ProjectResponseMapper.Map).ToList(),
+            Projects = projectList.Select(p => ProjectResponseMapper.Map(p, _currentUser)).ToList(),
             TotalCount = totalCount
         };
     }
@@ -85,15 +85,24 @@ public sealed class ListProjectsQueryHandler : IRequestHandler<ListProjectsQuery
 
 internal static class ProjectResponseMapper
 {
-    public static ProjectResponse Map(Domain.Entities.Project p) => new()
+    public static ProjectResponse Map(Domain.Entities.Project p, ICurrentUserContext currentUser)
+    {
+        var canManage = CanManage(p, currentUser);
+        var status = p.Status.ToString();
+
+        return new ProjectResponse
     {
         Id = p.Id,
+        CreatedByUserId = p.CreatedByUserId,
         Name = p.Name,
         Description = p.Description,
         Color = p.Color,
-        Status = p.Status.ToString(),
+        Status = status,
         CreatedAt = p.CreatedAt,
         UpdatedAt = p.UpdatedAt,
+        CanArchive = canManage && status == nameof(Domain.ValueObjects.ProjectStatus.Active),
+        CanReactivate = canManage && status == nameof(Domain.ValueObjects.ProjectStatus.Archived),
+        CanDelete = canManage,
         IsBillable = p.IsBillable,
         Currency = p.Currency,
         HourlyRate = p.HourlyRate,
@@ -101,6 +110,18 @@ internal static class ProjectResponseMapper
         LinearProjectId = p.LinearProjectId,
         LastSyncedAt = p.LastSyncedAt
     };
+    }
+
+    private static bool CanManage(Domain.Entities.Project p, ICurrentUserContext currentUser)
+    {
+        if (currentUser.IsInRole(Domain.ValueObjects.UserRole.Admin))
+            return true;
+
+        if (!currentUser.UserId.HasValue)
+            return false;
+
+        return p.CreatedByUserId.HasValue && p.CreatedByUserId.Value == currentUser.UserId.Value;
+    }
 }
 
 /// <summary>
@@ -143,6 +164,6 @@ public sealed class GetProjectQueryHandler : IRequestHandler<GetProjectQuery, Pr
                 throw new ForbiddenException("You are not a member of this project");
         }
 
-        return ProjectResponseMapper.Map(project);
+        return ProjectResponseMapper.Map(project, _currentUser);
     }
 }

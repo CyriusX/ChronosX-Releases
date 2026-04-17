@@ -132,31 +132,39 @@ export function ProjectCard({
                           {t('members.projectMembers')}
                         </button>
                       )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onArchive(); }}
-                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#f5f7fb] transition-colors"
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                        {t('projects.archive')}
-                      </button>
+                      {project.canArchive && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onArchive(); }}
+                          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#f5f7fb] transition-colors"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                          {t('projects.archive')}
+                        </button>
+                      )}
                     </>
                   ) : (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onReactivate(); }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#f5f7fb] transition-colors"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      {t('projects.reactivate')}
-                    </button>
+                    project.canReactivate ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onReactivate(); }}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#f5f7fb] transition-colors"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        {t('projects.reactivate')}
+                      </button>
+                    ) : null
                   )}
-                  <div className="border-t border-[rgba(255,255,255,0.06)]" />
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[#f87171] hover:bg-[rgba(248,113,113,0.08)] transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    {t('common.delete')}
-                  </button>
+                  {project.canDelete && (
+                    <>
+                      <div className="border-t border-[rgba(255,255,255,0.06)]" />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[#f87171] hover:bg-[rgba(248,113,113,0.08)] transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        {t('common.delete')}
+                      </button>
+                    </>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

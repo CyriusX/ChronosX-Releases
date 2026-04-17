@@ -20,6 +20,9 @@ internal sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
             .HasColumnName("org_id")
             .IsRequired();
 
+        builder.Property(p => p.CreatedByUserId)
+            .HasColumnName("created_by_user_id");
+
         builder.Property(p => p.Name)
             .HasColumnName("name")
             .HasMaxLength(255)
@@ -54,6 +57,12 @@ internal sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
 
         builder.Property(p => p.UpdatedAt)
             .HasColumnName("updated_at");
+
+        builder.Property(p => p.DeletedAt)
+            .HasColumnName("deleted_at");
+
+        builder.Property(p => p.DeletedByUserId)
+            .HasColumnName("deleted_by_user_id");
 
         // ── Linear sync columns ──
         builder.Property(p => p.SyncSource)

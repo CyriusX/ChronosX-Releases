@@ -20,8 +20,8 @@ public sealed class ProjectAuthorizationTests
         var orgId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
-        var p1 = Project.Create(orgId, "P1");
-        var p2 = Project.Create(orgId, "P2");
+        var p1 = Project.Create(orgId, userId, "P1");
+        var p2 = Project.Create(orgId, userId, "P2");
 
         var projectsRepo = new Mock<IProjectRepository>();
         projectsRepo.Setup(r => r.GetByOrgIdAsync(orgId, It.IsAny<CancellationToken>()))
@@ -50,8 +50,8 @@ public sealed class ProjectAuthorizationTests
         var orgId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
-        var p1 = Project.Create(orgId, "P1");
-        var p2 = Project.Create(orgId, "P2");
+        var p1 = Project.Create(orgId, userId, "P1");
+        var p2 = Project.Create(orgId, userId, "P2");
 
         var projectsRepo = new Mock<IProjectRepository>();
         projectsRepo.Setup(r => r.GetByOrgIdAsync(orgId, It.IsAny<CancellationToken>()))
@@ -78,7 +78,7 @@ public sealed class ProjectAuthorizationTests
         var orgId = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
-        var project = Project.Create(orgId, "P1");
+        var project = Project.Create(orgId, userId, "P1");
 
         var projectsRepo = new Mock<IProjectRepository>();
         projectsRepo.Setup(r => r.GetByIdAsync(project.Id, It.IsAny<CancellationToken>()))
@@ -103,7 +103,7 @@ public sealed class ProjectAuthorizationTests
     {
         var orgId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var project = Project.Create(orgId, "P1");
+        var project = Project.Create(orgId, userId, "P1");
 
         var projectsRepo = new Mock<IProjectRepository>();
         projectsRepo.Setup(r => r.GetByIdAsync(project.Id, It.IsAny<CancellationToken>()))
@@ -128,7 +128,7 @@ public sealed class ProjectAuthorizationTests
     {
         var orgId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var project = Project.Create(orgId, "P1");
+        var project = Project.Create(orgId, userId, "P1");
 
         var projectsRepo = new Mock<IProjectRepository>();
         projectsRepo.Setup(r => r.GetByIdAsync(project.Id, It.IsAny<CancellationToken>()))
@@ -171,7 +171,7 @@ public sealed class ProjectAuthorizationTests
 
         var projectsRepo = new Mock<IProjectRepository>();
         projectsRepo.Setup(r => r.GetByIdAsync(projectId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Project.Create(orgId, "P1"));
+            .ReturnsAsync(Project.Create(orgId, userId, "P1"));
 
         var entriesRepo = new Mock<ITaskTimeEntryRepository>();
 

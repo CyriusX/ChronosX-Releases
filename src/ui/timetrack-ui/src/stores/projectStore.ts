@@ -12,15 +12,19 @@ import { getApiBaseUrl } from '../services/apiBase';
 
 export interface Project {
   id: string;
+  createdByUserId: string | null;
   name: string;
   description?: string;
   color: string;
-  status: 'Active' | 'Archived';
+  status: string;
   createdAt: string;
   updatedAt?: string;
   isBillable: boolean;
   currency: string | null;
   hourlyRate: number | null;
+  canArchive: boolean;
+  canDelete: boolean;
+  canReactivate: boolean;
 }
 
 interface ListProjectsResponse {
@@ -206,7 +210,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const { projects } = get();
       set({
         projects: projects.map(p =>
-          p.id === id ? { ...p, status: 'Archived' as const } : p
+          p.id === id ? { ...p, status: 'Archived', canArchive: false, canReactivate: p.canDelete } : p
         ),
         isLoading: false,
         error: null,
@@ -227,7 +231,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const { projects } = get();
       set({
         projects: projects.map(p =>
-          p.id === id ? { ...p, status: 'Active' as const } : p
+          p.id === id ? { ...p, status: 'Active', canArchive: p.canDelete, canReactivate: false } : p
         ),
         isLoading: false,
         error: null,

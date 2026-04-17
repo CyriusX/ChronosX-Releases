@@ -121,6 +121,7 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
             {
                 var project = Project.CreateFromLinear(
                     orgId,
+                    userId,
                     lp.Name,
                     ResolveProjectColor(lp.Id),
                     lp.Id,

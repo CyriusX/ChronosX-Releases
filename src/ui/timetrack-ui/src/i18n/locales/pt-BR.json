@@ -614,7 +614,7 @@
     "noProjects": "Nenhum projeto criado ainda",
     "noArchived": "Nenhum projeto arquivado",
     "createFirst": "Criar primeiro projeto →",
-    "deleteConfirm": "Tem certeza que deseja excluir este projeto?",
+    "deleteConfirm": "Excluir este projeto? Ele será ocultado agora e removido permanentemente após 30 dias.",
     "confirmDelete": "Confirmar excluir",
     "noDescription": "Sem descrição",
     "members": "Membros",

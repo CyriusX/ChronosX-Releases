@@ -112,7 +112,7 @@ public sealed class TimeTrackDbContext : DbContext
 
         // Projects
         modelBuilder.Entity<Project>()
-            .HasQueryFilter(p => !_currentUser.IsAuthenticated || p.OrgId == _currentUser.OrgId);
+            .HasQueryFilter(p => (!_currentUser.IsAuthenticated || p.OrgId == _currentUser.OrgId) && p.DeletedAt == null);
 
         // Project Members
         modelBuilder.Entity<ProjectMember>()

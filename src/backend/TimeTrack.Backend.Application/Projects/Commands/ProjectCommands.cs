@@ -51,6 +51,7 @@ public sealed class CreateProjectCommandHandler : IRequestHandler<CreateProjectC
 
         var project = Domain.Entities.Project.Create(
             _currentUser.OrgId.Value,
+            _currentUser.UserId.Value,
             request.Name,
             request.Description,
             request.Color,
@@ -69,7 +70,7 @@ public sealed class CreateProjectCommandHandler : IRequestHandler<CreateProjectC
             ProjectMemberRole.Owner);
         await _projectMembers.AddAsync(member, cancellationToken);
 
-        return TimeTrack.Backend.Application.Projects.Queries.ProjectResponseMapper.Map(project);
+        return TimeTrack.Backend.Application.Projects.Queries.ProjectResponseMapper.Map(project, _currentUser);
     }
 }
 
@@ -114,7 +115,7 @@ public sealed class UpdateProjectCommandHandler : IRequestHandler<UpdateProjectC
         project.Update(request.Name, request.Description, request.Color, request.IsBillable, request.Currency, request.HourlyRate);
         await _projectRepository.UpdateAsync(project, cancellationToken);
 
-        return TimeTrack.Backend.Application.Projects.Queries.ProjectResponseMapper.Map(project);
+        return TimeTrack.Backend.Application.Projects.Queries.ProjectResponseMapper.Map(project, _currentUser);
     }
 }
 
@@ -126,18 +127,25 @@ public sealed record ArchiveProjectCommand(Guid ProjectId) : IRequest<Unit>;
 public sealed class ArchiveProjectCommandHandler : IRequestHandler<ArchiveProjectCommand, Unit>
 {
     private readonly IProjectRepository _projectRepository;
+    private readonly ICurrentUserContext _currentUser;
 
-    public ArchiveProjectCommandHandler(IProjectRepository projectRepository)
+    public ArchiveProjectCommandHandler(IProjectRepository projectRepository, ICurrentUserContext currentUser)
     {
         _projectRepository = projectRepository;
+        _currentUser = currentUser;
     }
 
     public async Task<Unit> Handle(ArchiveProjectCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException("User not authenticated");
+
         var project = await _projectRepository.GetByIdAsync(request.ProjectId, cancellationToken);
 
         if (project == null)
             throw new NotFoundException("Project", request.ProjectId);
+
+        ProjectAuthorization.EnsureCanManageProject(project, _currentUser);
 
         project.Archive();
         await _projectRepository.UpdateAsync(project, cancellationToken);
@@ -154,18 +162,25 @@ public sealed record ReactivateProjectCommand(Guid ProjectId) : IRequest<Unit>;
 public sealed class ReactivateProjectCommandHandler : IRequestHandler<ReactivateProjectCommand, Unit>
 {
     private readonly IProjectRepository _projectRepository;
+    private readonly ICurrentUserContext _currentUser;
 
-    public ReactivateProjectCommandHandler(IProjectRepository projectRepository)
+    public ReactivateProjectCommandHandler(IProjectRepository projectRepository, ICurrentUserContext currentUser)
     {
         _projectRepository = projectRepository;
+        _currentUser = currentUser;
     }
 
     public async Task<Unit> Handle(ReactivateProjectCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException("User not authenticated");
+
         var project = await _projectRepository.GetByIdAsync(request.ProjectId, cancellationToken);
 
         if (project == null)
             throw new NotFoundException("Project", request.ProjectId);
+
+        ProjectAuthorization.EnsureCanManageProject(project, _currentUser);
 
         project.Reactivate();
         await _projectRepository.UpdateAsync(project, cancellationToken);
@@ -182,21 +197,54 @@ public sealed record DeleteProjectCommand(Guid ProjectId) : IRequest<Unit>;
 public sealed class DeleteProjectCommandHandler : IRequestHandler<DeleteProjectCommand, Unit>
 {
     private readonly IProjectRepository _projectRepository;
+    private readonly IProjectTaskRepository _tasks;
+    private readonly ICurrentUserContext _currentUser;
 
-    public DeleteProjectCommandHandler(IProjectRepository projectRepository)
+    public DeleteProjectCommandHandler(
+        IProjectRepository projectRepository,
+        IProjectTaskRepository tasks,
+        ICurrentUserContext currentUser)
     {
         _projectRepository = projectRepository;
+        _tasks = tasks;
+        _currentUser = currentUser;
     }
 
     public async Task<Unit> Handle(DeleteProjectCommand request, CancellationToken cancellationToken)
     {
+        if (!_currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException("User not authenticated");
+
         var project = await _projectRepository.GetByIdAsync(request.ProjectId, cancellationToken);
 
         if (project == null)
             throw new NotFoundException("Project", request.ProjectId);
 
-        await _projectRepository.DeleteAsync(project, cancellationToken);
+        ProjectAuthorization.EnsureCanManageProject(project, _currentUser);
+
+        // Soft-delete project: hidden immediately; hard purge handled by a daily Hangfire job.
+        project.SoftDelete(_currentUser.UserId.Value);
+        await _projectRepository.UpdateAsync(project, cancellationToken);
+
+        // Soft-delete tasks to keep boards/widgets/report breakdowns consistent (task query filter hides them).
+        await _tasks.SoftDeleteByProjectAsync(project.Id, cancellationToken);
 
         return Unit.Value;
+    }
+}
+
+internal static class ProjectAuthorization
+{
+    public static void EnsureCanManageProject(Project project, ICurrentUserContext currentUser)
+    {
+        if (currentUser.IsInRole(UserRole.Admin))
+            return;
+
+        if (!currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException("User not authenticated");
+
+        var isCreator = project.CreatedByUserId.HasValue && project.CreatedByUserId.Value == currentUser.UserId.Value;
+        if (!isCreator)
+            throw new ForbiddenException("You are not allowed to manage this project");
     }
 }
