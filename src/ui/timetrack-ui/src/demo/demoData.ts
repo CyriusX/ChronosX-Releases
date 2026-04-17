@@ -1,4 +1,10 @@
-import type { TodaySummaryResponse, WeeklyHistoryItem } from '../types/ipc';
+import type {
+  AppProductivityCategory,
+  ApplicationSummary,
+  CategorySummary,
+  TodaySummaryResponse,
+  WeeklyHistoryItem,
+} from '../types/ipc';
 import type { TeamMemberStatus, MemberSummaryResponse } from '../types/member';
 import type { ProjectItem, Task, NotificationItem } from '../services/projectsApi';
 
@@ -20,18 +26,18 @@ export const demoTodaySummary: TodaySummaryResponse = (() => {
   const idleTime = 18 * 60; // 18m
   const focusTime = 2 * 3600 + 5 * 60; // 2h05m
 
-  const categories = [
-    { name: 'Development', duration: 2 * 3600 + 22 * 60, percentage: 55, color: '#05df72', productivity: 'productive', subcategory: 'development' as const },
-    { name: 'Meetings', duration: 48 * 60, percentage: 19, color: '#8B5CF6', productivity: 'neutral', subcategory: 'meetings' as const },
-    { name: 'Research', duration: 32 * 60, percentage: 13, color: '#22D3EE', productivity: 'productive', subcategory: 'research' as const },
-    { name: 'Messaging', duration: 36 * 60, percentage: 13, color: '#f59e0b', productivity: 'neutral', subcategory: 'communication' as const },
+  const categories: CategorySummary[] = [
+    { name: 'Development', duration: 2 * 3600 + 22 * 60, percentage: 55, color: '#05df72', productivity: 'productive' as AppProductivityCategory, subcategory: 'development' },
+    { name: 'Meetings', duration: 48 * 60, percentage: 19, color: '#8B5CF6', productivity: 'neutral' as AppProductivityCategory, subcategory: 'meetings' },
+    { name: 'Research', duration: 32 * 60, percentage: 13, color: '#22D3EE', productivity: 'productive' as AppProductivityCategory, subcategory: 'research' },
+    { name: 'Messaging', duration: 36 * 60, percentage: 13, color: '#f59e0b', productivity: 'neutral' as AppProductivityCategory, subcategory: 'communication' },
   ];
 
-  const topApplications = [
-    { name: 'VS Code', duration: 2 * 3600 + 1 * 60, percentage: 46, productivity: 'productive', subcategory: 'development' as const },
-    { name: 'Chrome', duration: 58 * 60, percentage: 22, productivity: 'neutral', subcategory: 'browsing' as const },
-    { name: 'Linear', duration: 31 * 60, percentage: 12, productivity: 'productive', subcategory: 'planning' as const },
-    { name: 'Slack', duration: 24 * 60, percentage: 9, productivity: 'neutral', subcategory: 'communication' as const },
+  const topApplications: ApplicationSummary[] = [
+    { name: 'VS Code', duration: 2 * 3600 + 1 * 60, percentage: 46, productivity: 'productive' as AppProductivityCategory, subcategory: 'development' },
+    { name: 'Chrome', duration: 58 * 60, percentage: 22, productivity: 'neutral' as AppProductivityCategory, subcategory: 'browsing' },
+    { name: 'Linear', duration: 31 * 60, percentage: 12, productivity: 'productive' as AppProductivityCategory, subcategory: 'planning' },
+    { name: 'Slack', duration: 24 * 60, percentage: 9, productivity: 'neutral' as AppProductivityCategory, subcategory: 'communication' },
   ];
 
   const topProjects = [
@@ -329,4 +335,3 @@ export const demoNotifications: NotificationItem[] = [
     readAt: new Date(Date.now() - 2 * 3600_000).toISOString(),
   },
 ];
-

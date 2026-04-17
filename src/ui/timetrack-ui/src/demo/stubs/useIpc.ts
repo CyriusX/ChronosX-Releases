@@ -58,25 +58,25 @@ export function useIpc(): UseIpcReturn {
   ): Promise<IpcResponse<QueryResponseMap[K]>> => {
     switch (query) {
       case 'getTodaySummary':
-        return ok(demoTodaySummary as QueryResponseMap[K]);
+        return ok(demoTodaySummary as unknown as QueryResponseMap[K]);
       case 'getTrackingState':
-        return ok({ ...demoState } as QueryResponseMap[K]);
+        return ok({ ...demoState } as unknown as QueryResponseMap[K]);
       case 'getSyncState':
         return ok({
           status: 'synced',
           lastSyncAt: new Date(Date.now() - 4 * 60_000).toISOString(),
           pendingItems: 0,
           failedItems: 0,
-        } as QueryResponseMap[K]);
+        } as unknown as QueryResponseMap[K]);
       case 'getCurrentStatus':
         return ok({
           state: 'running',
           uptime: 6 * 3600,
           version: 'demo',
           desktopHostVersion: 'demo',
-        } as QueryResponseMap[K]);
+        } as unknown as QueryResponseMap[K]);
       case 'getErrors':
-        return ok({ errors: [], total: 0 } as QueryResponseMap[K]);
+        return ok({ errors: [], total: 0 } as unknown as QueryResponseMap[K]);
       case 'getSettings':
         return ok({
           autoResumeNotificationEnabled: true,
@@ -85,13 +85,13 @@ export function useIpc(): UseIpcReturn {
           idleThresholdSeconds: 180,
           workGoalSeconds: 28800,
           updatedAt: new Date().toISOString(),
-        } as QueryResponseMap[K]);
+        } as unknown as QueryResponseMap[K]);
       case 'getProjects':
         return ok(demoProjectsForIpc as unknown as QueryResponseMap[K]);
       case 'getRecentActivities':
         return ok({ activities: demoFocusActivities, total: demoFocusActivities.length } as unknown as QueryResponseMap[K]);
       default:
-        return ok({} as QueryResponseMap[K]);
+        return ok({} as unknown as QueryResponseMap[K]);
     }
   }, []);
 
@@ -114,4 +114,3 @@ export function useIpc(): UseIpcReturn {
     reconnect,
   };
 }
-
