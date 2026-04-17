@@ -48,13 +48,11 @@ public class ExceptionHandlingMiddleware
                 errorDetails = $"UserDeactivatedException: {ex.Message}";
                 break;
             case DbUpdateException ex when TryGetPostgresException(ex, out var pg):
-                statusCode = (int)HttpStatusCode.InternalServerError;
-                response = MapPostgresException(pg, traceId);
+                (statusCode, response) = MapPostgresException(pg, traceId);
                 errorDetails = $"DbUpdateException({pg.SqlState}): {pg.MessageText}";
                 break;
             case PostgresException ex:
-                statusCode = (int)HttpStatusCode.InternalServerError;
-                response = MapPostgresException(ex, traceId);
+                (statusCode, response) = MapPostgresException(ex, traceId);
                 errorDetails = $"PostgresException({ex.SqlState}): {ex.MessageText}";
                 break;
             case NpgsqlException ex:
@@ -143,14 +141,28 @@ public class ExceptionHandlingMiddleware
         return false;
     }
 
-    private static ErrorResponse MapPostgresException(PostgresException pg, string traceId) => pg.SqlState switch
+    private static (int StatusCode, ErrorResponse Response) MapPostgresException(PostgresException pg, string traceId) => pg.SqlState switch
     {
         // Likely: API deployed without applying EF migrations (common in containerized deploys).
-        "42703" or "42P01" => new ErrorResponse(
+        "42703" or "42P01" => ((int)HttpStatusCode.InternalServerError, new ErrorResponse(
             "db_schema_out_of_date",
             "Database schema is out of date. Apply migrations and restart the API.",
-            traceId),
+            traceId)),
 
-        _ => new ErrorResponse("database_error", "A database error occurred", traceId)
+        // Unique violation (can happen under concurrency/races). For device PK collisions, surface a
+        // conflict so the agent can regenerate its device id and retry.
+        "23505" when pg.TableName == "devices" && pg.ConstraintName == "PK_devices"
+            => ((int)HttpStatusCode.Conflict, new ErrorResponse(
+                "device_id_conflict",
+                "This device is already registered. Please restart the agent to generate a new device ID and retry.",
+                traceId)),
+
+        "23505"
+            => ((int)HttpStatusCode.Conflict, new ErrorResponse(
+                "duplicate_key",
+                "A unique constraint was violated.",
+                traceId)),
+
+        _ => ((int)HttpStatusCode.InternalServerError, new ErrorResponse("database_error", "A database error occurred", traceId))
     };
 }

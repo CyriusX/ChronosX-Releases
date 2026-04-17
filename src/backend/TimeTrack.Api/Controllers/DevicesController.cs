@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Security.Claims;
 using TimeTrack.Api.Extensions;
 using TimeTrack.Backend.Application.Auth.Commands;
 using TimeTrack.Backend.Application.Auth.DTOs;
@@ -37,7 +38,7 @@ public sealed class DevicesController : ControllerBase
     public async Task<ActionResult<ActivateDeviceResponse>> Activate([FromBody] ActivateDeviceRequest request)
     {
         // Log context (no secrets) to make production troubleshooting easier.
-        var userId = User.FindFirst("sub")?.Value;
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
         var orgId = User.FindFirst("org_id")?.Value;
         _logger.LogInformation(
             "Device activation request: userId={UserId} orgId={OrgId} deviceId={DeviceId} hostname={Hostname} agentVersion={AgentVersion} displayMode={DisplayMode}",

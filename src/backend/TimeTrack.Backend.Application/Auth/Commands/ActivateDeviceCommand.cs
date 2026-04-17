@@ -56,12 +56,29 @@ public sealed class ActivateDeviceCommandHandler : IRequestHandler<ActivateDevic
             throw new ForbiddenException("User account is deactivated");
         }
 
-        // Check if device already exists
-        var existingDevice = await _deviceRepository.GetByIdAsync(request.DeviceId, cancellationToken);
+        // Check if device already exists.
+        // IMPORTANT: Devices are globally keyed by Id. If an installation's deviceId collides with an
+        // existing record in another org, the tenant query filter would hide it and we'd attempt an insert,
+        // causing a PK violation. Use an unfiltered lookup to detect and handle cross-org conflicts safely.
+        var existingDevice = await _deviceRepository.GetByIdAsync(request.DeviceId, cancellationToken)
+            ?? await _deviceRepository.GetByIdUnfilteredAsync(request.DeviceId, cancellationToken);
+
+        if (existingDevice is not null && existingDevice.OrgId != _currentUser.OrgId.Value)
+        {
+            // Security: do NOT allow "claiming" a deviceId that already exists in another org.
+            // The desktop agent should regenerate its deviceId and retry activation.
+            throw new ConflictException(
+                "device_id_conflict",
+                "This device is already registered in another organization. Please restart the agent to generate a new device ID and retry.");
+        }
 
         if (existingDevice != null)
         {
             // Device already activated, update info
+            if (existingDevice.Status != DeviceStatus.Active)
+            {
+                existingDevice.Reactivate();
+            }
             existingDevice.RecordHeartbeat(request.AgentVersion);
             await _deviceRepository.UpdateAsync(existingDevice, cancellationToken);
 
