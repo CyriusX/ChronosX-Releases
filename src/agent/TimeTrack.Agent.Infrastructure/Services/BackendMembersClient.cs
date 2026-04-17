@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Services;
@@ -57,7 +58,9 @@ public sealed class BackendMembersClient : IBackendMembersClient
             var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/auth/me/summary?timezone={timezone}");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
 
+            var sw = Stopwatch.StartNew();
             var response = await _httpClient.SendAsync(request, cancellationToken);
+            sw.Stop();
 
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
@@ -68,8 +71,17 @@ public sealed class BackendMembersClient : IBackendMembersClient
                     jwt = await _tokenStore.GetJwtAsync(cancellationToken);
                     var retry = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/auth/me/summary?timezone={timezone}");
                     retry.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+                    sw.Restart();
                     response = await _httpClient.SendAsync(retry, cancellationToken);
+                    sw.Stop();
                 }
+            }
+
+            if (sw.ElapsedMilliseconds > 1500)
+            {
+                _logger.LogWarning(
+                    "[BackendMembers] Slow /auth/me/summary: {ElapsedMs}ms (HTTP {StatusCode})",
+                    sw.ElapsedMilliseconds, (int)response.StatusCode);
             }
 
             if (!response.IsSuccessStatusCode)
@@ -111,4 +123,3 @@ public sealed class BackendMembersClient : IBackendMembersClient
         public double Percentage { get; set; }
     }
 }
-

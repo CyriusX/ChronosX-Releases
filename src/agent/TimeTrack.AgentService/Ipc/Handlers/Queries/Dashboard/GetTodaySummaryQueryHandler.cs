@@ -21,6 +21,9 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     private readonly IBackendReportsClient _reportsClient;
     private readonly IBackendMembersClient _membersClient;
     private readonly ILogger<GetTodaySummaryQueryHandler> _logger;
+    private readonly object _topProjectsLock = new();
+    private object[] _cachedTopProjects = Array.Empty<object>();
+    private DateTime _cachedTopProjectsAtUtc = DateTime.MinValue;
 
     // Internal apps excluded from dashboard totals (must match all other views)
     private static readonly HashSet<string> InternalApps = new(StringComparer.OrdinalIgnoreCase)
@@ -82,11 +85,46 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
         var cloudTask = TryFetchCloudReportAsync(targetDate, ct);
         var memberTask = TryFetchMemberSummaryAsync(ct);
 
-        await Task.WhenAll(localTask, cloudTask, memberTask);
+        // Update cache in the background regardless of whether we wait for it in this call.
+        _ = memberTask.ContinueWith(t =>
+        {
+            if (!t.IsCompletedSuccessfully) return;
+            var mapped = MapTopProjects(t.Result);
+            lock (_topProjectsLock)
+            {
+                _cachedTopProjects = mapped;
+                _cachedTopProjectsAtUtc = DateTime.UtcNow;
+            }
+        }, TaskScheduler.Default);
 
-        var localDashboard = localTask.Result;
-        var cloudReport    = cloudTask.Result;
-        var topProjects = MapTopProjects(memberTask.Result);
+        // Never block the dashboard on "top projects" (best-effort cloud enrichment).
+        // If the backend is slow/unavailable, we still want the rest of the summary instantly.
+        await Task.WhenAll(localTask, cloudTask);
+
+        MemberSummaryResult? memberSummary = null;
+        try
+        {
+            var completed = await Task.WhenAny(memberTask, Task.Delay(TimeSpan.FromMilliseconds(1200), ct));
+            if (completed == memberTask)
+                memberSummary = await memberTask;
+        }
+        catch
+        {
+            memberSummary = null;
+        }
+
+        var localDashboard = await localTask;
+        var cloudReport    = await cloudTask;
+        var topProjects = MapTopProjects(memberSummary);
+        if (topProjects.Length == 0)
+        {
+            lock (_topProjectsLock)
+            {
+                // If we have a recent cached value, use it to avoid the Projects card "lagging behind".
+                if (_cachedTopProjects.Length != 0 && (DateTime.UtcNow - _cachedTopProjectsAtUtc) < TimeSpan.FromMinutes(10))
+                    topProjects = _cachedTopProjects;
+            }
+        }
 
         var localSeconds = (long)localDashboard.TotalWorkTime.TotalSeconds;
         var cloudFilteredApps = cloudReport?.Apps
