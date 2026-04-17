@@ -20,6 +20,7 @@ import {
   moveTask,
   type Task,
 } from '../../services/projectsApi';
+import { onProjectUpdated, onTaskDeleted, onTaskUpdated } from '../../lib/appEvents';
 
 const POLL_INTERVAL_MS = 30_000;
 const cardBase = sharedCardBase + ' overflow-hidden';
@@ -80,6 +81,35 @@ export function MyTasksWidget() {
       unsubIdle();
     };
   }, [subscribeToEvent, fetchTasks]);
+
+  // Immediate UI feedback for local edits (task/project title changes) without waiting for polling.
+  useEffect(() => {
+    const offTaskUpdated = onTaskUpdated((updated) => {
+      setTasks((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+    });
+    const offTaskDeleted = onTaskDeleted((taskId) => {
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    });
+    const offProjectUpdated = onProjectUpdated((p: any) => {
+      if (!p?.id) return;
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.projectId === p.id
+            ? {
+                ...t,
+                projectName: typeof p.name === 'string' ? p.name : t.projectName,
+                projectColor: typeof p.color === 'string' ? p.color : t.projectColor,
+              }
+            : t,
+        ),
+      );
+    });
+    return () => {
+      offTaskUpdated();
+      offTaskDeleted();
+      offProjectUpdated();
+    };
+  }, []);
 
   // Tick every second for live running timer
   useEffect(() => {

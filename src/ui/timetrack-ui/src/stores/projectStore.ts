@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
 import { getApiBaseUrl } from '../services/apiBase';
+import { emitProjectUpdated } from '../lib/appEvents';
 
 // ============================================================================
 // TYPES
@@ -194,6 +195,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         isLoading: false,
         error: null,
       });
+      emitProjectUpdated(updatedProject);
       return updatedProject;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update project';

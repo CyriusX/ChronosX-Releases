@@ -22,6 +22,7 @@ import {
 import { syncLinear } from '../services/integrationsApi';
 import { useNotifications } from '../stores/uiStore';
 import { usePermissions } from '../hooks/usePermissions';
+import { onProjectUpdated, onTaskDeleted, onTaskUpdated } from '../lib/appEvents';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -96,6 +97,37 @@ export default function ProjectBoard() {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     };
   }, [fetchAll]);
+
+  // Apply task/project edits immediately without requiring navigation or waiting for polling.
+  useEffect(() => {
+    const offTaskUpdated = onTaskUpdated((updated) => {
+      setTasks((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+    });
+    const offTaskDeleted = onTaskDeleted((taskId) => {
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    });
+    const offProjectUpdated = onProjectUpdated((p: any) => {
+      if (!p?.id || p.id !== projectId) return;
+      setProject((prev) => (prev ? { ...prev, ...p } : prev));
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.projectId === projectId
+            ? {
+                ...t,
+                projectName: typeof p.name === 'string' ? p.name : t.projectName,
+                projectColor: typeof p.color === 'string' ? p.color : t.projectColor,
+              }
+            : t,
+        ),
+      );
+    });
+
+    return () => {
+      offTaskUpdated();
+      offTaskDeleted();
+      offProjectUpdated();
+    };
+  }, [projectId]);
 
   const handleOptimisticChange = (next: Task[]) => setTasks(next);
   const handleConflict = () => fetchAll(false);

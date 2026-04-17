@@ -30,6 +30,7 @@ import { SimpleMarkdown } from './SimpleMarkdown';
 import { DescriptionEditor } from './DescriptionEditor';
 import { AssigneeDropdown } from './AssigneeDropdown';
 import { useAuthStore, selectUser } from '../../stores';
+import { emitTaskDeleted, emitTaskUpdated } from '../../lib/appEvents';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -117,12 +118,15 @@ export function TaskDetailDrawer({
   onClose,
   onDeleted,
   onAssigned,
+  onUpdated,
 }: {
   taskId: string | null;
   onClose: () => void;
   onDeleted?: (taskId: string) => void;
   /** Called after assignment changes so the parent can refetch. */
   onAssigned?: () => void;
+  /** Called after editing title/description/priority/deadline. */
+  onUpdated?: (task: Task) => void;
 }) {
   const { t } = useTranslation();
   const currentUser = useAuthStore(selectUser);
@@ -169,6 +173,8 @@ export function TaskDetailDrawer({
         dueDate: editDueDate ? new Date(editDueDate + 'T12:00:00').toISOString() : null,
       });
       setTask(updated);
+      emitTaskUpdated(updated);
+      onUpdated?.(updated);
       setEditing(false);
     } catch (err) {
       console.error('[TaskDetailDrawer] update failed', err);
@@ -220,6 +226,7 @@ export function TaskDetailDrawer({
     try {
       await deleteTask(task.id);
       onDeleted?.(task.id);
+      emitTaskDeleted(task.id);
       onClose();
     } catch (err) {
       console.error('[TaskDetailDrawer] delete failed', err);
