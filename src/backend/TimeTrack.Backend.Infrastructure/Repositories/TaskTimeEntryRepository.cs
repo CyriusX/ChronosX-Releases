@@ -14,15 +14,11 @@ public sealed class TaskTimeEntryRepository : ITaskTimeEntryRepository
     public Task<TaskTimeEntry?> GetOpenForUserAsync(Guid userId, CancellationToken ct = default)
         => _context.TaskTimeEntries
             .AsNoTracking()
-            .Include(e => e.Task)
-                .ThenInclude(t => t!.Project)
             .FirstOrDefaultAsync(e => e.UserId == userId && e.EndedAt == null, ct);
 
     public async Task<IReadOnlyList<TaskTimeEntry>> ListOpenForUserAsync(Guid userId, CancellationToken ct = default)
         => await _context.TaskTimeEntries
             .AsNoTracking()
-            .Include(e => e.Task)
-                .ThenInclude(t => t!.Project)
             .Where(e => e.UserId == userId && e.EndedAt == null)
             .OrderByDescending(e => e.StartedAt)
             .ToListAsync(ct);
