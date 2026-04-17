@@ -159,6 +159,9 @@ struct WebViewContainer: NSViewRepresentable {
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
+        // The IPC client may connect before the WKWebView exists; ensure we sync
+        // the current connection state into the page as soon as the WebView is attached.
+        context.coordinator.forwardConnectionStateToWebView(ipcClient.isConnected)
         self.webView = webView
 
         if distExists {
@@ -193,6 +196,16 @@ struct WebViewContainer: NSViewRepresentable {
     class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             NSLog("[WebView] didFinish: %@", webView.url?.absoluteString ?? "nil")
+            // Re-sync connection state after navigations/reloads so the SPA always
+            // receives the latest IPC state even if the initial event was missed.
+            forwardConnectionStateToWebView(ipcClient.isConnected)
+            // Some SPA code may replace `window.timeTrackHandleEvent` shortly after
+            // navigation finishes. Re-send once after a short delay to ensure the
+            // React IPC layer receives the event and updates any subscribed state.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                guard let self else { return }
+                self.forwardConnectionStateToWebView(self.ipcClient.isConnected)
+            }
 #if DEBUG
             let debugScript = """
             (function() {
