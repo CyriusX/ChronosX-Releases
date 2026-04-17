@@ -107,11 +107,12 @@ public class ExceptionHandlingMiddleware
 
         // Log full exception details for debugging
         _logger.LogError(exception,
-            "Request failed: {RequestMethod} {RequestPath} - {StatusCode} {ErrorCode}\nExceptionType: {ExceptionType}\nMessage: {Message}\nStack Trace: {StackTrace}",
+            "Request failed: {RequestMethod} {RequestPath} - {StatusCode} {ErrorCode} (TraceId: {TraceId})\nExceptionType: {ExceptionType}\nMessage: {Message}\nStack Trace: {StackTrace}",
             context.Request.Method,
             context.Request.Path.Value,
             statusCode,
             errorCode,
+            traceId,
             exception.GetType().Name,
             exception.Message,
             exception.StackTrace);
