@@ -25,14 +25,13 @@ public partial class AddProjectCreatorAndSoftDelete : Migration
         // - if a project has no members, leave NULL (treated as 'not creator' for non-admin permissions)
         migrationBuilder.Sql(@"
             UPDATE projects p
-            SET created_by_user_id = x.user_id
-            FROM LATERAL (
+            SET created_by_user_id = (
                 SELECT pm.user_id
                 FROM project_members pm
                 WHERE pm.project_id = p.id
                 ORDER BY (pm.role = 'Owner') DESC, pm.added_at ASC, pm.id ASC
                 LIMIT 1
-            ) x
+            )
             WHERE p.created_by_user_id IS NULL;
         ");
     }
@@ -46,4 +45,3 @@ public partial class AddProjectCreatorAndSoftDelete : Migration
         migrationBuilder.DropColumn(name: "created_by_user_id", table: "projects");
     }
 }
-
