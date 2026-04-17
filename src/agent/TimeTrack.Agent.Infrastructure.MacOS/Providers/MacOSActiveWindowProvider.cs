@@ -53,10 +53,11 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
         _options = options?.Value ?? new ActiveWindowProviderOptions();
         _currentProcessId = Environment.ProcessId;
 
-        // Ask macOS to prompt the user for Accessibility permission if not already granted.
-        // Without it, window titles come back empty; the app name and bundle path are still
-        // captured so tracking remains functional.
-        AccessibilityPermission.CheckAndPrompt(prompt: true, _logger);
+        // DO NOT auto-trigger the macOS Accessibility system prompt on every launch.
+        // It can show repeatedly in dev/bundled scenarios and is a poor UX.
+        // We only *check* here; the UI should guide the user to System Settings when needed.
+        // Without permission, window titles can be empty; app name and bundle path are still captured.
+        AccessibilityPermission.CheckAndPrompt(prompt: false, _logger);
     }
 
     /// <inheritdoc />
