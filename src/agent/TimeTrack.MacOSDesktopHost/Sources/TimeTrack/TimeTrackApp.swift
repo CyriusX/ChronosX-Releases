@@ -62,17 +62,11 @@ struct SettingsView: View {
 }
 
 struct GeneralSettingsView: View {
-    @StateObject private var loginManager = LaunchAtLoginManager.shared
     @AppStorage("showNotifications") private var showNotifications = true
     @AppStorage("idleThresholdMinutes") private var idleThresholdMinutes = 5
 
     var body: some View {
         Form {
-            Toggle("Start at Login", isOn: Binding(
-                get: { loginManager.isEnabled },
-                set: { loginManager.setEnabled($0) }
-            ))
-
             Toggle("Show Notifications", isOn: $showNotifications)
             Stepper("Idle threshold: \(idleThresholdMinutes) min",
                     value: $idleThresholdMinutes, in: 1...30)
@@ -87,7 +81,7 @@ struct AboutView: View {
             Image(systemName: "clock.fill")
                 .font(.system(size: 48))
                 .foregroundColor(.accentColor)
-            Text("ChronosX TimeTrack")
+            Text("Chronos TimeTrack")
                 .font(.title2)
                 .fontWeight(.bold)
             Text("Version 1.0.0")

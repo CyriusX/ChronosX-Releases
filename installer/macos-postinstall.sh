@@ -11,7 +11,7 @@
 # Safe to run multiple times — it's fully idempotent.
 # =============================================================================
 
-APP="/Applications/TimeTrack.app"
+APP="/Applications/Chronos TimeTrack.app"
 AGENT_EXEC="${APP}/Contents/Resources/agent/TimeTrack.MacOSAgentService"
 AGENT_DIR="${APP}/Contents/Resources/agent"
 PLIST_LABEL="com.cyriusx.timetrack.agent"
@@ -30,15 +30,15 @@ echo ""
 
 # ── 1. Verify the app is in /Applications ────────────────────────────────────
 if [[ ! -d "${APP}" ]]; then
-    fail "TimeTrack.app not found in /Applications."
+    fail "Chronos TimeTrack.app not found in /Applications."
     echo ""
-    echo "  Please drag TimeTrack.app into your Applications folder first,"
+    echo "  Please drag Chronos TimeTrack.app into your Applications folder first,"
     echo "  then run this script again."
     echo ""
     read -rp "Press Return to close..." _
     exit 1
 fi
-ok "TimeTrack.app found"
+ok "Chronos TimeTrack.app found"
 
 # ── 2. Make agent executable ─────────────────────────────────────────────────
 if [[ -f "${AGENT_EXEC}" ]]; then
@@ -112,7 +112,7 @@ xattr -dr com.apple.quarantine "${APP}" 2>/dev/null && ok "Quarantine flag clear
 
 # ── 7. Open the app ──────────────────────────────────────────────────────────
 open "${APP}"
-ok "TimeTrack opened"
+ok "Chronos TimeTrack opened"
 
 echo ""
 echo "━━━ Setup complete ━━━"

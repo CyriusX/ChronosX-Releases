@@ -5,10 +5,11 @@
 # No additional downloads or runtimes required for end users.
 #
 # Usage:
-#   ./build-macos.sh [--version <x.y.z>] [--sign <identity>] [--notarize]
+#   ./build-macos.sh [--version <x.y.z>] [--arch <arm64|x64>] [--sign <identity>] [--notarize]
 #
 # Options:
 #   --version  App version string (default: 1.0.0)
+#   --arch     Target CPU architecture: arm64 or x64 (default: host arch)
 #   --sign     Apple Developer ID for signing, e.g.
 #              "Developer ID Application: Company Name (TEAMID)"
 #              Omit to use ad-hoc signing (app runs locally, no notarization)
@@ -24,17 +25,35 @@ set -euo pipefail
 
 # --------------- Argument parsing -------------------------------------------
 VERSION="1.0.0"
+ARCH=""
 SIGNING_IDENTITY=""
 DO_NOTARIZE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version) VERSION="$2"; shift 2 ;;
+        --arch)    ARCH="$2"; shift 2 ;;
         --sign)    SIGNING_IDENTITY="$2"; shift 2 ;;
         --notarize) DO_NOTARIZE=true; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
+
+# Default arch to host arch
+HOST_ARCH="$(uname -m)"
+if [[ -z "${ARCH}" ]]; then
+    if [[ "${HOST_ARCH}" == "arm64" ]]; then ARCH="arm64"; else ARCH="x64"; fi
+fi
+if [[ "${ARCH}" != "arm64" && "${ARCH}" != "x64" ]]; then
+    echo "ERROR: --arch must be 'arm64' or 'x64' (got '${ARCH}')"
+    exit 1
+fi
+DOTNET_RUNTIME="osx-arm64"
+SWIFT_ARCH="arm64"
+if [[ "${ARCH}" == "x64" ]]; then
+    DOTNET_RUNTIME="osx-x64"
+    SWIFT_ARCH="x86_64"
+fi
 
 # --------------- Paths -------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -44,11 +63,12 @@ AGENT_DIR="${PROJECT_ROOT}/src/agent/TimeTrack.MacOSAgentService"
 UI_DIR="${PROJECT_ROOT}/src/ui/timetrack-ui"
 RESOURCES_DIR="${SPM_DIR}/Resources"
 
-BUILD_DIR="${PROJECT_ROOT}/build/macos"
-APP_NAME="TimeTrack"
-APP_BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
+BUILD_DIR="${PROJECT_ROOT}/build/macos/${ARCH}"
+APP_DISPLAY_NAME="Chronos TimeTrack"
+APP_BUNDLE="${BUILD_DIR}/${APP_DISPLAY_NAME}.app"
 CONTENTS="${APP_BUNDLE}/Contents"
-DMG_NAME="${APP_NAME}-${VERSION}"
+VOLUME_NAME="${APP_DISPLAY_NAME}"
+DMG_NAME="Chronos-TimeTrack-${VERSION}-macos-${ARCH}"
 DMG_STAGING="${BUILD_DIR}/dmg-staging"
 DMG_TMP="${BUILD_DIR}/${DMG_NAME}-tmp.dmg"
 DMG_FINAL="${BUILD_DIR}/${DMG_NAME}.dmg"
@@ -56,6 +76,7 @@ DMG_FINAL="${BUILD_DIR}/${DMG_NAME}.dmg"
 BUNDLE_ID="com.cyriusx.timetrack"
 ICNS_SRC="${RESOURCES_DIR}/AppIcon.icns"
 ENTITLEMENTS="${RESOURCES_DIR}/TimeTrack.entitlements"
+SPM_SCRATCH="${BUILD_DIR}/spm-build"
 
 # --------------- Helper ------------------------------------------------------
 step() { echo ""; echo "━━━ $1 ━━━"; }
@@ -77,6 +98,7 @@ command -v hdiutil >/dev/null || { echo "ERROR: hdiutil not found"; exit 1; }
 
 ok "All required tools present"
 echo "  Version:     ${VERSION}"
+echo "  Arch:        ${ARCH}"
 echo "  Project:     ${PROJECT_ROOT}"
 echo "  Output:      ${BUILD_DIR}"
 if [[ -n "${SIGNING_IDENTITY}" ]]; then
@@ -113,9 +135,17 @@ fi
 # --------------- Build Swift binary -----------------------------------------
 step "[3/8] Building Swift binary"
 cd "${SPM_DIR}"
-swift build -c release --product TimeTrack 2>&1 | grep -E '(error:|warning:|Build complete)' || true
-swift build -c release --product TimeTrack
-cp ".build/release/TimeTrack" "${CONTENTS}/MacOS/"
+if [[ "${SWIFT_ARCH}" == "x86_64" && "${HOST_ARCH}" == "arm64" ]]; then
+    # Prefer building x86_64 under Rosetta when available.
+    if command -v arch >/dev/null 2>&1; then
+        arch -x86_64 swift build -c release --product TimeTrack --scratch-path "${SPM_SCRATCH}"
+    else
+        swift build -c release --product TimeTrack --scratch-path "${SPM_SCRATCH}"
+    fi
+else
+    swift build -c release --product TimeTrack --scratch-path "${SPM_SCRATCH}"
+fi
+cp "${SPM_SCRATCH}/release/TimeTrack" "${CONTENTS}/MacOS/"
 ok "Swift binary built and copied"
 
 # --------------- Build .NET Agent (self-contained) --------------------------
@@ -128,7 +158,7 @@ AGENT_PUBLISH_TMP="${BUILD_DIR}/agent-publish-tmp"
 rm -rf "${AGENT_PUBLISH_TMP}"
 dotnet publish "${AGENT_DIR}" \
     -c Release \
-    -r osx-arm64 \
+    -r "${DOTNET_RUNTIME}" \
     --self-contained true \
     -p:PublishTrimmed=false \
     -p:PublishSingleFile=true \
@@ -150,7 +180,7 @@ if [[ -f "${AGENT_DIR}/appsettings.Production.json" ]]; then
     cp "${AGENT_DIR}/appsettings.Production.json" "${CONTENTS}/Resources/agent/"
 fi
 rm -rf "${AGENT_PUBLISH_TMP}"
-ok ".NET agent published as single-file (self-contained, osx-arm64)"
+ok ".NET agent published as single-file (self-contained, ${DOTNET_RUNTIME})"
 
 # --------------- Copy resources & frameworks --------------------------------
 step "[5/8] Assembling app bundle"
@@ -167,7 +197,7 @@ cp "${ICNS_SRC}" "${CONTENTS}/Resources/AppIcon.icns"
 ok "AppIcon.icns installed"
 
 # Sparkle auto-update framework
-SPARKLE_XCF="${SPM_DIR}/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework"
+SPARKLE_XCF="${SPM_SCRATCH}/artifacts/sparkle/Sparkle/Sparkle.xcframework"
 SPARKLE_FW="${SPARKLE_XCF}/macos-arm64_x86_64/Sparkle.framework"
 if [[ -d "${SPARKLE_FW}" ]]; then
     cp -R "${SPARKLE_FW}" "${CONTENTS}/Frameworks/"
@@ -190,14 +220,14 @@ if [[ -f "${AGENT_PLIST_SRC}" ]]; then
     cp "${AGENT_PLIST_SRC}" "${AGENT_PLIST_OUT}"
     # Update path: agent moved from Contents/MacOS/ to Contents/Resources/agent/
     /usr/libexec/PlistBuddy -c \
-        "Set :ProgramArguments:0 /Applications/TimeTrack.app/Contents/Resources/agent/TimeTrack.MacOSAgentService" \
+        "Set :ProgramArguments:0 '/Applications/${APP_DISPLAY_NAME}.app/Contents/Resources/agent/TimeTrack.MacOSAgentService'" \
         "${AGENT_PLIST_OUT}"
     # Also add DOTNET_CONTENT_ROOT so the agent finds appsettings.json
     /usr/libexec/PlistBuddy -c \
-        "Set :EnvironmentVariables:DOTNET_CONTENT_ROOT /Applications/TimeTrack.app/Contents/Resources/agent" \
+        "Set :EnvironmentVariables:DOTNET_CONTENT_ROOT '/Applications/${APP_DISPLAY_NAME}.app/Contents/Resources/agent'" \
         "${AGENT_PLIST_OUT}" 2>/dev/null \
     || /usr/libexec/PlistBuddy -c \
-        "Add :EnvironmentVariables:DOTNET_CONTENT_ROOT string /Applications/TimeTrack.app/Contents/Resources/agent" \
+        "Add :EnvironmentVariables:DOTNET_CONTENT_ROOT string '/Applications/${APP_DISPLAY_NAME}.app/Contents/Resources/agent'" \
         "${AGENT_PLIST_OUT}"
     ok "LaunchAgent plist staged (agent path → Contents/Resources/agent/)"
 fi
@@ -287,9 +317,6 @@ mkdir -p "${DMG_STAGING}"
 cp -R "${APP_BUNDLE}" "${DMG_STAGING}/"
 # Symlink to /Applications for drag-install
 ln -sf /Applications "${DMG_STAGING}/Applications"
-# Post-install setup script (run once after dragging to Applications)
-cp "${PROJECT_ROOT}/installer/macos-postinstall.sh" "${DMG_STAGING}/Install TimeTrack.command"
-chmod +x "${DMG_STAGING}/Install TimeTrack.command"
 
 # Calculate required size (add 30 MB headroom for styling)
 APP_SIZE_KB=$(du -sk "${DMG_STAGING}" | awk '{print $1}')
@@ -298,7 +325,7 @@ DMG_SIZE_MB=$(( (APP_SIZE_KB / 1024) + 50 ))
 # Create writable temp DMG
 hdiutil create \
     -srcfolder "${DMG_STAGING}" \
-    -volname "${APP_NAME}" \
+    -volname "${VOLUME_NAME}" \
     -fs HFS+ \
     -fsargs "-c c=64,a=16,b=16" \
     -format UDRW \
@@ -320,7 +347,7 @@ fi
 # Use osascript as a reliable cross-environment fallback
 osascript << APPLESCRIPT 2>/dev/null || true
 tell application "Finder"
-    set dsk to disk "TimeTrack"
+    set dsk to disk "${VOLUME_NAME}"
     set img to POSIX file "${DMG_MOUNT}/.VolumeIcon.icns" as alias
     try
         set icon of dsk to img
@@ -331,19 +358,18 @@ APPLESCRIPT
 # Style the Finder window via AppleScript
 osascript << APPLESCRIPT
 tell application "Finder"
-    tell disk "TimeTrack"
+    tell disk "${VOLUME_NAME}"
         open
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
-        set the bounds of container window to {150, 80, 750, 460}
+        set the bounds of container window to {150, 80, 700, 420}
         set theViewOptions to icon view options of container window
         set arrangement of theViewOptions to not arranged
         set icon size of theViewOptions to 100
         set text size of theViewOptions to 12
-        set position of item "TimeTrack.app"         of container window to {140, 175}
-        set position of item "Applications"           of container window to {420, 175}
-        set position of item "Install TimeTrack.command" of container window to {280, 340}
+        set position of item "${APP_DISPLAY_NAME}.app"         of container window to {170, 175}
+        set position of item "Applications"           of container window to {440, 175}
         close
         open
         update without registering applications
@@ -377,8 +403,8 @@ echo ""
 echo "  App bundle : ${APP_BUNDLE}  (${APP_SIZE})"
 echo "  Installer  : ${DMG_FINAL}  (${DMG_SIZE})"
 echo ""
-echo "  To install: open the DMG and drag TimeTrack.app to Applications."
-echo "  The agent service starts automatically at login via LaunchAgent."
+echo "  To install: open the DMG and drag ${APP_DISPLAY_NAME}.app to Applications."
+echo "  Start at login can be enabled in Settings → General."
 echo ""
 if [[ -z "${SIGNING_IDENTITY}" ]]; then
     echo "  NOTE: This build is ad-hoc signed. End users must right-click ▸ Open"

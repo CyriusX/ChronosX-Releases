@@ -70,8 +70,6 @@ struct WebViewContainer: NSViewRepresentable {
     @Binding var webView: WKWebView?
     static var schemeHandler: TimeTrackSchemeHandler?
     static var localServer: LocalHTTPServer?
-    private static let devLoginKeychainService = "com.cyriusx.timetrack.dev-login"
-    private static let devLoginKeychainAccount = "default"
 
     private static func resolveDistURL() -> URL? {
         let fm = FileManager.default
@@ -95,54 +93,6 @@ struct WebViewContainer: NSViewRepresentable {
             if fm.fileExists(atPath: url.path) {
                 return url
             }
-        }
-
-        return nil
-    }
-
-    private static func readKeychainSecret(service: String, account: String) -> String? {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        task.arguments = ["find-generic-password", "-s", service, "-a", account, "-w"]
-
-        let out = Pipe()
-        task.standardOutput = out
-        task.standardError = Pipe()
-
-        do {
-            try task.run()
-        } catch {
-            return nil
-        }
-        task.waitUntilExit()
-        guard task.terminationStatus == 0 else { return nil }
-
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        guard let s = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !s.isEmpty
-        else { return nil }
-        return s
-    }
-
-    private static func loadDevLogin() -> [String: String]? {
-        // Highest priority: environment variables (no persistence on disk).
-        if let e = ProcessInfo.processInfo.environment["TIMETRACK_DEV_LOGIN_EMAIL"],
-           let p = ProcessInfo.processInfo.environment["TIMETRACK_DEV_LOGIN_PASSWORD"],
-           !e.isEmpty, !p.isEmpty
-        {
-            return ["email": e, "password": p]
-        }
-
-        // Optional: Keychain (persistent, secure). Stored as JSON in the password field.
-        if let secret = readKeychainSecret(service: devLoginKeychainService, account: devLoginKeychainAccount),
-           let secretData = secret.data(using: .utf8),
-           let obj = try? JSONSerialization.jsonObject(with: secretData) as? [String: Any],
-           let email = obj["email"] as? String,
-           let password = obj["password"] as? String,
-           !email.isEmpty, !password.isEmpty
-        {
-            return ["email": email, "password": password]
         }
 
         return nil
@@ -191,22 +141,13 @@ struct WebViewContainer: NSViewRepresentable {
                 NSLog("[WebView] LocalHTTPServer started at %@", server.baseURL)
 
                 // Provide the UI with a same-origin API base that proxies to production.
-                var overrides: [String: Any] = ["VITE_API_URL": "/api/v1"]
-                if let devLogin = Self.loadDevLogin() {
-                    overrides["DEV_LOGIN"] = devLogin
-                }
-                Self.injectAppConfig(userContentController: userContentController, overrides: overrides)
+                Self.injectAppConfig(userContentController: userContentController, overrides: ["VITE_API_URL": "/api/v1"])
             } else {
                 NSLog("[WebView] WARNING: failed to start LocalHTTPServer, falling back to timetrack:// scheme handler")
                 let handler = TimeTrackSchemeHandler(resourcePath: distURL.path)
                 Self.schemeHandler = handler
                 config.setURLSchemeHandler(handler, forURLScheme: "timetrack")
                 NSLog("[WebView] Scheme handler registered for dist: %@", distURL.path)
-
-                // For scheme mode, only inject optional dev overrides.
-                if let devLogin = Self.loadDevLogin() {
-                    Self.injectAppConfig(userContentController: userContentController, overrides: ["DEV_LOGIN": devLogin])
-                }
             }
         } else {
             NSLog("[WebView] WARNING: dist not found, no local server or scheme handler registered")
