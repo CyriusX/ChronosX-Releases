@@ -122,28 +122,37 @@ cat > "${BUILD_DIR}/launchagent/com.cyriusx.timetrack.agent.plist" << 'LAPLIST'
 </plist>
 LAPLIST
 
-echo "[6/6] Creating app launch script..."
-cat > "${APP_BUNDLE}/Contents/MacOS/TimeTrack" << 'LAUNCH'
+echo "[6/6] Building Swift DesktopHost (SPM) and installing executable..."
+SPM_DIR="${PROJECT_ROOT}/src/agent/TimeTrack.MacOSDesktopHost"
+if command -v swift &>/dev/null; then
+    (
+        cd "${SPM_DIR}"
+        swift build -c release --product TimeTrack
+        cp ".build/release/TimeTrack" "${APP_BUNDLE}/Contents/MacOS/TimeTrack"
+        chmod +x "${APP_BUNDLE}/Contents/MacOS/TimeTrack"
+    )
+    echo "  Swift DesktopHost installed"
+
+    echo "  Installing Sparkle framework..."
+    SPARKLE_XCFW="${SPM_DIR}/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework"
+    if [ -d "${SPARKLE_XCFW}/macos-arm64_x86_64/Sparkle.framework" ]; then
+        cp -R "${SPARKLE_XCFW}/macos-arm64_x86_64/Sparkle.framework" "${APP_BUNDLE}/Contents/Frameworks/"
+        echo "  Sparkle framework installed"
+    else
+        echo "  WARNING: Sparkle framework not found at ${SPARKLE_XCFW}"
+    fi
+
+    # Ensure the binary can locate embedded frameworks at runtime.
+    install_name_tool -add_rpath "@executable_path/../Frameworks" "${APP_BUNDLE}/Contents/MacOS/TimeTrack" 2>/dev/null || true
+else
+    echo "  WARNING: swift not found; creating a placeholder executable."
+    cat > "${APP_BUNDLE}/Contents/MacOS/TimeTrack" << 'LAUNCH'
 #!/bin/bash
-DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# Start agent service in background
-if [ -f "${DIR}/agent/TimeTrack.MacOSAgentService" ]; then
-    "${DIR}/agent/TimeTrack.MacOSAgentService" &
-    AGENT_PID=$!
-fi
-
-# Forward signals
-cleanup() {
-    kill ${AGENT_PID:-} 2>/dev/null
-    exit 0
-}
-trap cleanup SIGINT SIGTERM
-
-# Wait
-wait
+echo "TimeTrack DesktopHost not built (swift missing). Use Build/build-macos-spm.sh or install Xcode Command Line Tools."
+exit 1
 LAUNCH
-chmod +x "${APP_BUNDLE}/Contents/MacOS/TimeTrack"
+    chmod +x "${APP_BUNDLE}/Contents/MacOS/TimeTrack"
+fi
 
 echo ""
 echo "=== Build Complete ==="

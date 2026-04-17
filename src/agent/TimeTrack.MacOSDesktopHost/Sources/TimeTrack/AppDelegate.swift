@@ -11,7 +11,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Ensure the background agent service is running. This covers the case
         // where the user launched the app directly (e.g. double-click, Spotlight)
         // without the LaunchAgent having started the service first.
-        ensureAgentRunning()
+        AgentLauncher.shared.ensureRunning()
 
         // Bring the main window front and give it focus once SwiftUI has created it.
         for delay in [0.1, 0.4, 1.0] {
@@ -24,72 +24,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Agent lifecycle
 
-    /// Launches the .NET background agent if it is not already running.
-    private func ensureAgentRunning() {
-        let bundlePath = Bundle.main.bundlePath
-        let candidates = [
-            // Preferred: resources/agent (common macOS layout)
-            bundlePath.appending("/Contents/Resources/agent/TimeTrack.MacOSAgentService"),
-            // Our SPM build script currently publishes to Contents/MacOS/agent
-            bundlePath.appending("/Contents/MacOS/agent/TimeTrack.MacOSAgentService"),
-        ]
-
-        guard let agentPath = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
-            NSLog("[AppDelegate] Agent executable not found. Tried: %@", candidates.joined(separator: " | "))
-            return
-        }
-
-        // pgrep exits 0 if at least one matching process is found.
-        let check = Process()
-        check.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        check.arguments = ["-f", "TimeTrack.MacOSAgentService"]
-        check.standardOutput = Pipe()   // discard output
-        check.standardError  = Pipe()
-        try? check.run()
-        check.waitUntilExit()
-
-        guard check.terminationStatus != 0 else {
-            NSLog("[AppDelegate] Agent is already running — skipping launch")
-            return
-        }
-
-        NSLog("[AppDelegate] Agent not running — launching %@", agentPath)
-        let agentDir = URL(fileURLWithPath: agentPath).deletingLastPathComponent().path
-
-        let agent = Process()
-        agent.executableURL = URL(fileURLWithPath: agentPath)
-        agent.currentDirectoryURL = URL(fileURLWithPath: agentDir)
-        agent.environment = ProcessInfo.processInfo.environment.merging([
-            "DOTNET_ENVIRONMENT":   "Production",
-            "DOTNET_CONTENT_ROOT":  agentDir
-        ]) { _, new in new }
-
-        // Redirect agent stdout/stderr to a user-accessible log file for troubleshooting.
-        do {
-            if let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first {
-                let logsDir = library.appendingPathComponent("Logs/TimeTrack", isDirectory: true)
-                try? FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
-                let logUrl = logsDir.appendingPathComponent("agent.log")
-                if !FileManager.default.fileExists(atPath: logUrl.path) {
-                    FileManager.default.createFile(atPath: logUrl.path, contents: nil)
-                }
-                let handle = try FileHandle(forWritingTo: logUrl)
-                try? handle.seekToEnd()
-                agent.standardOutput = handle
-                agent.standardError = handle
-                NSLog("[AppDelegate] Agent logs redirected to %@", logUrl.path)
-            }
-        } catch {
-            NSLog("[AppDelegate] Failed to set up agent log redirection: %@", error.localizedDescription)
-        }
-
-        do {
-            try agent.run()
-            NSLog("[AppDelegate] Agent started with PID %d", agent.processIdentifier)
-        } catch {
-            NSLog("[AppDelegate] Failed to start agent: %@", error.localizedDescription)
-        }
-    }
+    // (Agent lifecycle moved to AgentLauncher.swift)
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {

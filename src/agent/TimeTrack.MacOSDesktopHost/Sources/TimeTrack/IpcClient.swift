@@ -89,6 +89,7 @@ class IpcClient: ObservableObject {
     }
 
     func connect() async throws {
+        AgentLauncher.shared.ensureRunning()
         let sock = try Socket(path: socketPath)
         self.socket = sock
         self.isConnected = true
@@ -184,6 +185,7 @@ class IpcClient: ObservableObject {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 guard !Task.isCancelled else { return }
                 do {
+                    AgentLauncher.shared.ensureRunning()
                     try await self.connect()
                     return
                 } catch {
