@@ -83,10 +83,30 @@ test('Responsive: mobile layout still usable', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   const demo = page.locator('#demo');
+  await demo.scrollIntoViewIfNeeded();
 
   const desktopFrame = await getDesktopDemoFrame(page);
   await demo.getByRole('button', { name: /^Reports/i }).click();
   await expect(desktopFrame.getByRole('heading', { name: 'Reports' })).toBeVisible();
+
+  const desktopIframe = page.locator('iframe[title="ChronosX Desktop Demo"]');
+  await expect(desktopIframe).toBeVisible();
+  const desktopBox = await desktopIframe.boundingBox();
+  expect(desktopBox?.width ?? 0).toBeGreaterThanOrEqual(320);
+  expect(desktopBox?.height ?? 0).toBeGreaterThanOrEqual(480);
+
+  await page.goto('/teams');
+  const demoTeams = page.locator('#demo');
+  await demoTeams.scrollIntoViewIfNeeded();
+  const webPortalBtn = demoTeams.getByRole('button', { name: /^Web portal/i });
+  await webPortalBtn.scrollIntoViewIfNeeded();
+  await webPortalBtn.click();
+
+  const portalIframe = page.locator('iframe[title="ChronosX Web Portal Demo"]');
+  await expect(portalIframe).toBeVisible();
+  const portalBox = await portalIframe.boundingBox();
+  expect(portalBox?.width ?? 0).toBeGreaterThanOrEqual(320);
+  expect(portalBox?.height ?? 0).toBeGreaterThanOrEqual(480);
 
   expect(Array.from(notFound)).toEqual([]);
 });

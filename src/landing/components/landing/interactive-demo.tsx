@@ -46,56 +46,6 @@ function langToDemoLang(lang: "en" | "pt"): "en-US" | "pt-BR" {
   return lang === "pt" ? "pt-BR" : "en-US";
 }
 
-function ScaledDesktopFrame({
-  iframeRef,
-  src,
-  onLoad,
-}: {
-  iframeRef: React.RefObject<HTMLIFrameElement | null>;
-  src: string;
-  onLoad: () => void;
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(1);
-  const baseWidth = 1100;
-  const baseHeight = 640;
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const rect = el.getBoundingClientRect();
-      const s = Math.min(1, rect.width / baseWidth, rect.height / baseHeight);
-      setScale(Number.isFinite(s) ? s : 1);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  return (
-    <div ref={containerRef} className="h-full w-full flex items-center justify-center overflow-hidden">
-      <div
-        className="origin-center"
-        style={{
-          width: baseWidth,
-          height: baseHeight,
-          transform: `scale(${scale})`,
-        }}
-      >
-        <iframe
-          ref={iframeRef}
-          title="ChronosX Desktop Demo"
-          src={src}
-          className="h-full w-full rounded-[22px] bg-[rgb(10,12,18)]"
-          sandbox="allow-scripts allow-same-origin"
-          loading="lazy"
-          onLoad={onLoad}
-        />
-      </div>
-    </div>
-  );
-}
-
 export function InteractiveDemo() {
   const { audience, lang, copy } = useLandingContent();
   const tabs = copy.demo.tabs as Array<{
@@ -276,7 +226,14 @@ export function InteractiveDemo() {
           <div className={cn("w-full", "max-w-[1100px]")}>
             <SoftFrame
               className="w-full"
-              innerClassName={cn("bg-[rgb(10,12,18)]", "h-[640px]")}
+              innerClassName={cn(
+                "bg-[rgb(10,12,18)]",
+                // Mobile-first: give the embedded app a phone-like viewport so it
+                // renders its responsive layout and fills the available space.
+                "h-[min(72dvh,720px)]",
+                "sm:h-[min(60dvh,640px)]",
+                "lg:h-[640px]"
+              )}
               fade="none"
             >
               <div className="relative h-full w-full">
@@ -286,7 +243,15 @@ export function InteractiveDemo() {
                     showPortal ? "opacity-0 pointer-events-none" : "opacity-100"
                   )}
                 >
-                  <ScaledDesktopFrame iframeRef={desktopFrameRef} src={desktopSrc} onLoad={pingDesktopReady} />
+                  <iframe
+                    ref={desktopFrameRef}
+                    title="ChronosX Desktop Demo"
+                    src={desktopSrc}
+                    className="h-full w-full rounded-[22px] bg-[rgb(10,12,18)]"
+                    sandbox="allow-scripts allow-same-origin"
+                    loading="lazy"
+                    onLoad={pingDesktopReady}
+                  />
                 </div>
 
                 {audience === "teams" && (
