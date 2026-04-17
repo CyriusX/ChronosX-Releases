@@ -13,6 +13,7 @@ import type { ActivityBlock } from '../../hooks/useActivitiesData';
 
 interface SessionListProps {
   activities: ActivityBlock[];
+  defaultCollapsed?: boolean;
 }
 
 const cardBase =
@@ -70,109 +71,139 @@ function fmtTime(iso: string) {
 
 const DEFAULT_VISIBLE = 8;
 
-export function SessionList({ activities }: SessionListProps) {
-  const [expanded, setExpanded] = useState(false);
+export function SessionList({ activities, defaultCollapsed = true }: SessionListProps) {
+  const [sectionOpen, setSectionOpen] = useState(!defaultCollapsed);
+  const [showAll, setShowAll] = useState(false);
 
   const sorted = [...activities].sort(
     (a, b) => new Date(a.startUtc).getTime() - new Date(b.startUtc).getTime(),
   );
 
-  const visible = expanded ? sorted : sorted.slice(0, DEFAULT_VISIBLE);
+  const visible = showAll ? sorted : sorted.slice(0, DEFAULT_VISIBLE);
   const hasMore = sorted.length > DEFAULT_VISIBLE;
 
   return (
     <Card className={cardBase}>
       <CardHeader className="pb-0 pt-3 px-4">
-        <CardTitle className="flex items-center justify-between">
-          <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
-            Sessoes detalhadas
-          </span>
-          <span className="text-[10px] text-[rgba(245,247,251,0.3)] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
-            {sorted.length}
-          </span>
-        </CardTitle>
+        <button
+          type="button"
+          onClick={() => {
+            const next = !sectionOpen;
+            setSectionOpen(next);
+            if (!next) setShowAll(false);
+          }}
+          className="w-full flex items-center justify-between gap-3 text-left"
+        >
+          <CardTitle className="flex items-center justify-between w-full">
+            <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)]">
+              Sessoes detalhadas
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="text-[10px] text-[rgba(245,247,251,0.3)] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
+                {sorted.length}
+              </span>
+              {sectionOpen ? (
+                <ChevronUp className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-[rgba(245,247,251,0.4)]" />
+              )}
+            </span>
+          </CardTitle>
+        </button>
       </CardHeader>
-      <CardContent className="pt-3 pb-3 px-4">
-        {sorted.length === 0 ? (
-          <p className="text-[11px] text-[rgba(245,247,251,0.3)] text-center py-4">
-            Nenhuma sessao registrada
-          </p>
-        ) : (
-          <>
-            <motion.div
-              className="space-y-1"
-              variants={staggerContainer(STAGGER.listItems)}
-              initial="hidden"
-              animate="visible"
-            >
-              {visible.map((a, i) => (
-                <motion.div
-                  key={a.id || i}
-                  className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-[rgba(255,255,255,0.02)] transition-colors"
-                  variants={fadeUp}
-                >
-                  {/* Time range */}
-                  <span className="text-[10px] text-[rgba(245,247,251,0.4)] tabular-nums w-[80px] flex-shrink-0">
-                    {fmtTime(a.startUtc)} – {fmtTime(a.endUtc)}
-                  </span>
+      <AnimatePresence initial={false}>
+        {sectionOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <CardContent className="pt-3 pb-3 px-4">
+              {sorted.length === 0 ? (
+                <p className="text-[11px] text-[rgba(245,247,251,0.3)] text-center py-4">
+                  Nenhuma sessao registrada
+                </p>
+              ) : (
+                <>
+                  <motion.div
+                    className="space-y-1"
+                    variants={staggerContainer(STAGGER.listItems)}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    {visible.map((a, i) => (
+                      <motion.div
+                        key={a.id || i}
+                        className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+                        variants={fadeUp}
+                      >
+                        {/* Time range */}
+                        <span className="text-[10px] text-[rgba(245,247,251,0.4)] tabular-nums w-[80px] flex-shrink-0">
+                          {fmtTime(a.startUtc)} – {fmtTime(a.endUtc)}
+                        </span>
 
-                  {/* Duration */}
-                  <span className="text-[10px] text-[rgba(245,247,251,0.5)] w-[40px] flex-shrink-0 text-right tabular-nums">
-                    {formatDuration(a.duration)}
-                  </span>
+                        {/* Duration */}
+                        <span className="text-[10px] text-[rgba(245,247,251,0.5)] w-[40px] flex-shrink-0 text-right tabular-nums">
+                          {formatDuration(a.duration)}
+                        </span>
 
-                  {/* App icon + name */}
-                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                    <AppIcon name={a.name} size={13} />
-                    <span className="text-[10px] text-[rgba(245,247,251,0.7)] truncate">
-                      {a.name}
-                    </span>
-                  </div>
+                        {/* App icon + name */}
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <AppIcon name={a.name} size={13} />
+                          <span className="text-[10px] text-[rgba(245,247,251,0.7)] truncate">
+                            {a.name}
+                          </span>
+                        </div>
 
-                  {/* Category */}
-                  <span className="text-[9px] text-[rgba(245,247,251,0.3)] truncate max-w-[80px] flex-shrink-0">
-                    {formatSubcategory(a.subcategory)}
-                  </span>
+                        {/* Category */}
+                        <span className="text-[9px] text-[rgba(245,247,251,0.3)] truncate max-w-[80px] flex-shrink-0">
+                          {formatSubcategory(a.subcategory)}
+                        </span>
 
-                  {/* Productivity badge */}
-                  {a.productivity && (
-                    <span
-                      className={`px-1.5 py-0.5 text-[8px] rounded-full border flex-shrink-0 ${productivityBadge(a.productivity)}`}
-                    >
-                      {productivityLabel(a.productivity)}
-                    </span>
+                        {/* Productivity badge */}
+                        {a.productivity && (
+                          <span
+                            className={`px-1.5 py-0.5 text-[8px] rounded-full border flex-shrink-0 ${productivityBadge(a.productivity)}`}
+                          >
+                            {productivityLabel(a.productivity)}
+                          </span>
+                        )}
+                      </motion.div>
+                    ))}
+                  </motion.div>
+
+                  {/* Show more/less toggle */}
+                  {hasMore && (
+                    <AnimatePresence mode="wait">
+                      <motion.button
+                        key={showAll ? 'less' : 'more'}
+                        onClick={() => setShowAll(!showAll)}
+                        className="flex items-center justify-center gap-1 w-full mt-2 py-1.5 rounded-lg text-[10px] text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.03)] transition-colors"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        {showAll ? (
+                          <>
+                            <ChevronUp className="w-3 h-3" /> Mostrar menos
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="w-3 h-3" /> Mostrar mais ({sorted.length - DEFAULT_VISIBLE})
+                          </>
+                        )}
+                      </motion.button>
+                    </AnimatePresence>
                   )}
-                </motion.div>
-              ))}
-            </motion.div>
-
-            {/* Show more/less toggle */}
-            {hasMore && (
-              <AnimatePresence mode="wait">
-                <motion.button
-                  key={expanded ? 'less' : 'more'}
-                  onClick={() => setExpanded(!expanded)}
-                  className="flex items-center justify-center gap-1 w-full mt-2 py-1.5 rounded-lg text-[10px] text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.03)] transition-colors"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  {expanded ? (
-                    <>
-                      <ChevronUp className="w-3 h-3" /> Mostrar menos
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="w-3 h-3" /> Mostrar mais ({sorted.length - DEFAULT_VISIBLE})
-                    </>
-                  )}
-                </motion.button>
-              </AnimatePresence>
-            )}
-          </>
+                </>
+              )}
+            </CardContent>
+          </motion.div>
         )}
-      </CardContent>
+      </AnimatePresence>
     </Card>
   );
 }

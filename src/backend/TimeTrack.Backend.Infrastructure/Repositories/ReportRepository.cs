@@ -242,7 +242,9 @@ public sealed class ReportRepository : IReportRepository
     }
 
     /// <summary>
-    /// Extracts the directory component from a file path in a cross-platform way.
+    /// Normalizes a "folder key" for the Top Folders report.
+    /// - Accepts only real file-system folders (POSIX absolute, Windows drive/UNC, file://)
+    /// - Also accepts *only* cloud-drive URLs (Google Drive / OneDrive / iCloud Drive)
     /// Backend runs on Linux in prod, so System.IO.Path may not parse Windows paths correctly.
     /// </summary>
     private static string? GetFolderPathCrossPlatform(string filePath)
@@ -250,7 +252,30 @@ public sealed class ReportRepository : IReportRepository
         if (string.IsNullOrWhiteSpace(filePath))
             return null;
 
-        var path = filePath.Trim();
+        var raw = filePath.Trim();
+
+        // 1) Cloud-drive URLs (allowed subset only)
+        if (raw.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            raw.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri))
+                return null;
+
+            if (!IsAllowedCloudDriveHost(uri.Host))
+                return null;
+
+            var host = uri.Host.ToLowerInvariant();
+            var absolutePath = uri.AbsolutePath;
+            // Trim trailing slashes except root
+            while (absolutePath.Length > 1 && absolutePath.EndsWith("/", StringComparison.Ordinal))
+                absolutePath = absolutePath[..^1];
+
+            // Stable key = scheme://host + path + query (drop fragments)
+            return $"{uri.Scheme.ToLowerInvariant()}://{host}{absolutePath}{uri.Query}";
+        }
+
+        var path = raw;
+        var hadTrailingSep = path.EndsWith("\\", StringComparison.Ordinal) || path.EndsWith("/", StringComparison.Ordinal);
 
         if (path.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
         {
@@ -258,12 +283,17 @@ public sealed class ReportRepository : IReportRepository
             {
                 var uri = new Uri(path);
                 path = uri.LocalPath;
+                hadTrailingSep = filePath.Trim().EndsWith("/", StringComparison.Ordinal) || filePath.Trim().EndsWith("\\", StringComparison.Ordinal);
             }
             catch
             {
                 // Ignore and fall back to raw parsing.
             }
         }
+
+        // Reject anything that doesn't look like a real file-system path
+        if (!LooksLikeFileSystemPath(path))
+            return null;
 
         // Trim trailing separators, keeping roots intact.
         while (path.Length > 1 && (path.EndsWith("\\", StringComparison.Ordinal) || path.EndsWith("/", StringComparison.Ordinal)))
@@ -274,6 +304,10 @@ public sealed class ReportRepository : IReportRepository
                 break;
             path = path[..^1];
         }
+
+        // If the raw value already looked like a directory (trailing separator), keep it as-is after trimming.
+        if (hadTrailingSep)
+            return path;
 
         var lastSlash = path.LastIndexOf('/');
         var lastBackslash = path.LastIndexOf('\\');
@@ -289,6 +323,53 @@ public sealed class ReportRepository : IReportRepository
             return path[..1];
 
         return path[..lastSep];
+    }
+
+    private static bool LooksLikeFileSystemPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        var p = path.TrimStart();
+
+        // POSIX absolute
+        if (p.StartsWith("/", StringComparison.Ordinal))
+            return true;
+
+        // UNC
+        if (p.StartsWith("\\\\", StringComparison.Ordinal))
+            return true;
+
+        // Windows drive root: C:\ or C:/
+        if (p.Length >= 3 &&
+            char.IsLetter(p[0]) &&
+            p[1] == ':' &&
+            (p[2] == '\\' || p[2] == '/'))
+            return true;
+
+        return false;
+    }
+
+    private static bool IsAllowedCloudDriveHost(string host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+            return false;
+
+        var h = host.Trim().ToLowerInvariant();
+
+        if (h == "drive.google.com")
+            return true;
+
+        if (h == "onedrive.live.com" || h == "1drv.ms")
+            return true;
+
+        if (h.EndsWith(".sharepoint.com", StringComparison.Ordinal) || h.EndsWith(".my.sharepoint.com", StringComparison.Ordinal))
+            return true;
+
+        if (h == "icloud.com" || h == "www.icloud.com")
+            return true;
+
+        return false;
     }
 
     public async Task<DailyActivityAggregate> GetDailyActivityAggregateAsync(

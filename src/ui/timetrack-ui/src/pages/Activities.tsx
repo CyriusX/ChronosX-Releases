@@ -29,7 +29,7 @@ import { AppIcon } from '../components/dashboard/shared';
 import { useTimerStore, selectCurrentUserSessions } from '../stores/timerStore';
 import { Clock } from 'lucide-react';
 import { fadeUp, staggerContainer, STAGGER } from '../lib/animation';
-import { FoldersAccessedCard } from '../components/dashboard/FoldersAccessedCard';
+import { ActivitiesFoldersCard } from '../components/activities/ActivitiesFoldersCard';
 
 // ============================================================================
 // CONSTANTS
@@ -131,7 +131,10 @@ export default function Activities() {
             <BottomCards summary={summary} />
 
             {/* Session List */}
-            <SessionList activities={activities} />
+            <SessionList activities={activities} defaultCollapsed />
+
+            {/* Folders (collapsed section) */}
+            <ActivitiesFoldersCard date={data.selectedDate} userId={userId} />
 
             {/* Right panel content — shown inline on mobile/tablet (< lg) */}
             <div className="lg:hidden flex flex-col gap-4">
@@ -140,7 +143,6 @@ export default function Activities() {
                 onDateSelect={data.setSelectedDate}
                 weeklyHistory={data.weeklyHistory}
               />
-              <FoldersAccessedCard date={data.selectedDate} userId={userId} />
               <TopAppsPanel summary={summary} />
             </div>
           </div>
@@ -153,8 +155,6 @@ export default function Activities() {
               onDateSelect={data.setSelectedDate}
               weeklyHistory={data.weeklyHistory}
             />
-
-            <FoldersAccessedCard date={data.selectedDate} userId={userId} />
 
             {/* Top Apps for the day */}
             <TopAppsPanel summary={summary} />

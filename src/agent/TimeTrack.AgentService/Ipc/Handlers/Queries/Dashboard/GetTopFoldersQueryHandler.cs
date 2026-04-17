@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
+using TimeTrack.Agent.Infrastructure.Utilities;
 using TimeTrack.AgentService.Ipc.Handlers;
 
 namespace TimeTrack.AgentService.Ipc.Handlers.Queries.Dashboard;
@@ -53,7 +54,7 @@ public sealed class GetTopFoldersQueryHandler : IpcHandlerBase, IIpcQueryHandler
                 if (string.IsNullOrWhiteSpace(s.FilePath))
                     continue;
 
-                var folder = GetFolderPathCrossPlatform(s.FilePath);
+                var folder = FolderKeyNormalizer.Normalize(s.FilePath);
                 if (string.IsNullOrWhiteSpace(folder))
                     continue;
 
@@ -120,50 +121,5 @@ public sealed class GetTopFoldersQueryHandler : IpcHandlerBase, IIpcQueryHandler
         return (long)Math.Max(0, (e - s).TotalSeconds);
     }
 
-    private static string? GetFolderPathCrossPlatform(string filePath)
-    {
-        if (string.IsNullOrWhiteSpace(filePath))
-            return null;
-
-        var path = filePath.Trim();
-
-        if (path.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
-        {
-            try
-            {
-                var uri = new Uri(path);
-                path = uri.LocalPath;
-            }
-            catch
-            {
-                // Ignore and fall back.
-            }
-        }
-
-        // Trim trailing separators, keeping roots intact.
-        while (path.Length > 1 && (path.EndsWith("\\", StringComparison.Ordinal) || path.EndsWith("/", StringComparison.Ordinal)))
-        {
-            if (path == "/")
-                break;
-            if (path.Length == 3 && char.IsLetter(path[0]) && path[1] == ':' && (path[2] == '\\' || path[2] == '/'))
-                break;
-            path = path[..^1];
-        }
-
-        var lastSlash = path.LastIndexOf('/');
-        var lastBackslash = path.LastIndexOf('\\');
-        var lastSep = Math.Max(lastSlash, lastBackslash);
-
-        if (lastSep < 0)
-            return path;
-
-        if (lastSep == 2 && path.Length >= 3 && char.IsLetter(path[0]) && path[1] == ':' && (path[2] == '\\' || path[2] == '/'))
-            return path[..3].Replace('/', '\\');
-
-        if (lastSep == 0)
-            return path[..1];
-
-        return path[..lastSep];
-    }
+    // Folder normalization is shared with backend logic to keep results consistent across IPC and API.
 }
-

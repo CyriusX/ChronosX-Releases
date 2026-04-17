@@ -46,11 +46,11 @@ import {
   ProductivityTrend,
   TopAppsSection,
   TopPathsSection,
-  TopFoldersSection,
   CategoryDonut,
   DistractionSection,
   ProjectTasksAccordion,
 } from '../components/reports';
+import { CollapsibleFoldersCard } from '../components/folders/CollapsibleFoldersCard';
 import type { PeriodPreset, GroupByOption } from '../types/reports';
 
 // Period preset options for dropdown (labels resolved via i18n at render time)
@@ -555,16 +555,6 @@ export default function Reports() {
                 />
               </motion.div>
 
-              {/* Top Folders */}
-              <motion.div variants={fadeUp} className="h-full">
-                <TopFoldersSection
-                  folders={data.topFolders?.folders ?? []}
-                  isLoading={isLoading}
-                  title={t('reports.topFolders')}
-                  maxItems={10}
-                />
-              </motion.div>
-
               {/* Distraction Stats */}
               <motion.div variants={fadeUp} className="h-full">
                 <DistractionSection
@@ -587,6 +577,17 @@ export default function Reports() {
                   if (next.has(id)) next.delete(id); else next.add(id);
                   return next;
                 })}
+              />
+            </motion.div>
+
+            {/* Top Folders (collapsed section at bottom) */}
+            <motion.div variants={fadeUp} initial="hidden" animate="visible">
+              <CollapsibleFoldersCard
+                title={t('reports.topFolders')}
+                folders={data.topFolders?.folders ?? []}
+                isLoading={isLoading}
+                defaultCollapsed={true}
+                maxItems={20}
               />
             </motion.div>
           </div>

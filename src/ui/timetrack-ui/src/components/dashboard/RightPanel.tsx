@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { AppIcon } from './shared';
 import { MyTasksWidget } from './MyTasksWidget';
-import { FoldersAccessedCard } from './FoldersAccessedCard';
 import { useTeamStatus } from '../../hooks/useTeamStatus';
 import { useAuthStore } from '../../stores/authStore';
 import { formatDuration } from '../../lib/utils';
@@ -93,7 +92,6 @@ export function RightPanel({ summary, weeklyHistory, showTeamCard = false, selec
     >
       {/* Minhas Tarefas — only on meu-dia tab */}
       {!showTeamCard && <MyTasksWidget />}
-      <FoldersAccessedCard userId={showTeamCard ? (selectedMemberId ?? undefined) : undefined} />
 
       {/* Equipe Agora */}
       {showTeamCard && (
