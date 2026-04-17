@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using TimeTrack.Backend.Application.Common.Exceptions;
 
 namespace TimeTrack.Api.Middleware;
@@ -42,6 +44,11 @@ public class ExceptionHandlingMiddleware
                 statusCode = (int)HttpStatusCode.Unauthorized;
                 response = new ErrorResponse(ex.Code, ex.Message);
                 errorDetails = $"UserDeactivatedException: {ex.Message}";
+                break;
+            case DbUpdateException ex when TryGetPostgresException(ex, out var pg):
+                statusCode = (int)HttpStatusCode.InternalServerError;
+                response = MapPostgresException(pg);
+                errorDetails = $"DbUpdateException({pg.SqlState}): {pg.MessageText}";
                 break;
             case ForbiddenException ex:
                 statusCode = (int)HttpStatusCode.Forbidden;
@@ -101,4 +108,31 @@ public class ExceptionHandlingMiddleware
     private record ErrorResponse(string Code, string Message);
 
     private record ValidationErrorResponse(string Code, IDictionary<string, string[]> Errors);
+
+    private static bool TryGetPostgresException(DbUpdateException ex, out PostgresException pg)
+    {
+        var cur = ex.InnerException;
+        while (cur is not null)
+        {
+            if (cur is PostgresException pe)
+            {
+                pg = pe;
+                return true;
+            }
+            cur = cur.InnerException;
+        }
+
+        pg = null!;
+        return false;
+    }
+
+    private static ErrorResponse MapPostgresException(PostgresException pg) => pg.SqlState switch
+    {
+        // Likely: API deployed without applying EF migrations (common in containerized deploys).
+        "42703" or "42P01" => new ErrorResponse(
+            "db_schema_out_of_date",
+            "Database schema is out of date. Apply migrations and restart the API."),
+
+        _ => new ErrorResponse("database_error", "A database error occurred")
+    };
 }
