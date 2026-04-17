@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { TagPill } from '../shared/TagPill';
 import { useIpc } from '../../../hooks/useIpc';
 import { useTimerStore, type TimerPhase } from '../../../stores/timerStore';
+import { useNotifications } from '../../../stores/uiStore';
 import type { TodaySummaryResponse } from '../../../types/ipc';
 import { cardBase } from '../shared/styles';
 
@@ -26,6 +27,7 @@ const TAG_COLORS = ['#8B5CF6', '#22D3EE', '#3B82F6', '#F59E0B', '#10B981', '#EC4
 export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
   const { t } = useTranslation();
   const { sendQuery, sendCommand } = useIpc();
+  const { notify } = useNotifications();
 
   // --- Shared timer state from store ---
   const mode = useTimerStore(s => s.mode);
@@ -41,9 +43,21 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
   const stop = useTimerStore(s => s.stop);
 
   // --- Tracking-connected handlers ---
-  const handleStart = () => { start(); sendCommand('startTracking'); };
-  const handleTogglePause = () => { togglePause(); sendCommand(isPaused ? 'resumeTracking' : 'pauseTracking'); };
-  const handleStop = () => { stop(); sendCommand('pauseTracking'); };
+  const handleStart = async () => {
+    start();
+    const res = await sendCommand('startTracking');
+    if (!res.success) notify.error('Failed to start tracking', res.error);
+  };
+  const handleTogglePause = async () => {
+    togglePause();
+    const res = await sendCommand(isPaused ? 'resumeTracking' : 'pauseTracking');
+    if (!res.success) notify.error('Failed to update tracking', res.error);
+  };
+  const handleStop = async () => {
+    stop();
+    const res = await sendCommand('pauseTracking');
+    if (!res.success) notify.error('Failed to pause tracking', res.error);
+  };
   const setSelectedProject = useTimerStore(s => s.setSelectedProject);
 
   // --- Local UI state ---

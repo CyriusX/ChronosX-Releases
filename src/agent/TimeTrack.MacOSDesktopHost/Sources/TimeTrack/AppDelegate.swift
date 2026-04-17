@@ -64,6 +64,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "DOTNET_CONTENT_ROOT":  agentDir
         ]) { _, new in new }
 
+        // Redirect agent stdout/stderr to a user-accessible log file for troubleshooting.
+        do {
+            if let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first {
+                let logsDir = library.appendingPathComponent("Logs/TimeTrack", isDirectory: true)
+                try? FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
+                let logUrl = logsDir.appendingPathComponent("agent.log")
+                if !FileManager.default.fileExists(atPath: logUrl.path) {
+                    FileManager.default.createFile(atPath: logUrl.path, contents: nil)
+                }
+                let handle = try FileHandle(forWritingTo: logUrl)
+                try? handle.seekToEnd()
+                agent.standardOutput = handle
+                agent.standardError = handle
+                NSLog("[AppDelegate] Agent logs redirected to %@", logUrl.path)
+            }
+        } catch {
+            NSLog("[AppDelegate] Failed to set up agent log redirection: %@", error.localizedDescription)
+        }
+
         do {
             try agent.run()
             NSLog("[AppDelegate] Agent started with PID %d", agent.processIdentifier)

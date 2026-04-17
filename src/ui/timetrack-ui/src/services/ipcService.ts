@@ -65,7 +65,13 @@ export class IpcService implements IIpcClient {
   // ============================================================================
 
   get isConnected(): boolean {
-    return this._connectionState === 'connected' || !!this.getBridge();
+    const bridge = this.getBridge();
+    if (!bridge) return false;
+    const b = bridge as unknown as { isConnected?: unknown };
+    if (typeof b.isConnected === 'boolean') {
+      return b.isConnected;
+    }
+    return this._connectionState === 'connected' || !!bridge;
   }
 
   get isReady(): boolean {
@@ -102,6 +108,10 @@ export class IpcService implements IIpcClient {
 
     if (!bridge) {
       return { success: false, error: 'Bridge not available' };
+    }
+    const bState = bridge as unknown as { isConnected?: unknown };
+    if (typeof bState.isConnected === 'boolean' && !bState.isConnected) {
+      return { success: false, error: 'AgentService not connected' };
     }
 
     try {
@@ -143,6 +153,10 @@ export class IpcService implements IIpcClient {
     if (!bridge) {
       console.warn(`[IpcService] Bridge not available for query: ${query}`);
       return { success: false, error: 'Bridge not available' };
+    }
+    const bState = bridge as unknown as { isConnected?: unknown };
+    if (typeof bState.isConnected === 'boolean' && !bState.isConnected) {
+      return { success: false, error: 'AgentService not connected' };
     }
 
     try {
@@ -223,9 +237,11 @@ export class IpcService implements IIpcClient {
     this._isReady = hasBridge;
 
     if (hasBridge) {
-      this._connectionState = 'connected';
+      const b = bridge as unknown as { isConnected?: unknown };
+      const connected = typeof b.isConnected === 'boolean' ? b.isConnected : true;
+      this._connectionState = connected ? 'connected' : 'connecting';
       this.setupBridgeHandlers();
-      console.log('[IpcService] Bridge available, assuming connected (no polling)');
+      console.log('[IpcService] Bridge available, connection:', this._connectionState);
     } else {
       console.warn('[IpcService] Bridge not available, starting connection check interval');
       this._connectionState = 'disconnected';
@@ -253,6 +269,16 @@ export class IpcService implements IIpcClient {
       payloadJson: string
     ) => {
       console.log(`[IpcService] timeTrackHandleEvent called: eventType=${eventType}`);
+      if (eventType === 'connectionStateChanged') {
+        try {
+          const parsed = payloadJson ? (JSON.parse(payloadJson) as { isConnected?: boolean } | null) : null;
+          const connected = !!parsed?.isConnected;
+          this._connectionState = connected ? 'connected' : 'disconnected';
+          this.notifyConnectionChange();
+        } catch {
+          /* ignore */
+        }
+      }
       this.config.eventDispatcher.dispatchFromJson(eventType, payloadJson);
     };
   }

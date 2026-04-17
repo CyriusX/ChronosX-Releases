@@ -3,6 +3,7 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { useIpc } from '../hooks/useIpc';
 import { useFocusModePolicy } from '../hooks/useFocusModePolicy';
 import { isDesktopRuntime } from '../lib/runtime';
+import { useNotifications } from '../stores/uiStore';
 import {
   Sidebar,
   DashboardHeader,
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const desktopRuntime = isDesktopRuntime();
   const { todaySummary, weeklyHistory, isPaused, isTracking, refreshData } = useDashboardData();
   const { focusModePolicy } = useFocusModePolicy();
+  const { notify } = useNotifications();
   const [workGoalSeconds, setWorkGoalSeconds] = useState<number>(28800);
 
   // Fetch work goal setting once
@@ -31,21 +33,33 @@ export default function Dashboard() {
   }, [desktopRuntime, isConnected, sendQuery]);
 
   const onStartTracking = async () => {
-    if (!desktopRuntime || !isConnected) return;
+    if (!desktopRuntime || !isConnected) {
+      notify.error('Agent offline', 'AgentService is not connected. Please wait a moment and try again.');
+      return;
+    }
     const result = await sendCommand('startTracking');
     if (result.success) refreshData();
+    else notify.error('Failed to start tracking', result.error);
   };
 
   const onStopTracking = async () => {
-    if (!desktopRuntime || !isConnected) return;
+    if (!desktopRuntime || !isConnected) {
+      notify.error('Agent offline', 'AgentService is not connected. Please wait a moment and try again.');
+      return;
+    }
     const result = await sendCommand('stopTracking');
     if (result.success) refreshData();
+    else notify.error('Failed to stop tracking', result.error);
   };
 
   const onPauseTracking = async () => {
-    if (!desktopRuntime || !isConnected) return;
+    if (!desktopRuntime || !isConnected) {
+      notify.error('Agent offline', 'AgentService is not connected. Please wait a moment and try again.');
+      return;
+    }
     const result = await sendCommand(isPaused ? 'resumeTracking' : 'pauseTracking');
     if (result.success) refreshData();
+    else notify.error('Failed to update tracking', result.error);
   };
 
   return (

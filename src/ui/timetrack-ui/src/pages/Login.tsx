@@ -16,6 +16,17 @@ export default function Login() {
   const shouldAnimate = !isDesktopRuntime();
   const emailRef = useRef<HTMLInputElement | null>(null);
 
+  // Desktop (macOS host) dev convenience: optionally prefill credentials provided by the host.
+  // This is only active when the host injects `window.__APP_CONFIG__.DEV_LOGIN`.
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
+    const cfg = (window as any).__APP_CONFIG__?.DEV_LOGIN as { email?: string; password?: string } | undefined;
+    if (!cfg) return;
+
+    if (cfg.email && !email) setEmail(cfg.email);
+    if (cfg.password && !password) setPassword(cfg.password);
+  }, [email, password]);
+
   // Webviews sometimes ignore HTML autofocus; force-focus on mount and shortly after.
   useEffect(() => {
     const focus = () => emailRef.current?.focus();

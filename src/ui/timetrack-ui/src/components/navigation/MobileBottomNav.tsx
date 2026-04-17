@@ -17,6 +17,7 @@ import { useTrackingStore } from '../../stores/trackingStore';
 import { useIpc } from '../../hooks/useIpc';
 import { usePermissions } from '../../hooks/usePermissions';
 import { SPRING } from '../../lib/animation';
+import { useNotifications } from '../../stores/uiStore';
 
 const BASE_NAV_ITEMS = [
   { icon: BarChart3, labelKey: 'mobileNav.dashboard', path: '/' },
@@ -37,6 +38,7 @@ export function MobileBottomNav() {
   const setPaused = useTrackingStore(s => s.setPaused);
   const { sendCommand } = useIpc();
   const { canManageTeam } = usePermissions();
+  const { notify } = useNotifications();
   const [isBusy, setIsBusy] = useState(false);
 
   const NAV_ITEMS = BASE_NAV_ITEMS.filter(item => !item.managerOnly || canManageTeam);
@@ -50,9 +52,11 @@ export function MobileBottomNav() {
       if (isActive) {
         const res = await sendCommand('pauseTracking', { reason: 'Tracking Stopped' });
         if (res.success) { setTracking(false); setPaused(true); }
+        else notify.error('Failed to pause tracking', res.error);
       } else {
         const res = await sendCommand('startTracking');
         if (res.success) { setTracking(true); setPaused(false); }
+        else notify.error('Failed to start tracking', res.error);
       }
     } finally {
       setIsBusy(false);
