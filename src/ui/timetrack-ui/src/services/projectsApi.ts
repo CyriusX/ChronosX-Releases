@@ -172,6 +172,10 @@ export function listProjectMembers(projectId: string): Promise<ListMembersRespon
   return api.get<ListMembersResponse>(`/projects/${encodeURIComponent(projectId)}/members`);
 }
 
+export function addProjectMember(projectId: string, userId: string, role: string = 'member'): Promise<ProjectMember> {
+  return api.post<ProjectMember>(`/projects/${encodeURIComponent(projectId)}/members`, { userId, role });
+}
+
 export function createTask(projectId: string, body: CreateTaskRequest): Promise<Task> {
   return api.post<Task>(`/projects/${encodeURIComponent(projectId)}/tasks`, body);
 }

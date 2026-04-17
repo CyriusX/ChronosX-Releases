@@ -753,6 +753,8 @@
     "noResults": "No user found",
     "allMembers": "All users are already members",
     "addSection": "Add",
+    "addSuccess": "Member added and notified",
+    "removeSuccess": "Member removed",
     "addError": "Failed to add member",
     "removeError": "Failed to remove member"
   },

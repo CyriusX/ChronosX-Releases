@@ -6,10 +6,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Users, Loader2, RefreshCw, Zap, ExternalLink, Clock, ListTodo, DollarSign } from 'lucide-react';
 import { Sidebar } from '../components/dashboard';
 import { KanbanBoard } from '../components/projects/KanbanBoard';
+import { ProjectMembersModal } from '../components/projects/ProjectMembersModal';
 import {
   getProject,
   listProjectTasks,
@@ -20,6 +21,7 @@ import {
 } from '../services/projectsApi';
 import { syncLinear } from '../services/integrationsApi';
 import { useNotifications } from '../stores/uiStore';
+import { usePermissions } from '../hooks/usePermissions';
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -28,6 +30,7 @@ export default function ProjectBoard() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { notify } = useNotifications();
+  const { canManageTeam } = usePermissions();
 
   const [project, setProject] = useState<ProjectItem | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -35,6 +38,7 @@ export default function ProjectBoard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncingLinear, setSyncingLinear] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -181,6 +185,18 @@ export default function ProjectBoard() {
                 </div>
               )}
 
+              {!isLinearProject && canManageTeam && (
+                <motion.button
+                  onClick={() => setMembersOpen(true)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="w-9 h-9 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                  title={t('projects.manageMembersTooltip')}
+                >
+                  <Users className="w-3.5 h-3.5 text-[rgba(245,247,251,0.6)]" />
+                </motion.button>
+              )}
+
               {isLinearProject && (
                 <motion.button
                   onClick={handleLinearSync}
@@ -275,6 +291,17 @@ export default function ProjectBoard() {
           )}
         </div>
       </main>
+
+      <AnimatePresence>
+        {membersOpen && project && (
+          <ProjectMembersModal
+            projectId={project.id}
+            projectName={project.name}
+            onClose={() => setMembersOpen(false)}
+            onChanged={() => fetchAll(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

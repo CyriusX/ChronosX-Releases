@@ -7,6 +7,7 @@ import { Sidebar } from '../components/dashboard';
 import { useProjectStore, Project } from '../stores/projectStore';
 import { ProjectCard, type ProjectStats } from '../components/projects/ProjectCard';
 import { ProjectModal } from '../components/projects/ProjectModal';
+import { ProjectMembersModal } from '../components/projects/ProjectMembersModal';
 import { SkeletonShimmer } from '../components/ui/SkeletonShimmer';
 import { listMyTasks, type Task } from '../services/projectsApi';
 import { usePermissions } from '../hooks/usePermissions';
@@ -20,6 +21,7 @@ export default function Projects() {
   const [mineOnly, setMineOnly] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [membersProject, setMembersProject] = useState<Project | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
 
@@ -101,7 +103,9 @@ export default function Projects() {
     if (confirm(t('projects.deleteConfirm'))) { await deleteProject(id); setMenuOpenId(null); }
   };
   const openEditModal = (project: Project) => { setEditingProject(project); setIsModalOpen(true); setMenuOpenId(null); };
+  const openMembersModal = (project: Project) => { setMembersProject(project); setMenuOpenId(null); };
   const closeModal = () => { setIsModalOpen(false); setEditingProject(null); };
+  const closeMembersModal = () => { setMembersProject(null); };
 
   return (
     <div className="flex h-screen bg-[#0b0d14] pb-14 md:pb-0">
@@ -333,6 +337,7 @@ export default function Projects() {
                     isMenuOpen={menuOpenId === project.id}
                     onToggleMenu={() => setMenuOpenId(menuOpenId === project.id ? null : project.id)}
                     onEdit={() => openEditModal(project)}
+                    onManageMembers={canManageTeam ? () => openMembersModal(project) : undefined}
                     onArchive={() => handleArchiveProject(project.id)}
                     onReactivate={() => handleReactivateProject(project.id)}
                     onDelete={() => handleDeleteProject(project.id)}
@@ -353,6 +358,16 @@ export default function Projects() {
             onClose={closeModal}
             onSubmit={editingProject ? handleUpdateProject : handleCreateProject}
             isLoading={isLoading}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {membersProject && (
+          <ProjectMembersModal
+            projectId={membersProject.id}
+            projectName={membersProject.name}
+            onClose={closeMembersModal}
           />
         )}
       </AnimatePresence>

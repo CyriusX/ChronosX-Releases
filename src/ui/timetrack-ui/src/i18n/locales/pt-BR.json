@@ -753,6 +753,8 @@
     "noResults": "Nenhum usuário encontrado",
     "allMembers": "Todos os usuários já são membros",
     "addSection": "Adicionar",
+    "addSuccess": "Membro adicionado e notificado",
+    "removeSuccess": "Membro removido",
     "addError": "Falha ao adicionar membro",
     "removeError": "Falha ao remover membro"
   },

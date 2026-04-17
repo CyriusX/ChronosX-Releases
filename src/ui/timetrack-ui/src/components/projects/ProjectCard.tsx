@@ -2,7 +2,7 @@
  * ProjectCard — premium project card with stats (task counts, time worked, billable cost).
  */
 
-import { Archive, Edit2, MoreVertical, RotateCcw, Trash2, Clock, CheckCircle2, CircleDashed, ListTodo, DollarSign, Zap } from 'lucide-react';
+import { Archive, Edit2, MoreVertical, RotateCcw, Trash2, Clock, CheckCircle2, CircleDashed, ListTodo, DollarSign, Zap, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { Project } from '../../stores/projectStore';
@@ -21,6 +21,7 @@ interface ProjectCardProps {
   isMenuOpen: boolean;
   onToggleMenu: () => void;
   onEdit: () => void;
+  onManageMembers?: () => void;
   onArchive: () => void;
   onReactivate: () => void;
   onDelete: () => void;
@@ -42,6 +43,7 @@ export function ProjectCard({
   isMenuOpen,
   onToggleMenu,
   onEdit,
+  onManageMembers,
   onArchive,
   onReactivate,
   onDelete,
@@ -121,6 +123,15 @@ export function ProjectCard({
                         <Edit2 className="w-3.5 h-3.5" />
                         {t('projects.editProjectMenu')}
                       </button>
+                      {onManageMembers && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onManageMembers(); }}
+                          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#f5f7fb] transition-colors"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          {t('members.projectMembers')}
+                        </button>
+                      )}
                       <button
                         onClick={(e) => { e.stopPropagation(); onArchive(); }}
                         className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] text-[rgba(245,247,251,0.8)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#f5f7fb] transition-colors"
