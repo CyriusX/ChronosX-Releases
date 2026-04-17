@@ -3,6 +3,7 @@ using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
@@ -15,6 +16,7 @@ using TimeTrack.Backend.Application.Extensions;
 using TimeTrack.Backend.Infrastructure.Extensions;
 using TimeTrack.Backend.Infrastructure.Jobs.Configuration;
 using TimeTrack.Backend.Infrastructure.Jobs.Dashboard;
+using TimeTrack.Backend.Infrastructure.Persistence;
 
 // Configure Serilog early
 Log.Logger = new LoggerConfiguration()
@@ -152,6 +154,34 @@ try
     builder.Services.AddInfrastructure(builder.Configuration);
 
     var app = builder.Build();
+
+    // Optional database migration on startup (useful for EasyPanel deployments).
+    // Enable with env var: `Database__MigrateOnStartup=true`
+    if (builder.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<TimeTrackDbContext>();
+
+            var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+            if (pending.Count > 0)
+            {
+                Log.Information("Applying {Count} pending EF migrations", pending.Count);
+                await db.Database.MigrateAsync();
+                Log.Information("EF migrations applied successfully");
+            }
+            else
+            {
+                Log.Information("No pending EF migrations");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal(ex, "Failed to apply EF migrations on startup");
+            throw;
+        }
+    }
 
     // Configure pipeline
     if (app.Environment.IsDevelopment())
