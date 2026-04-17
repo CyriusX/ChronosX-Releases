@@ -18,10 +18,12 @@ namespace TimeTrack.Api.Controllers;
 public sealed class DevicesController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly ILogger<DevicesController> _logger;
 
-    public DevicesController(IMediator mediator)
+    public DevicesController(IMediator mediator, ILogger<DevicesController> logger)
     {
         _mediator = mediator;
+        _logger = logger;
     }
 
     /// <summary>
@@ -34,6 +36,18 @@ public sealed class DevicesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<ActivateDeviceResponse>> Activate([FromBody] ActivateDeviceRequest request)
     {
+        // Log context (no secrets) to make production troubleshooting easier.
+        var userId = User.FindFirst("sub")?.Value;
+        var orgId = User.FindFirst("org_id")?.Value;
+        _logger.LogInformation(
+            "Device activation request: userId={UserId} orgId={OrgId} deviceId={DeviceId} hostname={Hostname} agentVersion={AgentVersion} displayMode={DisplayMode}",
+            userId,
+            orgId,
+            request.DeviceId,
+            request.Hostname,
+            request.AgentVersion,
+            request.DisplayMode);
+
         var result = await _mediator.Send(new ActivateDeviceCommand(
             request.DeviceId,
             request.Hostname,
