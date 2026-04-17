@@ -6,17 +6,16 @@ namespace TimeTrack.AgentService.Ipc.Handlers.Queries.State;
 /// <summary>
 /// Returns whether TimeTrack is configured to start automatically at login.
 ///
-/// macOS   — checks for the LaunchAgent plist in ~/Library/LaunchAgents.
-/// Windows — checks the HKCU Run registry key for a "TimeTrack" entry.
+/// macOS   — checks for the desktop LaunchAgent plist in ~/Library/LaunchAgents.
+/// Windows — checks for the "ChronosX Desktop" Task Scheduler task.
 /// Other   — always returns false.
 /// </summary>
 public sealed class GetLaunchAtLoginQueryHandler : IpcHandlerBase, IIpcQueryHandler
 {
     public string QueryName => "GetLaunchAtLogin";
 
-    private const string PlistName       = "com.cyriusx.timetrack.agent.plist";
-    private const string WinRunKeyPath   = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string WinRunValueName = "TimeTrack";
+    private const string MacPlistName = "com.cyriusx.timetrack.desktop.plist";
+    private const string WinTaskName  = "ChronosX Desktop";
 
     public Task<IpcResponse> HandleAsync(IpcRequest request, CancellationToken ct)
     {
@@ -26,12 +25,12 @@ public sealed class GetLaunchAtLoginQueryHandler : IpcHandlerBase, IIpcQueryHand
         {
             var plistPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "Library", "LaunchAgents", PlistName);
+                "Library", "LaunchAgents", MacPlistName);
             enabled = File.Exists(plistPath);
         }
         else if (OperatingSystem.IsWindows())
         {
-            enabled = IsRegisteredInRunKey();
+            enabled = IsWindowsDesktopTaskEnabled();
         }
         else
         {
@@ -42,12 +41,34 @@ public sealed class GetLaunchAtLoginQueryHandler : IpcHandlerBase, IIpcQueryHand
     }
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static bool IsRegisteredInRunKey()
+    private static bool IsWindowsDesktopTaskEnabled()
     {
         try
         {
-            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(WinRunKeyPath);
-            return key?.GetValue(WinRunValueName) != null;
+            using var p = new System.Diagnostics.Process();
+            p.StartInfo = new System.Diagnostics.ProcessStartInfo("powershell.exe")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true
+            };
+            var script =
+                $"$t = Get-ScheduledTask -TaskName '{WinTaskName}' -ErrorAction SilentlyContinue; " +
+                "if ($null -eq $t) { exit 1 }; " +
+                "if ($t.Enabled -ne $true) { exit 2 }; exit 0";
+
+            var bytes = System.Text.Encoding.Unicode.GetBytes(script);
+            var encoded = Convert.ToBase64String(bytes);
+            p.StartInfo.ArgumentList.Add("-NonInteractive");
+            p.StartInfo.ArgumentList.Add("-ExecutionPolicy");
+            p.StartInfo.ArgumentList.Add("Bypass");
+            p.StartInfo.ArgumentList.Add("-EncodedCommand");
+            p.StartInfo.ArgumentList.Add(encoded);
+
+            p.Start();
+            p.WaitForExit(5_000);
+            return p.ExitCode == 0;
         }
         catch
         {

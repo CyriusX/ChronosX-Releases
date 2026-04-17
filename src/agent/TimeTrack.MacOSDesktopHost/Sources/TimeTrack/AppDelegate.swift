@@ -2,22 +2,49 @@ import AppKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let startMinimized = CommandLine.arguments.contains("--start-minimized")
+
+        // Enforce single-instance. If another instance is already running, activate it (unless
+        // this is an auto-start minimized launch) and terminate this process.
+        if let bundleId = Bundle.main.bundleIdentifier {
+            let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId)
+                .filter { $0.processIdentifier != NSRunningApplication.current.processIdentifier }
+            if !others.isEmpty {
+                if !startMinimized {
+                    others.first?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                }
+                NSApp.terminate(nil)
+                return
+            }
+        }
+
         // When running via `swift run` (not an app bundle), macOS may treat this as a background
         // process: no Dock icon and the window may not receive keyboard focus (keystrokes go to the
         // previously active app, e.g. VS Code). Force a regular activation policy.
         NSApp.setActivationPolicy(.regular)
-        NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        if !startMinimized {
+            NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        }
 
         // Ensure the background agent service is running. This covers the case
         // where the user launched the app directly (e.g. double-click, Spotlight)
         // without the LaunchAgent having started the service first.
         AgentLauncher.shared.ensureRunning()
 
-        // Bring the main window front and give it focus once SwiftUI has created it.
-        for delay in [0.1, 0.4, 1.0] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-                NSApp.windows.first?.makeKeyAndOrderFront(nil)
+        if startMinimized {
+            // Keep the app running (menu bar item active) but don't show the main window.
+            for delay in [0.2, 0.6, 1.2] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    NSApp.windows.first?.orderOut(nil)
+                }
+            }
+        } else {
+            // Bring the main window front and give it focus once SwiftUI has created it.
+            for delay in [0.1, 0.4, 1.0] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                    NSApp.windows.first?.makeKeyAndOrderFront(nil)
+                }
             }
         }
     }

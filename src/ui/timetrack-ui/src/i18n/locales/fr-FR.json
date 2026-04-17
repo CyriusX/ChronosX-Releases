@@ -215,7 +215,7 @@
       "workGoal": "Objectif quotidien",
       "workGoalDescription": "L'anneau de progression du tableau de bord utilise cet objectif comme référence",
       "launchAtLogin": "Démarrer à la connexion",
-      "launchAtLoginDescription": "Démarrer TimeTrack automatiquement à chaque connexion"
+      "launchAtLoginDescription": "Démarrer TimeTrack automatiquement à la connexion (Windows ou macOS)"
     },
     "profile": {
       "title": "Profil",

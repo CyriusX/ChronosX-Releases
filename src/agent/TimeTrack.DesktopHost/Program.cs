@@ -1,4 +1,10 @@
 using System;
+using System.IO;
+using System.IO.Pipes;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,10 +26,48 @@ static class Program
 {
     private static IHost? _host;
     private static ILogger? _logger;
+    private static Mutex? _singleInstanceMutex;
+    private static ActivationPipeServer? _activationServer;
+    private static MainForm? _mainForm;
+    private static volatile bool _pendingActivate;
 
     [STAThread]
     static void Main(string[] args)
     {
+        var startMinimizedArg = args.Any(a => a.Equals("--start-minimized", StringComparison.OrdinalIgnoreCase));
+        if (startMinimizedArg)
+        {
+            // Our config binding reads DesktopHost:StartMinimized from env/appsettings.
+            // Task Scheduler launches the app with --start-minimized, so translate it
+            // into the config key expected by DesktopHostSettings.
+            Environment.SetEnvironmentVariable("DesktopHost__StartMinimized", "true");
+        }
+
+        // Enforce single-instance *before* any expensive startup work.
+        if (!TryAcquireSingleInstanceMutex(out _singleInstanceMutex))
+        {
+            // A previous instance is already running (or still loading). Ask it to activate.
+            // If this launch is from auto-start, don't steal focus.
+            var message = startMinimizedArg ? "activate-no-focus" : "activate";
+            ActivationPipeClient.TrySend(message);
+            return;
+        }
+
+        // Start activation server early so double-clicks during startup reliably focus the first instance.
+        _activationServer = new ActivationPipeServer(message =>
+        {
+            if (string.Equals(message, "activate", StringComparison.OrdinalIgnoreCase))
+            {
+                _pendingActivate = true;
+                var form = _mainForm;
+                if (form != null && !form.IsDisposed)
+                {
+                    form.BeginInvoke(new Action(form.ShowWindow));
+                }
+            }
+        });
+        _activationServer.Start();
+
         Application.SetHighDpiMode(HighDpiMode.SystemAware);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
@@ -40,12 +84,18 @@ static class Program
             _host.Start();
 
             // Get main form from DI
-            var mainForm = _host.Services.GetRequiredService<MainForm>();
+            _mainForm = _host.Services.GetRequiredService<MainForm>();
             var trayIcon = _host.Services.GetRequiredService<TrayIconManager>();
             var floatingBar = _host.Services.GetRequiredService<FloatingStatusBarManager>();
 
+            // If a second launch requested activation while we were still starting, honor it now.
+            if (_pendingActivate && _mainForm != null && !_mainForm.IsDisposed)
+            {
+                _mainForm.BeginInvoke(new Action(_mainForm.ShowWindow));
+            }
+
             // Run application
-            Application.Run(mainForm);
+            Application.Run(_mainForm);
         }
         catch (Exception ex)
         {
@@ -61,6 +111,31 @@ static class Program
             // Stop hosted services gracefully
             _host?.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
             _host?.Dispose();
+            _activationServer?.Dispose();
+            _singleInstanceMutex?.Dispose();
+        }
+    }
+
+    private static bool TryAcquireSingleInstanceMutex(out Mutex? mutex)
+    {
+        mutex = null;
+        try
+        {
+            // "Local\" is per-session; that's fine because DesktopHost runs in the interactive session.
+            mutex = new Mutex(initiallyOwned: true, name: @"Local\ChronosX.TimeTrack.DesktopHost", createdNew: out var createdNew);
+            if (!createdNew)
+            {
+                mutex.Dispose();
+                mutex = null;
+            }
+            return createdNew;
+        }
+        catch
+        {
+            // If the mutex fails for any reason, do not risk multiple instances.
+            mutex?.Dispose();
+            mutex = null;
+            return false;
         }
     }
 
@@ -110,4 +185,82 @@ static class Program
                 services.AddSingleton<TrayIconManager>();
                 services.AddSingleton<FloatingStatusBarManager>();
             });
+}
+
+internal sealed class ActivationPipeServer : IDisposable
+{
+    private const string PipeName = "ChronosX.TimeTrack.DesktopHost.Activation";
+    private readonly Action<string> _onMessage;
+    private readonly CancellationTokenSource _cts = new();
+    private Task? _loopTask;
+
+    public ActivationPipeServer(Action<string> onMessage)
+    {
+        _onMessage = onMessage;
+    }
+
+    public void Start()
+    {
+        _loopTask = Task.Run(ListenLoopAsync);
+    }
+
+    private async Task ListenLoopAsync()
+    {
+        while (!_cts.IsCancellationRequested)
+        {
+            try
+            {
+                using var server = new NamedPipeServerStream(
+                    PipeName,
+                    PipeDirection.In,
+                    maxNumberOfServerInstances: 1,
+                    PipeTransmissionMode.Byte,
+                    PipeOptions.Asynchronous);
+
+                await server.WaitForConnectionAsync(_cts.Token).ConfigureAwait(false);
+
+                using var reader = new StreamReader(server, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 256, leaveOpen: true);
+                var msg = await reader.ReadLineAsync().ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(msg))
+                    _onMessage(msg.Trim());
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch
+            {
+                // Best-effort: keep listening even if one connection fails.
+                await Task.Delay(100, _cts.Token).ConfigureAwait(false);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        try { _loopTask?.Wait(500); } catch { }
+        _cts.Dispose();
+    }
+}
+
+internal static class ActivationPipeClient
+{
+    private const string PipeName = "ChronosX.TimeTrack.DesktopHost.Activation";
+
+    public static bool TrySend(string message)
+    {
+        try
+        {
+            using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out, PipeOptions.Asynchronous);
+            client.Connect(timeout: 250);
+            using var writer = new StreamWriter(client, Encoding.UTF8, bufferSize: 256, leaveOpen: true) { AutoFlush = true };
+            writer.WriteLine(message);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

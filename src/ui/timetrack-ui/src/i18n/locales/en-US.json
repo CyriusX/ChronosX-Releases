@@ -215,7 +215,7 @@
       "workGoal": "Daily goal",
       "workGoalDescription": "The progress ring on the Dashboard uses this goal as a reference",
       "launchAtLogin": "Start at Login",
-      "launchAtLoginDescription": "Automatically start TimeTrack when you log in to your Mac"
+      "launchAtLoginDescription": "Automatically start TimeTrack when you log in (Windows or macOS)"
     },
     "profile": {
       "title": "Profile",

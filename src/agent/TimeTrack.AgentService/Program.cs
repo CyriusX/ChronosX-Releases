@@ -4,6 +4,17 @@ using TimeTrack.Agent.Infrastructure.Extensions;
 using TimeTrack.AgentService.Extensions;
 using TimeTrack.AgentService.Workers;
 
+// Prevent multiple AgentService instances (double-start or manual launches).
+using var singleInstanceMutex = new System.Threading.Mutex(
+    initiallyOwned: true,
+    name: @"Local\ChronosX.TimeTrack.AgentService",
+    createdNew: out var createdNew);
+if (!createdNew)
+{
+    Console.WriteLine("[AgentService] Another instance is already running. Exiting.");
+    return;
+}
+
 // Configura prioridade do processo o mais cedo possível
 var priority = Environment.GetEnvironmentVariable("TIMETRACK_PROCESS_PRIORITY") ?? "BelowNormal";
 ServiceCollectionExtensions.ConfigureProcessPriority(priority);

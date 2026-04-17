@@ -215,7 +215,7 @@
       "workGoal": "Meta diaria",
       "workGoalDescription": "El anillo de progreso del Panel usa esta meta como referencia",
       "launchAtLogin": "Iniciar al iniciar sesión",
-      "launchAtLoginDescription": "Iniciar TimeTrack automáticamente al iniciar sesión en Mac"
+      "launchAtLoginDescription": "Iniciar TimeTrack automáticamente al iniciar sesión (Windows o macOS)"
     },
     "profile": {
       "title": "Perfil",
