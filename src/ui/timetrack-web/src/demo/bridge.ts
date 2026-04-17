@@ -3,6 +3,7 @@ import i18n from 'i18next';
 type Incoming =
   | { type: 'setLang'; lang: 'en-US' | 'pt-BR' }
   | { type: 'navigate'; to: string }
+  | { type: 'setScrollLock'; locked: boolean }
   | { type: 'ready?' };
 
 type Outgoing = { type: 'ready' };
@@ -15,6 +16,30 @@ declare global {
 
 export function installLpBridge() {
   if (typeof window === 'undefined') return;
+
+  let scrollLocked = false;
+  const wheelListener = (e: Event) => {
+    if (!scrollLocked) return;
+    e.preventDefault();
+  };
+  const touchMoveListener = (e: Event) => {
+    if (!scrollLocked) return;
+    e.preventDefault();
+  };
+
+  function setScrollLock(locked: boolean) {
+    const next = !!locked;
+    if (next === scrollLocked) return;
+    scrollLocked = next;
+
+    if (scrollLocked) {
+      window.addEventListener('wheel', wheelListener, { passive: false, capture: true });
+      window.addEventListener('touchmove', touchMoveListener, { passive: false, capture: true });
+    } else {
+      window.removeEventListener('wheel', wheelListener, true);
+      window.removeEventListener('touchmove', touchMoveListener, true);
+    }
+  }
 
   const onMessage = (event: MessageEvent) => {
     if (!event.origin || event.origin !== window.location.origin) return;
@@ -39,6 +64,11 @@ export function installLpBridge() {
 
     if (msg.type === 'navigate') {
       window.__timetrackDemoNavigate?.(msg.to);
+      return;
+    }
+
+    if (msg.type === 'setScrollLock') {
+      setScrollLock(!!msg.locked);
     }
   };
 
@@ -50,4 +80,3 @@ export function installLpBridge() {
     // ignore
   }
 }
-

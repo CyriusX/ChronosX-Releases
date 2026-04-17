@@ -86,27 +86,96 @@ test('Responsive: mobile layout still usable', async ({ page }) => {
   await demo.scrollIntoViewIfNeeded();
 
   const desktopFrame = await getDesktopDemoFrame(page);
-  await demo.getByRole('button', { name: /^Reports/i }).click();
-  await expect(desktopFrame.getByRole('heading', { name: 'Reports' })).toBeVisible();
-
   const desktopIframe = page.locator('iframe[title="ChronosX Desktop Demo"]');
   await expect(desktopIframe).toBeVisible();
-  const desktopBox = await desktopIframe.boundingBox();
-  expect(desktopBox?.width ?? 0).toBeGreaterThanOrEqual(320);
-  expect(desktopBox?.height ?? 0).toBeGreaterThanOrEqual(480);
 
+  const desktopBox = await desktopIframe.boundingBox();
+  expect(desktopBox?.width ?? 0).toBeGreaterThanOrEqual(340);
+  expect(desktopBox?.height ?? 0).toBeGreaterThanOrEqual(600);
+
+  // Preview should be scroll-locked (wheel event prevented)
+  await expect
+    .poll(async () => {
+      return await desktopFrame.evaluate(() => {
+        const e = new WheelEvent('wheel', { deltaY: 100, cancelable: true });
+        return document.dispatchEvent(e);
+      });
+    })
+    .toBe(false);
+
+  // Open fullscreen
+  const openFullscreen = demo.getByRole('button', { name: /open demo fullscreen/i });
+  await openFullscreen.scrollIntoViewIfNeeded();
+  await openFullscreen.click();
+  await expect(page.getByRole('button', { name: /close demo/i })).toBeVisible();
+  await expect
+    .poll(async () => page.evaluate(() => document.documentElement.style.overflow))
+    .toBe('hidden');
+
+  // In fullscreen, scroll lock should be lifted
+  await expect
+    .poll(async () => {
+      return await desktopFrame.evaluate(() => {
+        const e = new WheelEvent('wheel', { deltaY: 100, cancelable: true });
+        return document.dispatchEvent(e);
+      });
+    })
+    .toBe(true);
+
+  // Close fullscreen
+  await page.getByRole('button', { name: /close demo/i }).click();
+  await expect
+    .poll(async () => page.evaluate(() => document.documentElement.style.overflow))
+    .toBe('');
+
+  // Back to preview, lock should be re-enabled
+  await expect
+    .poll(async () => {
+      return await desktopFrame.evaluate(() => {
+        const e = new WheelEvent('wheel', { deltaY: 100, cancelable: true });
+        return document.dispatchEvent(e);
+      });
+    })
+    .toBe(false);
+
+  // Teams parity (portal preview + fullscreen)
   await page.goto('/teams');
   const demoTeams = page.locator('#demo');
   await demoTeams.scrollIntoViewIfNeeded();
-  const webPortalBtn = demoTeams.getByRole('button', { name: /^Web portal/i });
-  await webPortalBtn.scrollIntoViewIfNeeded();
-  await webPortalBtn.click();
+  await demoTeams.getByRole('button', { name: /^Web portal/i }).click();
 
+  const portalFrame = await getWebPortalFrame(page);
   const portalIframe = page.locator('iframe[title="ChronosX Web Portal Demo"]');
   await expect(portalIframe).toBeVisible();
+
   const portalBox = await portalIframe.boundingBox();
-  expect(portalBox?.width ?? 0).toBeGreaterThanOrEqual(320);
-  expect(portalBox?.height ?? 0).toBeGreaterThanOrEqual(480);
+  expect(portalBox?.width ?? 0).toBeGreaterThanOrEqual(340);
+  expect(portalBox?.height ?? 0).toBeGreaterThanOrEqual(600);
+
+  await expect
+    .poll(async () => {
+      return await portalFrame.evaluate(() => {
+        const e = new WheelEvent('wheel', { deltaY: 100, cancelable: true });
+        return document.dispatchEvent(e);
+      });
+    })
+    .toBe(false);
+
+  const openFullscreenTeams = demoTeams.getByRole('button', { name: /open demo fullscreen/i });
+  await openFullscreenTeams.scrollIntoViewIfNeeded();
+  await openFullscreenTeams.click();
+  await expect(page.getByRole('button', { name: /close demo/i })).toBeVisible();
+
+  await expect
+    .poll(async () => {
+      return await portalFrame.evaluate(() => {
+        const e = new WheelEvent('wheel', { deltaY: 100, cancelable: true });
+        return document.dispatchEvent(e);
+      });
+    })
+    .toBe(true);
+
+  await page.getByRole('button', { name: /close demo/i }).click();
 
   expect(Array.from(notFound)).toEqual([]);
 });
