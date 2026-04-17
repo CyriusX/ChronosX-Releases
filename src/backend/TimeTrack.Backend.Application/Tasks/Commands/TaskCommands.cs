@@ -75,17 +75,30 @@ public sealed class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand
             : _currentUser.UserId;
 
         // Validate org membership and auto-add to project if needed.
-        if (assignedUserId.HasValue && assignedUserId != _currentUser.UserId)
+        // This keeps ProjectMembers as the source of truth for "My Data" project lists.
+        if (assignedUserId.HasValue)
         {
-            var assignee = await _users.GetByIdAsync(assignedUserId.Value, ct)
-                ?? throw new NotFoundException("User", assignedUserId.Value);
-            if (assignee.OrgId != project.OrgId)
-                throw new ValidationException("AssignedUserId", "Assignee must belong to the same organization");
-            var isMember = await _members.IsMemberAsync(project.Id, assignee.Id, ct);
-            if (!isMember)
+            if (assignedUserId.Value == _currentUser.UserId.Value)
             {
-                var member = ProjectMember.Create(project.OrgId, project.Id, assignee.Id, _currentUser.UserId.Value);
-                await _members.AddAsync(member, ct);
+                var isMember = await _members.IsMemberAsync(project.Id, assignedUserId.Value, ct);
+                if (!isMember)
+                {
+                    var member = ProjectMember.Create(project.OrgId, project.Id, assignedUserId.Value, _currentUser.UserId.Value);
+                    await _members.AddAsync(member, ct);
+                }
+            }
+            else
+            {
+                var assignee = await _users.GetByIdAsync(assignedUserId.Value, ct)
+                    ?? throw new NotFoundException("User", assignedUserId.Value);
+                if (assignee.OrgId != project.OrgId)
+                    throw new ValidationException("AssignedUserId", "Assignee must belong to the same organization");
+                var isMember = await _members.IsMemberAsync(project.Id, assignee.Id, ct);
+                if (!isMember)
+                {
+                    var member = ProjectMember.Create(project.OrgId, project.Id, assignee.Id, _currentUser.UserId.Value);
+                    await _members.AddAsync(member, ct);
+                }
             }
         }
 

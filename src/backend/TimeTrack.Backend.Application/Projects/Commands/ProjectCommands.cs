@@ -2,7 +2,9 @@ using MediatR;
 using TimeTrack.Backend.Application.Common.Exceptions;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.Projects.DTOs;
+using TimeTrack.Backend.Domain.Entities;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using TimeTrack.Backend.Domain.ValueObjects;
 
 namespace TimeTrack.Backend.Application.Projects.Commands;
 
@@ -20,13 +22,16 @@ public sealed record CreateProjectCommand(
 public sealed class CreateProjectCommandHandler : IRequestHandler<CreateProjectCommand, ProjectResponse>
 {
     private readonly IProjectRepository _projectRepository;
+    private readonly IProjectMemberRepository _projectMembers;
     private readonly ICurrentUserContext _currentUser;
 
     public CreateProjectCommandHandler(
         IProjectRepository projectRepository,
+        IProjectMemberRepository projectMembers,
         ICurrentUserContext currentUser)
     {
         _projectRepository = projectRepository;
+        _projectMembers = projectMembers;
         _currentUser = currentUser;
     }
 
@@ -34,6 +39,9 @@ public sealed class CreateProjectCommandHandler : IRequestHandler<CreateProjectC
     {
         if (!_currentUser.OrgId.HasValue)
             throw new UnauthorizedAccessException("User not associated with an organization");
+
+        if (!_currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException("User not authenticated");
 
         var nameExists = await _projectRepository.NameExistsInOrgAsync(
             request.Name, _currentUser.OrgId.Value, null, cancellationToken);
@@ -51,6 +59,15 @@ public sealed class CreateProjectCommandHandler : IRequestHandler<CreateProjectC
             request.HourlyRate);
 
         await _projectRepository.AddAsync(project, cancellationToken);
+
+        // Ensure the creator is a member so "My Data" shows newly created projects.
+        var member = ProjectMember.Create(
+            project.OrgId,
+            project.Id,
+            _currentUser.UserId.Value,
+            _currentUser.UserId.Value,
+            ProjectMemberRole.Owner);
+        await _projectMembers.AddAsync(member, cancellationToken);
 
         return TimeTrack.Backend.Application.Projects.Queries.ProjectResponseMapper.Map(project);
     }

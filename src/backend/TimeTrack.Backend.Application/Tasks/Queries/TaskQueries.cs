@@ -231,26 +231,47 @@ public sealed class ListMyTasksQueryHandler : IRequestHandler<ListMyTasksQuery, 
     private readonly IProjectTaskRepository _tasks;
     private readonly IProjectRepository _projects;
     private readonly ITaskTimeEntryRepository _entries;
+    private readonly IProjectMemberRepository _members;
     private readonly ICurrentUserContext _currentUser;
 
     public ListMyTasksQueryHandler(
         IProjectTaskRepository tasks,
         IProjectRepository projects,
         ITaskTimeEntryRepository entries,
+        IProjectMemberRepository members,
         ICurrentUserContext currentUser)
     {
         _tasks = tasks;
         _projects = projects;
         _entries = entries;
+        _members = members;
         _currentUser = currentUser;
     }
 
     public async Task<ListTasksResponse> Handle(ListMyTasksQuery request, CancellationToken ct)
     {
-        if (!_currentUser.UserId.HasValue) throw new UnauthorizedAccessException();
+        if (!_currentUser.UserId.HasValue || !_currentUser.OrgId.HasValue) throw new UnauthorizedAccessException();
 
-        var tasks = await _tasks.ListAssignedToUserAsync(_currentUser.UserId.Value, request.IncludeDone, ct);
-        var openEntry = await _entries.GetOpenForUserAsync(_currentUser.UserId.Value, ct);
+        var userId = _currentUser.UserId.Value;
+        var orgId = _currentUser.OrgId.Value;
+
+        var tasks = await _tasks.ListAssignedToUserAsync(userId, request.IncludeDone, ct);
+        var openEntry = await _entries.GetOpenForUserAsync(userId, ct);
+
+        // Self-heal: tasks assigned to a user imply project membership.
+        var taskProjectIds = tasks.Select(t => t.ProjectId).Distinct().ToList();
+        if (taskProjectIds.Count > 0)
+        {
+            var existing = await _members.ListProjectIdsForUserAsync(userId, ct);
+            var set = existing.Count > 0 ? existing.ToHashSet() : new HashSet<Guid>();
+            foreach (var pid in taskProjectIds)
+            {
+                if (set.Contains(pid)) continue;
+                var member = Domain.Entities.ProjectMember.Create(orgId, pid, userId, userId);
+                await _members.AddAsync(member, ct);
+                set.Add(pid);
+            }
+        }
 
         var projectCache = new Dictionary<Guid, Domain.Entities.Project>();
         foreach (var t in tasks)
