@@ -1,9 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { motion, useInView } from "motion/react";
 import { Check, ArrowRight } from "lucide-react";
-import { PRICING_TIERS } from "@/lib/landing-data";
 import {
   fadeUp,
   glowIn,
@@ -13,11 +12,14 @@ import {
   TIMING,
   EASING,
 } from "@/lib/animations";
+import { useLandingContent } from "./content-provider";
 
 export function Pricing() {
+  const { copy, lang } = useLandingContent();
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, amount: 0.15 });
-  const [isAnnual, setIsAnnual] = useState(false);
+
+  const salesLabel = lang === "pt" ? "Falar com vendas" : "Contact sales";
 
   return (
     <section ref={ref} id="pricing" className="section-padding relative">
@@ -34,7 +36,7 @@ export function Pricing() {
           className="mb-4 text-center"
         >
           <span className="text-xs font-semibold tracking-[0.2em] text-accent-violet uppercase">
-            Pricing
+            {copy.pricing.eyebrow}
           </span>
         </motion.div>
 
@@ -44,7 +46,7 @@ export function Pricing() {
           transition={sectionTransition}
           className="mx-auto max-w-3xl text-center font-heading text-3xl leading-tight font-bold text-text-primary md:text-4xl lg:text-5xl"
         >
-          Simple, transparent pricing
+          {copy.pricing.headline}
         </motion.h2>
 
         <motion.p
@@ -52,51 +54,15 @@ export function Pricing() {
           transition={sectionTransition}
           className="mx-auto mt-4 max-w-xl text-center text-base text-text-muted"
         >
-          Start free, upgrade when you need team features. No hidden fees.
+          {copy.pricing.description}
         </motion.p>
 
-        {/* Toggle */}
         <motion.div
           variants={fadeUp}
           transition={sectionTransition}
-          className="mt-10 flex items-center justify-center gap-3"
+          className="mx-auto mt-8 max-w-2xl text-center text-sm text-text-dim"
         >
-          <span
-            className={`text-sm font-medium transition-colors ${
-              !isAnnual ? "text-text-primary" : "text-text-dim"
-            }`}
-          >
-            Monthly
-          </span>
-          <button
-            onClick={() => setIsAnnual(!isAnnual)}
-            className={`relative h-7 w-12 rounded-full border transition-all ${
-              isAnnual
-                ? "border-accent-blue/50 bg-accent-blue/20"
-                : "border-border-subtle bg-card/60"
-            }`}
-            role="switch"
-            aria-checked={isAnnual}
-            aria-label="Toggle annual pricing"
-          >
-            <div
-              className={`absolute top-0.5 h-5.5 w-5.5 rounded-full bg-white shadow transition-transform ${
-                isAnnual ? "translate-x-5.5" : "translate-x-0.5"
-              }`}
-            />
-          </button>
-          <span
-            className={`text-sm font-medium transition-colors ${
-              isAnnual ? "text-text-primary" : "text-text-dim"
-            }`}
-          >
-            Annual
-          </span>
-          {isAnnual && (
-            <span className="rounded-full bg-green-400/15 px-2.5 py-0.5 text-xs font-medium text-green-400">
-              Save 20%
-            </span>
-          )}
+          {copy.pricing.note}
         </motion.div>
 
         {/* Pricing cards */}
@@ -104,7 +70,7 @@ export function Pricing() {
           variants={staggerContainer(STAGGER.cards)}
           className="mt-12 grid gap-6 md:grid-cols-3"
         >
-          {PRICING_TIERS.map((tier) => (
+          {copy.pricing.tiers.map((tier) => (
             <motion.div
               key={tier.name}
               variants={glowIn}
@@ -132,22 +98,6 @@ export function Pricing() {
               </div>
               <p className="mb-6 text-sm text-text-dim">{tier.description}</p>
 
-              {/* Price */}
-              <div className="mb-6">
-                {tier.monthlyPrice !== null ? (
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-heading text-4xl font-bold text-text-primary">
-                      ${isAnnual ? tier.annualPrice : tier.monthlyPrice}
-                    </span>
-                    <span className="text-sm text-text-dim">/user/mo</span>
-                  </div>
-                ) : (
-                  <div className="font-heading text-4xl font-bold text-text-primary">
-                    Custom
-                  </div>
-                )}
-              </div>
-
               {/* Features */}
               <ul className="mb-8 space-y-3">
                 {tier.features.map((feature) => (
@@ -159,16 +109,17 @@ export function Pricing() {
               </ul>
 
               {/* CTA */}
-              <button
+              <a
+                href={tier.cta === "waitlist" ? "#waitlist" : copy.footer.contactHref}
                 className={`pill-button flex w-full items-center justify-center gap-2 font-semibold transition-all ${
                   tier.popular
                     ? "bg-accent-blue text-white shadow-lg shadow-accent-blue/25 hover:bg-accent-blue/90 hover:shadow-xl hover:shadow-accent-blue/30"
                     : "border border-accent-blue/40 text-accent-blue hover:border-accent-blue hover:bg-accent-blue/10"
                 }`}
               >
-                {tier.cta}
+                {tier.cta === "waitlist" ? copy.nav.cta : salesLabel}
                 <ArrowRight className="h-4 w-4" />
-              </button>
+              </a>
             </motion.div>
           ))}
         </motion.div>

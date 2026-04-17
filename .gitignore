@@ -58,6 +58,11 @@ yarn-debug.log*
 yarn-error.log*
 dist/
 .webpack/
+src/landing/public/demos/
+**/dist-demo/
+.next/
+test-results/
+src/landing/test-results/
 
 # TypeScript build cache (auto-generated, no need to track)
 tsconfig.tsbuildinfo
@@ -88,7 +93,7 @@ CLAUDE.md
 src/build/
 .build/
 Package.resolved
-*.png
+## Keep app/marketing images tracked; avoid blanket ignores like *.png
 
 # Internal pitch docs (generated for presentations)
 Pitch Docs/

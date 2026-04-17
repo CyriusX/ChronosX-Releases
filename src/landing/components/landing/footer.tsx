@@ -1,9 +1,10 @@
 "use client";
 
-import { Clock, ArrowUp, Globe, MessageCircle, AtSign } from "lucide-react";
-import { FOOTER_LINKS } from "@/lib/landing-data";
+import { Clock, ArrowUp, Mail } from "lucide-react";
+import { useLandingContent } from "./content-provider";
 
 export function Footer() {
+  const { copy, lang } = useLandingContent();
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -11,10 +12,10 @@ export function Footer() {
   return (
     <footer className="relative border-t border-border-subtle bg-bg-secondary/50">
       <div className="mx-auto max-w-7xl px-5 pt-16 pb-8 md:px-8">
-        <div className="grid gap-12 md:grid-cols-6">
-          {/* Brand column */}
-          <div className="md:col-span-2">
-            <a href="#home" className="mb-4 flex items-center gap-2">
+        <div className="flex flex-col items-start justify-between gap-10 md:flex-row md:items-center">
+          {/* Brand */}
+          <div>
+            <a href={`?lang=${lang}#home`} className="mb-4 flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-blue/20">
                 <Clock className="h-4.5 w-4.5 text-accent-blue" />
               </div>
@@ -22,67 +23,30 @@ export function Footer() {
                 Chronos<span className="text-accent-blue">X</span>
               </span>
             </a>
-            <p className="mt-3 max-w-xs text-sm leading-relaxed text-text-dim">
-              Time tracking and productivity visibility for individuals and
-              teams. See where your time goes. Work with more focus.
+            <p className="max-w-xl text-sm leading-relaxed text-text-dim">
+              {copy.footer.blurb}
             </p>
-
-            {/* Newsletter */}
-            <div className="mt-6">
-              <p className="mb-2 text-xs font-medium text-text-muted">
-                Stay updated
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  placeholder="your@email.com"
-                  className="w-full max-w-[200px] rounded-lg border border-border-subtle bg-card/40 px-3 py-2 text-xs text-text-primary placeholder:text-text-dim outline-none transition-all focus:border-accent-blue/40"
-                />
-                <button className="rounded-lg bg-accent-blue/20 px-3 py-2 text-xs font-medium text-accent-blue transition-colors hover:bg-accent-blue/30">
-                  Subscribe
-                </button>
-              </div>
-            </div>
-
-            {/* Socials */}
-            <div className="mt-5 flex gap-3">
-              {[
-                { icon: <Globe className="h-4 w-4" />, label: "Website" },
-                { icon: <MessageCircle className="h-4 w-4" />, label: "Community" },
-                { icon: <AtSign className="h-4 w-4" />, label: "Contact" },
-              ].map((social) => (
-                <a
-                  key={social.label}
-                  href="#"
-                  aria-label={social.label}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-border-subtle bg-card/30 text-text-dim transition-all hover:border-accent-blue/30 hover:text-text-muted"
-                >
-                  {social.icon}
-                </a>
-              ))}
-            </div>
+            <a
+              href={copy.footer.contactHref}
+              className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-text-muted transition-colors hover:text-text-primary"
+            >
+              <Mail className="h-4 w-4 text-accent-blue" />
+              {copy.footer.contactLabel}
+            </a>
           </div>
 
-          {/* Link columns */}
-          {FOOTER_LINKS.map((group) => (
-            <div key={group.title}>
-              <h4 className="mb-4 text-sm font-semibold text-text-primary">
-                {group.title}
-              </h4>
-              <ul className="space-y-2.5">
-                {group.links.map((link) => (
-                  <li key={link.label}>
-                    <a
-                      href={link.href}
-                      className="text-sm text-text-dim transition-colors hover:text-text-muted"
-                    >
-                      {link.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {/* Quick links */}
+          <div className="flex flex-wrap gap-x-8 gap-y-3">
+            {copy.nav.items.map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="text-sm font-medium text-text-dim transition-colors hover:text-text-muted"
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
         </div>
 
         {/* Bottom bar */}

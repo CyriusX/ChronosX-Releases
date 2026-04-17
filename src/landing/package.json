@@ -3,9 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/build-demos.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/build-demos.mjs",
     "build": "next build",
-    "start": "next start"
+    "postbuild": "node scripts/prepare-standalone.mjs",
+    "start": "next start",
+    "start:standalone": "node .next/standalone/server.js",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -15,9 +20,11 @@
     "next": "16.2.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "resend": "^6.12.0",
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
