@@ -32,8 +32,14 @@ x86/
 *.pdb
 *.cache
 
-# Allow update installers
-!src/backend/TimeTrack.Api/updates/*.exe
+*.msi
+*.dmg
+*.pkg
+*.mpkg
+*.app
+
+# Never commit large local artifacts
+neon_backup.dump
 
 # .NET Core
 project.lock.json
