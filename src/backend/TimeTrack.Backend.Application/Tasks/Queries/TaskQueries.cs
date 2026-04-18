@@ -412,7 +412,7 @@ public sealed class GetMyOpenTaskQueryHandler : IRequestHandler<GetMyOpenTaskQue
 // LIST MY TASK ENTRIES FOR A DATE (for the activity timeline)
 // ═══════════════════════════════════════════════════════════════════════════
 
-public sealed record ListMyTaskEntriesQuery(DateOnly Date) : IRequest<ListTaskEntriesResponse>;
+public sealed record ListMyTaskEntriesQuery(DateOnly Date, string? Timezone) : IRequest<ListTaskEntriesResponse>;
 
 public sealed class ListMyTaskEntriesQueryHandler : IRequestHandler<ListMyTaskEntriesQuery, ListTaskEntriesResponse>
 {
@@ -430,7 +430,30 @@ public sealed class ListMyTaskEntriesQueryHandler : IRequestHandler<ListMyTaskEn
         if (!_currentUser.UserId.HasValue)
             throw new UnauthorizedAccessException();
 
-        var entries = await _entries.ListForUserOnDateAsync(_currentUser.UserId.Value, request.Date, ct);
+        DateTime startUtc, endUtc;
+        if (!string.IsNullOrEmpty(request.Timezone))
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById(request.Timezone);
+                var localStart = new DateTime(request.Date.Year, request.Date.Month, request.Date.Day, 0, 0, 0, DateTimeKind.Unspecified);
+                var localEnd = localStart.AddDays(1);
+                startUtc = TimeZoneInfo.ConvertTimeToUtc(localStart, tz);
+                endUtc = TimeZoneInfo.ConvertTimeToUtc(localEnd, tz);
+            }
+            catch
+            {
+                startUtc = request.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+                endUtc = startUtc.AddDays(1);
+            }
+        }
+        else
+        {
+            startUtc = request.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            endUtc = startUtc.AddDays(1);
+        }
+
+        var entries = await _entries.ListForUserInRangeAsync(_currentUser.UserId.Value, startUtc, endUtc, ct);
 
         var dtos = entries.Select(e => new TaskEntryDto
         {
@@ -452,7 +475,7 @@ public sealed class ListMyTaskEntriesQueryHandler : IRequestHandler<ListMyTaskEn
 // MANAGER: LIST TASK ENTRIES FOR A USER ON A DATE (for team activity views)
 // ═══════════════════════════════════════════════════════════════════════════
 
-public sealed record ListUserTaskEntriesQuery(Guid UserId, DateOnly Date) : IRequest<ListTaskEntriesResponse>;
+public sealed record ListUserTaskEntriesQuery(Guid UserId, DateOnly Date, string? Timezone) : IRequest<ListTaskEntriesResponse>;
 
 public sealed class ListUserTaskEntriesQueryHandler : IRequestHandler<ListUserTaskEntriesQuery, ListTaskEntriesResponse>
 {
@@ -475,7 +498,30 @@ public sealed class ListUserTaskEntriesQueryHandler : IRequestHandler<ListUserTa
         if (!isManager)
             throw new ForbiddenException("You are not allowed to view other users' task entries");
 
-        var entries = await _entries.ListForUserOnDateAsync(request.UserId, request.Date, ct);
+        DateTime startUtc, endUtc;
+        if (!string.IsNullOrEmpty(request.Timezone))
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById(request.Timezone);
+                var localStart = new DateTime(request.Date.Year, request.Date.Month, request.Date.Day, 0, 0, 0, DateTimeKind.Unspecified);
+                var localEnd = localStart.AddDays(1);
+                startUtc = TimeZoneInfo.ConvertTimeToUtc(localStart, tz);
+                endUtc = TimeZoneInfo.ConvertTimeToUtc(localEnd, tz);
+            }
+            catch
+            {
+                startUtc = request.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+                endUtc = startUtc.AddDays(1);
+            }
+        }
+        else
+        {
+            startUtc = request.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            endUtc = startUtc.AddDays(1);
+        }
+
+        var entries = await _entries.ListForUserInRangeAsync(request.UserId, startUtc, endUtc, ct);
 
         var dtos = entries.Select(e => new TaskEntryDto
         {

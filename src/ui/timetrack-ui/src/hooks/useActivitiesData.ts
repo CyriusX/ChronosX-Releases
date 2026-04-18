@@ -114,8 +114,11 @@ export function useActivitiesData(): ActivitiesData {
     setActivities([]);
     // Update URL to reflect the selected date (without full navigation)
     const dateStr = formatDatePayload(date);
-    setSearchParams(dateStr === formatDatePayload(new Date()) ? {} : { date: dateStr }, { replace: true });
-  }, [setSearchParams]);
+    const params: Record<string, string> = {};
+    if (dateStr !== formatDatePayload(new Date())) params.date = dateStr;
+    if (userId) params.userId = userId;
+    setSearchParams(params, { replace: true });
+  }, [setSearchParams, userId]);
 
   // TODAY: use IPC (local SQLite, real-time)
   // PAST DAYS: use backend API (Postgres, authoritative)

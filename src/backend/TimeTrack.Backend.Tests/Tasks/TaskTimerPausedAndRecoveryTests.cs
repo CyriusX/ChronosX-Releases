@@ -124,7 +124,7 @@ public sealed class TaskTimerPausedAndRecoveryTests
         var handler = new ListUserTaskEntriesQueryHandler(entriesRepo, ctx);
 
         Func<Task> act = async () =>
-            await handler.Handle(new ListUserTaskEntriesQuery(Guid.NewGuid(), DateOnly.FromDateTime(DateTime.UtcNow)), CancellationToken.None);
+            await handler.Handle(new ListUserTaskEntriesQuery(Guid.NewGuid(), DateOnly.FromDateTime(DateTime.UtcNow), Timezone: null), CancellationToken.None);
 
         await act.Should().ThrowAsync<ForbiddenException>();
     }
@@ -146,4 +146,3 @@ public sealed class TaskTimerPausedAndRecoveryTests
         public bool IsInRole(UserRole role) => Role == role;
     }
 }
-

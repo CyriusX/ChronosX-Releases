@@ -175,12 +175,14 @@ public sealed class TasksController : ControllerBase
 
     [HttpGet("api/v1/me/task-entries")]
     [ProducesResponseType(typeof(ListTaskEntriesResponse), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ListTaskEntriesResponse>> GetMyTaskEntries([FromQuery] string? date = null)
+    public async Task<ActionResult<ListTaskEntriesResponse>> GetMyTaskEntries(
+        [FromQuery] string? date = null,
+        [FromQuery] string? timezone = null)
     {
         var dateOnly = date is not null && DateOnly.TryParse(date, out var parsed)
             ? parsed
             : DateOnly.FromDateTime(DateTime.UtcNow);
-        var result = await _mediator.Send(new ListMyTaskEntriesQuery(dateOnly));
+        var result = await _mediator.Send(new ListMyTaskEntriesQuery(dateOnly, timezone));
         return Ok(result);
     }
 
@@ -189,12 +191,13 @@ public sealed class TasksController : ControllerBase
     [ProducesResponseType(typeof(ListTaskEntriesResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ListTaskEntriesResponse>> GetUserTaskEntries(
         [FromRoute] Guid userId,
-        [FromQuery] string? date = null)
+        [FromQuery] string? date = null,
+        [FromQuery] string? timezone = null)
     {
         var dateOnly = date is not null && DateOnly.TryParse(date, out var parsed)
             ? parsed
             : DateOnly.FromDateTime(DateTime.UtcNow);
-        var result = await _mediator.Send(new ListUserTaskEntriesQuery(userId, dateOnly));
+        var result = await _mediator.Send(new ListUserTaskEntriesQuery(userId, dateOnly, timezone));
         return Ok(result);
     }
 }

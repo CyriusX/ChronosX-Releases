@@ -6,6 +6,7 @@
  */
 
 import { api } from './apiClient';
+import { getUserTimezone } from '../types/reports';
 
 // ============================================================================
 // TYPES — Projects
@@ -243,11 +244,13 @@ export interface ListTaskEntriesResponse {
 }
 
 export function getMyTaskEntries(date: string): Promise<ListTaskEntriesResponse> {
-  return api.get<ListTaskEntriesResponse>(`/me/task-entries?date=${encodeURIComponent(date)}`);
+  const params = new URLSearchParams({ date, timezone: getUserTimezone() });
+  return api.get<ListTaskEntriesResponse>(`/me/task-entries?${params.toString()}`);
 }
 
 export function getUserTaskEntries(userId: string, date: string): Promise<ListTaskEntriesResponse> {
-  return api.get<ListTaskEntriesResponse>(`/users/${encodeURIComponent(userId)}/task-entries?date=${encodeURIComponent(date)}`);
+  const params = new URLSearchParams({ date, timezone: getUserTimezone() });
+  return api.get<ListTaskEntriesResponse>(`/users/${encodeURIComponent(userId)}/task-entries?${params.toString()}`);
 }
 
 export function listMyNotifications(unreadOnly: boolean = false, take: number = 50): Promise<ListNotificationsResponse> {
