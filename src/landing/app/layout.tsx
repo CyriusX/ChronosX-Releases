@@ -3,9 +3,9 @@ import { sora, inter } from "./fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ChronosX TimeTrack — See Where Your Time Goes",
+  title: "Chronos TimeTrack — See Where Your Time Goes",
   description:
-    "ChronosX TimeTrack helps individuals and teams capture time, understand focus, review distractions and breaks, and see project activity in one clear dashboard.",
+    "Chronos TimeTrack helps individuals and teams capture time, understand focus, review distractions and breaks, and see project activity in one clear dashboard.",
   keywords: [
     "time tracking",
     "productivity",
@@ -16,16 +16,20 @@ export const metadata: Metadata = {
     "distraction tracking",
     "work visibility",
   ],
+  icons: {
+    icon: "/brand/logo-64.png",
+    apple: "/brand/logo-128.png",
+  },
   openGraph: {
-    title: "ChronosX TimeTrack — See Where Your Time Goes",
+    title: "Chronos TimeTrack — See Where Your Time Goes",
     description:
       "Track time clearly. Understand focus, distractions, and breaks. See project and team activity in one premium dashboard.",
     type: "website",
-    siteName: "ChronosX TimeTrack",
+    siteName: "Chronos TimeTrack",
   },
   twitter: {
     card: "summary_large_image",
-    title: "ChronosX TimeTrack — See Where Your Time Goes",
+    title: "Chronos TimeTrack — See Where Your Time Goes",
     description:
       "Track time clearly. Understand focus, distractions, and breaks. See project and team activity in one premium dashboard.",
   },
