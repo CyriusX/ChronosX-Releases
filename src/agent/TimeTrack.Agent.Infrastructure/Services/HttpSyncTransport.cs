@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Configuration;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Entities;
+using TimeTrack.Agent.Infrastructure.Providers.Windows;
 
 namespace TimeTrack.Agent.Infrastructure.Services;
 
@@ -490,12 +491,14 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
 
             if (payload != null)
             {
+                var processName = NormalizeBrowserProcessNameFromDisplayName(payload.DisplayName);
+
                 // Use displayName as processName (required by backend)
                 // Send both productivity and subcategory for alignment with Dashboard
                 activityItems.Add(new
                 {
                     Id = item.EntityId,
-                    ProcessName = payload.DisplayName,
+                    ProcessName = processName,
                     payload.WindowTitle,
                     payload.FilePath,
                     AppCategory = payload.CategoryProductivity,
@@ -508,6 +511,42 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
         }
 
         return new { Items = activityItems };
+    }
+
+    private static readonly HashSet<string> KnownBrowserDisplayNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Google Chrome", "Chrome",
+        "Microsoft Edge", "Edge",
+        "Mozilla Firefox", "Firefox",
+        "Brave", "Opera", "Safari", "Arc",
+        "Vivaldi", "Waterfox", "Chromium", "LibreWolf",
+        "Internet Explorer"
+    };
+
+    private static string NormalizeBrowserProcessNameFromDisplayName(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+            return displayName;
+
+        // Agent browser sessions use: "{Browser} - {Site/App}"
+        var sep = " - ";
+        var idx = displayName.IndexOf(sep, StringComparison.Ordinal);
+        if (idx <= 0)
+            return displayName;
+
+        var browser = displayName[..idx].Trim();
+        if (!KnownBrowserDisplayNames.Contains(browser))
+            return displayName;
+
+        var site = displayName[(idx + sep.Length)..].Trim();
+        if (string.IsNullOrWhiteSpace(site))
+            return displayName;
+
+        var normalizedSite = BrowserUrlExtractor.NormalizeSiteName(site);
+        if (string.IsNullOrWhiteSpace(normalizedSite))
+            return displayName;
+
+        return $"{browser} - {normalizedSite}";
     }
 
     private object BuildIdlePeriodsPayload(IEnumerable<OutboxItem> items)

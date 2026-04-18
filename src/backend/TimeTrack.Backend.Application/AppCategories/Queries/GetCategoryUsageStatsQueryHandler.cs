@@ -61,13 +61,15 @@ public sealed class GetCategoryUsageStatsQueryHandler
             query.EndDate,
             cancellationToken);
 
-        // Aggregate by process name (ActivitySession has ProcessName directly)
+        // Aggregate by canonicalized process name.
+        // Browser-derived names can include dynamic badge counts (e.g. "Chrome - WhatsApp (55)"),
+        // which would create duplicates in the Apps/Overrides UI without normalization.
         var aggregated = sessions
-            .GroupBy(s => s.ProcessName.ToLowerInvariant())
+            .GroupBy(s => BrowserProcessNameNormalizer.Normalize(s.ProcessName), StringComparer.OrdinalIgnoreCase)
             .Select(g => new
             {
                 ProcessName = g.Key,
-                DisplayName = g.First().ProcessName,
+                DisplayName = g.Key,
                 TotalMinutes = (int)g.Sum(s => (s.EndedAt - s.StartedAt).TotalSeconds) / 60,
                 SessionCount = g.Count()
             })

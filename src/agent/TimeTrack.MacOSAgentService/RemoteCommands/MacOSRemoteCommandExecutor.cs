@@ -1,10 +1,12 @@
 using System.Text.Json;
+using Dapper;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Application.Services;
 using TimeTrack.Agent.Application.UseCases.LocalSettings;
 using TimeTrack.Agent.Application.UseCases.TrackingControl;
 using TimeTrack.Agent.Contracts.Services;
+using TimeTrack.Agent.Infrastructure.Persistence;
 using TimeTrack.Agent.Infrastructure.Services;
 using TimeTrack.AgentService.Ipc;
 using TimeTrack.AgentService.Notifications;
@@ -23,6 +25,7 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
     private readonly IIpcServer _ipcServer;
     private readonly IpcNotificationService _notificationService;
     private readonly IHostApplicationLifetime _hostLifetime;
+    private readonly SqliteContext _sqliteContext;
     private readonly ILogger<MacOSRemoteCommandExecutor> _logger;
 
     public MacOSRemoteCommandExecutor(
@@ -32,6 +35,7 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
         IIpcServer ipcServer,
         IpcNotificationService notificationService,
         IHostApplicationLifetime hostLifetime,
+        SqliteContext sqliteContext,
         ILogger<MacOSRemoteCommandExecutor> logger)
     {
         _trackingControl = trackingControl;
@@ -40,6 +44,7 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
         _ipcServer = ipcServer;
         _notificationService = notificationService;
         _hostLifetime = hostLifetime;
+        _sqliteContext = sqliteContext;
         _logger = logger;
     }
 
@@ -53,6 +58,7 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
             "send_notification" => await ExecuteSendNotificationAsync(payloadJson, ct),
             "restart" => await ExecuteRestartAsync(ct),
             "set_devtools" => await ExecuteSetDevToolsAsync(payloadJson, ct),
+            "reset_local_tracking_data" => await ExecuteResetLocalTrackingDataAsync(ct),
             "task_assigned" => await ExecuteKanbanNotificationAsync("task_assigned", payloadJson, ct),
             "task_unassigned" => await ExecuteKanbanNotificationAsync("task_unassigned", payloadJson, ct),
             "task_updated" => await ExecuteKanbanNotificationAsync("task_updated", payloadJson, ct),
@@ -298,5 +304,43 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
     {
         public string Title { get; set; } = string.Empty;
         public string? Body { get; set; }
+    }
+
+    private async Task<CommandResult> ExecuteResetLocalTrackingDataAsync(CancellationToken ct)
+    {
+        try
+        {
+            var connection = await _sqliteContext.GetConnectionAsync(ct);
+            using var tx = connection.BeginTransaction();
+
+            const string sql = @"
+                DELETE FROM sync_outbox;
+                DELETE FROM sync_errors;
+                DELETE FROM activity_sessions;
+                DELETE FROM idle_periods;
+                DELETE FROM focus_cycles;
+                DELETE FROM agent_event_log;
+            ";
+
+            await connection.ExecuteAsync(sql, transaction: tx);
+            tx.Commit();
+
+            if (_ipcServer.IsClientConnected)
+            {
+                await _ipcServer.SendEventAsync(new IpcEvent
+                {
+                    EventType = "trackingDataReset",
+                    Payload = new { success = true }
+                }, ct);
+            }
+
+            _logger.LogWarning("Local tracking data reset by remote admin command");
+            return CommandResult.Ok("Local tracking data cleared");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reset local tracking data");
+            return CommandResult.Failed("Failed to reset local tracking data");
+        }
     }
 }

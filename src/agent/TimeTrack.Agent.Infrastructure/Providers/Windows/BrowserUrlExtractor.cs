@@ -141,8 +141,20 @@ public sealed class BrowserUrlExtractor : IBrowserUrlExtractor
         if (string.IsNullOrWhiteSpace(site))
             return site;
 
-        // Strip leading notification/badge counts: "(55) WhatsApp Web" → "WhatsApp Web"
-        site = Regex.Replace(site, @"^\(\d+\)\s+", string.Empty).Trim();
+        // Strip notification/badge counts (common in browser tabs).
+        // Leading: "(55) WhatsApp Web" / "● (55) WhatsApp Web" → "WhatsApp Web"
+        // Trailing: "WhatsApp Web (55)" / "WhatsApp Web(30)" / "Slack (99+)" → "WhatsApp Web" / "Slack"
+        //
+        // Note: we intentionally only strip 1–3 digit counts (optionally with '+') so
+        // we don't accidentally strip years like "(2026)".
+        site = Regex.Replace(site, @"^(?:[•●]\s*)?\((\d{1,3}\+?)\)\s*", string.Empty).Trim();
+        site = Regex.Replace(site, @"\s*\((\d{1,3}\+?)\)\s*$", string.Empty).Trim();
+
+        // Strip leading marker bullets that some browsers prepend to titles.
+        site = Regex.Replace(site, @"^[•●]\s*", string.Empty).Trim();
+
+        // Collapse whitespace introduced by stripping.
+        site = Regex.Replace(site, @"\s{2,}", " ").Trim();
 
         // Normalize Google Meet: "Meet · abc-xyz" or "Meet: abc-xyz" → "Google Meet"
         if (Regex.IsMatch(site, @"^Meet\s*[·:\-]", RegexOptions.IgnoreCase))
