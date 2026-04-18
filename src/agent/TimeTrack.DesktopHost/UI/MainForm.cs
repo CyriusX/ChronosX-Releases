@@ -309,7 +309,7 @@ public sealed class MainForm : Form
 
                     // Expose the bridge object that the React IpcService expects
                     window.timeTrackBridge = {
-                        isConnected: true,
+                        isConnected: false,
                         SendCommand: function(command, payloadJson) { return ipcCall('command', command, payloadJson); },
                         SendQuery: function(query, payloadJson) { return ipcCall('query', query, payloadJson); }
                     };
@@ -326,8 +326,8 @@ public sealed class MainForm : Form
 
             _logger.LogInformation("Bridge setup complete, IPC client connected: {IsConnected}", _ipcClient.IsConnected);
 
-            if (_ipcClient.IsConnected)
-                _ = Task.Run(SyncDevToolsAccessFromAgentAsync);
+            // Push the initial connection state into the web UI (important after app restarts).
+            OnConnectionStateChanged(this, _ipcClient.IsConnected);
 
             // Initial focus so login inputs can be typed into without requiring a manual click/reload.
             FocusWebViewContent();
@@ -624,8 +624,25 @@ public sealed class MainForm : Form
 
         try
         {
-            _ = _webView.CoreWebView2.ExecuteScriptAsync(
-                $"window.timeTrackBridge?.onConnectionStateChanged?.({isConnected.ToString().ToLower()})");
+            var isConnectedJs = isConnected.ToString().ToLowerInvariant();
+            var payloadJson = $"{{\"isConnected\":{isConnectedJs}}}";
+
+            // Keep window.timeTrackBridge.isConnected up-to-date so the React IPC client can read it on init.
+            // Also push a connectionStateChanged event through the same channel used for IPC events
+            // (window.timeTrackHandleEvent) so the UI reacts to reconnects.
+            var script = $@"
+                (function() {{
+                    try {{
+                        if (window.timeTrackBridge) {{
+                            window.timeTrackBridge.isConnected = {isConnectedJs};
+                        }}
+                        if (window.timeTrackHandleEvent) {{
+                            window.timeTrackHandleEvent('connectionStateChanged', '{EscapeJavaScriptString(payloadJson)}');
+                        }}
+                    }} catch(e) {{}}
+                }})()";
+
+            _ = _webView.CoreWebView2.ExecuteScriptAsync(script);
         }
         catch (Exception ex)
         {
@@ -658,8 +675,24 @@ public sealed class MainForm : Form
             if (!_ipcClient.IsConnected)
                 return;
 
-            var resp = await _ipcClient.SendQueryAsync("getSettings");
-            if (!resp.Success || resp.Data is null)
+            // If the UI loads before AgentService is connected, the initial getSettings call from React may fail
+            // and never retry. DesktopHost also needs to robustly sync DevTools access on reconnect.
+            IpcResponse? resp = null;
+            for (var attempt = 1; attempt <= 3; attempt++)
+            {
+                resp = await _ipcClient.SendQueryAsync("getSettings");
+                if (resp.Success && resp.Data is not null)
+                    break;
+
+                _logger.LogDebug(
+                    "DevTools sync: getSettings failed (attempt {Attempt}/3). Error={Error}",
+                    attempt,
+                    resp.Error ?? "unknown");
+
+                await Task.Delay(TimeSpan.FromMilliseconds(800 * attempt));
+            }
+
+            if (resp == null || !resp.Success || resp.Data is null)
                 return;
 
             var data = resp.Data.Value;
@@ -680,6 +713,11 @@ public sealed class MainForm : Form
                     enabled = false;
                 }
             }
+
+            _logger.LogInformation(
+                "DevTools sync: agent settings fetched. Enabled={Enabled}, Until={UntilUtc}",
+                enabled,
+                data.TryGetProperty("devToolsEnabledUntilUtc", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null);
 
             if (InvokeRequired)
                 BeginInvoke(new Action(() => ApplyDevToolsAccess(enabled)));
@@ -744,9 +782,10 @@ public sealed class MainForm : Form
             }
         }
 
-        // Fallback to development server
-        _logger.LogWarning("UI bundle not found, falling back to development server");
-        return "http://localhost:5174";
+        // In production builds we must NOT silently fall back to a localhost dev server, which changes origin and
+        // can make users appear "logged out" due to separate localStorage. Fail loudly instead.
+        _logger.LogError("UI bundle not found in production paths. Aborting WebView2 initialization.");
+        throw new FileNotFoundException("UI bundle not found. Please reinstall the app.");
 #endif
     }
 

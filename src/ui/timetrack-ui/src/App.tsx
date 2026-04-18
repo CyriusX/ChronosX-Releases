@@ -29,7 +29,7 @@ import { MobileBottomNav } from "./components/navigation/MobileBottomNav";
 import { UpdateNotificationModal } from "./components/update/UpdateNotificationModal";
 
 function App() {
-  const { isConnected, isReady, sendQuery } = useIpc();
+  const { isConnected, isReady, sendQuery, subscribeToEvent } = useIpc();
   const { setConnected, setReady } = useTrackingStore();
   const { isAuthenticated, tokens } = useAuthStore();
   const { i18n } = useTranslation();
@@ -54,26 +54,29 @@ function App() {
     desktopInitialEntriesRef.current = [initialPath];
   }
 
+  const computeEffectiveDevToolsEnabled = (enabled: boolean, untilUtc?: string | null) => {
+    if (!enabled) return false;
+    if (!untilUtc) return true;
+    const untilDate = new Date(untilUtc);
+    return untilDate.getTime() > Date.now();
+  };
+
   // Sync UI language from the Agent's stored settings on every IPC connection.
   // Without this, the app always starts in the default language (en-US) and
   // ignores the language the user saved in a previous session.
   useEffect(() => {
-    if (!isReady) return;
+    if (!isReady || !isConnected) return;
     sendQuery('getSettings').then((result) => {
       const settings = result.data as Partial<LocalSettings> | undefined;
       const lang = settings?.language;
       if (lang) i18n.changeLanguage(lang);
 
-      const enabled = !!settings?.devToolsEnabled;
-      const until = settings?.devToolsEnabledUntilUtc;
-      if (until) {
-        const untilDate = new Date(until);
-        devToolsEnabledRef.current = enabled && untilDate.getTime() > Date.now();
-      } else {
-        devToolsEnabledRef.current = enabled;
-      }
+      devToolsEnabledRef.current = computeEffectiveDevToolsEnabled(
+        !!settings?.devToolsEnabled,
+        settings?.devToolsEnabledUntilUtc ?? null
+      );
     }).catch(() => { /* non-critical */ });
-  }, [isReady]);
+  }, [isReady, isConnected, sendQuery, i18n]);
 
   // Block browser shortcuts — this app runs as a desktop webview, not a browser
   useEffect(() => {
@@ -150,19 +153,30 @@ function App() {
 
   // Global subscription: update tracking store whenever agent broadcasts state change.
   // This must live in App (always mounted) so it works regardless of current page.
-  const { subscribeToEvent } = useIpc();
   useEffect(() => {
     const unsub = subscribeToEvent('trackingStateChanged', (payload) => {
       handleTrackingStateChanged(payload);
     });
     const unsubDevTools = subscribeToEvent('devToolsAccessChanged', (payload) => {
       devToolsEnabledRef.current = !!payload.devToolsEnabled;
+
+      // DevTools changes are rare; refresh settings to re-apply effective enablement
+      // (and to recover if the event was received before settings hydration).
+      if (isReady && isConnected) {
+        sendQuery('getSettings').then((result) => {
+          const settings = result.data as Partial<LocalSettings> | undefined;
+          devToolsEnabledRef.current = computeEffectiveDevToolsEnabled(
+            !!settings?.devToolsEnabled,
+            settings?.devToolsEnabledUntilUtc ?? null
+          );
+        }).catch(() => { /* non-critical */ });
+      }
     });
     return () => {
       unsub();
       unsubDevTools();
     };
-  }, [subscribeToEvent]);
+  }, [subscribeToEvent, isReady, isConnected, sendQuery]);
 
   // Sync tokens with Agent on IPC connect.
   // If the UI's access token is expired, ask the Agent for its (likely newer) tokens

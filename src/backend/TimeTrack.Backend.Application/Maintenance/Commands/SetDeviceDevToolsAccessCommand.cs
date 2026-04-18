@@ -60,7 +60,17 @@ public sealed class SetDeviceDevToolsAccessCommandHandler
         user.SetDevToolsEnabledUntilUtc(expiresAtUtc);
         await _users.UpdateAsync(user, cancellationToken);
 
+        // Queue to the selected device always (even if it is currently inactive/offline),
+        // plus any other active devices for the same user.
         var activeDevices = (await _devices.GetActiveByUserIdAsync(user.Id, cancellationToken)).ToList();
+        var devicesToQueue = new Dictionary<Guid, Device>
+        {
+            [device.Id] = device
+        };
+        foreach (var d in activeDevices)
+        {
+            devicesToQueue[d.Id] = d;
+        }
 
         var payloadJson = JsonSerializer.Serialize(new
         {
@@ -68,7 +78,7 @@ public sealed class SetDeviceDevToolsAccessCommandHandler
             expiresAtUtc = expiresAtUtc?.ToString("O")
         });
 
-        foreach (var d in activeDevices)
+        foreach (var d in devicesToQueue.Values)
         {
             var cmd = RemoteCommand.Create(
                 request.OrgId,
@@ -86,8 +96,7 @@ public sealed class SetDeviceDevToolsAccessCommandHandler
             UserId = user.Id,
             Enabled = request.Enabled,
             ExpiresAtUtc = expiresAtUtc,
-            QueuedDeviceCount = activeDevices.Count
+            QueuedDeviceCount = devicesToQueue.Count
         };
     }
 }
-

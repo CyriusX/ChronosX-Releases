@@ -273,6 +273,12 @@ export class IpcService implements IIpcClient {
         try {
           const parsed = payloadJson ? (JSON.parse(payloadJson) as { isConnected?: boolean } | null) : null;
           const connected = !!parsed?.isConnected;
+          // Keep the bridge's isConnected flag consistent so `isConnected` reflects reality.
+          // Some hosts may not update it, and `isConnected` prefers the bridge flag when present.
+          const bridge = this.getBridge();
+          if (bridge) {
+            (bridge as unknown as { isConnected?: boolean }).isConnected = connected;
+          }
           this._connectionState = connected ? 'connected' : 'disconnected';
           this.notifyConnectionChange();
         } catch {

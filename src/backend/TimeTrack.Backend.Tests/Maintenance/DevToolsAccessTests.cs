@@ -74,6 +74,48 @@ public sealed class DevToolsAccessTests
         }
     }
 
+    [Fact]
+    public async Task SetDeviceDevToolsAccess_ShouldQueueCommand_ForSelectedDevice_EvenWhenInactive()
+    {
+        var options = new DbContextOptionsBuilder<TimeTrackDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        var orgId = Guid.NewGuid();
+        var adminUserId = Guid.NewGuid();
+        var ctx = new TestCurrentUserContext(adminUserId, orgId, UserRole.Admin);
+
+        await using var db = new TimeTrackDbContext(options, ctx);
+
+        var targetUser = User.Create(orgId, "devtools-inactive@example.com", "hash", "Target", UserRole.Colaborador);
+        db.Users.Add(targetUser);
+
+        var inactiveDevice = Device.Create(Guid.NewGuid(), orgId, targetUser.Id, "host-inactive", "1.0.0", DisplayMode.Background);
+        inactiveDevice.Deactivate();
+        db.Devices.Add(inactiveDevice);
+
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new SetDeviceDevToolsAccessCommandHandler(
+            new DeviceRepository(db),
+            new UserRepository(db),
+            new RemoteCommandRepository(db),
+            ctx);
+
+        var result = await handler.Handle(
+            new SetDeviceDevToolsAccessCommand(orgId, inactiveDevice.Id, Enabled: true),
+            CancellationToken.None);
+
+        result.UserId.Should().Be(targetUser.Id);
+        result.Enabled.Should().BeTrue();
+        result.QueuedDeviceCount.Should().Be(1);
+
+        var commands = await db.RemoteCommands.ToListAsync(CancellationToken.None);
+        commands.Should().HaveCount(1);
+        commands[0].DeviceId.Should().Be(inactiveDevice.Id);
+        commands[0].CommandType.Should().Be("set_devtools");
+    }
+
     private sealed class TestCurrentUserContext : ICurrentUserContext
     {
         public TestCurrentUserContext(Guid userId, Guid orgId, UserRole role)
@@ -91,4 +133,3 @@ public sealed class DevToolsAccessTests
         public bool IsInRole(UserRole role) => Role == role;
     }
 }
-
