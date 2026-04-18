@@ -22,11 +22,8 @@ export default function TeamsDemo() {
 
   if (demoMode === 'mobile') {
     return (
-      <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0 overflow-x-hidden">
-        <main
-          className="flex-1 overflow-y-auto px-5 pt-5 pb-4 min-w-0"
-          data-demo-scroll-root="teams"
-        >
+      <div className="min-h-[100dvh] bg-[#0b0d14] pb-14 md:pb-0 overflow-x-hidden">
+        <main className="px-5 pt-5 pb-4 overflow-x-hidden" data-demo-scroll-root="teams">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-2 min-w-0">
               <h1 className="text-[22px] font-bold text-[#f5f7fb] tracking-[-0.3px] truncate">
@@ -90,6 +87,7 @@ export default function TeamsDemo() {
                   />
                 ))}
                 <div data-demo-marker="teams-bottom" className="h-px w-full" />
+                <div data-demo-scroll-end className="h-px w-full" />
               </div>
             )}
           </div>

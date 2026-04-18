@@ -66,11 +66,8 @@ export default function ReportsDemo() {
 
   if (demoMode === 'mobile') {
     return (
-      <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0 overflow-x-hidden">
-        <main
-          className="flex-1 flex flex-col min-w-0 min-h-0 px-5 pt-5 pb-4 overflow-y-auto overflow-x-hidden"
-          data-demo-scroll-root="reports"
-        >
+      <div className="min-h-[100dvh] bg-[#0b0d14] pb-14 md:pb-0 overflow-x-hidden">
+        <main className="px-5 pt-5 pb-4 overflow-x-hidden" data-demo-scroll-root="reports">
           <div className="flex flex-col gap-2 flex-shrink-0 min-w-0">
             <h1 className="text-[22px] font-bold text-[#f5f7fb] tracking-[-0.3px] truncate">
               {t('reports.title')}
@@ -147,7 +144,7 @@ export default function ReportsDemo() {
                   <div className="flex items-center justify-center h-24 text-[rgba(245,247,251,0.4)] text-[12px]">
                     {t('reports.noDataToShow')}
                   </div>
-                ) : (
+                  ) : (
                   <div className="space-y-2">
                     {topApps.slice(0, 8).map((app) => (
                       <div
@@ -168,6 +165,7 @@ export default function ReportsDemo() {
                       </div>
                     ))}
                     <div data-demo-marker="reports-bottom" className="h-px w-full" />
+                    <div data-demo-scroll-end className="h-px w-full" />
                   </div>
                 )}
               </CardContent>

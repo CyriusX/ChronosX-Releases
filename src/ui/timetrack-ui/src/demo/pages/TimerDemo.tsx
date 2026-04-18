@@ -63,14 +63,19 @@ export default function TimerDemo() {
   const totalElapsed = completedWavesMs + (phase === 'idle' ? 0 : currentWaveElapsed);
   const ultradianProgress = allWavesMs > 0 ? totalElapsed / allWavesMs : 0;
 
+  const outerClass = isMobileDemo
+    ? 'min-h-[100dvh] bg-[#0b0d14] pb-14 md:pb-0 overflow-x-hidden'
+    : 'flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0 overflow-x-hidden';
+
+  const mainClass = isMobileDemo
+    ? 'px-4 pt-4 pb-4 overflow-x-hidden'
+    : 'flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto overflow-x-hidden';
+
   return (
-    <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0 overflow-x-hidden">
-      <main
-        className="flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto overflow-x-hidden"
-        data-demo-scroll-root={isMobileDemo ? 'timer' : undefined}
-      >
+    <div className={outerClass}>
+      <main className={mainClass} data-demo-scroll-root={isMobileDemo ? 'timer' : undefined}>
         <motion.div
-          className="flex flex-col items-center justify-center p-4 sm:p-8 min-w-0 flex-1"
+          className={isMobileDemo ? 'flex flex-col items-center justify-center min-w-0' : 'flex flex-col items-center justify-center p-4 sm:p-8 min-w-0 flex-1'}
           variants={fadeIn}
           initial="hidden"
           animate="visible"
@@ -239,7 +244,12 @@ export default function TimerDemo() {
             )}
           </div>
 
-          {isMobileDemo && <div data-demo-marker="timer-bottom" className="h-px w-full" />}
+          {isMobileDemo && (
+            <>
+              <div data-demo-marker="timer-bottom" className="h-px w-full" />
+              <div data-demo-scroll-end className="h-px w-full" />
+            </>
+          )}
         </motion.div>
       </main>
     </div>

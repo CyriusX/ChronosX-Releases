@@ -204,6 +204,7 @@ export function MobileDemoShell({ returnTo }: { returnTo: string }) {
               title="ChronosX Desktop Demo"
               src={desktopSrc}
               className="h-full w-full bg-[rgb(10,12,18)]"
+              scrolling="yes"
               sandbox="allow-scripts allow-same-origin"
               loading="eager"
               onLoad={pingDesktopReady}
@@ -222,6 +223,7 @@ export function MobileDemoShell({ returnTo }: { returnTo: string }) {
                 title="ChronosX Web Portal Demo"
                 src={webSrc}
                 className="h-full w-full bg-[rgb(10,12,18)]"
+                scrolling="yes"
                 sandbox="allow-scripts allow-same-origin"
                 loading="eager"
                 onLoad={pingWebReady}

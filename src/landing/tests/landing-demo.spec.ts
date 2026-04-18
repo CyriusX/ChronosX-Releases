@@ -9,19 +9,27 @@ function trackNotFoundResponses(page: Page) {
 }
 
 async function getDesktopDemoFrame(page: Page): Promise<Frame> {
-  await page.waitForSelector('iframe[title="ChronosX Desktop Demo"]');
-  await page.waitForTimeout(250);
-  const frame = page.frames().find((f) => f.url().includes('/demos/desktop/demo.html'));
-  if (!frame) throw new Error('Desktop demo iframe did not load');
-  return frame;
+  const iframe = page.locator('iframe[title="ChronosX Desktop Demo"]');
+  await iframe.waitFor();
+  for (let i = 0; i < 40; i += 1) {
+    const handle = await iframe.elementHandle();
+    const frame = await handle?.contentFrame();
+    if (frame) return frame;
+    await page.waitForTimeout(250);
+  }
+  throw new Error('Desktop demo iframe did not load');
 }
 
 async function getWebPortalFrame(page: Page): Promise<Frame> {
-  await page.waitForSelector('iframe[title="ChronosX Web Portal Demo"]');
-  await page.waitForTimeout(250);
-  const frame = page.frames().find((f) => f.url().includes('/demos/web/demo.html'));
-  if (!frame) throw new Error('Web portal iframe did not load');
-  return frame;
+  const iframe = page.locator('iframe[title="ChronosX Web Portal Demo"]');
+  await iframe.waitFor();
+  for (let i = 0; i < 40; i += 1) {
+    const handle = await iframe.elementHandle();
+    const frame = await handle?.contentFrame();
+    if (frame) return frame;
+    await page.waitForTimeout(250);
+  }
+  throw new Error('Web portal iframe did not load');
 }
 
 async function expectNoRootScroll(frame: Frame) {
@@ -40,14 +48,11 @@ async function expectNoHorizontalOverflowInFrame(frame: Frame) {
   expect(scrollWidth).toBeLessThanOrEqual(innerWidth + 1);
 }
 
-async function scrollFrameRootToBottom(frame: Frame, rootSelector: string) {
-  await frame.waitForSelector(rootSelector);
-  await frame.evaluate((sel) => {
-    const el = document.querySelector(sel) as HTMLElement | null;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, rootSelector);
-  await frame.waitForTimeout(150);
+async function scrollFrameToBottom(frame: Frame) {
+  await frame.evaluate(() => {
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+  await frame.waitForTimeout(250);
 }
 
 test('Individuals: Activity + Reports demos load and fit (no 404)', async ({ page }) => {
@@ -56,6 +61,7 @@ test('Individuals: Activity + Reports demos load and fit (no 404)', async ({ pag
   await page.setViewportSize({ width: 1280, height: 820 });
   await page.goto('/');
   const demo = page.locator('#demo');
+  await demo.scrollIntoViewIfNeeded();
 
   const desktopFrame = await getDesktopDemoFrame(page);
   await expect(desktopFrame.getByText('My day', { exact: true })).toBeVisible();
@@ -77,6 +83,7 @@ test('Teams: Portal + Teams + Reports demos load and fit (no 404)', async ({ pag
   await page.setViewportSize({ width: 1280, height: 820 });
   await page.goto('/teams');
   const demo = page.locator('#demo');
+  await demo.scrollIntoViewIfNeeded();
 
   const desktopFrame = await getDesktopDemoFrame(page);
 
@@ -97,6 +104,10 @@ test('Teams: Portal + Teams + Reports demos load and fit (no 404)', async ({ pag
 
 test('Responsive: mobile layout still usable', async ({ page }) => {
   const notFound = trackNotFoundResponses(page);
+  const consoleErrors: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -121,27 +132,42 @@ test('Responsive: mobile layout still usable', async ({ page }) => {
   // Hamburger navigation switches real screens.
   const desktopFrame = await getDesktopDemoFrame(page);
   await expectNoHorizontalOverflowInFrame(desktopFrame);
+  await expect(desktopFrame.getByText('My day', { exact: true })).toBeVisible();
+  await scrollFrameToBottom(desktopFrame);
+  await expect(desktopFrame.locator('[data-demo-scroll-end]')).toBeVisible();
+
+  await page.getByRole('button', { name: /open demo menu|abrir menu da demo/i }).click();
+  await page.getByRole('button', { name: /^Focus timer/i }).click();
+  await expectNoHorizontalOverflowInFrame(desktopFrame);
+  await scrollFrameToBottom(desktopFrame);
+  await expect(desktopFrame.locator('[data-demo-scroll-end]')).toBeVisible();
+
   await page.getByRole('button', { name: /open demo menu|abrir menu da demo/i }).click();
   await page.getByRole('button', { name: /^Activity/i }).click();
   await expect(desktopFrame.getByText('Activities', { exact: true })).toBeVisible();
   await expectNoHorizontalOverflowInFrame(desktopFrame);
 
   // Activity can scroll to bottom (folders/session sections reachable)
-  await scrollFrameRootToBottom(desktopFrame, '[data-demo-scroll-root="activities"]');
+  await scrollFrameToBottom(desktopFrame);
   await expect(desktopFrame.locator('[data-demo-marker="activities-bottom"]')).toBeVisible();
+  await expect(desktopFrame.locator('[data-demo-scroll-end]')).toBeVisible();
 
   await page.getByRole('button', { name: /open demo menu|abrir menu da demo/i }).click();
   await page.getByRole('button', { name: /^Reports/i }).click();
   await expect(desktopFrame.getByRole('heading', { name: 'Reports' })).toBeVisible();
   await expectNoHorizontalOverflowInFrame(desktopFrame);
-  await scrollFrameRootToBottom(desktopFrame, '[data-demo-scroll-root="reports"]');
+  await scrollFrameToBottom(desktopFrame);
   await expect(desktopFrame.locator('[data-demo-marker="reports-bottom"]')).toBeVisible();
+  await expect(desktopFrame.locator('[data-demo-scroll-end]')).toBeVisible();
 
   await page.getByRole('button', { name: /open demo menu|abrir menu da demo/i }).click();
   await page.getByRole('button', { name: /^Kanban/i }).click();
   await expectNoHorizontalOverflowInFrame(desktopFrame);
-  await expect(desktopFrame.locator('[data-demo-kanban-segments]')).toBeVisible();
-  await expect(desktopFrame.getByRole('button', { name: 'To Do' })).toBeVisible();
+  await expect(desktopFrame.locator('[data-demo-kanban-accordion]')).toBeVisible();
+  await expect(desktopFrame.getByText(/to do|a fazer/i)).toBeVisible();
+  await scrollFrameToBottom(desktopFrame);
+  await expect(desktopFrame.locator('[data-demo-scroll-end]')).toBeVisible();
+  expect(consoleErrors).toEqual([]);
 
   // Exit returns to the landing page.
   await page.getByRole('button', { name: /exit demo|sair da demo/i }).click();
@@ -161,6 +187,14 @@ test('Responsive: mobile layout still usable', async ({ page }) => {
   const portalFrame = await getWebPortalFrame(page);
   await expect(portalFrame.getByText('ChronosX Demo Org', { exact: true })).toBeVisible();
   await expectNoHorizontalOverflowInFrame(portalFrame);
+
+  // Teams (Desktop) can scroll and doesn't freeze.
+  const desktopFrameTeams = await getDesktopDemoFrame(page);
+  await page.getByRole('button', { name: /open demo menu|abrir menu da demo/i }).click();
+  await page.getByRole('button', { name: /^Team \(Desktop\)|^Time \(Desktop\)/i }).click();
+  await expect(desktopFrameTeams.getByRole('heading', { name: /team|equipe/i })).toBeVisible();
+  await scrollFrameToBottom(desktopFrameTeams);
+  await expect(desktopFrameTeams.locator('[data-demo-scroll-end]')).toBeVisible();
 
   await page.getByRole('button', { name: /exit demo|sair da demo/i }).click();
   await expect(page).toHaveURL('/teams');

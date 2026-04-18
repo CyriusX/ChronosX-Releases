@@ -9,10 +9,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, RefreshCw, ExternalLink } from 'lucide-react';
+import { ArrowLeft, RefreshCw, ExternalLink, ChevronDown } from 'lucide-react';
 import { KanbanBoard } from '../../components/projects/KanbanBoard';
 import { TaskCard } from '../../components/projects/TaskCard';
-import { TaskDetailDrawer } from '../../components/projects/TaskDetailDrawer';
 import {
   getProject,
   listProjectTasks,
@@ -46,8 +45,7 @@ export default function ProjectBoardDemo() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncingLinear, setSyncingLinear] = useState(false);
-  const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null);
-  const [mobileStatus, setMobileStatus] = useState<TaskStatus>('Todo');
+  const [openMobileStatus, setOpenMobileStatus] = useState<TaskStatus | null>('Todo');
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -55,10 +53,11 @@ export default function ProjectBoardDemo() {
   const columns = useMemo(() => getColumns(project?.syncSource), [project?.syncSource]);
 
   useEffect(() => {
-    if (!columns.includes(mobileStatus)) {
-      setMobileStatus(columns[0] ?? 'Todo');
+    if (!openMobileStatus) return;
+    if (!columns.includes(openMobileStatus)) {
+      setOpenMobileStatus(columns[0] ?? 'Todo');
     }
-  }, [columns, mobileStatus]);
+  }, [columns, openMobileStatus]);
 
   const fetchAll = useCallback(async (initial = false) => {
     if (!projectId) return;
@@ -88,6 +87,7 @@ export default function ProjectBoardDemo() {
 
   useEffect(() => {
     if (!projectId) return;
+    if (isMobileDemo) return;
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(() => fetchAll(false), POLL_INTERVAL_MS);
     return () => {
@@ -158,17 +158,29 @@ export default function ProjectBoardDemo() {
 
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
           {isLinearProject && (
-            <motion.button
-              onClick={handleLinearSync}
-              disabled={syncingLinear}
-              whileHover={{ scale: syncingLinear ? 1 : 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-2 h-9 px-4 rounded-[10px] bg-gradient-to-r from-[#5e6ad2] to-[#a78bfa] text-white text-[11px] font-semibold shadow-[0_4px_12px_rgba(94,106,210,0.3)] disabled:opacity-60 transition-colors"
-              title={t('projects.pullLinearUpdates')}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncingLinear ? 'animate-spin' : ''}`} />
-              {syncingLinear ? t('projects.syncing') : t('projects.syncLinear')}
-            </motion.button>
+            isMobileDemo ? (
+              <button
+                onClick={handleLinearSync}
+                disabled={syncingLinear}
+                className="flex items-center gap-2 h-9 px-4 rounded-[10px] bg-gradient-to-r from-[#5e6ad2] to-[#a78bfa] text-white text-[11px] font-semibold shadow-[0_4px_12px_rgba(94,106,210,0.3)] disabled:opacity-60 transition-colors"
+                title={t('projects.pullLinearUpdates')}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingLinear ? 'animate-spin' : ''}`} />
+                {syncingLinear ? t('projects.syncing') : t('projects.syncLinear')}
+              </button>
+            ) : (
+              <motion.button
+                onClick={handleLinearSync}
+                disabled={syncingLinear}
+                whileHover={{ scale: syncingLinear ? 1 : 1.04 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-2 h-9 px-4 rounded-[10px] bg-gradient-to-r from-[#5e6ad2] to-[#a78bfa] text-white text-[11px] font-semibold shadow-[0_4px_12px_rgba(94,106,210,0.3)] disabled:opacity-60 transition-colors"
+                title={t('projects.pullLinearUpdates')}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingLinear ? 'animate-spin' : ''}`} />
+                {syncingLinear ? t('projects.syncing') : t('projects.syncLinear')}
+              </motion.button>
+            )
           )}
 
           {isLinearProject && project?.linearProjectId && (
@@ -185,28 +197,7 @@ export default function ProjectBoardDemo() {
         </div>
       </div>
 
-      {/* Mobile-only segmented control (vertical-only board) */}
-      {isMobileDemo && (
-        <div className="grid grid-cols-2 gap-2" data-demo-kanban-segments>
-          {columns.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setMobileStatus(s)}
-              className={`rounded-xl border px-3 py-2 text-[12px] font-semibold transition-colors ${
-                mobileStatus === s
-                  ? 'border-[rgba(139,92,246,0.35)] bg-[rgba(139,92,246,0.16)] text-[#f5f7fb]'
-                  : 'border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] text-[rgba(245,247,251,0.6)]'
-              }`}
-            >
-              {s === 'Todo' ? t('kanban.todo')
-                : s === 'InProgress' ? t('kanban.inProgress')
-                : s === 'InReview' ? t('kanban.inReview')
-                : t('kanban.done')}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Mobile-only accordion (vertical-only board) lives in the mobile layout below */}
     </div>
   );
 
@@ -246,48 +237,81 @@ export default function ProjectBoardDemo() {
     return by;
   }, [tasks]);
 
-  const visibleTasks = tasksByStatus[mobileStatus] ?? [];
+  const counts = useMemo(() => {
+    const out: Record<TaskStatus, number> = { Todo: 0, InProgress: 0, InReview: 0, Done: 0 };
+    for (const s of columns) out[s] = (tasksByStatus[s] ?? []).length;
+    return out;
+  }, [columns, tasksByStatus]);
 
   return (
-    <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0 overflow-x-hidden">
-      <main
-        className="flex-1 flex flex-col min-w-0 min-h-0 px-5 pt-4 pb-4 overflow-y-auto overflow-x-hidden"
-        data-demo-scroll-root="kanban"
-      >
+    <div className="min-h-[100dvh] bg-[#0b0d14] pb-14 md:pb-0 overflow-x-hidden">
+      <main className="px-5 pt-4 pb-4 overflow-x-hidden" data-demo-scroll-root="kanban">
         {header}
 
-        <div className="mt-4 flex flex-col gap-2">
-          {loading ? (
-            Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-16 rounded-2xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] animate-pulse"
-              />
-            ))
-          ) : visibleTasks.length === 0 ? (
-            <div className="text-center py-10 text-[12px] text-[rgba(245,247,251,0.35)] italic">
-              {t('kanban.noTasks')}
-            </div>
-          ) : (
-            visibleTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                projectColor={project?.color ?? '#8B5CF6'}
-                draggable={false}
-                onOpen={() => setDrawerTaskId(task.id)}
-              />
-            ))
-          )}
-          <div data-demo-marker="kanban-bottom" className="h-px w-full" />
-        </div>
+        <div className="mt-4 space-y-3" data-demo-kanban-accordion>
+          {columns.map((status) => {
+            const isOpen = openMobileStatus === status;
+            const label =
+              status === 'Todo' ? t('kanban.todo')
+              : status === 'InProgress' ? t('kanban.inProgress')
+              : status === 'InReview' ? t('kanban.inReview')
+              : t('kanban.done');
 
-        <TaskDetailDrawer
-          taskId={drawerTaskId}
-          onClose={() => setDrawerTaskId(null)}
-          onDeleted={() => setDrawerTaskId(null)}
-          onAssigned={() => {}}
-        />
+            const tasksForStatus = tasksByStatus[status] ?? [];
+
+            return (
+              <div
+                key={status}
+                className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] overflow-hidden"
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenMobileStatus((prev) => (prev === status ? null : status))}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+                >
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-semibold text-[#f5f7fb] truncate">{label}</div>
+                    <div className="text-[11px] text-[rgba(245,247,251,0.45)]">
+                      {counts[status] ?? 0} {t('reports.items')}
+                    </div>
+                  </div>
+                  <ChevronDown
+                    className={`w-4 h-4 text-[rgba(245,247,251,0.55)] transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+
+                {isOpen && (
+                  <div className="px-4 pb-4 space-y-2">
+                    {loading ? (
+                      Array.from({ length: 4 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="h-16 rounded-2xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] animate-pulse"
+                        />
+                      ))
+                    ) : tasksForStatus.length === 0 ? (
+                      <div className="text-center py-6 text-[12px] text-[rgba(245,247,251,0.35)] italic">
+                        {t('kanban.noTasks')}
+                      </div>
+                    ) : (
+                      tasksForStatus.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          projectColor={project?.color ?? '#8B5CF6'}
+                          draggable={false}
+                        />
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div data-demo-marker="kanban-bottom" className="h-px w-full" />
+          <div data-demo-scroll-end className="h-px w-full" />
+        </div>
       </main>
     </div>
   );

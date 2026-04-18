@@ -31,6 +31,7 @@ function overrideForDemo(): Plugin {
     // Focus timer demo: hide the day timeline/calendar strip
     [norm(desktopSrc, 'components/timer/FocusDayTimeline')]: norm(stubsSrc, 'FocusDayTimeline.tsx'),
     // Page-level demo simplifications
+    [norm(desktopSrc, 'pages/Dashboard')]: norm(demoPagesSrc, 'DashboardDemo.tsx'),
     [norm(desktopSrc, 'pages/Timer')]: norm(demoPagesSrc, 'TimerDemo.tsx'),
     [norm(desktopSrc, 'pages/Activities')]: norm(demoPagesSrc, 'ActivitiesDemo.tsx'),
     [norm(desktopSrc, 'pages/Reports')]: norm(demoPagesSrc, 'ReportsDemo.tsx'),
