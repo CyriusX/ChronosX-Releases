@@ -18,12 +18,42 @@ function getInitialLang(): 'en-US' | 'pt-BR' {
   return 'en-US';
 }
 
+function getDemoModeFromUrl(): 'embed' | 'mobile' {
+  try {
+    const url = new URL(window.location.href);
+    const mode = url.searchParams.get('mode');
+    if (mode === 'mobile') return 'mobile';
+  } catch {
+    // ignore
+  }
+  return 'embed';
+}
+
 const lang = getInitialLang();
 void i18n.changeLanguage(lang);
 try {
   localStorage.setItem('timetrack-web-language', lang);
 } catch {
   // ignore
+}
+
+const demoMode = getDemoModeFromUrl();
+document.documentElement.dataset.demoMode = demoMode;
+document.body.dataset.demoMode = demoMode;
+if (demoMode === 'mobile') {
+  const style = document.createElement('style');
+  style.setAttribute('data-timetrack-demo', 'mobile-guards');
+  style.textContent = `
+    html[data-demo-mode="mobile"], body[data-demo-mode="mobile"] {
+      overflow-x: hidden !important;
+      overscroll-behavior-x: none;
+    }
+    #root {
+      max-width: 100vw;
+      overflow-x: hidden;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 installLpBridge();
@@ -33,4 +63,3 @@ createRoot(document.getElementById('root')!).render(
     <DemoApp />
   </StrictMode>,
 );
-

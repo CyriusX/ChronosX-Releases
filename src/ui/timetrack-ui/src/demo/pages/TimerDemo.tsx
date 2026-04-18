@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useIpc } from '../../hooks/useIpc';
 import { useTimerStore, getUserTimerConfig, type TimerPhase } from '../../stores/timerStore';
 import { fadeIn, scaleIn, SPRING, TIMING } from '../../lib/animation';
+import { getDemoMode } from '../demoMode';
 
 function fmtDuration(ms: number) {
   const sec = Math.ceil(ms / 1000);
@@ -16,6 +17,8 @@ function fmtDuration(ms: number) {
 export default function TimerDemo() {
   const { t } = useTranslation();
   const { sendQuery } = useIpc();
+  const demoMode = getDemoMode();
+  const isMobileDemo = demoMode === 'mobile';
 
   const mode = useTimerStore(s => s.mode);
   const phase = useTimerStore(s => s.phase);
@@ -61,8 +64,11 @@ export default function TimerDemo() {
   const ultradianProgress = allWavesMs > 0 ? totalElapsed / allWavesMs : 0;
 
   return (
-    <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0">
-      <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto">
+    <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0 overflow-x-hidden">
+      <main
+        className="flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto overflow-x-hidden"
+        data-demo-scroll-root={isMobileDemo ? 'timer' : undefined}
+      >
         <motion.div
           className="flex flex-col items-center justify-center p-4 sm:p-8 min-w-0 flex-1"
           variants={fadeIn}
@@ -232,6 +238,8 @@ export default function TimerDemo() {
               </motion.div>
             )}
           </div>
+
+          {isMobileDemo && <div data-demo-marker="timer-bottom" className="h-px w-full" />}
         </motion.div>
       </main>
     </div>
@@ -372,4 +380,3 @@ function LargeUltradianWave({ progress, phase, timeDisplay, totalWaves, currentW
     </div>
   );
 }
-

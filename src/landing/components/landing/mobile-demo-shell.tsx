@@ -56,6 +56,7 @@ export function MobileDemoShell({ returnTo }: { returnTo: string }) {
     params.set("audience", audience);
     params.set("lang", demoLang);
     params.set("screen", desiredDesktopScreen);
+    params.set("mode", "mobile");
     return `/demos/desktop/demo.html?${params.toString()}`;
   }, [audience, demoLang, desiredDesktopScreen]);
 
@@ -63,6 +64,7 @@ export function MobileDemoShell({ returnTo }: { returnTo: string }) {
     const params = new URLSearchParams();
     params.set("lang", demoLang);
     params.set("screen", "/");
+    params.set("mode", "mobile");
     return `/demos/web/demo.html?${params.toString()}`;
   }, [demoLang]);
 

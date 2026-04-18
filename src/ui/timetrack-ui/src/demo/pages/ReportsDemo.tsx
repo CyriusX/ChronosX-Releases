@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { toLocalDateStr } from '../../types/reports';
 import type { ReportsBundleResponse } from '../../types/reports';
 import { getReportsBundle } from '../../services/reportApi';
+import { getDemoMode } from '../demoMode';
 
 function formatDuration(seconds: number): string {
   if (!seconds) return '0h';
@@ -27,6 +28,7 @@ export default function ReportsDemo() {
   const [{ startDate, endDate }] = useState(() => getLastNDaysRange(30));
   const [bundle, setBundle] = useState<ReportsBundleResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const demoMode = getDemoMode();
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +63,120 @@ export default function ReportsDemo() {
   }, [bundle]);
 
   const topApps = bundle?.topApps?.apps ?? [];
+
+  if (demoMode === 'mobile') {
+    return (
+      <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0 overflow-x-hidden">
+        <main
+          className="flex-1 flex flex-col min-w-0 min-h-0 px-5 pt-5 pb-4 overflow-y-auto overflow-x-hidden"
+          data-demo-scroll-root="reports"
+        >
+          <div className="flex flex-col gap-2 flex-shrink-0 min-w-0">
+            <h1 className="text-[22px] font-bold text-[#f5f7fb] tracking-[-0.3px] truncate">
+              {t('reports.title')}
+            </h1>
+            <p className="text-[12px] text-[rgba(245,247,251,0.45)]">
+              {t('reports.subtitle')}
+            </p>
+            <div className="text-[10px] text-[rgba(245,247,251,0.35)]">
+              <span className="truncate">{startDate}</span>
+              <span className="mx-1">—</span>
+              <span className="truncate">{endDate}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 flex-shrink-0">
+            <SummaryCard
+              title={t('reports.activeTime')}
+              value={formatDuration(summary.active)}
+              subtitle={t('reports.total')}
+              icon={Clock}
+              badge={t('reports.last30')}
+              badgeColor="blue"
+              isLoading={loading}
+            />
+            <SummaryCard
+              title={t('reports.idleTime')}
+              value={formatDuration(summary.idle)}
+              subtitle={t('reports.ofTotal')}
+              icon={Activity}
+              badge={t('reports.sources')}
+              badgeColor="yellow"
+              isLoading={loading}
+            />
+            <SummaryCard
+              title={t('reports.focusScore')}
+              value={`${summary.focus}`}
+              subtitle={t('reports.focusScoreDesc')}
+              icon={Target}
+              badge={t('reports.avgPerDay')}
+              badgeColor="green"
+              isLoading={loading}
+            />
+          </div>
+
+          <div className="mt-4 flex flex-col gap-4 min-w-0">
+            <ProductivityTrend
+              periods={bundle?.productivityTrend?.periods ?? []}
+              isLoading={loading}
+              maxHeight={240}
+            />
+
+            <Card className="bg-gradient-to-br from-[rgba(26,29,46,0.8)] to-[rgba(17,19,28,0.8)] border border-[rgba(255,255,255,0.06)] rounded-xl flex flex-col overflow-hidden">
+              <CardHeader className="pb-2 pt-3 px-4 shrink-0">
+                <CardTitle className="flex items-center justify-between min-w-0">
+                  <span className="text-[13px] font-medium text-[rgba(245,247,251,0.9)] truncate">
+                    {t('reports.topApps')}
+                  </span>
+                  <span className="text-[10px] text-[rgba(245,247,251,0.35)] shrink-0">
+                    {topApps.length} {t('reports.apps')}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 min-w-0">
+                {loading ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-11 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] animate-pulse"
+                      />
+                    ))}
+                  </div>
+                ) : topApps.length === 0 ? (
+                  <div className="flex items-center justify-center h-24 text-[rgba(245,247,251,0.4)] text-[12px]">
+                    {t('reports.noDataToShow')}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {topApps.slice(0, 8).map((app) => (
+                      <div
+                        key={app.displayName}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-[12px] text-[rgba(245,247,251,0.85)] truncate">
+                            {app.displayName}
+                          </div>
+                          <div className="text-[10px] text-[rgba(245,247,251,0.35)] truncate">
+                            {app.subcategory ?? ''}
+                          </div>
+                        </div>
+                        <div className="text-[11px] text-[rgba(245,247,251,0.55)] shrink-0">
+                          {formatDuration(app.totalSeconds)}
+                        </div>
+                      </div>
+                    ))}
+                    <div data-demo-marker="reports-bottom" className="h-px w-full" />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#0b0d14] overflow-hidden pb-14 md:pb-0">
@@ -169,4 +285,3 @@ export default function ReportsDemo() {
     </div>
   );
 }
-

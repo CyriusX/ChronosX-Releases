@@ -35,6 +35,7 @@ function overrideForDemo(): Plugin {
     [norm(desktopSrc, 'pages/Activities')]: norm(demoPagesSrc, 'ActivitiesDemo.tsx'),
     [norm(desktopSrc, 'pages/Reports')]: norm(demoPagesSrc, 'ReportsDemo.tsx'),
     [norm(desktopSrc, 'pages/Teams')]: norm(demoPagesSrc, 'TeamsDemo.tsx'),
+    [norm(desktopSrc, 'pages/ProjectBoard')]: norm(demoPagesSrc, 'ProjectBoardDemo.tsx'),
   };
 
   return {
