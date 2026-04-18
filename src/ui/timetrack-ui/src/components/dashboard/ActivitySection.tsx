@@ -181,9 +181,16 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
   useEffect(() => {
     const d = selectedDate ?? new Date();
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const fetch = userId
-      ? getUserTaskEntries(userId, dateStr)
-      : getMyTaskEntries(dateStr);
+    let fetchPromise: Promise<{ entries: TaskEntryDto[] }>;
+    if (userId) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.debug('[ActivitySection] fetching user task entries', { userId, dateStr });
+      }
+      fetchPromise = getUserTaskEntries(userId, dateStr);
+    } else {
+      fetchPromise = getMyTaskEntries(dateStr);
+    }
 
     // Avoid stale task bars when switching users/dates (especially when team endpoint returns 403).
     // Do NOT clear during the "today + me" tick refresh to avoid visible flicker every 5s.
@@ -191,7 +198,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
       setTaskEntries([]);
     }
 
-    fetch
+    fetchPromise
       .then(res => setTaskEntries(res.entries ?? []))
       .catch(() => setTaskEntries([]));
   // Re-fetch on date change; when viewing today (own timeline), `now` ticks every 5s to keep an open entry fresh

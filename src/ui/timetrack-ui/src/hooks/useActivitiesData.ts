@@ -41,6 +41,10 @@ export interface ActivitiesData {
   goToNextDay: () => void;
   goToToday: () => void;
 
+  // Team view state (optional)
+  userId?: string;
+  setSelectedUserId: (userId?: string) => void;
+
   // Data
   summary: TodaySummaryResponse | null;
   activities: ActivityBlock[];
@@ -87,6 +91,8 @@ export function useActivitiesData(): ActivitiesData {
   const desktopRuntime = isDesktopRuntime();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const userId = searchParams.get('userId') ?? undefined;
+
   // Initialize from URL ?date= parameter (e.g., /activities?date=2026-03-25)
   // Also read ?userId= parameter for viewing other users' data
   const [selectedDate, setSelectedDateRaw] = useState<Date>(() => {
@@ -98,7 +104,17 @@ export function useActivitiesData(): ActivitiesData {
     return new Date();
   });
 
-  const userId = searchParams.get('userId') ?? undefined;
+  // Keep selectedDate in sync with URL changes (e.g., back/forward navigation).
+  useEffect(() => {
+    const dateParam = searchParams.get('date');
+    const desired = dateParam
+      ? new Date(dateParam + 'T00:00:00')
+      : new Date();
+    if (isNaN(desired.getTime())) return;
+    if (!isSameDay(desired, selectedDate)) {
+      setSelectedDateRaw(desired);
+    }
+  }, [searchParams, selectedDate]);
 
   const [summary, setSummary] = useState<TodaySummaryResponse | null>(null);
   const [activities, setActivities] = useState<ActivityBlock[]>([]);
@@ -119,6 +135,16 @@ export function useActivitiesData(): ActivitiesData {
     if (userId) params.userId = userId;
     setSearchParams(params, { replace: true });
   }, [setSearchParams, userId]);
+
+  const setSelectedUserId = useCallback((newUserId?: string) => {
+    setSummary(null);
+    setActivities([]);
+    const dateStr = formatDatePayload(selectedDate);
+    const params: Record<string, string> = {};
+    if (dateStr !== formatDatePayload(new Date())) params.date = dateStr;
+    if (newUserId) params.userId = newUserId;
+    setSearchParams(params, { replace: true });
+  }, [setSearchParams, selectedDate]);
 
   // TODAY: use IPC (local SQLite, real-time)
   // PAST DAYS: use backend API (Postgres, authoritative)
@@ -319,6 +345,8 @@ export function useActivitiesData(): ActivitiesData {
     goToPrevDay,
     goToNextDay,
     goToToday,
+    userId,
+    setSelectedUserId,
     summary,
     activities,
     weeklyHistory,
