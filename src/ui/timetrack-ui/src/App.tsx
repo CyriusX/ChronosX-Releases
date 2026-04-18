@@ -8,8 +8,9 @@ import type { LocalSettings } from "./types/settings";
 import { useTrackingStore, handleTrackingStateChanged } from "./stores/trackingStore";
 import { useAuthStore } from "./stores/authStore";
 import { getIpcService } from "./services";
+import { getApiBaseUrl } from "./services/apiBase";
 import { SESSION_EXPIRED_EVENT } from "./services/apiClient";
-import { NAVIGATE_EVENT, type NavigateDetail } from "./services/navigationEvents";
+import { NAVIGATE_EVENT, type NavigateDetail, dispatchNavigate } from "./services/navigationEvents";
 import { isDesktopRuntime } from "./lib/runtime";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
@@ -34,6 +35,7 @@ function App() {
   const { isAuthenticated, tokens } = useAuthStore();
   const { i18n } = useTranslation();
   const wasConnectedRef = useRef(false);
+  const attemptedAgentSessionRestoreRef = useRef(false);
   const desktop = isDesktopRuntime();
   const desktopInitialEntriesRef = useRef<string[] | null>(null);
   const devToolsEnabledRef = useRef(false);
@@ -59,6 +61,19 @@ function App() {
     if (!untilUtc) return true;
     const untilDate = new Date(untilUtc);
     return untilDate.getTime() > Date.now();
+  };
+
+  const tryParseJwtClaims = (jwt: string): Record<string, unknown> | null => {
+    try {
+      const parts = jwt.split('.');
+      if (parts.length !== 3) return null;
+      const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+      const json = atob(padded);
+      return JSON.parse(json) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
   };
 
   // Sync UI language from the Agent's stored settings on every IPC connection.
@@ -177,6 +192,80 @@ function App() {
       unsubDevTools();
     };
   }, [subscribeToEvent, isReady, isConnected, sendQuery]);
+
+  // Restore UI session from the Agent's token store (Keychain/DPAPI) when the desktop
+  // webview starts on a fresh origin (e.g., macOS localhost port changes) and localStorage
+  // doesn't have `timetrack-auth`. This avoids forcing the user to login on every launch.
+  useEffect(() => {
+    if (!isReady || !isConnected) return;
+    if (isAuthenticated) return;
+    if (attemptedAgentSessionRestoreRef.current) return;
+    attemptedAgentSessionRestoreRef.current = true;
+
+    const restore = async () => {
+      try {
+        const ipcService = getIpcService();
+        const result = await ipcService.sendQuery('getTokens');
+        const data = result.data as { hasTokens?: boolean; accessToken?: string; refreshToken?: string; expiresIn?: number } | undefined;
+
+        if (!result.success || !data?.hasTokens || !data.accessToken) return;
+
+        const authStore = useAuthStore.getState();
+        authStore.setTokens({
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken ?? '',
+          expiresAt: Date.now() + (data.expiresIn ?? 3600) * 1000,
+        });
+
+        // Prefer fetching full user/org display info from the backend.
+        try {
+          const response = await fetch(`${getApiBaseUrl()}/auth/me/summary`, {
+            headers: { Authorization: `Bearer ${data.accessToken}` },
+          });
+          if (response.ok) {
+            const me = await response.json();
+            authStore.setUser({
+              id: me.userId ?? me.id,
+              email: me.email ?? '',
+              displayName: me.displayName ?? '',
+              role: me.role ?? 'Colaborador',
+              orgId: me.orgId ?? me.organizationId ?? '',
+              orgName: me.orgName ?? me.organizationName ?? '',
+              passwordMustChange: me.passwordMustChange ?? false,
+            });
+            dispatchNavigate('/', true);
+            return;
+          }
+        } catch {
+          // fall through to JWT claim fallback
+        }
+
+        // Fallback: minimal identity from JWT claims (keeps the UI usable offline).
+        const claims = tryParseJwtClaims(data.accessToken);
+        const userId = (claims?.sub as string | undefined) ?? '';
+        const orgId = (claims?.org_id as string | undefined) ?? '';
+        const role = (claims?.role as string | undefined) ?? 'Colaborador';
+        const mustChangePassword = (claims?.must_change_password as string | undefined) === 'true';
+
+        if (userId && orgId) {
+          authStore.setUser({
+            id: userId,
+            email: '',
+            displayName: '',
+            role: role as any,
+            orgId,
+            orgName: '',
+            passwordMustChange: mustChangePassword,
+          });
+          dispatchNavigate('/', true);
+        }
+      } catch {
+        // non-critical
+      }
+    };
+
+    void restore();
+  }, [isReady, isConnected, isAuthenticated]);
 
   // Sync tokens with Agent on IPC connect.
   // If the UI's access token is expired, ask the Agent for its (likely newer) tokens

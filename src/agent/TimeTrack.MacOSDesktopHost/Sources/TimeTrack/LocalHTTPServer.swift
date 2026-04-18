@@ -6,6 +6,8 @@ class LocalHTTPServer {
     private(set) var baseURL: String = ""
     private var resourcePath: String = ""
     private let apiBaseURL = "https://chronosx-timetrack-api.gpoda0.easypanel.host"
+    private static let preferredPortDefaultsKey = "TimeTrack.LocalHTTPServer.preferredPort"
+    private static let basePort: UInt16 = 49621
 
     init?(resourcePath: String) {
         self.resourcePath = resourcePath
@@ -16,31 +18,26 @@ class LocalHTTPServer {
         var reuse: Int32 = 1
         setsockopt(socketFd, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout.size(ofValue: reuse)))
 
-        var addr = sockaddr_in()
-        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = UInt16(0).bigEndian
-        addr.sin_addr.s_addr = INADDR_ANY
+        // Use a stable port so WebKit's origin (and localStorage) remains stable between app restarts.
+        // This prevents users from being forced to login again on every launch.
+        let preferred = UInt16(UserDefaults.standard.integer(forKey: Self.preferredPortDefaultsKey))
+        let startPort = preferred != 0 ? preferred : Self.basePort
 
-        let bindResult = withUnsafePointer(to: &addr) { ptr in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { rebound in
-                Darwin.bind(socketFd, rebound, socklen_t(MemoryLayout<sockaddr_in>.size))
+        var bound = false
+        for offset in 0..<10 {
+            let candidate = startPort &+ UInt16(offset)
+            if tryBind(port: candidate) {
+                port = candidate
+                bound = true
+                UserDefaults.standard.set(Int(candidate), forKey: Self.preferredPortDefaultsKey)
+                break
             }
         }
 
-        guard bindResult == 0 else {
+        guard bound else {
             Darwin.close(socketFd)
             return nil
         }
-
-        var addrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
-        var assignedAddr = sockaddr_in()
-        withUnsafeMutablePointer(to: &assignedAddr) { ptr in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { rebound in
-                getsockname(socketFd, rebound, &addrLen)
-            }
-        }
-        port = assignedAddr.sin_port.bigEndian
         baseURL = "http://localhost:\(port)"
 
         Darwin.listen(socketFd, 10)
@@ -48,6 +45,22 @@ class LocalHTTPServer {
         DispatchQueue.global(qos: .background).async { [weak self] in
             self?.acceptLoop()
         }
+    }
+
+    private func tryBind(port: UInt16) -> Bool {
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+
+        let bindResult = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { rebound in
+                Darwin.bind(socketFd, rebound, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+
+        return bindResult == 0
     }
 
     deinit {

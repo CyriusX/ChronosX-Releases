@@ -49,7 +49,6 @@ struct ContentView: View {
     @State private var webView: WKWebView?
     @State private var menuBarController = MenuBarController()
     @State private var devToolsEnabled = false
-    @State private var webViewReloadKey = UUID()
 
     var body: some View {
         ZStack {
@@ -62,11 +61,9 @@ struct ContentView: View {
                 onDevToolsAccessChanged: { enabled in
                     if devToolsEnabled != enabled {
                         devToolsEnabled = enabled
-                        webViewReloadKey = UUID()
                     }
                 }
             )
-            .id(webViewReloadKey)
         }
         // Size to 85% of screen, capped at reasonable maximums
         .frame(
@@ -106,7 +103,6 @@ struct ContentView: View {
 
             if devToolsEnabled != effectiveEnabled {
                 devToolsEnabled = effectiveEnabled
-                webViewReloadKey = UUID()
             }
         } catch {
             // non-critical
@@ -238,7 +234,18 @@ struct WebViewContainer: NSViewRepresentable {
         return webView
     }
 
-    func updateNSView(_ nsView: WKWebView, context: Context) {}
+    func updateNSView(_ nsView: WKWebView, context: Context) {
+        // Avoid recreating/reloading the WKWebView when DevTools is toggled, otherwise the SPA
+        // may lose its session and force the user to login again.
+        if #available(macOS 13.3, *) {
+            if nsView.isInspectable != devToolsEnabled {
+                nsView.isInspectable = devToolsEnabled
+            }
+        }
+
+        // Keep the legacy toggle for older macOS versions and as a fallback even on newer OSes.
+        nsView.configuration.preferences.setValue(devToolsEnabled, forKey: "developerExtrasEnabled")
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(ipcClient: ipcClient, onDevToolsAccessChanged: onDevToolsAccessChanged)
