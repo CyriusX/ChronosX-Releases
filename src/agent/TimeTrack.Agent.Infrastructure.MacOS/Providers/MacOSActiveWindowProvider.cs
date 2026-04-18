@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -30,6 +31,10 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
     private readonly ConcurrentDictionary<string, string> _hashByInput = new();
     private readonly ConcurrentDictionary<string, string> _displayNameByExePath = new();
     private readonly ConcurrentDictionary<int, string?> _exePathByPid = new();
+
+    private string? _finderFolderCache;
+    private DateTime _finderFolderCacheAtUtc = DateTime.MinValue;
+    private DateTime _finderPermissionDeniedLoggedAtUtc = DateTime.MinValue;
 
     // Compiled once — the previous code recompiled this regex on every poll cycle.
     private static readonly Regex s_bundleNameRegex = new(
@@ -147,6 +152,26 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
             var axDocumentPath = GetActiveWindowDocumentPath(pid);
             var filePath = axDocumentPath ?? _filePathExtractor.ExtractFilePath(IntPtr.Zero, processName, windowTitle);
 
+            // Finder: AXDocument may be empty on some macOS versions / permission states.
+            // Use AppleScript fallback to get the target folder of the front window.
+            if (IsFinderBundle(exePath, appName, processName))
+            {
+                if (string.IsNullOrWhiteSpace(filePath) || !LooksLikePosixAbsolutePath(filePath))
+                {
+                    var finderFolder = TryGetFinderFrontWindowFolderPath();
+                    if (!string.IsNullOrWhiteSpace(finderFolder))
+                    {
+                        filePath = finderFolder;
+                    }
+                }
+
+                // Mark as directory key (helps downstream normalization keep the folder itself)
+                if (!string.IsNullOrWhiteSpace(filePath) && LooksLikePosixAbsolutePath(filePath) && !filePath.EndsWith("/", StringComparison.Ordinal))
+                {
+                    filePath += "/";
+                }
+            }
+
             var displayName = GetDisplayName(appName, exePath);
 
             string? browserUrl = null;
@@ -170,6 +195,108 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
         {
             _logger.LogError(ex, "Error building ActiveWindowInfo for process {ProcessId}", pid);
             return null;
+        }
+    }
+
+    private static bool LooksLikePosixAbsolutePath(string? value)
+        => !string.IsNullOrWhiteSpace(value) && value.TrimStart().StartsWith("/", StringComparison.Ordinal);
+
+    private static bool IsFinderBundle(string exePath, string appName, string processName)
+    {
+        if (!string.IsNullOrWhiteSpace(processName) &&
+            processName.Contains("finder", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(appName) &&
+            string.Equals(appName.Trim(), "Finder", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return exePath.Contains("Finder.app", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string? TryGetFinderFrontWindowFolderPath()
+    {
+        var now = DateTime.UtcNow;
+        if ((now - _finderFolderCacheAtUtc) <= TimeSpan.FromSeconds(2))
+            return _finderFolderCache;
+
+        var previous = _finderFolderCache;
+        var (path, permissionDenied) = TryGetFinderFrontWindowFolderPathViaAppleScript(timeoutMs: 500);
+        _finderFolderCache = path;
+        _finderFolderCacheAtUtc = now;
+
+        if (!string.IsNullOrWhiteSpace(path) && !string.Equals(previous, path, StringComparison.Ordinal))
+        {
+            _logger.LogDebug("Resolved Finder folder path via AppleScript: {FolderPath}", path);
+        }
+
+        if (permissionDenied && (now - _finderPermissionDeniedLoggedAtUtc) > TimeSpan.FromMinutes(10))
+        {
+            _finderPermissionDeniedLoggedAtUtc = now;
+            _logger.LogWarning(
+                "Finder folder tracking requires Automation permission. macOS denied Apple Events to Finder; Top Folders may be empty until allowed in System Settings.");
+        }
+
+        return _finderFolderCache;
+    }
+
+    private static (string? Path, bool PermissionDenied) TryGetFinderFrontWindowFolderPathViaAppleScript(int timeoutMs)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "/usr/bin/osascript",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            // Returns empty output when no Finder windows are open.
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("tell application \"Finder\"");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("if (count of windows) is 0 then return \"\"");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("return POSIX path of (target of front window as alias)");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("end tell");
+
+            using var proc = Process.Start(psi);
+            if (proc == null)
+                return (null, false);
+
+            if (!proc.WaitForExit(timeoutMs))
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { }
+                return (null, false);
+            }
+
+            var stdout = proc.StandardOutput.ReadToEnd().Trim();
+            var stderr = proc.StandardError.ReadToEnd().Trim();
+
+            if (!string.IsNullOrWhiteSpace(stderr) &&
+                (stderr.Contains("Not authorized", StringComparison.OrdinalIgnoreCase) ||
+                 stderr.Contains("not authorised", StringComparison.OrdinalIgnoreCase) ||
+                 stderr.Contains("AppleEvent", StringComparison.OrdinalIgnoreCase)))
+            {
+                return (null, true);
+            }
+
+            if (string.IsNullOrWhiteSpace(stdout))
+                return (null, false);
+
+            // Ensure directory marker
+            if (!stdout.EndsWith("/", StringComparison.Ordinal))
+                stdout += "/";
+
+            // Only accept absolute POSIX paths
+            return LooksLikePosixAbsolutePath(stdout) ? (stdout, false) : (null, false);
+        }
+        catch
+        {
+            return (null, false);
         }
     }
 

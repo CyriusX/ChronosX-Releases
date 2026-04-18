@@ -40,6 +40,11 @@ public sealed class TrackingWorker : BackgroundService
     private DateTime _lastCycleUtc = DateTime.UtcNow;
     private const int SleepDetectionGapMs = 30_000; // Gap > 30s = assume sleep/resume
 
+    // Diagnostics for "Top Folders" (File Explorer / Finder) extraction reliability.
+    private int _folderFilePathMissingStreak;
+    private string? _folderFilePathMissingAppKey;
+    private bool _folderFilePathMissingLogged;
+
     public TrackingWorker(
         ILogger<TrackingWorker> logger,
         AgentSettings settings,
@@ -362,6 +367,8 @@ public sealed class TrackingWorker : BackgroundService
             return;
         }
 
+        TrackFolderExtractionBreadcrumb(activeWindow);
+
         // 5. Registrar atividade via Use Case
         var request = new RecordActiveWindowRequest
         {
@@ -378,6 +385,60 @@ public sealed class TrackingWorker : BackgroundService
             "Ciclo concluído: {App} - {Title}",
             activeWindow.DisplayName,
             activeWindow.WindowTitle ?? "sem título");
+    }
+
+    private void TrackFolderExtractionBreadcrumb(ActiveWindowInfo activeWindow)
+    {
+        var exePath = activeWindow.ExePath ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(exePath))
+        {
+            ResetFolderBreadcrumb();
+            return;
+        }
+
+        var isExplorer = exePath.EndsWith("explorer.exe", StringComparison.OrdinalIgnoreCase);
+        var isFinder = exePath.Contains("Finder.app", StringComparison.OrdinalIgnoreCase);
+        if (!isExplorer && !isFinder)
+        {
+            ResetFolderBreadcrumb();
+            return;
+        }
+
+        var appKey = exePath;
+
+        if (!string.Equals(_folderFilePathMissingAppKey, appKey, StringComparison.OrdinalIgnoreCase))
+        {
+            _folderFilePathMissingAppKey = appKey;
+            _folderFilePathMissingStreak = 0;
+            _folderFilePathMissingLogged = false;
+        }
+
+        if (string.IsNullOrWhiteSpace(activeWindow.FilePath))
+        {
+            _folderFilePathMissingStreak++;
+
+            // Once per streak: if we still can't extract a folder path after ~10 cycles,
+            // Top Folders will show as empty; emit a breadcrumb to speed up diagnosis.
+            if (!_folderFilePathMissingLogged && _folderFilePathMissingStreak >= 10)
+            {
+                _folderFilePathMissingLogged = true;
+                _logger.LogWarning(
+                    "TopFolders breadcrumb: active {App} window but FilePath extraction is empty for {Streak} cycles.",
+                    isFinder ? "Finder" : "File Explorer",
+                    _folderFilePathMissingStreak);
+            }
+
+            return;
+        }
+
+        ResetFolderBreadcrumb();
+    }
+
+    private void ResetFolderBreadcrumb()
+    {
+        _folderFilePathMissingStreak = 0;
+        _folderFilePathMissingAppKey = null;
+        _folderFilePathMissingLogged = false;
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

@@ -34,6 +34,9 @@ public sealed class TopFoldersNormalizationTests
             ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "code.exe", "Code", "productive",
                 start.AddMinutes(1), start.AddMinutes(2), $"k-{Guid.NewGuid()}",
                 filePath: "/Users/junior/Documents/file.txt"),
+            ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "finder", "Finder", "neutral",
+                start.AddMinutes(1), start.AddMinutes(2), $"k-{Guid.NewGuid()}",
+                filePath: "/Users/junior/Documents/"),
             ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "explorer.exe", "Explorer", "neutral",
                 start.AddMinutes(2), start.AddMinutes(3), $"k-{Guid.NewGuid()}",
                 filePath: @"C:\Users\Junior\Desktop\notes.txt"),
@@ -86,4 +89,3 @@ public sealed class TopFoldersNormalizationTests
         public bool IsInRole(TimeTrack.Backend.Domain.ValueObjects.UserRole role) => false;
     }
 }
-
