@@ -32,11 +32,13 @@ export function MobileDemoShell({ returnTo }: { returnTo: string }) {
   const router = useRouter();
   const { audience, lang, copy } = useLandingContent();
 
-  const tabs = copy.demo.tabs as Array<{
+  const allTabs = copy.demo.tabs as Array<{
     key: DemoTabKey;
     title: string;
     description: string;
   }>;
+  // Mobile demo intentionally excludes Kanban (desktop-only experience).
+  const tabs = useMemo(() => allTabs.filter((t) => t.key !== "kanban"), [allTabs]);
 
   const defaultKey = (tabs[0]?.key ?? "dashboard") as DemoTabKey;
   const [activeKey, setActiveKey] = useState<DemoTabKey>(defaultKey);
@@ -75,16 +77,6 @@ export function MobileDemoShell({ returnTo }: { returnTo: string }) {
   const [desktopSrc, setDesktopSrc] = useState<string>(desiredDesktopSrc);
   const [webSrc, setWebSrc] = useState<string>(desiredWebSrc);
 
-  // Hard lock the document scroll (this route is a full-screen experience).
-  useEffect(() => {
-    const html = document.documentElement;
-    const prevOverflow = html.style.overflow;
-    html.style.overflow = "hidden";
-    return () => {
-      html.style.overflow = prevOverflow;
-    };
-  }, []);
-
   // Listen for "ready" from either iframe.
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -103,6 +95,13 @@ export function MobileDemoShell({ returnTo }: { returnTo: string }) {
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, []);
+
+  // If the tabs list changes (language/audience) and current key disappears, reset to first.
+  useEffect(() => {
+    if (!tabs.some((t) => t.key === activeKey)) {
+      setActiveKey((tabs[0]?.key ?? "dashboard") as DemoTabKey);
+    }
+  }, [activeKey, tabs]);
 
   function pingDesktopReady() {
     try {
@@ -125,6 +124,8 @@ export function MobileDemoShell({ returnTo }: { returnTo: string }) {
     const w = desktopFrameRef.current?.contentWindow;
     if (!w) return;
     try {
+      // Ensure scroll is never locked in the fullscreen mobile demo experience.
+      w.postMessage({ type: "setScrollLock", locked: false }, window.location.origin);
       w.postMessage({ type: "setLang", lang: demoLang }, window.location.origin);
       if (activeKey !== "portal") {
         w.postMessage({ type: "navigate", to: desiredDesktopScreen }, window.location.origin);

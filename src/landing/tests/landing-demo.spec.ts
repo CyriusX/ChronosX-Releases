@@ -74,6 +74,10 @@ test('Individuals: Activity + Reports demos load and fit (no 404)', async ({ pag
   await expect(desktopFrame.getByRole('heading', { name: 'Reports' })).toBeVisible();
   await expectNoRootScroll(desktopFrame);
 
+  await demo.getByRole('button', { name: /^Kanban/i }).click();
+  await expect(desktopFrame.getByText('To Do', { exact: true })).toBeVisible();
+  await expect(desktopFrame.getByText('In Progress', { exact: true })).toBeVisible();
+
   expect(Array.from(notFound)).toEqual([]);
 });
 
@@ -94,6 +98,9 @@ test('Teams: Portal + Teams + Reports demos load and fit (no 404)', async ({ pag
   await demo.getByRole('button', { name: /^Reports/i }).click();
   await expect(desktopFrame.getByRole('heading', { name: 'Reports' })).toBeVisible();
   await expectNoRootScroll(desktopFrame);
+
+  await demo.getByRole('button', { name: /^Kanban/i }).click();
+  await expect(desktopFrame.getByText('To Do', { exact: true })).toBeVisible();
 
   await demo.getByRole('button', { name: /^Web portal/i }).click();
   const portalFrame = await getWebPortalFrame(page);
@@ -161,12 +168,8 @@ test('Responsive: mobile layout still usable', async ({ page }) => {
   await expect(desktopFrame.locator('[data-demo-scroll-end]')).toBeVisible();
 
   await page.getByRole('button', { name: /open demo menu|abrir menu da demo/i }).click();
-  await page.getByRole('button', { name: /^Kanban/i }).click();
-  await expectNoHorizontalOverflowInFrame(desktopFrame);
-  await expect(desktopFrame.locator('[data-demo-kanban-accordion]')).toBeVisible();
-  await expect(desktopFrame.getByText(/to do|a fazer/i)).toBeVisible();
-  await scrollFrameToBottom(desktopFrame);
-  await expect(desktopFrame.locator('[data-demo-scroll-end]')).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Kanban/i })).toHaveCount(0);
+  await page.getByRole('button', { name: /close menu|fechar menu/i }).click().catch(() => {});
   expect(consoleErrors).toEqual([]);
 
   // Exit returns to the landing page.

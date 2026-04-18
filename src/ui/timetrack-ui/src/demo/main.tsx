@@ -48,17 +48,21 @@ if (demoMode === 'mobile') {
   style.setAttribute('data-timetrack-demo', 'mobile-guards');
   style.textContent = `
     html[data-demo-mode="mobile"], body[data-demo-mode="mobile"] {
-      height: auto !important;
-      min-height: 100dvh !important;
-      overflow-y: auto !important;
+      height: 100% !important;
+      min-height: 100% !important;
+      overflow-y: hidden !important;
       overflow-x: hidden !important;
       overscroll-behavior-x: none;
-      -webkit-overflow-scrolling: touch;
     }
     #root {
+      height: 100dvh;
       min-height: 100dvh;
       max-width: 100vw;
       overflow-x: hidden !important;
+      overflow-y: auto !important;
+      overscroll-behavior-x: none;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
     }
     html[data-demo-mode="mobile"] .flex,
     html[data-demo-mode="mobile"] .grid {

@@ -2,16 +2,15 @@
  * Demo-only ProjectBoard page.
  *
  * - embed mode: matches the real ProjectBoard layout (horizontal columns)
- * - mobile mode: vertical-only Kanban using a segmented status switcher (no horizontal scroll)
+ * - mobile mode: Kanban is desktop-only (redirect out)
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, RefreshCw, ExternalLink, ChevronDown } from 'lucide-react';
+import { ArrowLeft, RefreshCw, ExternalLink } from 'lucide-react';
 import { KanbanBoard } from '../../components/projects/KanbanBoard';
-import { TaskCard } from '../../components/projects/TaskCard';
 import {
   getProject,
   listProjectTasks,
@@ -24,14 +23,6 @@ import { getDemoMode } from '../demoMode';
 
 const POLL_INTERVAL_MS = 15_000;
 
-type TaskStatus = 'Todo' | 'InProgress' | 'InReview' | 'Done';
-
-function getColumns(syncSource: ProjectItem['syncSource'] | undefined): TaskStatus[] {
-  return syncSource === 'Linear'
-    ? ['Todo', 'InProgress', 'InReview', 'Done']
-    : ['Todo', 'InProgress', 'Done'];
-}
-
 export default function ProjectBoardDemo() {
   const { t } = useTranslation();
   const { projectId } = useParams<{ projectId: string }>();
@@ -43,42 +34,44 @@ export default function ProjectBoardDemo() {
   const [project, setProject] = useState<ProjectItem | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [syncingLinear, setSyncingLinear] = useState(false);
-  const [openMobileStatus, setOpenMobileStatus] = useState<TaskStatus | null>('Todo');
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isLinearProject = project?.syncSource === 'Linear';
-  const columns = useMemo(() => getColumns(project?.syncSource), [project?.syncSource]);
 
+  const notifyRef = useRef(notify);
+  const tRef = useRef(t);
   useEffect(() => {
-    if (!openMobileStatus) return;
-    if (!columns.includes(openMobileStatus)) {
-      setOpenMobileStatus(columns[0] ?? 'Todo');
-    }
-  }, [columns, openMobileStatus]);
+    notifyRef.current = notify;
+  }, [notify]);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
-  const fetchAll = useCallback(async (initial = false) => {
-    if (!projectId) return;
-    if (initial) setLoading(true);
-    else setRefreshing(true);
+  const fetchAll = useCallback(
+    async (initial = false) => {
+      if (!projectId) return;
+      if (initial) setLoading(true);
+      else setRefreshing(true);
 
-    try {
-      const [p, tasksRes] = await Promise.all([
-        getProject(projectId),
-        listProjectTasks(projectId),
-      ]);
-      setProject(p ?? null);
-      setTasks(tasksRes.tasks ?? []);
-    } catch (err) {
-      console.error('[ProjectBoardDemo] fetch failed', err);
-      notify.error(t('common.error'));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [notify, projectId, t]);
+      try {
+        const [p, tasksRes] = await Promise.all([getProject(projectId), listProjectTasks(projectId)]);
+        setProject(p ?? null);
+        setTasks(tasksRes.tasks ?? []);
+        setInitialLoaded(true);
+      } catch (err) {
+        console.error('[ProjectBoardDemo] fetch failed', err);
+        notifyRef.current.error(tRef.current('common.error'));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [projectId],
+  );
 
   useEffect(() => {
     if (!projectId) return;
@@ -115,6 +108,9 @@ export default function ProjectBoardDemo() {
   };
 
   if (!projectId) return <Navigate to="/projects" replace />;
+
+  // Kanban is intentionally desktop-only in the LP demo.
+  if (isMobileDemo) return <Navigate to="/" replace />;
 
   if (!project && !loading) {
     return (
@@ -208,7 +204,7 @@ export default function ProjectBoardDemo() {
         <main className="flex-1 flex flex-col min-w-0 min-h-0">
           <div className="px-5 pt-4 pb-2 flex-shrink-0">{header}</div>
           <div className="flex-1 px-5 pb-4 min-h-0 overflow-hidden">
-            {loading ? (
+            {!initialLoaded && loading ? (
               <div className="h-full rounded-2xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] animate-pulse" />
             ) : (
               <KanbanBoard
@@ -216,9 +212,10 @@ export default function ProjectBoardDemo() {
                 projectId={projectId}
                 projectColor={project?.color ?? '#8B5CF6'}
                 syncSource={project?.syncSource ?? 'Local'}
+                onLocalChange={setTasks}
                 onConflict={() => fetchAll(false)}
+                onTaskCreated={(task) => setTasks((prev) => [...prev, task])}
                 onTaskDeleted={() => fetchAll(false)}
-                onTaskUpdated={() => fetchAll(false)}
               />
             )}
           </div>
@@ -226,93 +223,4 @@ export default function ProjectBoardDemo() {
       </div>
     );
   }
-
-  // Mobile mode: vertical-only Kanban (no horizontal scroll).
-  const tasksByStatus = useMemo(() => {
-    const by: Record<TaskStatus, Task[]> = { Todo: [], InProgress: [], InReview: [], Done: [] };
-    for (const task of tasks) {
-      const status = (task.status as TaskStatus) ?? 'Todo';
-      (by[status] ?? by.Todo).push(task);
-    }
-    return by;
-  }, [tasks]);
-
-  const counts = useMemo(() => {
-    const out: Record<TaskStatus, number> = { Todo: 0, InProgress: 0, InReview: 0, Done: 0 };
-    for (const s of columns) out[s] = (tasksByStatus[s] ?? []).length;
-    return out;
-  }, [columns, tasksByStatus]);
-
-  return (
-    <div className="min-h-[100dvh] bg-[#0b0d14] pb-14 md:pb-0 overflow-x-hidden">
-      <main className="px-5 pt-4 pb-4 overflow-x-hidden" data-demo-scroll-root="kanban">
-        {header}
-
-        <div className="mt-4 space-y-3" data-demo-kanban-accordion>
-          {columns.map((status) => {
-            const isOpen = openMobileStatus === status;
-            const label =
-              status === 'Todo' ? t('kanban.todo')
-              : status === 'InProgress' ? t('kanban.inProgress')
-              : status === 'InReview' ? t('kanban.inReview')
-              : t('kanban.done');
-
-            const tasksForStatus = tasksByStatus[status] ?? [];
-
-            return (
-              <div
-                key={status}
-                className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] overflow-hidden"
-              >
-                <button
-                  type="button"
-                  onClick={() => setOpenMobileStatus((prev) => (prev === status ? null : status))}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
-                >
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-semibold text-[#f5f7fb] truncate">{label}</div>
-                    <div className="text-[11px] text-[rgba(245,247,251,0.45)]">
-                      {counts[status] ?? 0} {t('reports.items')}
-                    </div>
-                  </div>
-                  <ChevronDown
-                    className={`w-4 h-4 text-[rgba(245,247,251,0.55)] transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                  />
-                </button>
-
-                {isOpen && (
-                  <div className="px-4 pb-4 space-y-2">
-                    {loading ? (
-                      Array.from({ length: 4 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="h-16 rounded-2xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] animate-pulse"
-                        />
-                      ))
-                    ) : tasksForStatus.length === 0 ? (
-                      <div className="text-center py-6 text-[12px] text-[rgba(245,247,251,0.35)] italic">
-                        {t('kanban.noTasks')}
-                      </div>
-                    ) : (
-                      tasksForStatus.map((task) => (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          projectColor={project?.color ?? '#8B5CF6'}
-                          draggable={false}
-                        />
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          <div data-demo-marker="kanban-bottom" className="h-px w-full" />
-          <div data-demo-scroll-end className="h-px w-full" />
-        </div>
-      </main>
-    </div>
-  );
 }
