@@ -12,6 +12,7 @@ namespace TimeTrack.MacOSAgentService.Ipc;
 public sealed class UnixDomainSocketIpcServer : BackgroundService, IIpcServer, IDisposable
 {
     private const string DefaultSocketPath = "/var/tmp/TimeTrack.Agent.IPC";
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
     private readonly ILogger<UnixDomainSocketIpcServer> _logger;
     private readonly IServiceProvider _serviceProvider;
@@ -110,8 +111,10 @@ public sealed class UnixDomainSocketIpcServer : BackgroundService, IIpcServer, I
         try
         {
             var stream = new NetworkStream(_clientSocket);
-            _reader = new StreamReader(stream, Encoding.UTF8);
-            _writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
+            // Important: Encoding.UTF8 emits a BOM which breaks the Swift desktop host's JSON parsing
+            // on the first message after connect. Use UTF-8 without BOM.
+            _reader = new StreamReader(stream, Utf8NoBom);
+            _writer = new StreamWriter(stream, Utf8NoBom) { AutoFlush = true };
 
             SetClientConnected(true);
             _logger.LogInformation("DesktopHost connected via Unix Domain Socket");

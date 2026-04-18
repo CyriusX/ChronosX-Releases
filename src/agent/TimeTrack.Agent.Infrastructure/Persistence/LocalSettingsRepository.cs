@@ -32,15 +32,15 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
 
         const string sql = @"
             SELECT
-                id,
-                auto_resume_notification_enabled,
-                notification_sounds_enabled,
-                language,
-                idle_threshold_seconds,
-                work_goal_seconds,
-                devtools_enabled,
-                devtools_enabled_until_utc,
-                updated_at
+                id as Id,
+                auto_resume_notification_enabled as AutoResumeNotificationEnabled,
+                notification_sounds_enabled as NotificationSoundsEnabled,
+                language as Language,
+                idle_threshold_seconds as IdleThresholdSeconds,
+                work_goal_seconds as WorkGoalSeconds,
+                devtools_enabled as DevToolsEnabled,
+                devtools_enabled_until_utc as DevToolsEnabledUntilUtc,
+                updated_at as UpdatedAt
             FROM local_settings
             LIMIT 1";
 
