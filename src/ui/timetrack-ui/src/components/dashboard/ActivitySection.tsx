@@ -185,9 +185,15 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
       ? getUserTaskEntries(userId, dateStr)
       : getMyTaskEntries(dateStr);
 
+    // Avoid stale task bars when switching users/dates (especially when team endpoint returns 403).
+    // Do NOT clear during the "today + me" tick refresh to avoid visible flicker every 5s.
+    if (userId || !isViewingToday) {
+      setTaskEntries([]);
+    }
+
     fetch
       .then(res => setTaskEntries(res.entries ?? []))
-      .catch(() => {});
+      .catch(() => setTaskEntries([]));
   // Re-fetch on date change; when viewing today (own timeline), `now` ticks every 5s to keep an open entry fresh
   }, [selectedDate, userId, taskEntriesTick]);
 

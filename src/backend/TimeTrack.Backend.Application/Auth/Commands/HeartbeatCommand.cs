@@ -25,13 +25,16 @@ public sealed class HeartbeatCommandHandler : IRequestHandler<HeartbeatCommand, 
 {
     private readonly IDeviceRepository _deviceRepository;
     private readonly IRemoteCommandRepository _remoteCommandRepository;
+    private readonly ITaskTimeEntryRepository _taskTimeEntryRepository;
 
     public HeartbeatCommandHandler(
         IDeviceRepository deviceRepository,
-        IRemoteCommandRepository remoteCommandRepository)
+        IRemoteCommandRepository remoteCommandRepository,
+        ITaskTimeEntryRepository taskTimeEntryRepository)
     {
         _deviceRepository = deviceRepository;
         _remoteCommandRepository = remoteCommandRepository;
+        _taskTimeEntryRepository = taskTimeEntryRepository;
     }
 
     public async Task<HeartbeatResponse> Handle(HeartbeatCommand request, CancellationToken cancellationToken)
@@ -55,6 +58,21 @@ public sealed class HeartbeatCommandHandler : IRequestHandler<HeartbeatCommand, 
             request.LastSuccessfulSyncAt,
             request.IpcConnected);
         await _deviceRepository.UpdateAsync(device, cancellationToken);
+
+        // If tracking is not actively "running", pause any open task timer for this user.
+        // This prevents a task entry (EndedAt=null) from being treated as "running until now"
+        // in the WebUI when tracking is paused/stopped/idle.
+        if (!string.IsNullOrWhiteSpace(request.TrackingState) &&
+            !string.Equals(request.TrackingState, "running", StringComparison.OrdinalIgnoreCase))
+        {
+            var openEntries = await _taskTimeEntryRepository.ListOpenForUserAsync(device.UserId, cancellationToken);
+            foreach (var open in openEntries)
+            {
+                if (open.IsPaused) continue;
+                open.Pause();
+                await _taskTimeEntryRepository.UpdateAsync(open, cancellationToken);
+            }
+        }
 
         // Check if there are pending commands for this device
         var pendingCommands = await _remoteCommandRepository.GetPendingByDeviceIdAsync(

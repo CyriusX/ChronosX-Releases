@@ -63,6 +63,7 @@ public static class HangfireConfiguration
         services.AddScoped<IMachineMetricsCleanupJob, MachineMetricsCleanupJob>();
         services.AddScoped<IDeadlineScanJob, DeadlineScanJob>();
         services.AddScoped<IProjectPurgeJob, ProjectPurgeJob>();
+        services.AddScoped<ITaskTimerStalePauseJob, TaskTimerStalePauseJob>();
 
         return services;
     }
@@ -153,6 +154,17 @@ public static class HangfireConfiguration
             "project-purge",
             job => job.ExecuteAsync(),
             "0 2 * * *", // Daily at 02:00 UTC
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Task timer stale pause watchdog - runs every 5 minutes
+        // Pauses open task timers when devices haven't heartbeated recently
+        RecurringJob.AddOrUpdate<ITaskTimerStalePauseJob>(
+            "task-timer-stale-pause",
+            job => job.ExecuteAsync(),
+            "*/5 * * * *", // Every 5 minutes
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc
