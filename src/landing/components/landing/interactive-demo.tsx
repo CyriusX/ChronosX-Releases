@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   LayoutDashboard,
@@ -9,8 +10,6 @@ import {
   Columns3,
   Users,
   Globe,
-  Expand,
-  X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useLandingContent } from "./content-provider";
@@ -58,11 +57,23 @@ export function InteractiveDemo() {
 
   const defaultKey = (tabs[0]?.key ?? "dashboard") as DemoTabKey;
   const [activeKey, setActiveKey] = useState<DemoTabKey>(defaultKey);
-  const [mobileExpanded, setMobileExpanded] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+
+  // We must avoid rendering iframes on mobile/tablet. Default to "mobile" until
+  // we know we're on desktop (>= lg).
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => setIsDesktop(mq.matches);
+    onChange();
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
 
   const demoLang = useMemo(() => langToDemoLang(lang), [lang]);
 
+  const showPortal = audience === "teams" && activeKey === "portal";
   const desiredDesktopScreen =
     activeKey === "portal" ? "/"
     : desktopScreenByTab[activeKey as Exclude<DemoTabKey, "portal">] ?? "/";
@@ -82,6 +93,15 @@ export function InteractiveDemo() {
     return `/demos/web/demo.html?${params.toString()}`;
   }, [demoLang]);
 
+  const returnTo = audience === "teams" ? "/teams" : "/";
+  const demoHref = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("audience", audience);
+    params.set("lang", lang);
+    params.set("returnTo", returnTo);
+    return `/demo?${params.toString()}`;
+  }, [audience, lang, returnTo]);
+
   // Desktop demo iframe state
   const desktopFrameRef = useRef<HTMLIFrameElement | null>(null);
   const [desktopReady, setDesktopReady] = useState(false);
@@ -92,38 +112,18 @@ export function InteractiveDemo() {
   const [webReady, setWebReady] = useState(false);
   const [webSrc, setWebSrc] = useState<string>(desiredWebSrc);
 
-  // Breakpoint detection for mobile-only UX (CSS handles layout, but we need behavior)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(max-width: 1023px)");
-    const onChange = () => setIsMobile(mq.matches);
-    onChange();
-    mq.addEventListener?.("change", onChange);
-    return () => mq.removeEventListener?.("change", onChange);
-  }, []);
-
-  // Lock background scroll when fullscreen demo is open (mobile only)
-  useEffect(() => {
-    if (!isMobile) return;
-    if (!mobileExpanded) return;
-    const html = document.documentElement;
-    const prevOverflow = html.style.overflow;
-    html.style.overflow = "hidden";
-    return () => {
-      html.style.overflow = prevOverflow;
-    };
-  }, [isMobile, mobileExpanded]);
-
   // Force a reload only when the audience changes (layout/permissions differ between pages).
   useEffect(() => {
+    if (!isDesktop) return;
     setDesktopReady(false);
     setDesktopSrc(desiredDesktopSrc);
     // desiredDesktopSrc depends on active tab; we intentionally only reload on audience change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audience]);
+  }, [audience, isDesktop]);
 
   // Listen for "ready" from either iframe.
   useEffect(() => {
+    if (!isDesktop) return;
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (!event.data || typeof event.data !== "object") return;
@@ -139,14 +139,11 @@ export function InteractiveDemo() {
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [isDesktop]);
 
   function pingDesktopReady() {
     try {
-      desktopFrameRef.current?.contentWindow?.postMessage(
-        { type: "ready?" },
-        window.location.origin
-      );
+      desktopFrameRef.current?.contentWindow?.postMessage({ type: "ready?" }, window.location.origin);
     } catch {
       // ignore
     }
@@ -154,10 +151,7 @@ export function InteractiveDemo() {
 
   function pingWebReady() {
     try {
-      webFrameRef.current?.contentWindow?.postMessage(
-        { type: "ready?" },
-        window.location.origin
-      );
+      webFrameRef.current?.contentWindow?.postMessage({ type: "ready?" }, window.location.origin);
     } catch {
       // ignore
     }
@@ -165,6 +159,7 @@ export function InteractiveDemo() {
 
   // Sync language + navigation (postMessage; no reload/jank).
   useEffect(() => {
+    if (!isDesktop) return;
     const w = desktopFrameRef.current?.contentWindow;
     if (!w) return;
 
@@ -176,9 +171,10 @@ export function InteractiveDemo() {
     } catch {
       // ignore
     }
-  }, [activeKey, demoLang, desiredDesktopScreen, desktopReady]);
+  }, [activeKey, demoLang, desiredDesktopScreen, desktopReady, isDesktop]);
 
   useEffect(() => {
+    if (!isDesktop) return;
     const w = webFrameRef.current?.contentWindow;
     if (!w) return;
 
@@ -187,37 +183,18 @@ export function InteractiveDemo() {
     } catch {
       // ignore
     }
-  }, [demoLang, webReady]);
+  }, [demoLang, webReady, isDesktop]);
 
-  const showPortal = audience === "teams" && activeKey === "portal";
-  const previewScrollLocked = isMobile && !mobileExpanded;
-
-  // Scroll lock inside the demo iframes (mobile preview only)
+  // Fallback: if a frame isn't ready yet, reload it with the desired initial screen/lang.
   useEffect(() => {
-    if (!isMobile) return;
-    const payload = { type: "setScrollLock", locked: previewScrollLocked };
+    if (!isDesktop) return;
+    if (!desktopReady) setDesktopSrc(desiredDesktopSrc);
+  }, [desiredDesktopSrc, desktopReady, isDesktop]);
 
-    try {
-      desktopFrameRef.current?.contentWindow?.postMessage(payload, window.location.origin);
-    } catch {
-      // ignore
-    }
-    try {
-      webFrameRef.current?.contentWindow?.postMessage(payload, window.location.origin);
-    } catch {
-      // ignore
-    }
-  }, [isMobile, previewScrollLocked, desktopReady, webReady, showPortal]);
-
-  // Close fullscreen on Escape
   useEffect(() => {
-    if (!mobileExpanded) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMobileExpanded(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [mobileExpanded]);
+    if (!isDesktop) return;
+    if (!webReady) setWebSrc(desiredWebSrc);
+  }, [desiredWebSrc, webReady, isDesktop]);
 
   return (
     <section id="demo" className="relative py-20 sm:py-24">
@@ -236,129 +213,75 @@ export function InteractiveDemo() {
           </div>
         </div>
 
-        <div className="mt-10 grid gap-6 lg:grid-cols-[360px_1fr]">
-          <div
-            className={cn(
-              "flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory",
-              "lg:mx-0 lg:px-0 lg:pb-0 lg:flex-col lg:overflow-visible lg:max-h-[640px] lg:overflow-y-auto lg:pr-1",
-              mobileExpanded ? "lg:block hidden" : ""
-            )}
-          >
-            {tabs.map((t) => {
-              const selected = t.key === activeKey;
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => setActiveKey(t.key)}
-                  className={cn(
-                    "min-w-[260px] snap-start lg:min-w-0 w-full text-left rounded-2xl border px-4 py-4 transition-colors",
-                    selected
-                      ? "border-white/12 bg-white/5"
-                      : "border-white/6 bg-card/10 hover:bg-card/20"
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={cn(
-                        "mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl border",
-                        selected
-                          ? "border-white/12 bg-white/7 text-text-primary"
-                          : "border-white/6 bg-white/3 text-text-dim"
-                      )}
-                    >
-                      {tabIcons[t.key]}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-heading text-sm font-semibold text-text-primary">
-                        {t.title}
-                      </div>
-                      <div className="mt-1 text-xs text-text-dim">
-                        {t.description}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className={cn("w-full", "max-w-[1100px]")}>
-            <SoftFrame
-              className="w-full"
-              innerClassName={cn(
-                "bg-[rgb(10,12,18)]",
-                // Desktop stays as-is; mobile becomes a phone-like viewport.
-                "lg:h-[640px]",
-                "lg:aspect-auto",
-                // Phone-like viewport on mobile; allow it to be tall enough so the
-                // embedded UI doesn't feel cramped.
-                "aspect-[9/19.5] max-h-[min(92dvh,820px)] sm:max-h-[min(78dvh,760px)]",
-                "max-w-[420px] mx-auto lg:max-w-none lg:mx-0"
-              )}
-              fade="none"
+        {/* Mobile/tablet: button-only (no embedded demo) */}
+        {!isDesktop && (
+          <div className="mt-10 flex flex-col items-center gap-3 text-center">
+            <Link
+              href={demoHref}
+              className="pill-button inline-flex items-center justify-center gap-2 bg-accent-blue px-8 py-3 text-base font-semibold text-white shadow-lg shadow-accent-blue/25 transition-all hover:bg-accent-blue/90 hover:shadow-xl hover:shadow-accent-blue/30"
             >
-              <div
-                className={cn(
-                  "relative h-full w-full",
-                  mobileExpanded
-                    ? "fixed inset-0 z-50 flex flex-col p-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-[calc(env(safe-area-inset-bottom)+12px)]"
-                    : ""
-                )}
-              >
-                {/* Fullscreen backdrop (mobile only) */}
-                <div
-                  className={cn(
-                    "absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity",
-                    mobileExpanded ? "opacity-100" : "opacity-0 pointer-events-none"
-                  )}
-                  aria-hidden="true"
-                  onClick={() => setMobileExpanded(false)}
-                />
+              {copy.demo.mobileCtaButton}
+            </Link>
+            <p className="max-w-md text-xs text-text-dim">
+              {copy.demo.description}
+            </p>
+          </div>
+        )}
 
-                {/* Fullscreen header (mobile only) */}
-                {mobileExpanded && (
-                  <div className="relative z-10 lg:hidden flex items-center justify-between gap-3 mb-3">
-                    <div className="flex-1 overflow-x-auto">
-                      <div className="flex gap-2 pr-2">
-                        {tabs.map((t) => {
-                          const selected = t.key === activeKey;
-                          return (
-                            <button
-                              key={`fs-${t.key}`}
-                              type="button"
-                              onClick={() => setActiveKey(t.key)}
-                              className={cn(
-                                "shrink-0 rounded-full border px-3 py-2 text-xs font-semibold",
-                                selected
-                                  ? "border-white/14 bg-white/8 text-text-primary"
-                                  : "border-white/8 bg-white/4 text-text-dim"
-                              )}
-                            >
-                              {t.title}
-                            </button>
-                          );
-                        })}
+        {/* Desktop: full embedded demo */}
+        {isDesktop && (
+          <div className="mt-10 grid gap-6 lg:grid-cols-[360px_1fr]">
+            <div className="flex gap-3 lg:flex-col lg:max-h-[640px] lg:overflow-y-auto lg:pr-1">
+              {tabs.map((t) => {
+                const selected = t.key === activeKey;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setActiveKey(t.key)}
+                    className={cn(
+                      "w-full text-left rounded-2xl border px-4 py-4 transition-colors",
+                      selected
+                        ? "border-white/12 bg-white/5"
+                        : "border-white/6 bg-card/10 hover:bg-card/20"
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={cn(
+                          "mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl border",
+                          selected
+                            ? "border-white/12 bg-white/7 text-text-primary"
+                            : "border-white/6 bg-white/3 text-text-dim"
+                        )}
+                      >
+                        {tabIcons[t.key]}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-heading text-sm font-semibold text-text-primary">
+                          {t.title}
+                        </div>
+                        <div className="mt-1 text-xs text-text-dim">
+                          {t.description}
+                        </div>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setMobileExpanded(false)}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white"
-                      aria-label="Close demo"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-                )}
+                  </button>
+                );
+              })}
+            </div>
 
-                {/* Demo viewport */}
-                <div
-                  className={cn(
-                    "relative z-10 w-full overflow-hidden rounded-[20px] lg:rounded-[22px]",
-                    mobileExpanded ? "flex-1 min-h-0 max-w-none mx-0" : "h-full"
-                  )}
-                >
+            <div className="w-full max-w-[1100px]">
+              <SoftFrame
+                className="w-full"
+                innerClassName={cn(
+                  "bg-[rgb(10,12,18)]",
+                  "h-[640px]",
+                  "aspect-auto"
+                )}
+                fade="none"
+              >
+                <div className="relative h-full w-full">
                   <div
                     className={cn(
                       "absolute inset-0 transition-opacity duration-200",
@@ -369,10 +292,7 @@ export function InteractiveDemo() {
                       ref={desktopFrameRef}
                       title="ChronosX Desktop Demo"
                       src={desktopSrc}
-                      className={cn(
-                        "h-full w-full bg-[rgb(10,12,18)]",
-                        previewScrollLocked ? "pointer-events-none lg:pointer-events-auto" : "pointer-events-auto"
-                      )}
+                      className="h-full w-full bg-[rgb(10,12,18)]"
                       sandbox="allow-scripts allow-same-origin"
                       loading="lazy"
                       onLoad={pingDesktopReady}
@@ -390,39 +310,20 @@ export function InteractiveDemo() {
                         ref={webFrameRef}
                         title="ChronosX Web Portal Demo"
                         src={webSrc}
-                        className={cn(
-                          "h-full w-full bg-[rgb(10,12,18)]",
-                          previewScrollLocked ? "pointer-events-none lg:pointer-events-auto" : "pointer-events-auto"
-                        )}
+                        className="h-full w-full bg-[rgb(10,12,18)]"
                         sandbox="allow-scripts allow-same-origin"
                         loading="lazy"
                         onLoad={pingWebReady}
                       />
                     </div>
                   )}
-
-                  {/* Mobile preview affordance */}
-                  {!mobileExpanded && (
-                    <button
-                      type="button"
-                      className={cn(
-                        "lg:hidden absolute inset-0 z-20 flex items-end justify-center p-4",
-                        "bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_45%,rgba(0,0,0,0.55)_100%)]"
-                      )}
-                      onClick={() => setMobileExpanded(true)}
-                      aria-label="Open demo fullscreen"
-                    >
-                      <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur">
-                        Tap to expand <Expand className="h-4 w-4" />
-                      </span>
-                    </button>
-                  )}
                 </div>
-              </div>
-            </SoftFrame>
+              </SoftFrame>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </section>
   );
 }
+

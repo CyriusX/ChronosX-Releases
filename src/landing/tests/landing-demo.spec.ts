@@ -85,97 +85,55 @@ test('Responsive: mobile layout still usable', async ({ page }) => {
   const demo = page.locator('#demo');
   await demo.scrollIntoViewIfNeeded();
 
+  // No page-level horizontal overflow on the landing page.
+  const noOverflow = await page.evaluate(() => {
+    return document.documentElement.scrollWidth <= window.innerWidth + 1;
+  });
+  expect(noOverflow).toBe(true);
+
+  // Mobile demo becomes a button-only CTA (no embedded iframes).
+  await expect(page.locator('iframe[title="ChronosX Desktop Demo"]')).toHaveCount(0);
+  const tryDemo = demo.getByRole('link', { name: /try the demo|experimentar a demo/i });
+  await expect(tryDemo).toBeVisible();
+  await tryDemo.click();
+
+  await expect(page).toHaveURL(/\/demo\?/);
+  await expect(page.getByRole('button', { name: /exit demo|sair da demo/i })).toBeVisible();
+
+  // Hamburger navigation switches real screens.
   const desktopFrame = await getDesktopDemoFrame(page);
-  const desktopIframe = page.locator('iframe[title="ChronosX Desktop Demo"]');
-  await expect(desktopIframe).toBeVisible();
+  await page.getByRole('button', { name: /open demo menu|abrir menu da demo/i }).click();
+  await page.getByRole('button', { name: /^Activity/i }).click();
+  await expect(desktopFrame.getByText('Activities', { exact: true })).toBeVisible();
 
-  const desktopBox = await desktopIframe.boundingBox();
-  expect(desktopBox?.width ?? 0).toBeGreaterThanOrEqual(340);
-  expect(desktopBox?.height ?? 0).toBeGreaterThanOrEqual(600);
+  await page.getByRole('button', { name: /open demo menu|abrir menu da demo/i }).click();
+  await page.getByRole('button', { name: /^Reports/i }).click();
+  await expect(desktopFrame.getByRole('heading', { name: 'Reports' })).toBeVisible();
 
-  // Preview should be scroll-locked (wheel event prevented)
-  await expect
-    .poll(async () => {
-      return await desktopFrame.evaluate(() => {
-        const e = new WheelEvent('wheel', { deltaY: 100, cancelable: true });
-        return document.dispatchEvent(e);
-      });
-    })
-    .toBe(false);
+  await page.getByRole('button', { name: /open demo menu|abrir menu da demo/i }).click();
+  await page.getByRole('button', { name: /^Kanban/i }).click();
+  await expect(desktopFrame.getByText('To Do', { exact: true })).toBeVisible();
 
-  // Open fullscreen
-  const openFullscreen = demo.getByRole('button', { name: /open demo fullscreen/i });
-  await openFullscreen.scrollIntoViewIfNeeded();
-  await openFullscreen.click();
-  await expect(page.getByRole('button', { name: /close demo/i })).toBeVisible();
-  await expect
-    .poll(async () => page.evaluate(() => document.documentElement.style.overflow))
-    .toBe('hidden');
+  // Exit returns to the landing page.
+  await page.getByRole('button', { name: /exit demo|sair da demo/i }).click();
+  await expect(page).toHaveURL('/');
 
-  // In fullscreen, scroll lock should be lifted
-  await expect
-    .poll(async () => {
-      return await desktopFrame.evaluate(() => {
-        const e = new WheelEvent('wheel', { deltaY: 100, cancelable: true });
-        return document.dispatchEvent(e);
-      });
-    })
-    .toBe(true);
-
-  // Close fullscreen
-  await page.getByRole('button', { name: /close demo/i }).click();
-  await expect
-    .poll(async () => page.evaluate(() => document.documentElement.style.overflow))
-    .toBe('');
-
-  // Back to preview, lock should be re-enabled
-  await expect
-    .poll(async () => {
-      return await desktopFrame.evaluate(() => {
-        const e = new WheelEvent('wheel', { deltaY: 100, cancelable: true });
-        return document.dispatchEvent(e);
-      });
-    })
-    .toBe(false);
-
-  // Teams parity (portal preview + fullscreen)
+  // Teams parity
   await page.goto('/teams');
   const demoTeams = page.locator('#demo');
   await demoTeams.scrollIntoViewIfNeeded();
-  await demoTeams.getByRole('button', { name: /^Web portal/i }).click();
+  const tryDemoTeams = demoTeams.getByRole('link', { name: /try the demo|experimentar a demo/i });
+  await tryDemoTeams.click();
+  await expect(page).toHaveURL(/\/demo\?/);
 
+  // Switch to portal
+  await page.getByRole('button', { name: /open demo menu|abrir menu da demo/i }).click();
+  await page.getByRole('button', { name: /^Web portal/i }).click();
   const portalFrame = await getWebPortalFrame(page);
-  const portalIframe = page.locator('iframe[title="ChronosX Web Portal Demo"]');
-  await expect(portalIframe).toBeVisible();
+  await expect(portalFrame.getByText('ChronosX Demo Org', { exact: true })).toBeVisible();
 
-  const portalBox = await portalIframe.boundingBox();
-  expect(portalBox?.width ?? 0).toBeGreaterThanOrEqual(340);
-  expect(portalBox?.height ?? 0).toBeGreaterThanOrEqual(600);
-
-  await expect
-    .poll(async () => {
-      return await portalFrame.evaluate(() => {
-        const e = new WheelEvent('wheel', { deltaY: 100, cancelable: true });
-        return document.dispatchEvent(e);
-      });
-    })
-    .toBe(false);
-
-  const openFullscreenTeams = demoTeams.getByRole('button', { name: /open demo fullscreen/i });
-  await openFullscreenTeams.scrollIntoViewIfNeeded();
-  await openFullscreenTeams.click();
-  await expect(page.getByRole('button', { name: /close demo/i })).toBeVisible();
-
-  await expect
-    .poll(async () => {
-      return await portalFrame.evaluate(() => {
-        const e = new WheelEvent('wheel', { deltaY: 100, cancelable: true });
-        return document.dispatchEvent(e);
-      });
-    })
-    .toBe(true);
-
-  await page.getByRole('button', { name: /close demo/i }).click();
+  await page.getByRole('button', { name: /exit demo|sair da demo/i }).click();
+  await expect(page).toHaveURL('/teams');
 
   expect(Array.from(notFound)).toEqual([]);
 });

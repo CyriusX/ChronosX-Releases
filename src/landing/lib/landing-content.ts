@@ -89,6 +89,9 @@ export interface LandingCopy {
     eyebrow: string;
     headline: string;
     description: string;
+    mobileCtaButton: string;
+    mobileExit: string;
+    mobileMenuLabel: string;
     tabs: DemoTab[];
   };
   features: {
@@ -188,6 +191,9 @@ export function getLandingCopy(audience: Audience, lang: Lang): LandingCopy {
           headline: "A UI real do TimeTrack",
           description:
             "Explore a interface real dentro desta página. É o mesmo layout que você recebe no desktop e no portal.",
+          mobileCtaButton: "Experimentar a demo",
+          mobileExit: "Sair da demo",
+          mobileMenuLabel: "Abrir menu da demo",
           tabs: [
             {
               key: "portal",
@@ -481,6 +487,9 @@ export function getLandingCopy(audience: Audience, lang: Lang): LandingCopy {
         headline: "A UI real do TimeTrack",
         description:
           "Explore a interface real dentro desta página. É o mesmo layout do desktop.",
+        mobileCtaButton: "Experimentar a demo",
+        mobileExit: "Sair da demo",
+        mobileMenuLabel: "Abrir menu da demo",
         tabs: [
           {
             key: "dashboard",
@@ -764,6 +773,9 @@ export function getLandingCopy(audience: Audience, lang: Lang): LandingCopy {
         headline: "The real TimeTrack UI",
         description:
           "Explore the real interface inside this page. Same layout as the desktop app and web portal.",
+        mobileCtaButton: "Try the demo",
+        mobileExit: "Exit demo",
+        mobileMenuLabel: "Open demo menu",
         tabs: [
           {
             key: "portal",
@@ -1054,6 +1066,9 @@ export function getLandingCopy(audience: Audience, lang: Lang): LandingCopy {
       headline: "The real TimeTrack UI",
       description:
         "Explore the real desktop interface inside this page.",
+      mobileCtaButton: "Try the demo",
+      mobileExit: "Exit demo",
+      mobileMenuLabel: "Open demo menu",
       tabs: [
         {
           key: "dashboard",
