@@ -101,6 +101,7 @@ export default function Activities() {
               <ActivitySection
                 activities={activities}
                 selectedDate={data.selectedDate}
+                userId={userId}
               />
             )}
 

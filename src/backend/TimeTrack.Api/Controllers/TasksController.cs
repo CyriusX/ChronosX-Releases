@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Tasks.Commands;
 using TimeTrack.Backend.Application.Tasks.DTOs;
 using TimeTrack.Backend.Application.Tasks.Queries;
@@ -164,6 +165,14 @@ public sealed class TasksController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("api/v1/me/tasks/open/close")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> CloseMyOpenTaskTimer()
+    {
+        await _mediator.Send(new CloseOpenTaskTimerCommand());
+        return NoContent();
+    }
+
     [HttpGet("api/v1/me/task-entries")]
     [ProducesResponseType(typeof(ListTaskEntriesResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ListTaskEntriesResponse>> GetMyTaskEntries([FromQuery] string? date = null)
@@ -172,6 +181,20 @@ public sealed class TasksController : ControllerBase
             ? parsed
             : DateOnly.FromDateTime(DateTime.UtcNow);
         var result = await _mediator.Send(new ListMyTaskEntriesQuery(dateOnly));
+        return Ok(result);
+    }
+
+    [HttpGet("api/v1/users/{userId:guid}/task-entries")]
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
+    [ProducesResponseType(typeof(ListTaskEntriesResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ListTaskEntriesResponse>> GetUserTaskEntries(
+        [FromRoute] Guid userId,
+        [FromQuery] string? date = null)
+    {
+        var dateOnly = date is not null && DateOnly.TryParse(date, out var parsed)
+            ? parsed
+            : DateOnly.FromDateTime(DateTime.UtcNow);
+        var result = await _mediator.Send(new ListUserTaskEntriesQuery(userId, dateOnly));
         return Ok(result);
     }
 }

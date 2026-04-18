@@ -566,8 +566,55 @@ public sealed class DeleteTaskCommandHandler : IRequestHandler<DeleteTaskCommand
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PAUSE / RESUME / REJECT (idle handling)
+// PAUSE / RESUME / CLOSE (task timer handling)
 // ═══════════════════════════════════════════════════════════════════════════
+
+public sealed record CloseOpenTaskTimerCommand : IRequest<Unit>;
+
+public sealed class CloseOpenTaskTimerCommandHandler : IRequestHandler<CloseOpenTaskTimerCommand, Unit>
+{
+    private readonly ITaskTimeEntryRepository _entries;
+    private readonly IProjectTaskRepository _tasks;
+    private readonly ICurrentUserContext _currentUser;
+
+    public CloseOpenTaskTimerCommandHandler(
+        ITaskTimeEntryRepository entries,
+        IProjectTaskRepository tasks,
+        ICurrentUserContext currentUser)
+    {
+        _entries = entries;
+        _tasks = tasks;
+        _currentUser = currentUser;
+    }
+
+    public async Task<Unit> Handle(CloseOpenTaskTimerCommand request, CancellationToken ct)
+    {
+        if (!_currentUser.UserId.HasValue) throw new UnauthorizedAccessException();
+
+        var openEntries = await _entries.ListOpenForUserAsync(_currentUser.UserId.Value, ct);
+        if (openEntries.Count == 0) return Unit.Value;
+
+        var now = DateTime.UtcNow;
+        foreach (var open in openEntries)
+        {
+            var added = open.Close(now);
+            await _entries.UpdateAsync(open, ct);
+
+            var task = await _tasks.GetByIdAsync(open.TaskId, ct);
+            if (task is null) continue;
+
+            if (added > 0) task.AccumulateWorkedTime(added);
+
+            // Normalize status so the UI doesn't show a "stuck" in-progress phase.
+            if (task.Status == ProjectTaskStatus.InProgress)
+                task.MoveTo(ProjectTaskStatus.Todo, task.Position);
+
+            await _tasks.UpdateAsync(task, ct);
+        }
+
+        return Unit.Value;
+    }
+}
 
 public sealed record PauseOpenTaskTimerCommand : IRequest<Unit>;
 
@@ -672,7 +719,12 @@ internal static class TaskMapper
         var now = DateTime.UtcNow;
         long? running = null;
         if (openEntry is not null && openEntry.IsOpen)
-            running = (long)(now - openEntry.StartedAt).TotalSeconds - openEntry.PausedSeconds;
+        {
+            var effectiveNow = openEntry.IsPaused && openEntry.PausedAt.HasValue
+                ? openEntry.PausedAt.Value
+                : now;
+            running = (long)(effectiveNow - openEntry.StartedAt).TotalSeconds - openEntry.PausedSeconds;
+        }
 
         return new TaskResponse
         {
@@ -695,7 +747,8 @@ internal static class TaskMapper
             CompletedAt = task.CompletedAt,
             TotalSecondsWorked = task.TotalSecondsWorked,
             RowVersion = task.RowVersion,
-            IsRunning = openEntry is not null && openEntry.IsOpen,
+            IsRunning = openEntry is not null && openEntry.IsOpen && !openEntry.IsPaused,
+            IsPaused = openEntry is not null && openEntry.IsOpen && openEntry.IsPaused,
             RunningSeconds = running,
             IsLinearSourced = task.IsLinearSourced,
             LinearIssueIdentifier = task.LinearIssueIdentifier,

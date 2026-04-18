@@ -81,6 +81,7 @@ export interface Task {
   totalSecondsWorked: number;
   rowVersion: number;
   isRunning: boolean;
+  isPaused: boolean;
   runningSeconds: number | null;
   isLinearSourced: boolean;
   linearIssueIdentifier: string | null;
@@ -233,6 +234,8 @@ export interface TaskEntryDto {
   projectColor: string;
   startedAt: string;
   endedAt: string | null;
+  pausedAt?: string | null;
+  isPaused?: boolean;
 }
 
 export interface ListTaskEntriesResponse {
@@ -243,8 +246,16 @@ export function getMyTaskEntries(date: string): Promise<ListTaskEntriesResponse>
   return api.get<ListTaskEntriesResponse>(`/me/task-entries?date=${encodeURIComponent(date)}`);
 }
 
+export function getUserTaskEntries(userId: string, date: string): Promise<ListTaskEntriesResponse> {
+  return api.get<ListTaskEntriesResponse>(`/users/${encodeURIComponent(userId)}/task-entries?date=${encodeURIComponent(date)}`);
+}
+
 export function listMyNotifications(unreadOnly: boolean = false, take: number = 50): Promise<ListNotificationsResponse> {
   return api.get<ListNotificationsResponse>(`/me/notifications?unreadOnly=${unreadOnly}&take=${take}`);
+}
+
+export function closeMyOpenTaskTimer(): Promise<void> {
+  return api.post<void>('/me/tasks/open/close');
 }
 
 export function markNotificationRead(id: string): Promise<void> {

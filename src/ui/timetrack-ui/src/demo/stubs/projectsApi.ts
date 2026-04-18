@@ -61,6 +61,7 @@ export interface Task {
   totalSecondsWorked: number;
   rowVersion: number;
   isRunning: boolean;
+  isPaused: boolean;
   runningSeconds: number | null;
   isLinearSourced: boolean;
   linearIssueIdentifier: string | null;
@@ -216,6 +217,7 @@ export async function createTask(projectId: string, body: CreateTaskRequest): Pr
     totalSecondsWorked: 0,
     rowVersion: 1,
     isRunning: false,
+    isPaused: false,
     runningSeconds: null,
     isLinearSourced: false,
     linearIssueIdentifier: null,

@@ -85,7 +85,12 @@ public sealed class ListProjectTasksQueryHandler : IRequestHandler<ListProjectTa
         var now = DateTime.UtcNow;
         long? running = null;
         if (openEntry is not null && openEntry.IsOpen)
-            running = (long)(now - openEntry.StartedAt).TotalSeconds - openEntry.PausedSeconds;
+        {
+            var effectiveNow = openEntry.IsPaused && openEntry.PausedAt.HasValue
+                ? openEntry.PausedAt.Value
+                : now;
+            running = (long)(effectiveNow - openEntry.StartedAt).TotalSeconds - openEntry.PausedSeconds;
+        }
 
         return new TaskResponse
         {
@@ -108,7 +113,8 @@ public sealed class ListProjectTasksQueryHandler : IRequestHandler<ListProjectTa
             CompletedAt = t.CompletedAt,
             TotalSecondsWorked = t.TotalSecondsWorked,
             RowVersion = t.RowVersion,
-            IsRunning = openEntry is not null && openEntry.IsOpen,
+            IsRunning = openEntry is not null && openEntry.IsOpen && !openEntry.IsPaused,
+            IsPaused = openEntry is not null && openEntry.IsOpen && openEntry.IsPaused,
             RunningSeconds = running,
             IsLinearSourced = t.IsLinearSourced,
             LinearIssueIdentifier = t.LinearIssueIdentifier,
@@ -433,7 +439,54 @@ public sealed class ListMyTaskEntriesQueryHandler : IRequestHandler<ListMyTaskEn
             ProjectName = e.Task?.Project?.Name ?? string.Empty,
             ProjectColor = e.Task?.Project?.Color ?? "#4A9FFF",
             StartedAt = e.StartedAt,
-            EndedAt = e.EndedAt
+            EndedAt = e.EndedAt,
+            PausedAt = e.PausedAt,
+            IsPaused = e.IsPaused
+        }).ToList();
+
+        return new ListTaskEntriesResponse { Entries = dtos };
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MANAGER: LIST TASK ENTRIES FOR A USER ON A DATE (for team activity views)
+// ═══════════════════════════════════════════════════════════════════════════
+
+public sealed record ListUserTaskEntriesQuery(Guid UserId, DateOnly Date) : IRequest<ListTaskEntriesResponse>;
+
+public sealed class ListUserTaskEntriesQueryHandler : IRequestHandler<ListUserTaskEntriesQuery, ListTaskEntriesResponse>
+{
+    private readonly ITaskTimeEntryRepository _entries;
+    private readonly ICurrentUserContext _currentUser;
+
+    public ListUserTaskEntriesQueryHandler(ITaskTimeEntryRepository entries, ICurrentUserContext currentUser)
+    {
+        _entries = entries;
+        _currentUser = currentUser;
+    }
+
+    public async Task<ListTaskEntriesResponse> Handle(ListUserTaskEntriesQuery request, CancellationToken ct)
+    {
+        if (!_currentUser.UserId.HasValue || !_currentUser.OrgId.HasValue)
+            throw new UnauthorizedAccessException();
+
+        var role = _currentUser.Role;
+        var isManager = role == UserRole.Admin || role == UserRole.Gestor;
+        if (!isManager)
+            throw new ForbiddenException("You are not allowed to view other users' task entries");
+
+        var entries = await _entries.ListForUserOnDateAsync(request.UserId, request.Date, ct);
+
+        var dtos = entries.Select(e => new TaskEntryDto
+        {
+            Id = e.Id,
+            TaskTitle = e.Task?.Title ?? string.Empty,
+            ProjectName = e.Task?.Project?.Name ?? string.Empty,
+            ProjectColor = e.Task?.Project?.Color ?? "#4A9FFF",
+            StartedAt = e.StartedAt,
+            EndedAt = e.EndedAt,
+            PausedAt = e.PausedAt,
+            IsPaused = e.IsPaused
         }).ToList();
 
         return new ListTaskEntriesResponse { Entries = dtos };

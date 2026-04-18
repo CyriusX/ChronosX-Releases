@@ -356,7 +356,7 @@ function DrawerBody({
   }
 
   const status = statusMeta(task.status, t);
-  const worked = task.isRunning && task.runningSeconds
+  const worked = (task.isRunning || task.isPaused) && task.runningSeconds
     ? task.totalSecondsWorked + task.runningSeconds
     : task.totalSecondsWorked;
   const tone = deadlineTone(task.dueDate, task.status);

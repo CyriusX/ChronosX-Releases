@@ -142,7 +142,7 @@ export default function ProjectBoard() {
 
   // Include running seconds in billable cost so it reflects live work in progress.
   const totalSecondsWorked = tasks.reduce((sum, t) => {
-    const running = t.isRunning && t.runningSeconds ? t.runningSeconds : 0;
+    const running = (t.isRunning || t.isPaused) && t.runningSeconds ? t.runningSeconds : 0;
     return sum + t.totalSecondsWorked + running;
   }, 0);
   const todoCount = tasks.filter((t) => t.status === 'Todo').length;

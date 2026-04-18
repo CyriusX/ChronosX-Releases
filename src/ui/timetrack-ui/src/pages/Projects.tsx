@@ -52,7 +52,7 @@ export default function Projects() {
       if (t.status === 'Todo') s.todoCount++;
       else if (t.status === 'InProgress') s.inProgressCount++;
       else if (t.status === 'Done') s.doneCount++;
-      s.totalSecondsWorked += t.totalSecondsWorked + (t.isRunning && t.runningSeconds ? t.runningSeconds : 0);
+      s.totalSecondsWorked += t.totalSecondsWorked + ((t.isRunning || t.isPaused) && t.runningSeconds ? t.runningSeconds : 0);
       map.set(t.projectId, s);
     });
     return map;

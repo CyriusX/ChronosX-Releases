@@ -66,6 +66,7 @@ public sealed class TaskResponse
     public long TotalSecondsWorked { get; init; }
     public uint RowVersion { get; init; }
     public bool IsRunning { get; init; }
+    public bool IsPaused { get; init; }
     public long? RunningSeconds { get; init; }
 
     // ── Linear sync metadata (nullable — populated only for Linear-sourced tasks) ──
@@ -83,6 +84,8 @@ public sealed class TaskEntryDto
     public string ProjectColor { get; init; } = string.Empty;
     public DateTime StartedAt { get; init; }
     public DateTime? EndedAt { get; init; }
+    public DateTime? PausedAt { get; init; }
+    public bool IsPaused { get; init; }
 }
 
 public sealed class ListTaskEntriesResponse

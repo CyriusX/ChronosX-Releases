@@ -141,6 +141,7 @@ export function KanbanBoard({
         totalSecondsWorked: 0,
         rowVersion: 0,
         isRunning: false,
+        isPaused: false,
         runningSeconds: null,
         isLinearSourced: false,
         linearIssueIdentifier: null,

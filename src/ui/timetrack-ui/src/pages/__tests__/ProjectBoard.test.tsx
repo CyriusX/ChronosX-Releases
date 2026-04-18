@@ -103,6 +103,7 @@ const mockTask: Task = {
   totalSecondsWorked: 0,
   rowVersion: 0,
   isRunning: false,
+  isPaused: false,
   runningSeconds: null,
   isLinearSourced: false,
   linearIssueIdentifier: null,
@@ -162,4 +163,3 @@ describe('ProjectBoard immediate updates', () => {
     });
   });
 });
-
