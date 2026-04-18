@@ -58,8 +58,8 @@ export function Sidebar() {
 
   return (
     <aside className="hidden md:flex w-[180px] flex-shrink-0 glass-sidebar flex-col overflow-hidden">
-      {/* Logo + Tracking LED — pt-8 clears macOS traffic light buttons */}
-      <div className="px-4 pt-8 pb-5 flex-shrink-0">
+      {/* pt-8 clears macOS traffic light buttons; pt-4 is enough on Windows */}
+      <div className={`px-4 pb-5 flex-shrink-0 ${navigator.platform?.startsWith('Mac') ? 'pt-8' : 'pt-4'}`}>
         <div className="flex items-center gap-2">
           <motion.img
             src={logoImg}

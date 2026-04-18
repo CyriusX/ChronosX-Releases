@@ -58,11 +58,10 @@ if (demoMode === 'mobile') {
       height: 100dvh;
       min-height: 100dvh;
       max-width: 100vw;
-      overflow-x: hidden !important;
       overflow-y: auto !important;
       overscroll-behavior-x: none;
       -webkit-overflow-scrolling: touch;
-      touch-action: pan-y;
+      touch-action: auto;
     }
     html[data-demo-mode="mobile"] .flex,
     html[data-demo-mode="mobile"] .grid {
