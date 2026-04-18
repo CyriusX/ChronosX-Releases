@@ -222,7 +222,13 @@ public sealed class MainForm : Form
             _logger.LogInformation("WebView2 initialized successfully");
 
             var coreWebView = _webView!.CoreWebView2!;
-            coreWebView.NavigationCompleted += (_, _) => FocusWebViewContent();
+            coreWebView.NavigationCompleted += (_, _) =>
+            {
+                FocusWebViewContent();
+                // After the first navigation completes, the injected bridge is available.
+                // Push the current IPC connection state so the React app can reliably hydrate settings.
+                OnConnectionStateChanged(this, _ipcClient.IsConnected);
+            };
 
             // Configure WebView2 settings
             coreWebView.Settings.IsScriptEnabled = true;
