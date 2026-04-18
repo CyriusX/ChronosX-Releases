@@ -35,6 +35,12 @@ export interface LocalSettings {
   /** Meta diária de trabalho em segundos (1800–86400). null = padrão 28800 (8h) */
   workGoalSeconds: number | null;
 
+  /** Whether DevTools is enabled for the desktop WebView host (admin-controlled). */
+  devToolsEnabled: boolean;
+
+  /** Optional UTC expiry for DevTools access. */
+  devToolsEnabledUntilUtc: string | null;
+
   /** Timestamp da última atualização */
   updatedAt: string;
 }
@@ -261,6 +267,8 @@ export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
   language: 'pt-BR',
   idleThresholdSeconds: null,
   workGoalSeconds: null,
+  devToolsEnabled: false,
+  devToolsEnabledUntilUtc: null,
   updatedAt: new Date().toISOString(),
 };
 

@@ -38,6 +38,8 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
                 language,
                 idle_threshold_seconds,
                 work_goal_seconds,
+                devtools_enabled,
+                devtools_enabled_until_utc,
                 updated_at
             FROM local_settings
             LIMIT 1";
@@ -53,13 +55,21 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
         _logger.LogDebug("Local settings loaded: Language={Language}, IdleThreshold={IdleThreshold}",
             dto.Language, dto.IdleThresholdSeconds);
 
+        DateTime? devToolsUntilUtc = null;
+        if (!string.IsNullOrWhiteSpace(dto.DevToolsEnabledUntilUtc)
+            && DateTime.TryParse(dto.DevToolsEnabledUntilUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out var parsed))
+        {
+            devToolsUntilUtc = parsed;
+        }
+
         return Domain.Entities.LocalSettings.CreateDefault()
             .WithUpdates(
                 autoResumeNotification: dto.AutoResumeNotificationEnabled == 1,
                 notificationSounds: dto.NotificationSoundsEnabled == 1,
                 language: dto.Language,
                 idleThresholdSeconds: dto.IdleThresholdSeconds,
-                workGoalSeconds: dto.WorkGoalSeconds);
+                workGoalSeconds: dto.WorkGoalSeconds)
+            .WithDevToolsAccess(dto.DevToolsEnabled == 1, devToolsUntilUtc);
     }
 
     public async Task SaveAsync(LocalSettings settings, CancellationToken cancellationToken = default)
@@ -71,9 +81,9 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
         // SQLite UPSERT usando INSERT OR REPLACE
         const string sql = @"
             INSERT OR REPLACE INTO local_settings
-                (id, auto_resume_notification_enabled, notification_sounds_enabled, language, idle_threshold_seconds, work_goal_seconds, updated_at)
+                (id, auto_resume_notification_enabled, notification_sounds_enabled, language, idle_threshold_seconds, work_goal_seconds, devtools_enabled, devtools_enabled_until_utc, updated_at)
             VALUES
-                (@Id, @AutoResumeNotificationEnabled, @NotificationSoundsEnabled, @Language, @IdleThresholdSeconds, @WorkGoalSeconds, @UpdatedAt)";
+                (@Id, @AutoResumeNotificationEnabled, @NotificationSoundsEnabled, @Language, @IdleThresholdSeconds, @WorkGoalSeconds, @DevToolsEnabled, @DevToolsEnabledUntilUtc, @UpdatedAt)";
 
         await connection.ExecuteAsync(sql, new
         {
@@ -83,6 +93,8 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
             Language = settings.Language,
             IdleThresholdSeconds = settings.IdleThresholdSeconds,
             WorkGoalSeconds = settings.WorkGoalSeconds,
+            DevToolsEnabled = settings.DevToolsEnabled ? 1 : 0,
+            DevToolsEnabledUntilUtc = settings.DevToolsEnabledUntilUtc?.ToString("O"),
             UpdatedAt = settings.UpdatedAt.ToString("O")
         });
 
@@ -103,6 +115,8 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
         public string Language { get; set; } = "pt-BR";
         public int? IdleThresholdSeconds { get; set; }
         public int? WorkGoalSeconds { get; set; }
+        public int DevToolsEnabled { get; set; }
+        public string? DevToolsEnabledUntilUtc { get; set; }
         public string? UpdatedAt { get; set; }
     }
 }

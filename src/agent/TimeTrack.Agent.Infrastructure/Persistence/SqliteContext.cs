@@ -268,6 +268,26 @@ public sealed class SqliteContext : IAsyncDisposable
             _logger.LogInformation("Adding work_goal_seconds column to local_settings");
             await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN work_goal_seconds INTEGER");
         }
+
+        // Add devtools_enabled column to local_settings
+        var devToolsEnabledExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('local_settings') WHERE name = 'devtools_enabled'");
+
+        if (devToolsEnabledExists == 0)
+        {
+            _logger.LogInformation("Adding devtools_enabled column to local_settings");
+            await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN devtools_enabled INTEGER");
+        }
+
+        // Add devtools_enabled_until_utc column to local_settings
+        var devToolsUntilExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('local_settings') WHERE name = 'devtools_enabled_until_utc'");
+
+        if (devToolsUntilExists == 0)
+        {
+            _logger.LogInformation("Adding devtools_enabled_until_utc column to local_settings");
+            await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN devtools_enabled_until_utc TEXT");
+        }
     }
 
     /// <summary>

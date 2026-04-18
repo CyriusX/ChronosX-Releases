@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Application.Services;
+using TimeTrack.Agent.Application.UseCases.LocalSettings;
 using TimeTrack.Agent.Application.UseCases.TrackingControl;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Infrastructure.Services;
@@ -18,6 +19,7 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
 {
     private readonly TrackingControlUseCase _trackingControl;
     private readonly IAppCategorySyncService _categorySyncService;
+    private readonly LocalSettingsUseCase _localSettings;
     private readonly IIpcServer _ipcServer;
     private readonly IpcNotificationService _notificationService;
     private readonly IHostApplicationLifetime _hostLifetime;
@@ -26,6 +28,7 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
     public MacOSRemoteCommandExecutor(
         TrackingControlUseCase trackingControl,
         IAppCategorySyncService categorySyncService,
+        LocalSettingsUseCase localSettings,
         IIpcServer ipcServer,
         IpcNotificationService notificationService,
         IHostApplicationLifetime hostLifetime,
@@ -33,6 +36,7 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
     {
         _trackingControl = trackingControl;
         _categorySyncService = categorySyncService;
+        _localSettings = localSettings;
         _ipcServer = ipcServer;
         _notificationService = notificationService;
         _hostLifetime = hostLifetime;
@@ -48,6 +52,7 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
             "force_sync" => await ExecuteForceSyncAsync(ct),
             "send_notification" => await ExecuteSendNotificationAsync(payloadJson, ct),
             "restart" => await ExecuteRestartAsync(ct),
+            "set_devtools" => await ExecuteSetDevToolsAsync(payloadJson, ct),
             "task_assigned" => await ExecuteKanbanNotificationAsync("task_assigned", payloadJson, ct),
             "task_unassigned" => await ExecuteKanbanNotificationAsync("task_unassigned", payloadJson, ct),
             "task_updated" => await ExecuteKanbanNotificationAsync("task_updated", payloadJson, ct),
@@ -134,6 +139,62 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
         catch (Exception ex)
         {
             return CommandResult.Failed($"Failed to send notification: {ex.Message}");
+        }
+    }
+
+    private async Task<CommandResult> ExecuteSetDevToolsAsync(string? payloadJson, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+            return CommandResult.Failed("DevTools payload is required");
+
+        try
+        {
+            using var doc = JsonDocument.Parse(payloadJson);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("enabled", out var enabledProp))
+                return CommandResult.Failed("Invalid DevTools payload: missing 'enabled'");
+
+            var enabled = enabledProp.GetBoolean();
+
+            DateTime? expiresAtUtc = null;
+            if (root.TryGetProperty("expiresAtUtc", out var expiresProp) && expiresProp.ValueKind == JsonValueKind.String)
+            {
+                var raw = expiresProp.GetString();
+                if (!string.IsNullOrWhiteSpace(raw)
+                    && DateTime.TryParse(raw, null, System.Globalization.DateTimeStyles.RoundtripKind, out var parsed))
+                {
+                    expiresAtUtc = parsed;
+                }
+            }
+
+            var updated = await _localSettings.SetDevToolsAccessAsync(
+                enabled,
+                enabled ? expiresAtUtc : null,
+                ct);
+
+            var effectiveEnabled = updated.DevToolsEnabled;
+
+            if (_ipcServer.IsClientConnected)
+            {
+                await _ipcServer.SendEventAsync(new IpcEvent
+                {
+                    EventType = "devToolsAccessChanged",
+                    Payload = new { devToolsEnabled = effectiveEnabled }
+                }, ct);
+            }
+
+            _logger.LogInformation(
+                "DevTools access updated by remote command: Enabled={Enabled} Until={UntilUtc}",
+                effectiveEnabled,
+                updated.DevToolsEnabledUntilUtc);
+
+            return CommandResult.Ok(effectiveEnabled ? "DevTools enabled" : "DevTools disabled");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply DevTools remote command");
+            return CommandResult.Failed("Failed to apply DevTools settings");
         }
     }
 

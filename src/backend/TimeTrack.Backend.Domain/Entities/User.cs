@@ -15,6 +15,7 @@ public sealed class User
     public UserRole Role { get; private set; }
     public UserStatus Status { get; private set; }
     public bool PasswordMustChange { get; private set; }
+    public DateTime? DevToolsEnabledUntilUtc { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
     public DateTime? LastLoginAt { get; private set; }
@@ -105,6 +106,12 @@ public sealed class User
     public void SetRole(UserRole newRole)
     {
         Role = newRole;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetDevToolsEnabledUntilUtc(DateTime? enabledUntilUtc)
+    {
+        DevToolsEnabledUntilUtc = enabledUntilUtc;
         UpdatedAt = DateTime.UtcNow;
     }
 }

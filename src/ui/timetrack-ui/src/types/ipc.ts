@@ -214,6 +214,10 @@ export interface TokensRefreshedPayload {
   expiresIn: number;
 }
 
+export interface DevToolsAccessChangedPayload {
+  devToolsEnabled: boolean;
+}
+
 // Event payload map for type-safe event handling
 export interface EventPayloadMap {
   trackingStarted: TrackingStartedPayload;
@@ -236,6 +240,7 @@ export interface EventPayloadMap {
   updateComplete: UpdateCompletePayload;
   updateFailed: UpdateFailedPayload;
   tokensRefreshed: TokensRefreshedPayload;
+  devToolsAccessChanged: DevToolsAccessChangedPayload;
 }
 
 // ============================================================================

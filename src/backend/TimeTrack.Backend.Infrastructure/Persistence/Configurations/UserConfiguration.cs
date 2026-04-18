@@ -54,6 +54,9 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasColumnName("password_must_change")
             .HasDefaultValue(false);
 
+        builder.Property(u => u.DevToolsEnabledUntilUtc)
+            .HasColumnName("devtools_enabled_until_utc");
+
         builder.Property(u => u.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()");

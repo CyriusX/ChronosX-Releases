@@ -64,6 +64,7 @@ public static class HangfireConfiguration
         services.AddScoped<IDeadlineScanJob, DeadlineScanJob>();
         services.AddScoped<IProjectPurgeJob, ProjectPurgeJob>();
         services.AddScoped<ITaskTimerStalePauseJob, TaskTimerStalePauseJob>();
+        services.AddScoped<IDevToolsAutoRevokeJob, DevToolsAutoRevokeJob>();
 
         return services;
     }
@@ -165,6 +166,17 @@ public static class HangfireConfiguration
             "task-timer-stale-pause",
             job => job.ExecuteAsync(),
             "*/5 * * * *", // Every 5 minutes
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // DevTools access auto-revoke watchdog - runs every 10 minutes
+        // Revokes per-user devtools flags when they expire and pushes disable commands to devices
+        RecurringJob.AddOrUpdate<IDevToolsAutoRevokeJob>(
+            "devtools-auto-revoke",
+            job => job.ExecuteAsync(),
+            "*/10 * * * *", // Every 10 minutes
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc

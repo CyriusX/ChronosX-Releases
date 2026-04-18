@@ -18,7 +18,7 @@ public sealed class CreateRemoteCommandCommandHandler
 {
     private static readonly HashSet<string> ValidCommandTypes = new()
     {
-        "restart", "stop_tracking", "resume_tracking", "force_sync", "send_notification", "force_update"
+        "restart", "stop_tracking", "resume_tracking", "force_sync", "send_notification", "force_update", "set_devtools"
     };
 
     private readonly IRemoteCommandRepository _commandRepository;
@@ -54,7 +54,8 @@ public sealed class CreateRemoteCommandCommandHandler
             request.DeviceId,
             request.CommandType,
             payloadJson,
-            _currentUser.UserId.Value);
+            _currentUser.UserId.Value,
+            ttl: request.CommandType == "set_devtools" ? TimeSpan.FromDays(7) : null);
 
         await _commandRepository.AddAsync(command, cancellationToken);
 

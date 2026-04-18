@@ -58,6 +58,7 @@ export interface DeviceEventsResponse {
 
 export interface DeviceInfoResponse {
   deviceId: string;
+  userId: string;
   hostname: string;
   deviceName: string | null;
   agentVersion: string;
@@ -74,6 +75,7 @@ export interface DeviceInfoResponse {
   status: string;
   displayMode: string;
   userDisplayName: string | null;
+  devToolsEnabledUntilUtc: string | null;
 }
 
 export interface HealthAlertItem {
@@ -139,6 +141,17 @@ export async function getDeviceInfo(
 ): Promise<DeviceInfoResponse> {
   return api.get<DeviceInfoResponse>(
     `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}/info`
+  );
+}
+
+export async function setDeviceDevToolsAccess(
+  orgId: string,
+  deviceId: string,
+  enabled: boolean
+): Promise<{ userId: string; enabled: boolean; expiresAtUtc: string | null; queuedDeviceCount: number }> {
+  return api.put<{ userId: string; enabled: boolean; expiresAtUtc: string | null; queuedDeviceCount: number }>(
+    `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}/devtools`,
+    { enabled }
   );
 }
 

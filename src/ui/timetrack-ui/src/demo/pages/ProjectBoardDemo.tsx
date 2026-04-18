@@ -35,7 +35,6 @@ export default function ProjectBoardDemo() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoaded, setInitialLoaded] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [syncingLinear, setSyncingLinear] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -55,7 +54,6 @@ export default function ProjectBoardDemo() {
     async (initial = false) => {
       if (!projectId) return;
       if (initial) setLoading(true);
-      else setRefreshing(true);
 
       try {
         const [p, tasksRes] = await Promise.all([getProject(projectId), listProjectTasks(projectId)]);
@@ -67,7 +65,6 @@ export default function ProjectBoardDemo() {
         notifyRef.current.error(tRef.current('common.error'));
       } finally {
         setLoading(false);
-        setRefreshing(false);
       }
     },
     [projectId],

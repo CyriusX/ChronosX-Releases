@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
 using System.Windows.Forms;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -40,6 +41,7 @@ public sealed class MainForm : Form
     private WebView2? _webView;
     private bool _isInitialized;
     private bool _isClosing;
+    private bool _devToolsEnabled;
 
     /// <summary>Raised when the main window is minimized or hidden to tray.</summary>
     public event EventHandler? WindowMinimized;
@@ -222,16 +224,11 @@ public sealed class MainForm : Form
             var coreWebView = _webView!.CoreWebView2!;
             coreWebView.NavigationCompleted += (_, _) => FocusWebViewContent();
 
-#if DEBUG
-            // Open DevTools in debug mode
-            coreWebView.OpenDevToolsWindow();
-#endif
-
             // Configure WebView2 settings
             coreWebView.Settings.IsScriptEnabled = true;
             coreWebView.Settings.AreDefaultScriptDialogsEnabled = true;
             coreWebView.Settings.IsWebMessageEnabled = true;
-            coreWebView.Settings.AreDefaultContextMenusEnabled = true;
+            ApplyDevToolsAccess(false);
 
             // Add bridge object to JavaScript
             coreWebView.AddHostObjectToScript("timeTrackBridge", _bridge);
@@ -328,6 +325,9 @@ public sealed class MainForm : Form
             _ipcClient.ConnectionStateChanged += OnConnectionStateChanged;
 
             _logger.LogInformation("Bridge setup complete, IPC client connected: {IsConnected}", _ipcClient.IsConnected);
+
+            if (_ipcClient.IsConnected)
+                _ = Task.Run(SyncDevToolsAccessFromAgentAsync);
 
             // Initial focus so login inputs can be typed into without requiring a manual click/reload.
             FocusWebViewContent();
@@ -573,6 +573,14 @@ public sealed class MainForm : Form
 
         try
         {
+            if (string.Equals(e.EventType, "devToolsAccessChanged", StringComparison.OrdinalIgnoreCase)
+                && e.Payload.ValueKind == JsonValueKind.Object
+                && e.Payload.TryGetProperty("devToolsEnabled", out var enabledProp)
+                && enabledProp.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                ApplyDevToolsAccess(enabledProp.GetBoolean());
+            }
+
             // Serialize payload to JSON
             var payloadJson = JsonSerializer.Serialize(e.Payload);
             _logger.LogInformation("OnIpcEventReceived: Forwarding to JavaScript, payload length={Length}", payloadJson.Length);
@@ -622,6 +630,65 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error notifying connection state change");
+        }
+
+        if (isConnected)
+            _ = Task.Run(SyncDevToolsAccessFromAgentAsync);
+    }
+
+    private void ApplyDevToolsAccess(bool enabled)
+    {
+        _devToolsEnabled = enabled;
+
+        if (_webView?.CoreWebView2 == null)
+            return;
+
+        var settings = _webView.CoreWebView2.Settings;
+        settings.AreDefaultContextMenusEnabled = enabled;
+        settings.AreBrowserAcceleratorKeysEnabled = enabled;
+        settings.AreDevToolsEnabled = enabled;
+
+        _logger.LogInformation("DevTools access applied to WebView2: Enabled={Enabled}", enabled);
+    }
+
+    private async Task SyncDevToolsAccessFromAgentAsync()
+    {
+        try
+        {
+            if (!_ipcClient.IsConnected)
+                return;
+
+            var resp = await _ipcClient.SendQueryAsync("getSettings");
+            if (!resp.Success || resp.Data is null)
+                return;
+
+            var data = resp.Data.Value;
+            if (!data.TryGetProperty("devToolsEnabled", out var enabledProp)
+                || enabledProp.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                return;
+
+            var enabled = enabledProp.GetBoolean();
+
+            if (data.TryGetProperty("devToolsEnabledUntilUtc", out var untilProp)
+                && untilProp.ValueKind == JsonValueKind.String)
+            {
+                var raw = untilProp.GetString();
+                if (!string.IsNullOrWhiteSpace(raw)
+                    && DateTime.TryParse(raw, null, DateTimeStyles.RoundtripKind, out var until)
+                    && until <= DateTime.UtcNow)
+                {
+                    enabled = false;
+                }
+            }
+
+            if (InvokeRequired)
+                BeginInvoke(new Action(() => ApplyDevToolsAccess(enabled)));
+            else
+                ApplyDevToolsAccess(enabled);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to sync DevTools access from AgentService");
         }
     }
 

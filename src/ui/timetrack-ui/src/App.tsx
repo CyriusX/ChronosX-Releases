@@ -36,6 +36,7 @@ function App() {
   const wasConnectedRef = useRef(false);
   const desktop = isDesktopRuntime();
   const desktopInitialEntriesRef = useRef<string[] | null>(null);
+  const devToolsEnabledRef = useRef(false);
 
   if (desktop && !desktopInitialEntriesRef.current) {
     // Avoid a blank/black screen on first boot: start on /login unless a persisted
@@ -59,8 +60,18 @@ function App() {
   useEffect(() => {
     if (!isReady) return;
     sendQuery('getSettings').then((result) => {
-      const lang = (result.data as LocalSettings | undefined)?.language;
+      const settings = result.data as Partial<LocalSettings> | undefined;
+      const lang = settings?.language;
       if (lang) i18n.changeLanguage(lang);
+
+      const enabled = !!settings?.devToolsEnabled;
+      const until = settings?.devToolsEnabledUntilUtc;
+      if (until) {
+        const untilDate = new Date(until);
+        devToolsEnabledRef.current = enabled && untilDate.getTime() > Date.now();
+      } else {
+        devToolsEnabledRef.current = enabled;
+      }
     }).catch(() => { /* non-critical */ });
   }, [isReady]);
 
@@ -92,8 +103,23 @@ function App() {
         e.preventDefault();
         return;
       }
-      // Ctrl+Shift+I / F12 — devtools (optional, keep for dev)
+      // Ctrl+Shift+I / F12 — devtools (admin controlled)
+      if (!devToolsEnabledRef.current) {
+        const key = e.key.toLowerCase();
+        const isDevToolsKey =
+          e.key === 'F12' ||
+          (e.ctrlKey && e.shiftKey && (key === 'i' || key === 'j' || key === 'c')) ||
+          (e.metaKey && e.altKey && (key === 'i' || key === 'j' || key === 'c'));
+        if (isDevToolsKey) {
+          e.preventDefault();
+          return;
+        }
+      }
       // Ctrl+G / Ctrl+F — find (allow for inputs)
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      if (!devToolsEnabledRef.current) e.preventDefault();
     };
 
     // Prevent drag-and-drop of files into the webview
@@ -105,10 +131,12 @@ function App() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('dragover', handleDragOver);
     document.addEventListener('drop', handleDrop);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('dragover', handleDragOver);
       document.removeEventListener('drop', handleDrop);
     };
@@ -127,7 +155,13 @@ function App() {
     const unsub = subscribeToEvent('trackingStateChanged', (payload) => {
       handleTrackingStateChanged(payload);
     });
-    return unsub;
+    const unsubDevTools = subscribeToEvent('devToolsAccessChanged', (payload) => {
+      devToolsEnabledRef.current = !!payload.devToolsEnabled;
+    });
+    return () => {
+      unsub();
+      unsubDevTools();
+    };
   }, [subscribeToEvent]);
 
   // Sync tokens with Agent on IPC connect.

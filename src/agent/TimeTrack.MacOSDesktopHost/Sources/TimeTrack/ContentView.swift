@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import WebKit
 
@@ -47,12 +48,25 @@ struct ContentView: View {
     @ObservedObject var ipcClient: IpcClient
     @State private var webView: WKWebView?
     @State private var menuBarController = MenuBarController()
+    @State private var devToolsEnabled = false
+    @State private var webViewReloadKey = UUID()
 
     var body: some View {
         ZStack {
             // Invisible view that configures the NSWindow and sets up the mini bar
             WindowSetupView(ipcClient: ipcClient).frame(width: 0, height: 0)
-            WebViewContainer(ipcClient: ipcClient, webView: $webView)
+            WebViewContainer(
+                ipcClient: ipcClient,
+                webView: $webView,
+                devToolsEnabled: devToolsEnabled,
+                onDevToolsAccessChanged: { enabled in
+                    if devToolsEnabled != enabled {
+                        devToolsEnabled = enabled
+                        webViewReloadKey = UUID()
+                    }
+                }
+            )
+            .id(webViewReloadKey)
         }
         // Size to 85% of screen, capped at reasonable maximums
         .frame(
@@ -62,12 +76,49 @@ struct ContentView: View {
         .onAppear {
             menuBarController.setupMenuBar(ipcClient: ipcClient)
         }
+        .onChange(of: ipcClient.isConnected) { connected in
+            guard connected else { return }
+            Task { @MainActor in
+                await syncDevToolsFromAgentSettings()
+            }
+        }
+    }
+
+    @MainActor
+    private func syncDevToolsFromAgentSettings() async {
+        do {
+            let resp = try await ipcClient.sendQuery("getSettings")
+            guard resp.success else { return }
+
+            // Agent returns `data` as a JSON string in AnyCodable.string.
+            guard case .string(let jsonStr) = resp.data else { return }
+            guard let data = jsonStr.data(using: .utf8) else { return }
+            guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+
+            let enabled = (obj["devToolsEnabled"] as? Bool) ?? false
+            let untilRaw = obj["devToolsEnabledUntilUtc"] as? String
+            let effectiveEnabled: Bool
+            if let untilRaw = untilRaw, let untilDate = ISO8601DateFormatter().date(from: untilRaw) {
+                effectiveEnabled = enabled && untilDate.timeIntervalSinceNow > 0
+            } else {
+                effectiveEnabled = enabled
+            }
+
+            if devToolsEnabled != effectiveEnabled {
+                devToolsEnabled = effectiveEnabled
+                webViewReloadKey = UUID()
+            }
+        } catch {
+            // non-critical
+        }
     }
 }
 
 struct WebViewContainer: NSViewRepresentable {
     @ObservedObject var ipcClient: IpcClient
     @Binding var webView: WKWebView?
+    var devToolsEnabled: Bool
+    var onDevToolsAccessChanged: ((Bool) -> Void)?
     static var schemeHandler: TimeTrackSchemeHandler?
     static var localServer: LocalHTTPServer?
 
@@ -125,7 +176,7 @@ struct WebViewContainer: NSViewRepresentable {
         userContentController.add(context.coordinator, name: "timeTrackBridge")
 
         config.userContentController = userContentController
-        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        config.preferences.setValue(devToolsEnabled, forKey: "developerExtrasEnabled")
 
         let distURL = Self.resolveDistURL()
         let distExists = distURL != nil
@@ -190,7 +241,7 @@ struct WebViewContainer: NSViewRepresentable {
     func updateNSView(_ nsView: WKWebView, context: Context) {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(ipcClient: ipcClient)
+        Coordinator(ipcClient: ipcClient, onDevToolsAccessChanged: onDevToolsAccessChanged)
     }
 
     class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
@@ -319,10 +370,12 @@ struct WebViewContainer: NSViewRepresentable {
             NSLog("[WebView] didStart: %@", webView.url?.absoluteString ?? "nil")
         }
         let ipcClient: IpcClient
+        let onDevToolsAccessChanged: ((Bool) -> Void)?
         weak var webView: WKWebView?
 
-        init(ipcClient: IpcClient) {
+        init(ipcClient: IpcClient, onDevToolsAccessChanged: ((Bool) -> Void)?) {
             self.ipcClient = ipcClient
+            self.onDevToolsAccessChanged = onDevToolsAccessChanged
             super.init()
 
             ipcClient.onEvent = { [weak self] event in
@@ -354,6 +407,16 @@ struct WebViewContainer: NSViewRepresentable {
 
         func forwardEventToWebView(_ event: IpcEvent) {
             guard let wv = webView else { return }
+            if event.eventType == "devToolsAccessChanged",
+               let jsonStr = event.payload?.value as? String,
+               let data = jsonStr.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let enabled = obj["devToolsEnabled"] as? Bool
+            {
+                Task { @MainActor [weak self] in
+                    self?.onDevToolsAccessChanged?(enabled)
+                }
+            }
             // payload is a valid JSON string stored in AnyCodable.string.
             // dispatchFromJson expects a JSON string argument, so embed as a JS string
             // literal by constructing it inside the script via JSON.stringify on the
