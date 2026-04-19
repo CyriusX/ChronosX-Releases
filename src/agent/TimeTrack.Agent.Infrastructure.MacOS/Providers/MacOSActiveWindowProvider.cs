@@ -19,7 +19,6 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 {
     private readonly ILogger<MacOSActiveWindowProvider> _logger;
     private readonly ActiveWindowProviderOptions _options;
-    private readonly IFilePathExtractor _filePathExtractor;
     private readonly int _currentProcessId;
 
     private ActiveWindowInfo? _cachedWindow;
@@ -50,11 +49,9 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 
     public MacOSActiveWindowProvider(
         ILogger<MacOSActiveWindowProvider> logger,
-        IFilePathExtractor filePathExtractor,
         IOptions<ActiveWindowProviderOptions>? options = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _filePathExtractor = filePathExtractor ?? throw new ArgumentNullException(nameof(filePathExtractor));
         _options = options?.Value ?? new ActiveWindowProviderOptions();
         _currentProcessId = Environment.ProcessId;
 
@@ -148,27 +145,25 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
                 : null;
 
             var processName = Path.GetFileNameWithoutExtension(exePath) ?? "";
-            // Prefer AXDocument (full path) when available; fall back to title parsing.
-            var axDocumentPath = GetActiveWindowDocumentPath(pid);
-            var filePath = axDocumentPath ?? _filePathExtractor.ExtractFilePath(IntPtr.Zero, processName, windowTitle);
+            var isFinder = IsFinderBundle(exePath, appName, processName);
 
-            // Finder: AXDocument may be empty on some macOS versions / permission states.
-            // Use AppleScript fallback to get the target folder of the front window.
-            if (IsFinderBundle(exePath, appName, processName))
+            // Top Folders: only Finder should produce a FilePath. Do not capture file paths for other apps.
+            string? filePath = null;
+
+            if (isFinder)
             {
-                if (string.IsNullOrWhiteSpace(filePath) || !LooksLikePosixAbsolutePath(filePath))
+                // Prefer AXDocument when it provides a real file:// or absolute POSIX path.
+                filePath = NormalizeFinderFolderPath(GetActiveWindowDocumentPath(pid));
+
+                // AXDocument may be empty on some macOS versions / permission states.
+                // Use AppleScript fallback to get the target folder of the front window.
+                if (string.IsNullOrWhiteSpace(filePath))
                 {
                     var finderFolder = TryGetFinderFrontWindowFolderPath();
                     if (!string.IsNullOrWhiteSpace(finderFolder))
                     {
                         filePath = finderFolder;
                     }
-                }
-
-                // Mark as directory key (helps downstream normalization keep the folder itself)
-                if (!string.IsNullOrWhiteSpace(filePath) && LooksLikePosixAbsolutePath(filePath) && !filePath.EndsWith("/", StringComparison.Ordinal))
-                {
-                    filePath += "/";
                 }
             }
 
@@ -196,6 +191,47 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
             _logger.LogError(ex, "Error building ActiveWindowInfo for process {ProcessId}", pid);
             return null;
         }
+    }
+
+    private static string? NormalizeFinderFolderPath(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        var value = raw.Trim();
+
+        if (value.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                value = new Uri(value).LocalPath;
+            }
+            catch
+            {
+                // fall through to raw
+            }
+        }
+
+        if (!LooksLikePosixAbsolutePath(value))
+            return null;
+
+        // Finder should report a folder; if we got a file path, normalize to its directory.
+        try
+        {
+            if (File.Exists(value) && !Directory.Exists(value))
+            {
+                value = Path.GetDirectoryName(value) ?? value;
+            }
+        }
+        catch
+        {
+            // best-effort
+        }
+
+        if (!value.EndsWith("/", StringComparison.Ordinal))
+            value += "/";
+
+        return value;
     }
 
     private static bool LooksLikePosixAbsolutePath(string? value)

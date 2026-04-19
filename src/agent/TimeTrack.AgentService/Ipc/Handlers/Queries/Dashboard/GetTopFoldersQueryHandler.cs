@@ -15,6 +15,12 @@ public sealed class GetTopFoldersQueryHandler : IpcHandlerBase, IIpcQueryHandler
 {
     public string QueryName => "GetTopFolders";
 
+    private static readonly HashSet<string> AllowedApps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "File Explorer",
+        "Finder"
+    };
+
     private readonly IActivitySessionRepository _sessions;
     private readonly ICurrentUserContext _userContext;
     private readonly ILogger<GetTopFoldersQueryHandler> _logger;
@@ -51,6 +57,9 @@ public sealed class GetTopFoldersQueryHandler : IpcHandlerBase, IIpcQueryHandler
 
             foreach (var s in sessions)
             {
+                if (!AllowedApps.Contains(s.App.DisplayName))
+                    continue;
+
                 if (string.IsNullOrWhiteSpace(s.FilePath))
                     continue;
 

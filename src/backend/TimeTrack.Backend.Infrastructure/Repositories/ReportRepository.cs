@@ -21,6 +21,15 @@ public sealed class ReportRepository : IReportRepository
 
     // Use shared constant for consistent filtering across all views
     private static readonly HashSet<string> InternalApps = TimeTrack.Backend.Domain.Constants.InternalApps.ProcessNames;
+    private static readonly HashSet<string> FileManagerApps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "File Explorer",
+        "Finder",
+        // Compatibility for older data
+        "Explorer",
+        "Windows Explorer",
+        "explorer.exe"
+    };
 
     // Cache em memória das categorias globais (carregado uma vez por instância)
     private Dictionary<string, AppCategoryGlobal>? _categoryCache;
@@ -1111,6 +1120,9 @@ public sealed class ReportRepository : IReportRepository
 
         // Filter out internal/system apps
         sessions = sessions.Where(s => !InternalApps.Contains(s.ProcessName)).ToList();
+
+        // Top Folders should only include folders accessed directly in a file manager (Finder / File Explorer).
+        sessions = sessions.Where(s => FileManagerApps.Contains(s.ProcessName)).ToList();
 
         var folders = sessions
             .Select(s => new

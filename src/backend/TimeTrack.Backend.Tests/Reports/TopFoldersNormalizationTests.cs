@@ -15,7 +15,7 @@ namespace TimeTrack.Backend.Tests.Reports;
 public sealed class TopFoldersNormalizationTests
 {
     [Fact]
-    public async Task GetTopFoldersAsync_ShouldIncludeOnlyFileSystemFoldersAndAllowedCloudDriveUrls()
+    public async Task GetTopFoldersAsync_ShouldIncludeOnlyFinderAndFileExplorerSessions()
     {
         var options = new DbContextOptionsBuilder<TimeTrackDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -34,21 +34,18 @@ public sealed class TopFoldersNormalizationTests
             ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "code.exe", "Code", "productive",
                 start.AddMinutes(1), start.AddMinutes(2), $"k-{Guid.NewGuid()}",
                 filePath: "/Users/junior/Documents/file.txt"),
-            ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "finder", "Finder", "neutral",
+            ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "Finder", "Finder", "neutral",
                 start.AddMinutes(1), start.AddMinutes(2), $"k-{Guid.NewGuid()}",
                 filePath: "/Users/junior/Documents/"),
-            ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "explorer.exe", "Explorer", "neutral",
+            ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "File Explorer", "File Explorer", "neutral",
                 start.AddMinutes(2), start.AddMinutes(3), $"k-{Guid.NewGuid()}",
                 filePath: @"C:\Users\Junior\Desktop\notes.txt"),
-            ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "explorer.exe", "Explorer", "neutral",
+            ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "File Explorer", "File Explorer", "neutral",
                 start.AddMinutes(3), start.AddMinutes(4), $"k-{Guid.NewGuid()}",
                 filePath: @"\\server\share\dir\file.txt"),
-            ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "finder", "Finder", "neutral",
+            ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "Finder", "Finder", "neutral",
                 start.AddMinutes(4), start.AddMinutes(5), $"k-{Guid.NewGuid()}",
                 filePath: "file:///Users/junior/Downloads/file.txt"),
-            ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "chrome.exe", "Drive", "neutral",
-                start.AddMinutes(5), start.AddMinutes(6), $"k-{Guid.NewGuid()}",
-                filePath: "https://drive.google.com/drive/folders/abc?foo=bar#frag"),
             ActivitySession.Create(Guid.NewGuid(), orgId, deviceId, userId, "chrome.exe", "YouTube", "distraction",
                 start.AddMinutes(6), start.AddMinutes(7), $"k-{Guid.NewGuid()}",
                 filePath: "https://youtube.com/watch?v=123"),
@@ -73,10 +70,10 @@ public sealed class TopFoldersNormalizationTests
         results.Should().Contain(@"C:\Users\Junior\Desktop");
         results.Should().Contain(@"\\server\share\dir");
         results.Should().Contain("/Users/junior/Downloads");
-        results.Should().Contain("https://drive.google.com/drive/folders/abc?foo=bar");
 
         results.Should().NotContain("https://youtube.com/watch?v=123");
         results.Should().NotContain("relative/path/to/file.txt");
+        results.Should().NotContain("/Users/junior/Documents/file.txt");
     }
 
     private sealed class TestCurrentUserContext : ICurrentUserContext
