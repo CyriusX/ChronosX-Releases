@@ -412,22 +412,33 @@ struct WebViewContainer: NSViewRepresentable {
             }
         }
 
-        func forwardEventToWebView(_ event: IpcEvent) {
-            guard let wv = webView else { return }
-            if event.eventType == "devToolsAccessChanged",
-               let jsonStr = event.payload?.value as? String,
-               let data = jsonStr.data(using: .utf8),
-               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let enabled = obj["devToolsEnabled"] as? Bool
-            {
-                Task { @MainActor [weak self] in
-                    self?.onDevToolsAccessChanged?(enabled)
-                }
-            }
-            // payload is a valid JSON string stored in AnyCodable.string.
-            // dispatchFromJson expects a JSON string argument, so embed as a JS string
-            // literal by constructing it inside the script via JSON.stringify on the
-            // parsed object — avoids needing to escape the raw JSON string.
+	        func forwardEventToWebView(_ event: IpcEvent) {
+	            guard let wv = webView else { return }
+	            if event.eventType == "devToolsAccessChanged",
+	               let jsonStr = event.payload?.value as? String,
+	               let data = jsonStr.data(using: .utf8),
+	               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+	               let enabled = obj["devToolsEnabled"] as? Bool
+	            {
+	                Task { @MainActor [weak self] in
+	                    self?.onDevToolsAccessChanged?(enabled)
+	                }
+	            }
+
+	            if event.eventType == "browserAutomationPermissionRequired",
+	               let jsonStr = event.payload?.value as? String,
+	               let data = jsonStr.data(using: .utf8),
+	               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+	               let app = obj["app"] as? String
+	            {
+	                Task { @MainActor in
+	                    Self.showBrowserAutomationPermissionAlertIfNeeded(for: app)
+	                }
+	            }
+	            // payload is a valid JSON string stored in AnyCodable.string.
+	            // dispatchFromJson expects a JSON string argument, so embed as a JS string
+	            // literal by constructing it inside the script via JSON.stringify on the
+	            // parsed object — avoids needing to escape the raw JSON string.
             let payloadJs: String
             if let jsonStr = event.payload?.value as? String {
                 payloadJs = jsonStr  // Already valid JSON — embed as JS value
@@ -443,10 +454,40 @@ struct WebViewContainer: NSViewRepresentable {
                 window.timeTrackHandleEvent('\(safeType)', _p === null ? null : JSON.stringify(_p));
             })();
             """
-            Task { @MainActor in
-                _ = try? await wv.evaluateJavaScript(script)
-            }
-        }
+	            Task { @MainActor in
+	                _ = try? await wv.evaluateJavaScript(script)
+	            }
+	        }
+
+	        private static var shownBrowserAutomationAlerts = Set<String>()
+
+	        @MainActor
+	        private static func showBrowserAutomationPermissionAlertIfNeeded(for app: String) {
+	            let normalized = app.trimmingCharacters(in: .whitespacesAndNewlines)
+	            if normalized.isEmpty { return }
+	            if shownBrowserAutomationAlerts.contains(normalized) { return }
+	            shownBrowserAutomationAlerts.insert(normalized)
+
+	            let alert = NSAlert()
+	            alert.messageText = "Automation Permission Required"
+	            alert.informativeText = """
+TimeTrack needs Automation permission to read the active tab title and website from \(normalized).
+
+Enable it in:
+System Settings → Privacy & Security → Automation
+Then allow TimeTrack to control \(normalized).
+"""
+	            alert.addButton(withTitle: "Open System Settings")
+	            alert.addButton(withTitle: "Later")
+	            alert.alertStyle = .warning
+
+	            let response = alert.runModal()
+	            if response == .alertFirstButtonReturn {
+	                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+	                    NSWorkspace.shared.open(url)
+	                }
+	            }
+	        }
 
         func userContentController(
             _ userContentController: WKUserContentController,

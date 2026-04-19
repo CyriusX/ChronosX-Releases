@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Infrastructure.MacOS.Interop;
 using TimeTrack.Agent.Infrastructure.Providers.Windows;
+using TimeTrack.Agent.Infrastructure.Utilities;
 
 namespace TimeTrack.Agent.Infrastructure.MacOS.Providers;
 
@@ -34,6 +35,11 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
     private string? _finderFolderCache;
     private DateTime _finderFolderCacheAtUtc = DateTime.MinValue;
     private DateTime _finderPermissionDeniedLoggedAtUtc = DateTime.MinValue;
+
+    private string? _safariTabTitleCache;
+    private string? _safariTabUrlCache;
+    private DateTime _safariTabCacheAtUtc = DateTime.MinValue;
+    private DateTime _safariPermissionDeniedLoggedAtUtc = DateTime.MinValue;
 
     // Compiled once — the previous code recompiled this regex on every poll cycle.
     private static readonly Regex s_bundleNameRegex = new(
@@ -170,9 +176,54 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
             var displayName = GetDisplayName(appName, exePath);
 
             string? browserUrl = null;
+            var browserAutomationPermissionRequiredForApp = (string?)null;
             if (IsBrowserBundle(appName, exePath))
             {
-                browserUrl = BrowserUrlExtractor.ExtractSiteFromTitle(windowTitle, displayName);
+                var siteFromTitle = BrowserUrlExtractor.ExtractSiteFromTitle(windowTitle, displayName);
+
+                // Safari often does not expose a stable "Site - Browser" window title format on macOS,
+                // and window titles may be empty without Accessibility permission. For reliability,
+                // fall back to AppleScript (Safari only) to read the active tab title + URL.
+                if (IsSafariBundle(exePath, appName, processName) &&
+                    (string.IsNullOrWhiteSpace(windowTitle) || !BrowserSiteLabelFromUrl.IsLikelyStableSiteLabel(siteFromTitle)))
+                {
+                    var (tabTitle, tabUrl, permissionDenied) = TryGetSafariFrontTabInfo(exePath, appName, timeoutMs: 500);
+
+                    if (!string.IsNullOrWhiteSpace(tabTitle))
+                    {
+                        windowTitle = tabTitle;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(tabUrl))
+                    {
+                        var stableSite = BrowserSiteLabelFromUrl.FromUrl(tabUrl);
+                        if (!string.IsNullOrWhiteSpace(stableSite))
+                        {
+                            browserUrl = stableSite;
+                        }
+                    }
+
+                    if (permissionDenied)
+                    {
+                        browserAutomationPermissionRequiredForApp = exePath.Contains("Safari Technology Preview.app", StringComparison.OrdinalIgnoreCase)
+                            ? "Safari Technology Preview"
+                            : "Safari";
+                    }
+
+                    if (permissionDenied && (DateTime.UtcNow - _safariPermissionDeniedLoggedAtUtc) > TimeSpan.FromMinutes(10))
+                    {
+                        _safariPermissionDeniedLoggedAtUtc = DateTime.UtcNow;
+                        _logger.LogWarning(
+                            "Safari tab tracking requires Automation permission. macOS denied Apple Events to Safari; browser site details may be missing until allowed in System Settings.");
+                    }
+
+                    // If AppleScript didn't yield a stable site label, fall back to title parsing.
+                    browserUrl ??= siteFromTitle;
+                }
+                else
+                {
+                    browserUrl = siteFromTitle;
+                }
             }
 
             return new ActiveWindowInfo
@@ -183,7 +234,8 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
                 WindowTitle = windowTitle,
                 WindowHash = windowHash,
                 FilePath = filePath,
-                BrowserUrl = browserUrl
+                BrowserUrl = browserUrl,
+                BrowserAutomationPermissionRequiredForApp = browserAutomationPermissionRequiredForApp
             };
         }
         catch (Exception ex)
@@ -248,6 +300,140 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
             return true;
 
         return exePath.Contains("Finder.app", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSafariBundle(string exePath, string appName, string processName)
+    {
+        if (!string.IsNullOrWhiteSpace(processName) &&
+            processName.Contains("safari", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(appName) &&
+            appName.Contains("Safari", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (exePath.Contains("Safari.app", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (exePath.Contains("Safari Technology Preview.app", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
+
+    private (string? TabTitle, string? TabUrl, bool PermissionDenied) TryGetSafariFrontTabInfo(
+        string exePath,
+        string appName,
+        int timeoutMs)
+    {
+        var now = DateTime.UtcNow;
+        if ((now - _safariTabCacheAtUtc) <= TimeSpan.FromSeconds(2))
+            return (_safariTabTitleCache, _safariTabUrlCache, false);
+
+        var scriptApp = exePath.Contains("Safari Technology Preview.app", StringComparison.OrdinalIgnoreCase)
+            ? "Safari Technology Preview"
+            : "Safari";
+
+        var (title, url, permissionDenied) = TryGetSafariFrontTabInfoViaAppleScript(scriptApp, timeoutMs);
+
+        _safariTabTitleCache = title;
+        _safariTabUrlCache = url;
+        _safariTabCacheAtUtc = now;
+
+        if (!string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(url))
+        {
+            _logger.LogDebug("Resolved Safari tab via AppleScript. Title={Title} UrlHost={Host}",
+                title ?? "(null)",
+                TryGetUrlHost(url) ?? "(null)");
+        }
+
+        return (_safariTabTitleCache, _safariTabUrlCache, permissionDenied);
+    }
+
+    private static (string? TabTitle, string? TabUrl, bool PermissionDenied) TryGetSafariFrontTabInfoViaAppleScript(
+        string safariAppName,
+        int timeoutMs)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "/usr/bin/osascript",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            // Output: "<title>\n<url>" (empty if no windows).
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add($"tell application \"{safariAppName}\"");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("if (count of windows) is 0 then return \"\"");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("set theTab to current tab of front window");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("set t to (name of theTab as text)");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("set u to (URL of theTab as text)");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("return t & \"\\n\" & u");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("end tell");
+
+            using var proc = Process.Start(psi);
+            if (proc == null)
+                return (null, null, false);
+
+            if (!proc.WaitForExit(timeoutMs))
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { }
+                return (null, null, false);
+            }
+
+            var stdout = proc.StandardOutput.ReadToEnd().Trim();
+            var stderr = proc.StandardError.ReadToEnd().Trim();
+
+            if (!string.IsNullOrWhiteSpace(stderr) &&
+                (stderr.Contains("Not authorized", StringComparison.OrdinalIgnoreCase) ||
+                 stderr.Contains("not authorised", StringComparison.OrdinalIgnoreCase) ||
+                 stderr.Contains("AppleEvent", StringComparison.OrdinalIgnoreCase) ||
+                 stderr.Contains("(-1743)", StringComparison.OrdinalIgnoreCase)))
+            {
+                return (null, null, true);
+            }
+
+            if (string.IsNullOrWhiteSpace(stdout))
+                return (null, null, false);
+
+            var lines = stdout
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            if (lines.Length == 0)
+                return (null, null, false);
+
+            var title = lines[0];
+            var url = lines.Length > 1 ? lines[^1] : null;
+
+            return (string.IsNullOrWhiteSpace(title) ? null : title,
+                    string.IsNullOrWhiteSpace(url) ? null : url,
+                    false);
+        }
+        catch
+        {
+            return (null, null, false);
+        }
+    }
+
+    private static string? TryGetUrlHost(string? rawUrl)
+    {
+        if (string.IsNullOrWhiteSpace(rawUrl))
+            return null;
+
+        if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var uri))
+            return null;
+
+        return string.IsNullOrWhiteSpace(uri.Host) ? null : uri.Host;
     }
 
     private string? TryGetFinderFrontWindowFolderPath()

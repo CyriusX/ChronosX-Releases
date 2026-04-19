@@ -45,6 +45,10 @@ public sealed class TrackingWorker : BackgroundService
     private string? _folderFilePathMissingAppKey;
     private bool _folderFilePathMissingLogged;
 
+    // Diagnostics/UX: Automation permission required for Safari tab details (AppleScript).
+    private DateTime _lastBrowserAutomationPermissionEventAtUtc = DateTime.MinValue;
+    private string? _lastBrowserAutomationPermissionApp;
+
     public TrackingWorker(
         ILogger<TrackingWorker> logger,
         AgentSettings settings,
@@ -368,6 +372,7 @@ public sealed class TrackingWorker : BackgroundService
         }
 
         TrackFolderExtractionBreadcrumb(activeWindow);
+        await BroadcastBrowserAutomationPermissionIfNeededAsync(activeWindow, cancellationToken);
 
         // 5. Registrar atividade via Use Case
         var request = new RecordActiveWindowRequest
@@ -432,6 +437,40 @@ public sealed class TrackingWorker : BackgroundService
         }
 
         ResetFolderBreadcrumb();
+    }
+
+    private async Task BroadcastBrowserAutomationPermissionIfNeededAsync(ActiveWindowInfo activeWindow, CancellationToken ct)
+    {
+        var app = activeWindow.BrowserAutomationPermissionRequiredForApp;
+        if (string.IsNullOrWhiteSpace(app))
+            return;
+
+        if (!_ipcServer.IsClientConnected)
+            return;
+
+        // Rate limit: once per app per ~10 minutes.
+        var now = DateTime.UtcNow;
+        if (string.Equals(_lastBrowserAutomationPermissionApp, app, StringComparison.OrdinalIgnoreCase) &&
+            (now - _lastBrowserAutomationPermissionEventAtUtc) < TimeSpan.FromMinutes(10))
+        {
+            return;
+        }
+
+        _lastBrowserAutomationPermissionApp = app;
+        _lastBrowserAutomationPermissionEventAtUtc = now;
+
+        try
+        {
+            await _ipcServer.SendEventAsync(new IpcEvent
+            {
+                EventType = "browserAutomationPermissionRequired",
+                Payload = new { app }
+            }, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to broadcast browserAutomationPermissionRequired");
+        }
     }
 
     private void ResetFolderBreadcrumb()
