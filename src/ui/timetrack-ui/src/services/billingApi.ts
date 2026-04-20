@@ -11,6 +11,12 @@ import type {
   InvoiceResponse,
 } from '../types/billing';
 
+/** Ensure origin uses HTTPS (Stripe live mode requirement) */
+function httpsOrigin(): string {
+  const { origin } = window.location;
+  return origin.replace(/^http:/, 'https:');
+}
+
 /**
  * List available subscription plans
  */
@@ -29,7 +35,7 @@ export async function getSubscriptionStatus(): Promise<SubscriptionStatusRespons
  * Create a Stripe Checkout session for plan subscription
  */
 export async function createCheckout(planId: string, quantity: number = 1): Promise<CheckoutSessionResponse> {
-  const origin = window.location.origin;
+  const origin = httpsOrigin();
   return api.post<CheckoutSessionResponse>('/billing/checkout', {
     planId,
     quantity,
@@ -42,7 +48,7 @@ export async function createCheckout(planId: string, quantity: number = 1): Prom
  * Create a Stripe Customer Portal session for managing billing
  */
 export async function createPortal(): Promise<CustomerPortalResponse> {
-  const origin = window.location.origin;
+  const origin = httpsOrigin();
   return api.post<CustomerPortalResponse>('/billing/portal', {
     returnUrl: `${origin}/settings`,
   });

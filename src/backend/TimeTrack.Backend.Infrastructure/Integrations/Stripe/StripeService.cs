@@ -71,8 +71,17 @@ public sealed class StripeService : IPaymentGatewayService
             }
         };
 
-        var session = await _checkoutSessionService.CreateAsync(options, cancellationToken: ct);
-        return session.Url;
+        try
+        {
+            var session = await _checkoutSessionService.CreateAsync(options, cancellationToken: ct);
+            return session.Url;
+        }
+        catch (global::Stripe.StripeException ex)
+        {
+            _logger.LogError(ex, "Stripe checkout session creation failed. OrgId={OrgId}, PriceId={PriceId}, StripeError={StripeError}",
+                orgId, stripePriceId, ex.StripeError?.Message ?? ex.Message);
+            throw;
+        }
     }
 
     public async Task<string> CreateCustomerPortalSessionAsync(

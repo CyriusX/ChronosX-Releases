@@ -44,6 +44,7 @@ public sealed class BillingController : ControllerBase
     [HttpPost("checkout")]
     [RequireAdmin]
     [ProducesResponseType(typeof(CheckoutSessionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status502BadGateway)]
     public async Task<ActionResult<CheckoutSessionResponse>> CreateCheckoutSession(
         [FromBody] CreateCheckoutRequest request, CancellationToken cancellationToken)
     {
@@ -51,12 +52,35 @@ public sealed class BillingController : ControllerBase
         var successUrl = string.IsNullOrWhiteSpace(request.SuccessUrl) ? $"{baseUrl}/settings?billing=success" : request.SuccessUrl;
         var cancelUrl = string.IsNullOrWhiteSpace(request.CancelUrl) ? $"{baseUrl}/settings?billing=canceled" : request.CancelUrl;
 
-        var result = await _mediator.Send(new CreateCheckoutSessionCommand(
-            request.PlanId,
-            successUrl,
-            cancelUrl,
-            request.Quantity), cancellationToken);
-        return Ok(result);
+        // Stripe live mode requires HTTPS for all URLs
+        successUrl = EnsureHttps(successUrl);
+        cancelUrl = EnsureHttps(cancelUrl);
+
+        try
+        {
+            var result = await _mediator.Send(new CreateCheckoutSessionCommand(
+                request.PlanId,
+                successUrl,
+                cancelUrl,
+                request.Quantity), cancellationToken);
+            return Ok(result);
+        }
+        catch (global::Stripe.StripeException ex)
+        {
+            return StatusCode(StatusCodes.Status502BadGateway, new
+            {
+                code = "stripe_error",
+                message = ex.StripeError?.Message ?? ex.Message,
+                stripeCode = ex.StripeError?.Code
+            });
+        }
+    }
+
+    private static string EnsureHttps(string url)
+    {
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            return "https://" + url["http://".Length..];
+        return url;
     }
 
     [HttpPost("portal")]
