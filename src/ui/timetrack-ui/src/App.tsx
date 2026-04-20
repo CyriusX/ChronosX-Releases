@@ -243,6 +243,8 @@ function App() {
               orgId: me.orgId ?? me.organizationId ?? '',
               orgName: me.orgName ?? me.organizationName ?? '',
               passwordMustChange: me.passwordMustChange ?? false,
+              subscriptionStatus: me.subscriptionStatus ?? 'none',
+              planTier: me.planTier ?? '',
             });
             dispatchNavigate('/', true);
             return;
@@ -267,6 +269,8 @@ function App() {
             orgId,
             orgName: '',
             passwordMustChange: mustChangePassword,
+            subscriptionStatus: 'none',
+            planTier: '',
           });
           dispatchNavigate('/', true);
         }

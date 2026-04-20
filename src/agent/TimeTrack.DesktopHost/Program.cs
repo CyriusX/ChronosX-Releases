@@ -149,9 +149,13 @@ static class Program
                 logging.AddConsole();
                 logging.AddDebug();
             })
-            .ConfigureAppConfiguration(config =>
+            .ConfigureAppConfiguration((context, config) =>
             {
-                config.AddJsonFile("appsettings.json", optional: true);
+                config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
+                config.AddJsonFile(
+                    $"appsettings.{context.HostingEnvironment.EnvironmentName}.json",
+                    optional: true,
+                    reloadOnChange: false);
                 config.AddEnvironmentVariables();
                 config.AddCommandLine(args);
             })

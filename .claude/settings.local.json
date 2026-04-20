@@ -513,7 +513,9 @@
       "Bash(DATABASE_URL=\"postgres://chronosx:chronosx@easypanel.cyriusx.com:6543/chronosx\" ASPNETCORE_ENVIRONMENT=Development dotnet run --urls \"http://localhost:5001\")",
       "Bash(DATABASE_URL=\"postgres://chronosx:chronosx@easypanel.cyriusx.com:6543/chronosx\" ASPNETCORE_ENVIRONMENT=Development dotnet run --no-build --urls \"http://localhost:5001\")",
       "Bash(DATABASE_URL=\"postgres://chronosx:chronosx@easypanel.cyriusx.com:6543/chronosx\" dotnet ef migrations list --project ../TimeTrack.Backend.Infrastructure/TimeTrack.Backend.Infrastructure.csproj)",
-      "Bash(DATABASE_URL=\"postgres://chronosx:chronosx@easypanel.cyriusx.com:6543/chronosx\" ASPNETCORE_ENVIRONMENT=Development dotnet run --no-build --project /c/Projetos/TimeTracking/src/backend/TimeTrack.Api/TimeTrack.Api.csproj --urls \"http://localhost:5001\")"
+      "Bash(DATABASE_URL=\"postgres://chronosx:chronosx@easypanel.cyriusx.com:6543/chronosx\" ASPNETCORE_ENVIRONMENT=Development dotnet run --no-build --project /c/Projetos/TimeTracking/src/backend/TimeTrack.Api/TimeTrack.Api.csproj --urls \"http://localhost:5001\")",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_navigate"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
