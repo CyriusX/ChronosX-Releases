@@ -6,6 +6,7 @@ using TimeTrack.Backend.Application.Billing.Commands;
 using TimeTrack.Backend.Application.Billing.DTOs;
 using TimeTrack.Backend.Application.Billing.Queries;
 using TimeTrack.Backend.Application.Common.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace TimeTrack.Api.Controllers;
 
@@ -17,12 +18,14 @@ public sealed class BillingController : ControllerBase
     private readonly ISender _mediator;
     private readonly IPaymentGatewayService _paymentGateway;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<BillingController> _logger;
 
-    public BillingController(ISender mediator, IPaymentGatewayService paymentGateway, IConfiguration configuration)
+    public BillingController(ISender mediator, IPaymentGatewayService paymentGateway, IConfiguration configuration, ILogger<BillingController> logger)
     {
         _mediator = mediator;
         _paymentGateway = paymentGateway;
         _configuration = configuration;
+        _logger = logger;
     }
 
     [HttpGet("plans")]
@@ -58,6 +61,7 @@ public sealed class BillingController : ControllerBase
 
         try
         {
+            _logger.LogInformation("Creating checkout session: PlanId={PlanId}, SuccessUrl={SuccessUrl}", request.PlanId, successUrl);
             var result = await _mediator.Send(new CreateCheckoutSessionCommand(
                 request.PlanId,
                 successUrl,
@@ -67,6 +71,8 @@ public sealed class BillingController : ControllerBase
         }
         catch (global::Stripe.StripeException ex)
         {
+            _logger.LogError(ex, "Stripe error on checkout: {Message} (Code={Code}, StripeCode={StripeCode})",
+                ex.Message, ex.StripeError?.Code, ex.StripeError?.DeclineCode);
             return StatusCode(StatusCodes.Status502BadGateway, new
             {
                 code = "stripe_error",
