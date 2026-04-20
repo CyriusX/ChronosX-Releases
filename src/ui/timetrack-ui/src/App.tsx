@@ -6,7 +6,7 @@ import { useIpc } from "./hooks/useIpc";
 import { useUpdate } from "./hooks/useUpdate";
 import type { LocalSettings } from "./types/settings";
 import { useTrackingStore, handleTrackingStateChanged } from "./stores/trackingStore";
-import { useAuthStore } from "./stores/authStore";
+import { useAuthStore, restoreUserFromAccessToken } from "./stores/authStore";
 import { getIpcService } from "./services";
 import { getApiBaseUrl } from "./services/apiBase";
 import { SESSION_EXPIRED_EVENT } from "./services/apiClient";
@@ -283,8 +283,10 @@ function App() {
   }, [isReady, isConnected, isAuthenticated]);
 
   // Sync tokens with Agent on IPC connect.
-  // If the UI's access token is expired, ask the Agent for its (likely newer) tokens
-  // instead of overwriting the Agent's valid tokens with expired ones.
+  // Agent is the source of truth — it's the only process that proactively refreshes
+  // tokens. Always query it first; its tokens are at least as fresh as the UI's
+  // localStorage, which may hold a revoked refresh token if a prior tokensRefreshed
+  // event was missed. Only bootstrap the Agent from UI tokens if the Agent has none.
   useEffect(() => {
     const justConnected = isConnected && !wasConnectedRef.current;
     wasConnectedRef.current = isConnected;
@@ -292,37 +294,36 @@ function App() {
     if (!justConnected) return;
 
     const ipcService = getIpcService();
-    const isAccessTokenExpired = tokens && tokens.expiresAt <= Date.now();
 
-    if (isAuthenticated && tokens) {
-      if (isAccessTokenExpired) {
-        // UI tokens are expired — ask Agent for fresh ones instead of sending stale tokens
-        ipcService.sendQuery('getTokens').then((result) => {
-          const data = result.data as { hasTokens?: boolean; accessToken?: string; refreshToken?: string; expiresIn?: number } | undefined;
-          if (result.success && data?.hasTokens && data.accessToken && data.refreshToken) {
-            const authStore = useAuthStore.getState();
-            if (authStore.user) {
-              authStore.setTokens({
-                accessToken: data.accessToken,
-                refreshToken: data.refreshToken,
-                expiresAt: Date.now() + (data.expiresIn ?? 3600) * 1000,
-              });
-              console.log('[App] Synced fresh tokens from Agent');
-            }
-          }
-        }).catch(() => { /* non-critical */ });
-      } else {
-        // UI has valid tokens — send them to Agent so it can track
-        ipcService.sendCommand('storeTokens', {
+    ipcService.sendQuery('getTokens').then(async (result) => {
+      const data = result.data as { hasTokens?: boolean; accessToken?: string; refreshToken?: string; expiresIn?: number } | undefined;
+
+      if (result.success && data?.hasTokens && data.accessToken && data.refreshToken) {
+        // Agent has tokens — always prefer them over UI's localStorage.
+        const authStore = useAuthStore.getState();
+        authStore.setTokens({
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          expiresAt: Date.now() + (data.expiresIn ?? 3600) * 1000,
+        });
+        if (!authStore.user) {
+          await restoreUserFromAccessToken(data.accessToken);
+        }
+        console.log('[App] Synced tokens from Agent on connect');
+        return;
+      }
+
+      // Agent has no tokens — bootstrap with UI's tokens if we have them (first login path).
+      if (isAuthenticated && tokens) {
+        const storeResult = await ipcService.sendCommand('storeTokens', {
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
-        }).then((result) => {
-          if (!result.success) {
-            console.warn('[App] Failed to resync tokens to Agent on connect:', result.error);
-          }
         });
+        if (!storeResult.success) {
+          console.warn('[App] Failed to bootstrap Agent with UI tokens:', storeResult.error);
+        }
       }
-    }
+    }).catch(() => { /* non-critical */ });
   }, [isConnected, isAuthenticated, tokens]);
 
   return desktop ? (

@@ -60,6 +60,15 @@ public sealed class DpapiTokenStore : ITokenStore
         var expiresAt = ExtractExpirationFromJwt(jwt);
         var tokens = new TokenData(jwt, refreshToken, expiresAt);
 
+        var existing = await LoadTokensAsync(cancellationToken);
+        if (existing is not null && !string.Equals(existing.RefreshToken, refreshToken, StringComparison.Ordinal))
+        {
+            _logger.LogDebug(
+                "StoreTokensAsync overwriting refresh token (prev={PrevPrefix}, new={NewPrefix})",
+                Prefix(existing.RefreshToken),
+                Prefix(refreshToken));
+        }
+
         await PersistTokensAsync(tokens, cancellationToken);
 
         lock (_cacheLock)
@@ -217,6 +226,12 @@ public sealed class DpapiTokenStore : ITokenStore
         TokensCleared?.Invoke(this, EventArgs.Empty);
 
         await Task.CompletedTask;
+    }
+
+    private static string Prefix(string? token)
+    {
+        if (string.IsNullOrEmpty(token)) return "<empty>";
+        return token.Length <= 8 ? "<short>" : token.Substring(0, 8);
     }
 
     private static DateTime ExtractExpirationFromJwt(string jwt)

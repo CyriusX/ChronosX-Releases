@@ -399,6 +399,42 @@ export const selectAccessToken = (state: AuthState) => state.tokens?.accessToken
 // AGENT TOKEN SYNC
 // ============================================================================
 
+/**
+ * Fetches /auth/me/summary with the given access token and populates the
+ * store's user. Used when the UI has Agent-provided tokens but no user —
+ * typically when restoring a session from the Agent's token store.
+ * Navigates to '/' on success. Returns true if the user was loaded.
+ */
+export async function restoreUserFromAccessToken(accessToken: string): Promise<boolean> {
+  const store = useAuthStore.getState();
+  if (store.user) return true;
+
+  try {
+    const response = await fetch(`${apiBase()}/auth/me/summary`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    store.setUser({
+      id: data.userId ?? data.id,
+      email: data.email ?? '',
+      displayName: data.displayName ?? '',
+      role: data.role ?? 'Colaborador',
+      orgId: data.orgId ?? data.organizationId ?? '',
+      orgName: data.orgName ?? data.organizationName ?? '',
+      passwordMustChange: data.passwordMustChange ?? false,
+      subscriptionStatus: data.subscriptionStatus ?? 'none',
+      planTier: data.planTier ?? '',
+    });
+    console.log('[AuthStore] Session restored from Agent tokens');
+    dispatchNavigate('/', true);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // When the Agent (background service) refreshes tokens, it broadcasts a
 // tokensRefreshed IPC event. Subscribe here so the UI's localStorage always
 // holds the latest valid refresh token — preventing "refresh token expired or
@@ -406,41 +442,14 @@ export const selectAccessToken = (state: AuthState) => state.tokens?.accessToken
 globalEventDispatcher.subscribe('tokensRefreshed', async (payload) => {
   const store = useAuthStore.getState();
 
-  const newTokens = {
+  store.setTokens({
     accessToken: payload.accessToken,
     refreshToken: payload.refreshToken,
     expiresAt: Date.now() + payload.expiresIn * 1000,
-  };
-
-  // Always store the tokens (they're guaranteed valid — the Agent just refreshed them)
-  store.setTokens(newTokens);
+  });
 
   if (!store.user) {
-    // Session was cleared (e.g. UI's own refresh failed) but Agent has valid tokens.
-    // Use the new access token to fetch user info and restore the session.
-    try {
-      const response = await fetch(`${apiBase()}/auth/me/summary`, {
-        headers: { Authorization: `Bearer ${payload.accessToken}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        store.setUser({
-          id: data.userId ?? data.id,
-          email: data.email ?? '',
-          displayName: data.displayName ?? '',
-          role: data.role ?? 'Colaborador',
-          orgId: data.orgId ?? data.organizationId ?? '',
-          orgName: data.orgName ?? data.organizationName ?? '',
-          passwordMustChange: data.passwordMustChange ?? false,
-          subscriptionStatus: data.subscriptionStatus ?? 'none',
-          planTier: data.planTier ?? '',
-        });
-        console.log('[AuthStore] Session restored from Agent tokens');
-        dispatchNavigate('/', true);
-      }
-    } catch {
-      // Can't reach backend — user will need to login manually
-    }
+    await restoreUserFromAccessToken(payload.accessToken);
     return;
   }
 
