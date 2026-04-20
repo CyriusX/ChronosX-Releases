@@ -19,11 +19,10 @@ public sealed class SubscriptionStatusJob : ISubscriptionStatusJob
 
     public async Task ExecuteAsync()
     {
-        _logger.LogInformation("SubscriptionStatusJob: checking for expired grace periods");
+        _logger.LogInformation("SubscriptionStatusJob: checking for expired grace periods and trials");
 
-        var expired = await _subscriptionRepository.GetPastDueExpiredAsync();
-
-        foreach (var subscription in expired)
+        var pastDueExpired = await _subscriptionRepository.GetPastDueExpiredAsync();
+        foreach (var subscription in pastDueExpired)
         {
             _logger.LogInformation(
                 "SubscriptionStatusJob: transitioning org {OrgId} from PastDue to Unpaid (grace period expired)",
@@ -33,6 +32,21 @@ public sealed class SubscriptionStatusJob : ISubscriptionStatusJob
             await _subscriptionRepository.UpdateAsync(subscription);
         }
 
-        _logger.LogInformation("SubscriptionStatusJob: processed {Count} expired subscriptions", expired.Count);
+        var trialsExpired = await _subscriptionRepository.GetTrialingExpiredAsync();
+        foreach (var subscription in trialsExpired)
+        {
+            _logger.LogInformation(
+                "SubscriptionStatusJob: transitioning org {OrgId} from Trialing to Canceled (trial ended {TrialEnd:u})",
+                subscription.OrgId,
+                subscription.TrialEnd);
+
+            subscription.ExpireTrial();
+            await _subscriptionRepository.UpdateAsync(subscription);
+        }
+
+        _logger.LogInformation(
+            "SubscriptionStatusJob: processed {PastDueCount} past-due and {TrialsCount} trial-expired subscriptions",
+            pastDueExpired.Count,
+            trialsExpired.Count);
     }
 }

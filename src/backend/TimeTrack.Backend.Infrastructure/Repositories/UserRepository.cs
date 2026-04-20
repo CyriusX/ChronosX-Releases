@@ -19,9 +19,23 @@ public sealed class UserRepository : IUserRepository
         return await _context.Users.FindAsync([id], cancellationToken);
     }
 
+    public async Task<User?> GetByIdUnfilteredAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _context.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+    }
+
     public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         return await _context.Users
+            .FirstOrDefaultAsync(u => u.Email == email.ToLowerInvariant(), cancellationToken);
+    }
+
+    public async Task<User?> GetByEmailUnfilteredAsync(string email, CancellationToken cancellationToken = default)
+    {
+        return await _context.Users
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.Email == email.ToLowerInvariant(), cancellationToken);
     }
 

@@ -52,6 +52,7 @@ public static class AuthorizationPolicies
     public const string AdminOnly = "AdminOnly";
     public const string ManagerOrAdmin = "ManagerOrAdmin";
     public const string Authenticated = "Authenticated";
+    public const string PlatformAdminOnly = "PlatformAdminOnly";
 
     public static void Configure(AuthorizationOptions options)
     {
@@ -65,5 +66,8 @@ public static class AuthorizationPolicies
 
         options.AddPolicy(Authenticated, policy =>
             policy.RequireAuthenticatedUser());
+
+        options.AddPolicy(PlatformAdminOnly, policy =>
+            policy.RequireClaim("is_platform_admin", "true"));
     }
 }

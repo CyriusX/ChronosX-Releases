@@ -36,6 +36,14 @@ public sealed class SubscriptionCheckMiddleware
             return;
         }
 
+        // Platform admins (Chronos staff) bypass all subscription checks —
+        // they operate the product and aren't paying customers.
+        if (currentUser.IsPlatformAdmin)
+        {
+            await _next(context);
+            return;
+        }
+
         var orgId = currentUser.OrgId.Value;
         var cacheKey = $"sub_check_{orgId}";
         bool hasAccess;

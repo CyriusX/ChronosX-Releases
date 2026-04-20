@@ -58,13 +58,17 @@ public sealed class OrgSubscriptionRepository : IOrgSubscriptionRepository
         var subscription = await _context.OrgSubscriptions
             .IgnoreQueryFilters()
             .Where(s => s.OrgId == orgId)
-            .Select(s => new { s.Status, s.GracePeriodEnd })
+            .Select(s => new { s.Status, s.GracePeriodEnd, s.TrialEnd })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (subscription is null)
             return false;
 
-        if (subscription.Status == SubscriptionStatus.Active || subscription.Status == SubscriptionStatus.Trialing)
+        if (subscription.Status == SubscriptionStatus.Active)
+            return true;
+
+        if (subscription.Status == SubscriptionStatus.Trialing
+            && (subscription.TrialEnd == null || subscription.TrialEnd.Value > DateTime.UtcNow))
             return true;
 
         if (subscription.Status == SubscriptionStatus.PastDue
@@ -95,6 +99,17 @@ public sealed class OrgSubscriptionRepository : IOrgSubscriptionRepository
             .Where(s => s.Status == SubscriptionStatus.PastDue
                 && s.GracePeriodEnd.HasValue
                 && s.GracePeriodEnd.Value <= DateTime.UtcNow)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<OrgSubscription>> GetTrialingExpiredAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.OrgSubscriptions
+            .IgnoreQueryFilters()
+            .Include(s => s.Plan)
+            .Where(s => s.Status == SubscriptionStatus.Trialing
+                && s.TrialEnd.HasValue
+                && s.TrialEnd.Value <= DateTime.UtcNow)
             .ToListAsync(cancellationToken);
     }
 }

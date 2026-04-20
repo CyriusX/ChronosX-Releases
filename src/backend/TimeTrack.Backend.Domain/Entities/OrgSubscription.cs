@@ -138,10 +138,36 @@ public sealed class OrgSubscription
             && GracePeriodEnd.Value > DateTime.UtcNow;
     }
 
+    /// <summary>
+    /// True when the subscription is currently in its trial window.
+    /// A Trialing status with a past TrialEnd is treated as expired so users
+    /// can't keep trialing forever if the SubscriptionStatusJob hasn't run yet.
+    /// </summary>
+    public bool IsTrialActive()
+    {
+        return Status == SubscriptionStatus.Trialing
+            && (TrialEnd == null || TrialEnd.Value > DateTime.UtcNow);
+    }
+
     public bool HasActiveAccess()
     {
         return Status == SubscriptionStatus.Active
-            || Status == SubscriptionStatus.Trialing
+            || IsTrialActive()
             || IsInGracePeriod();
+    }
+
+    /// <summary>
+    /// Transitions a Trialing subscription whose TrialEnd has passed into
+    /// Canceled state, so the paywall shows and the user must pick a plan.
+    /// No-op if the subscription isn't a trial or the trial hasn't ended yet.
+    /// </summary>
+    public void ExpireTrial()
+    {
+        if (Status != SubscriptionStatus.Trialing) return;
+        if (TrialEnd == null || TrialEnd.Value > DateTime.UtcNow) return;
+
+        Status = SubscriptionStatus.Canceled;
+        CanceledAt = TrialEnd;
+        UpdatedAt = DateTime.UtcNow;
     }
 }

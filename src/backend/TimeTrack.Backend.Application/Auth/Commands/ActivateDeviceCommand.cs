@@ -83,7 +83,7 @@ public sealed class ActivateDeviceCommandHandler : IRequestHandler<ActivateDevic
             await _deviceRepository.UpdateAsync(existingDevice, cancellationToken);
 
             // Generate new tokens for re-activation (include device_id in JWT)
-            var accessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, existingDevice.Id, user.Role.ToString(), user.PasswordMustChange);
+            var accessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, existingDevice.Id, user.Role.ToString(), user.PasswordMustChange, user.IsPlatformAdmin);
             var (refreshToken, _) = await CreateDeviceRefreshTokenAsync(user.Id, existingDevice.Id, cancellationToken);
 
             // Audit log - device.reactivated
@@ -135,7 +135,7 @@ public sealed class ActivateDeviceCommandHandler : IRequestHandler<ActivateDevic
         await _deviceRepository.AddAsync(device, cancellationToken);
 
         // Generate tokens linked to this device (include device_id in JWT)
-        var newAccessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, device.Id, user.Role.ToString(), user.PasswordMustChange);
+        var newAccessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, device.Id, user.Role.ToString(), user.PasswordMustChange, user.IsPlatformAdmin);
         var (newRefreshToken, _) = await CreateDeviceRefreshTokenAsync(user.Id, device.Id, cancellationToken);
 
         // Audit log - device.registered

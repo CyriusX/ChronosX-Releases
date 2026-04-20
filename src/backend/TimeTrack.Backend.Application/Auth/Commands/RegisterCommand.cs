@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Backend.Application.Auth.DTOs;
 using TimeTrack.Backend.Application.Common.Exceptions;
@@ -20,7 +21,7 @@ public sealed record RegisterCommand(
 
 public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, RegisterResponse>
 {
-    private const int FreeTrialDays = 14;
+    private const int DefaultTrialDays = 14;
 
     private readonly IUserRepository _userRepository;
     private readonly IOrganizationRepository _organizationRepository;
@@ -28,6 +29,7 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
     private readonly IPasswordValidator _passwordValidator;
     private readonly ISubscriptionPlanRepository _subscriptionPlanRepository;
     private readonly IOrgSubscriptionRepository _orgSubscriptionRepository;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<RegisterCommandHandler> _logger;
 
     public RegisterCommandHandler(
@@ -37,6 +39,7 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
         IPasswordValidator passwordValidator,
         ISubscriptionPlanRepository subscriptionPlanRepository,
         IOrgSubscriptionRepository orgSubscriptionRepository,
+        IConfiguration configuration,
         ILogger<RegisterCommandHandler> logger)
     {
         _userRepository = userRepository;
@@ -45,6 +48,7 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
         _passwordValidator = passwordValidator;
         _subscriptionPlanRepository = subscriptionPlanRepository;
         _orgSubscriptionRepository = orgSubscriptionRepository;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -100,8 +104,11 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
 
             if (plan is not null)
             {
+                var trialDays = _configuration.GetValue<int>("Subscription:TrialDays", DefaultTrialDays);
+                if (trialDays <= 0) trialDays = DefaultTrialDays;
+
                 var subscription = OrgSubscription.Create(organization.Id);
-                subscription.EnterTrial(plan.Id, DateTime.UtcNow.AddDays(FreeTrialDays), quantity: 1);
+                subscription.EnterTrial(plan.Id, DateTime.UtcNow.AddDays(trialDays), quantity: 1);
                 await _orgSubscriptionRepository.AddAsync(subscription, cancellationToken);
             }
             else

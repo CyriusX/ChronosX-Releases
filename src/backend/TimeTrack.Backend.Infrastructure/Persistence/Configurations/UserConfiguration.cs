@@ -54,6 +54,10 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasColumnName("password_must_change")
             .HasDefaultValue(false);
 
+        builder.Property(u => u.IsPlatformAdmin)
+            .HasColumnName("is_platform_admin")
+            .HasDefaultValue(false);
+
         builder.Property(u => u.DevToolsEnabledUntilUtc)
             .HasColumnName("devtools_enabled_until_utc");
 

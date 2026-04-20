@@ -13,4 +13,5 @@ public interface IOrgSubscriptionRepository
     Task AddAsync(OrgSubscription subscription, CancellationToken cancellationToken = default);
     Task UpdateAsync(OrgSubscription subscription, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OrgSubscription>> GetPastDueExpiredAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<OrgSubscription>> GetTrialingExpiredAsync(CancellationToken cancellationToken = default);
 }

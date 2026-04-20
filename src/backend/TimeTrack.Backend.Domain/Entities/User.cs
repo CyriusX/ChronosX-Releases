@@ -15,6 +15,15 @@ public sealed class User
     public UserRole Role { get; private set; }
     public UserStatus Status { get; private set; }
     public bool PasswordMustChange { get; private set; }
+
+    /// <summary>
+    /// Platform administrator flag. True for Chronos staff who operate/maintain the
+    /// service — they bypass all subscription/paywall checks because they are not
+    /// paying customers. Should be set via an admin endpoint by another platform
+    /// admin; the first one must be bootstrapped via SQL.
+    /// </summary>
+    public bool IsPlatformAdmin { get; private set; }
+
     public DateTime? DevToolsEnabledUntilUtc { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
@@ -112,6 +121,12 @@ public sealed class User
     public void SetDevToolsEnabledUntilUtc(DateTime? enabledUntilUtc)
     {
         DevToolsEnabledUntilUtc = enabledUntilUtc;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetPlatformAdmin(bool isPlatformAdmin)
+    {
+        IsPlatformAdmin = isPlatformAdmin;
         UpdatedAt = DateTime.UtcNow;
     }
 }
