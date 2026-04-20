@@ -37,6 +37,7 @@ public sealed class SyncWorker : BackgroundService
     private int _consecutiveFailures;
     private DateTime? _lastSuccessfulSync;
     private DateTime _lastCleanup = DateTime.MinValue;
+    private string _lastSubscriptionStatus = "active";
 
     public SyncWorker(
         ILogger<SyncWorker> logger,
@@ -253,11 +254,23 @@ public sealed class SyncWorker : BackgroundService
                     LastSuccessfulSyncAt: _lastSuccessfulSync,
                     IpcConnected: _ipcServer.IsClientConnected);
 
-                await _heartbeatService.SendHeartbeatAsync(snapshot, cancellationToken);
+                var heartbeatResult = await _heartbeatService.SendHeartbeatAsync(snapshot, cancellationToken);
+
+                if (heartbeatResult.Success)
+                {
+                    await HandleSubscriptionStatusAsync(heartbeatResult, cancellationToken);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Heartbeat failed, will retry next cycle");
+            }
+
+            // Block sync when subscription denies access (unpaid, none, canceled, incomplete)
+            if (!_subscriptionStatusAllowsSync(_lastSubscriptionStatus))
+            {
+                _logger.LogWarning("Sync skipped: subscription status is '{Status}'. Data is preserved locally.", _lastSubscriptionStatus);
+                return;
             }
 
             // Poll and execute remote commands from admin
@@ -667,4 +680,62 @@ public sealed class SyncWorker : BackgroundService
             _logger.LogWarning(ex, "SQLite cleanup failed (non-critical)");
         }
     }
+
+    /// <summary>
+    /// Handles subscription status transitions received via heartbeat.
+    /// Broadcasts IPC events to the WebView2 UI and logs state changes.
+    /// </summary>
+    private async Task HandleSubscriptionStatusAsync(HeartbeatResult heartbeat, CancellationToken cancellationToken)
+    {
+        var current = heartbeat.SubscriptionStatus;
+        var previous = _lastSubscriptionStatus;
+
+        if (current == previous)
+            return;
+
+        _logger.LogInformation(
+            "Subscription status changed: {Previous} → {Current}",
+            previous, current);
+
+        _lastSubscriptionStatus = current;
+
+        // Broadcast to UI via IPC
+        await _statusBroadcaster.BroadcastSubscriptionStatusChangedAsync(
+            current, heartbeat.GracePeriodEnd, cancellationToken);
+
+        // Log the event
+        var severity = current switch
+        {
+            "unpaid" => AgentEventSeverity.Critical,
+            "past_due" => AgentEventSeverity.Warning,
+            _ => AgentEventSeverity.Info
+        };
+
+        var message = current switch
+        {
+            "unpaid" => "Assinatura expirada. Monitoramento pausado — dados preservados localmente.",
+            "past_due" => "Pagamento falhou. Período de carência ativo — sincronização continua.",
+            "active" when previous == "unpaid" => "Assinatura reativada. Retomando sincronização.",
+            "active" => "Assinatura ativa.",
+            "trialing" => "Período de trial ativo.",
+            _ => $"Status da assinatura: {current}"
+        };
+
+        await _eventLogger.LogAsync("subscription.changed", AgentEventCategory.System, severity,
+            message, new { from = previous, to = current }, cancellationToken);
+    }
+
+    /// <summary>
+    /// "none" = legacy org (never subscribed) → allow sync.
+    /// Active, Trialing, PastDue (grace period) → allow sync.
+    /// Unpaid, Canceled, Incomplete → block sync, data stays in local SQLite.
+    /// </summary>
+    private static bool _subscriptionStatusAllowsSync(string status) => status switch
+    {
+        "active" => true,
+        "trialing" => true,
+        "past_due" => true,
+        "none" => true,
+        _ => false
+    };
 }

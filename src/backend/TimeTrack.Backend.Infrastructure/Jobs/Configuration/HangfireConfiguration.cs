@@ -63,6 +63,8 @@ public static class HangfireConfiguration
         services.AddScoped<IMachineMetricsCleanupJob, MachineMetricsCleanupJob>();
         services.AddScoped<IDeadlineScanJob, DeadlineScanJob>();
         services.AddScoped<IProjectPurgeJob, ProjectPurgeJob>();
+        services.AddScoped<ISubscriptionStatusJob, SubscriptionStatusJob>();
+        services.AddScoped<IUsageCounterRefreshJob, UsageCounterRefreshJob>();
         services.AddScoped<ITaskTimerStalePauseJob, TaskTimerStalePauseJob>();
         services.AddScoped<IDevToolsAutoRevokeJob, DevToolsAutoRevokeJob>();
 
@@ -155,6 +157,27 @@ public static class HangfireConfiguration
             "project-purge",
             job => job.ExecuteAsync(),
             "0 2 * * *", // Daily at 02:00 UTC
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Subscription status job - runs daily at 01:00 UTC
+        // Transitions past_due subscriptions with expired grace periods to unpaid
+        RecurringJob.AddOrUpdate<ISubscriptionStatusJob>(
+            "subscription-status-check",
+            job => job.ExecuteAsync(),
+            "0 1 * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Usage counter refresh job - runs every 6 hours
+        RecurringJob.AddOrUpdate<IUsageCounterRefreshJob>(
+            "usage-counter-refresh",
+            job => job.ExecuteAsync(),
+            "15 */6 * * *",
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc

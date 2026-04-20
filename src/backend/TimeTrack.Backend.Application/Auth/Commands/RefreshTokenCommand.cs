@@ -16,13 +16,16 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
 {
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly ITokenService _tokenService;
+    private readonly ISubscriptionService _subscriptionService;
 
     public RefreshTokenCommandHandler(
         IRefreshTokenRepository refreshTokenRepository,
-        ITokenService tokenService)
+        ITokenService tokenService,
+        ISubscriptionService subscriptionService)
     {
         _refreshTokenRepository = refreshTokenRepository;
         _tokenService = tokenService;
+        _subscriptionService = subscriptionService;
     }
 
     public async Task<RefreshTokenResponse> Handle(RefreshTokenCommand request, CancellationToken cancellationToken)
@@ -67,11 +70,15 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
 
         await _refreshTokenRepository.AddAsync(newTokenEntity, cancellationToken);
 
+        var subscriptionCheck = await _subscriptionService.CheckSubscriptionAccessAsync(user.OrgId, cancellationToken);
+
         return new RefreshTokenResponse
         {
             AccessToken = newAccessToken,
             RefreshToken = newRefreshToken,
-            ExpiresIn = (int)_tokenService.GetAccessTokenExpiration().TotalSeconds
+            ExpiresIn = (int)_tokenService.GetAccessTokenExpiration().TotalSeconds,
+            SubscriptionStatus = subscriptionCheck.Status,
+            PlanTier = subscriptionCheck.PlanTier ?? ""
         };
     }
 }

@@ -19,16 +19,23 @@ public class RefreshTokenCommandTests
 {
     private readonly Mock<IRefreshTokenRepository> _refreshTokenRepositoryMock;
     private readonly Mock<ITokenService> _tokenServiceMock;
+    private readonly Mock<ISubscriptionService> _subscriptionServiceMock;
     private readonly RefreshTokenCommandHandler _handler;
 
     public RefreshTokenCommandTests()
     {
         _refreshTokenRepositoryMock = new Mock<IRefreshTokenRepository>();
         _tokenServiceMock = new Mock<ITokenService>();
+        _subscriptionServiceMock = new Mock<ISubscriptionService>();
+
+        _subscriptionServiceMock
+            .Setup(s => s.CheckSubscriptionAccessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SubscriptionCheckResult { HasAccess = true, Status = "none" });
 
         _handler = new RefreshTokenCommandHandler(
             _refreshTokenRepositoryMock.Object,
-            _tokenServiceMock.Object
+            _tokenServiceMock.Object,
+            _subscriptionServiceMock.Object
         );
     }
 

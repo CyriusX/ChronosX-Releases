@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.Policies.Commands;
@@ -17,6 +18,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/orgs/{orgId:guid}/policies")]
 [Authorize]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class OrgPoliciesController : ControllerBase
 {

@@ -118,7 +118,9 @@ public sealed class HeartbeatService : IHeartbeatService
             return new HeartbeatResult
             {
                 Success = true,
-                HasPendingCommands = result?.HasPendingCommands ?? false
+                HasPendingCommands = result?.HasPendingCommands ?? false,
+                SubscriptionStatus = result?.SubscriptionStatus ?? "active",
+                GracePeriodEnd = result?.GracePeriodEnd
             };
         }
         catch (Exception ex)
@@ -219,5 +221,7 @@ public sealed class HeartbeatService : IHeartbeatService
         public DateTime LastSeenAt { get; set; }
         public string Status { get; set; } = string.Empty;
         public bool HasPendingCommands { get; set; }
+        public string SubscriptionStatus { get; set; } = "active";
+        public DateTime? GracePeriodEnd { get; set; }
     }
 }

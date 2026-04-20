@@ -30,6 +30,10 @@ export { RetentionCard } from './RetentionCard';
 export { FocusModeCard } from './FocusModeCard';
 export { usePolicyCards } from './usePolicyCards';
 
+// Billing
+export { BillingSection } from './BillingSection';
+export { SubscriptionStatusBanner } from '../SubscriptionStatusBanner';
+
 // App Categories
 export { AppCategoriesSection } from './AppCategoriesSection';
 export { AppCategoriesList } from './AppCategoriesList';

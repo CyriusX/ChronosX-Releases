@@ -89,6 +89,18 @@ public class ExceptionHandlingMiddleware
                 response = new ErrorResponse("unauthorized", ex.Message, traceId);
                 errorDetails = $"UnauthorizedAccessException: {ex.Message}";
                 break;
+
+            case SubscriptionRequiredException ex:
+                statusCode = (int)HttpStatusCode.PaymentRequired;
+                response = new ErrorResponse(ex.Code, ex.Message, traceId);
+                errorDetails = $"SubscriptionRequiredException: {ex.Message}";
+                break;
+
+            case SubscriptionLimitExceededException ex:
+                statusCode = (int)HttpStatusCode.PaymentRequired;
+                response = new ErrorResponse(ex.Code, ex.Message, traceId);
+                errorDetails = $"SubscriptionLimitExceededException: {ex.LimitType} - {ex.Message}";
+                break;
             default:
                 statusCode = (int)HttpStatusCode.InternalServerError;
                 response = new ErrorResponse("internal_error", "An unexpected error occurred", traceId);

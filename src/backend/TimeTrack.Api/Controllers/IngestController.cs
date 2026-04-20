@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
-using TimeTrack.Api.Security;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Backend.Application.Ingest.Commands;
 using TimeTrack.Backend.Application.Ingest.DTOs;
 
@@ -15,6 +15,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/ingest")]
 [Authorize]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Ingest)]
 public sealed class IngestController : ControllerBase
 {

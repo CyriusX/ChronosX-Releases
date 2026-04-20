@@ -23,6 +23,8 @@ export interface User {
   orgId: string;
   orgName: string;
   passwordMustChange: boolean;
+  subscriptionStatus: string;
+  planTier: string;
 }
 
 interface AuthTokens {
@@ -219,6 +221,8 @@ export const useAuthStore = create<AuthState>()(
             orgId: response.orgId,
             orgName: response.orgName,
             passwordMustChange: response.passwordMustChange ?? false,
+            subscriptionStatus: response.subscriptionStatus ?? 'none',
+            planTier: response.planTier ?? '',
           };
 
           const tokens: AuthTokens = {
@@ -295,6 +299,10 @@ export const useAuthStore = create<AuthState>()(
         // Reset timer store to clear focus sessions from previous user
         const { useTimerStore } = await import('./timerStore');
         useTimerStore.getState().resetForLogout();
+
+        // Reset subscription store to clear feature flags
+        const { useSubscriptionStore } = await import('./subscriptionStore');
+        useSubscriptionStore.getState().clearSubscription();
 
         set({
           user: null,
@@ -424,6 +432,8 @@ globalEventDispatcher.subscribe('tokensRefreshed', async (payload) => {
           orgId: data.orgId ?? data.organizationId ?? '',
           orgName: data.orgName ?? data.organizationName ?? '',
           passwordMustChange: data.passwordMustChange ?? false,
+          subscriptionStatus: data.subscriptionStatus ?? 'none',
+          planTier: data.planTier ?? '',
         });
         console.log('[AuthStore] Session restored from Agent tokens');
         dispatchNavigate('/', true);

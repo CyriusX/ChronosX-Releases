@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Backend.Application.ProjectMembers.Commands;
 using TimeTrack.Backend.Application.ProjectMembers.DTOs;
 using TimeTrack.Backend.Application.ProjectMembers.Queries;
@@ -18,6 +19,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/projects")]
 [Authorize]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class ProjectsController : ControllerBase
 {

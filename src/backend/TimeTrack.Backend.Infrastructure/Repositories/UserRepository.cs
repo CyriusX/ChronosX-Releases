@@ -45,6 +45,12 @@ public sealed class UserRepository : IUserRepository
             .AnyAsync(u => u.Email == email.ToLowerInvariant() && u.OrgId == orgId, cancellationToken);
     }
 
+    public async Task<int> CountByOrgIdAsync(Guid orgId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Users
+            .CountAsync(u => u.OrgId == orgId, cancellationToken);
+    }
+
     public async Task AddAsync(User user, CancellationToken cancellationToken = default)
     {
         await _context.Users.AddAsync(user, cancellationToken);

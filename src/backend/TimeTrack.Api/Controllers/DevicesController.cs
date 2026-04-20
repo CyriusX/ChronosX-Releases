@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Backend.Application.Auth.Commands;
 using TimeTrack.Backend.Application.Auth.DTOs;
 
@@ -15,6 +16,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/devices")]
 [Authorize]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class DevicesController : ControllerBase
 {

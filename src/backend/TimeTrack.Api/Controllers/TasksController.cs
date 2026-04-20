@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Tasks.Commands;
 using TimeTrack.Backend.Application.Tasks.DTOs;
@@ -12,6 +13,7 @@ namespace TimeTrack.Api.Controllers;
 
 [ApiController]
 [Authorize]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class TasksController : ControllerBase
 {

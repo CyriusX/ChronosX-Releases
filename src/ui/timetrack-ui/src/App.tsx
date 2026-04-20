@@ -23,6 +23,7 @@ import TimerPage from "./pages/Timer";
 import Activities from "./pages/Activities";
 import Teams from "./pages/Teams";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { PaywallOverlay } from "./components/PaywallOverlay";
 import { Toaster } from "./components/Toaster";
 import { AnimatedPage } from "./components/ui/AnimatedPage";
 import { SessionExpiredNotifier } from "./components/SessionExpiredNotifier";
@@ -53,6 +54,16 @@ function App() {
     } catch {
       // localStorage may be unavailable in some webview states — default to /login.
     }
+
+    // After Stripe checkout redirect, detect ?billing=success/canceled and go to /settings
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const billing = params.get('billing');
+      if (billing === 'success' || billing === 'canceled') {
+        initialPath = '/settings';
+      }
+    } catch { /* non-critical */ }
+
     desktopInitialEntriesRef.current = [initialPath];
   }
 
@@ -368,77 +379,79 @@ function AnimatedRoutes() {
   return (
     <AnimatePresence mode="wait">
       <AnimatedPage key={location.pathname} className="h-full">
-        <Routes location={location}>
-          {/* Public routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+        <PaywallOverlay>
+          <Routes location={location}>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-          {/* Protected routes */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/timer"
-            element={
-              <ProtectedRoute>
-                <TimerPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/activities"
-            element={
-              <ProtectedRoute>
-                <Activities />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/projects"
-            element={
-              <ProtectedRoute>
-                <Projects />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/projects/:projectId/board"
-            element={
-              <ProtectedRoute>
-                <ProjectBoard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/teams"
-            element={
-              <ProtectedRoute>
-                <Teams />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/reports"
-            element={
-              <ProtectedRoute>
-                <Reports />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+            {/* Protected routes */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/timer"
+              element={
+                <ProtectedRoute>
+                  <TimerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/activities"
+              element={
+                <ProtectedRoute>
+                  <Activities />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/projects"
+              element={
+                <ProtectedRoute>
+                  <Projects />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/projects/:projectId/board"
+              element={
+                <ProtectedRoute>
+                  <ProjectBoard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teams"
+              element={
+                <ProtectedRoute>
+                  <Teams />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute>
+                  <Reports />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </PaywallOverlay>
       </AnimatedPage>
     </AnimatePresence>
   );

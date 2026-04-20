@@ -67,6 +67,12 @@ public sealed class DeviceRepository : IDeviceRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<int> CountActiveByOrgIdAsync(Guid orgId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Devices
+            .CountAsync(d => d.OrgId == orgId, cancellationToken);
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var device = await _context.Devices.FindAsync([id], cancellationToken);

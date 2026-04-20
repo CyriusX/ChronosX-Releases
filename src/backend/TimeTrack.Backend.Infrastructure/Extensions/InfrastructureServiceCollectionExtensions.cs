@@ -11,6 +11,7 @@ using TimeTrack.Backend.Application.Integrations.Linear;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
 using TimeTrack.Backend.Infrastructure.Integrations;
 using TimeTrack.Backend.Infrastructure.Integrations.Linear;
+using TimeTrack.Backend.Infrastructure.Integrations.Stripe;
 using TimeTrack.Backend.Infrastructure.Jobs.Configuration;
 using TimeTrack.Backend.Infrastructure.Persistence;
 using TimeTrack.Backend.Infrastructure.Repositories;
@@ -81,6 +82,17 @@ public static class InfrastructureServiceCollectionExtensions
             client.BaseAddress = new Uri("https://api.linear.app/graphql");
             client.Timeout = TimeSpan.FromSeconds(30);
         });
+
+        // Subscriptions & Billing
+        services.Configure<PlansOptions>(configuration.GetSection("Plans"));
+        services.AddScoped<ISubscriptionPlanRepository, SubscriptionPlanRepository>();
+        services.AddScoped<IOrgSubscriptionRepository, OrgSubscriptionRepository>();
+        services.AddScoped<IStripeEventLogRepository, StripeEventLogRepository>();
+        services.AddScoped<IOrgUsageRecordRepository, OrgUsageRecordRepository>();
+        services.AddScoped<IBillingInvoiceRepository, BillingInvoiceRepository>();
+        services.AddScoped<ISubscriptionService, SubscriptionService>();
+        services.AddScoped<StripeWebhookProcessor>();
+        services.AddScoped<IPaymentGatewayService, StripeService>();
 
         // Focus Score Services
         services.AddSingleton<AppProductivityClassifier>();

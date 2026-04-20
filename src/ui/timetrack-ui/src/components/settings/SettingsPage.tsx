@@ -12,6 +12,7 @@ import { FocusTimerSection } from './FocusTimerSection';
 import { AboutSection } from './AboutSection';
 import { MembersSection } from './MembersSection';
 import { OrganizationSection } from './OrganizationSection';
+import { BillingSection } from './BillingSection';
 import { AgentStatusSection } from './AgentStatusSection';
 import { TimelineSection } from './TimelineSection';
 import { IntegrationsSection } from './IntegrationsSection';
@@ -200,6 +201,8 @@ export function SettingsPage() {
         return <MaintenanceSection />;
       case 'agent-status':
         return <AgentStatusSection />;
+      case 'billing':
+        return <BillingSection />;
       default:
         return null;
     }

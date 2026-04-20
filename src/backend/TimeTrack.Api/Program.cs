@@ -149,6 +149,7 @@ try
 
     // Application Layer (MediatR, FluentValidation)
     builder.Services.AddApplication();
+    builder.Services.AddMemoryCache();
 
     // Infrastructure Layer (Database, Health Checks, Services)
     builder.Services.AddInfrastructure(builder.Configuration);
@@ -218,6 +219,7 @@ try
 
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseMiddleware<SubscriptionCheckMiddleware>();
 
     // Health check endpoints (must be after middleware to catch exceptions)
 

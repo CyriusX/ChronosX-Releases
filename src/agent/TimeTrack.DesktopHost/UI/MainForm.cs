@@ -178,6 +178,11 @@ public sealed class MainForm : Form
             // Initialize WebView2
             await _webView.EnsureCoreWebView2Async(env);
 
+            // Configure API proxy BEFORE navigation so /api/* requests are intercepted
+            // immediately. Setting it up in OnWebViewInitialized causes a race condition
+            // because the event fires after navigation has already started.
+            ConfigureApiProxy(_webView.CoreWebView2!);
+
             // Set source after initialization
             if (bundlePath.StartsWith("http"))
             {
@@ -260,13 +265,13 @@ public sealed class MainForm : Form
             // This MUST run BEFORE React loads, so we use AddScriptToExecuteOnDocumentCreatedAsync
             _ = coreWebView.AddScriptToExecuteOnDocumentCreatedAsync(@"
                 (function() {
-                    // Provide a same-origin API base so the UI never calls production directly
-                    // (production CORS should remain locked down). Requests to /api/* are proxied
-                    // by the DesktopHost via WebResourceRequested.
+                    // Override the API base URL so the UI calls the configured backend
+                    // (either local for dev or production). Without this, apiBase.ts
+                    // would hardcode the production URL when running inside WebView2.
                     try {
-                        if (location && location.hostname === 'app.local') {
-                            window.__APP_CONFIG__ = Object.assign({}, window.__APP_CONFIG__ || {}, { VITE_API_URL: '/api/v1' });
-                        }
+                        window.__APP_CONFIG__ = Object.assign({}, window.__APP_CONFIG__ || {}, {
+                            VITE_API_URL: '" + _backendBaseUrl + @"/api/v1'
+                        });
                     } catch(e) {}
 
                     // Override console.log to send messages to C# for diagnostics
@@ -344,10 +349,14 @@ public sealed class MainForm : Form
         }
     }
 
+    private bool _proxyConfigured;
+
     private void ConfigureApiProxy(CoreWebView2 coreWebView)
     {
+        if (_proxyConfigured) return;
         try
         {
+            _proxyConfigured = true;
             coreWebView.AddWebResourceRequestedFilter("https://app.local/api/*", CoreWebView2WebResourceContext.All);
             coreWebView.WebResourceRequested += OnWebResourceRequested;
             _logger.LogInformation("API proxy enabled: https://app.local/api/* -> {Backend}", _backendBaseUrl);
@@ -483,28 +492,55 @@ public sealed class MainForm : Form
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
-        // Block external navigation for security
-        if (!string.IsNullOrEmpty(e.Uri))
+        if (string.IsNullOrEmpty(e.Uri)) return;
+        var uri = new Uri(e.Uri);
+
+        // Allow only http, https, file protocols
+        if (uri.Scheme != "http" && uri.Scheme != "https" && uri.Scheme != "file")
         {
-            var uri = new Uri(e.Uri);
-
-            // Allow localhost and file:// protocols
-            if (uri.Scheme != "http" && uri.Scheme != "https" && uri.Scheme != "file")
-            {
-                _logger.LogWarning("Blocked navigation to unsupported protocol: {Uri}", e.Uri);
-                e.Cancel = true;
-                return;
-            }
-
-            // Block external domains in production
-#if !DEBUG
-            if (uri.Host != "localhost" && uri.Host != "app.local" && uri.Scheme != "file")
-            {
-                _logger.LogWarning("Blocked external navigation to: {Uri}", e.Uri);
-                e.Cancel = true;
-            }
-#endif
+            _logger.LogWarning("Blocked navigation to unsupported protocol: {Uri}", e.Uri);
+            e.Cancel = true;
+            return;
         }
+
+        // SPA fallback for app.local: non-file paths redirect to index.html
+        if (uri.Host.Equals("app.local", StringComparison.OrdinalIgnoreCase))
+        {
+            var path = uri.AbsolutePath.Trim('/');
+            var isStaticFile = path.StartsWith("assets/", StringComparison.OrdinalIgnoreCase)
+                               || path.Equals("index.html", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".js", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".css", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".woff", StringComparison.OrdinalIgnoreCase);
+
+            if (!isStaticFile && !string.IsNullOrEmpty(path))
+            {
+                var query = !string.IsNullOrEmpty(uri.Query) ? uri.Query : "";
+                e.Cancel = true;
+                _webView!.CoreWebView2!.Navigate($"https://app.local/index.html{query}");
+            }
+            return;
+        }
+
+        // Block external domains in production (allow Stripe for checkout)
+#if !DEBUG
+        var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "localhost", "app.local",
+            "checkout.stripe.com", "billing.stripe.com", "billing.stripe.me",
+            "js.stripe.com", "fonts.googleapis.com"
+        };
+
+        if (!allowedHosts.Contains(uri.Host) && uri.Scheme != "file")
+        {
+            _logger.LogWarning("Blocked external navigation to: {Uri}", e.Uri);
+            e.Cancel = true;
+        }
+#endif
     }
 
     /// <summary>
