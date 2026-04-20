@@ -8,7 +8,10 @@ import { useNotifications } from '../stores/uiStore';
 import { getSubscriptionStatus, listPlans, createCheckout, createPortal } from '../services/billingApi';
 import type { SubscriptionStatusResponse, PlanResponse, SubscriptionStatus } from '../types/billing';
 
-const BLOCKED_STATUSES: Set<string> = new Set(['none', 'past_due', 'unpaid', 'canceled', 'incomplete']);
+// 'none' is the status of an org whose subscription lapsed with no history —
+// 'trial_required' is the status of a brand-new org that hasn't picked a plan
+// yet. Only the former should hard-block; the latter should let the user in.
+const BLOCKED_STATUSES: Set<string> = new Set(['past_due', 'unpaid', 'canceled', 'incomplete']);
 
 export function PaywallOverlay({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);

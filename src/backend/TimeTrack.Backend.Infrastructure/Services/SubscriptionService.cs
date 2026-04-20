@@ -25,9 +25,13 @@ public sealed class SubscriptionService : ISubscriptionService
     {
         var subscription = await _subscriptionRepository.GetByOrgIdUnfilteredAsync(orgId, ct);
 
+        // Orgs without a subscription row (pre-billing migration, failed trial creation, etc.)
+        // get "trial_required" access — they can use core features but the UI should prompt
+        // them to pick a plan. This is distinct from "none", which means an existing
+        // subscription lapsed and is a blocking state.
         if (subscription is null)
         {
-            return new SubscriptionCheckResult { HasAccess = false, Status = "none" };
+            return new SubscriptionCheckResult { HasAccess = true, Status = "trial_required" };
         }
 
         if (subscription.Plan is null)

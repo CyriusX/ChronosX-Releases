@@ -45,9 +45,22 @@ public sealed class SubscriptionCheckMiddleware
         if (!_cache.TryGetValue(cacheKey, out (bool HasAccess, bool IsInGracePeriod, Dictionary<string, bool>? Features) cached))
         {
             var subscription = await subscriptionRepository.GetByOrgIdUnfilteredAsync(orgId, context.RequestAborted);
-            hasAccess = subscription?.HasActiveAccess() ?? false;
-            isInGracePeriod = subscription?.IsInGracePeriod() ?? false;
-            features = subscription?.Plan?.ToFeatureDictionary();
+
+            // NULL subscription = "trial_required" state (pre-billing org or failed trial
+            // creation). Allow access to core routes; feature-gated routes still need a
+            // feature match below, so this won't silently unlock paid features.
+            if (subscription is null)
+            {
+                hasAccess = true;
+                isInGracePeriod = false;
+                features = null;
+            }
+            else
+            {
+                hasAccess = subscription.HasActiveAccess();
+                isInGracePeriod = subscription.IsInGracePeriod();
+                features = subscription.Plan?.ToFeatureDictionary();
+            }
 
             _cache.Set(cacheKey, (hasAccess, isInGracePeriod, features), TimeSpan.FromSeconds(60));
         }
