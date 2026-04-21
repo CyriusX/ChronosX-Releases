@@ -132,14 +132,21 @@ public sealed class DpapiTokenStore : ITokenStore
                     _cachedTokens = null;
                 }
 
-                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                // Any 4xx on /auth/refresh is terminal — the token will never
+                // become valid again. Clear the stored token so the next cycle
+                // doesn't retry forever. 401 (user deactivated) and 400
+                // (validation_failed: "expired or revoked") both land here.
+                var status = (int)response.StatusCode;
+                if (status >= 400 && status < 500)
                 {
-                    _logger.LogError("User deactivated or refresh token invalid");
+                    _logger.LogError(
+                        "Refresh token invalid ({StatusCode}) — clearing stored tokens so user must re-authenticate",
+                        response.StatusCode);
                     await ClearAsync(cancellationToken);
                     return false;
                 }
 
-                _logger.LogWarning("Token refresh failed with status {StatusCode}", response.StatusCode);
+                _logger.LogWarning("Token refresh failed with status {StatusCode} (will retry)", response.StatusCode);
                 return false;
             }
 
