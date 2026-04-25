@@ -379,10 +379,12 @@ struct WebViewContainer: NSViewRepresentable {
         let ipcClient: IpcClient
         let onDevToolsAccessChanged: ((Bool) -> Void)?
         weak var webView: WKWebView?
+        let idleJustificationController: IdleJustificationPromptController
 
         init(ipcClient: IpcClient, onDevToolsAccessChanged: ((Bool) -> Void)?) {
             self.ipcClient = ipcClient
             self.onDevToolsAccessChanged = onDevToolsAccessChanged
+            self.idleJustificationController = IdleJustificationPromptController(ipcClient: ipcClient)
             super.init()
 
             ipcClient.onEvent = { [weak self] event in
@@ -413,6 +415,15 @@ struct WebViewContainer: NSViewRepresentable {
         }
 
 	        func forwardEventToWebView(_ event: IpcEvent) {
+            if event.eventType == "showIdleJustificationPrompt",
+               let jsonStr = event.payload?.value as? String,
+               let data = jsonStr.data(using: .utf8),
+               let payload = try? JSONDecoder().decode(IdleJustificationPromptPayload.self, from: data)
+            {
+                Task { @MainActor [weak self] in
+                    self?.idleJustificationController.showPrompt(payload)
+                }
+            }
 	            guard let wv = webView else { return }
 	            if event.eventType == "devToolsAccessChanged",
 	               let jsonStr = event.payload?.value as? String,

@@ -91,6 +91,10 @@ public sealed class SqliteContext : IAsyncDisposable
                 end_utc TEXT NOT NULL,
                 threshold_seconds INTEGER NOT NULL,
                 is_system_detected INTEGER NOT NULL DEFAULT 1,
+                justification_state TEXT NOT NULL DEFAULT 'none',
+                justification_reason_code TEXT,
+                justification_note TEXT,
+                justification_submitted_at_utc TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -134,6 +138,7 @@ public sealed class SqliteContext : IAsyncDisposable
             CREATE TABLE IF NOT EXISTS org_policies_cache (
                 org_id TEXT PRIMARY KEY,
                 idle_threshold_seconds INTEGER NOT NULL,
+                idle_justification_prompt_threshold_seconds INTEGER,
                 version INTEGER NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -257,6 +262,51 @@ public sealed class SqliteContext : IAsyncDisposable
         {
             _logger.LogInformation("Adding idle_threshold_seconds column to local_settings");
             await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN idle_threshold_seconds INTEGER");
+        }
+
+        var idleJustificationStateExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('idle_periods') WHERE name = 'justification_state'");
+
+        if (idleJustificationStateExists == 0)
+        {
+            _logger.LogInformation("Adding justification_state column to idle_periods");
+            await connection.ExecuteAsync("ALTER TABLE idle_periods ADD COLUMN justification_state TEXT NOT NULL DEFAULT 'none'");
+        }
+
+        var idleJustificationReasonCodeExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('idle_periods') WHERE name = 'justification_reason_code'");
+
+        if (idleJustificationReasonCodeExists == 0)
+        {
+            _logger.LogInformation("Adding justification_reason_code column to idle_periods");
+            await connection.ExecuteAsync("ALTER TABLE idle_periods ADD COLUMN justification_reason_code TEXT");
+        }
+
+        var idleJustificationNoteExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('idle_periods') WHERE name = 'justification_note'");
+
+        if (idleJustificationNoteExists == 0)
+        {
+            _logger.LogInformation("Adding justification_note column to idle_periods");
+            await connection.ExecuteAsync("ALTER TABLE idle_periods ADD COLUMN justification_note TEXT");
+        }
+
+        var idleJustificationSubmittedAtExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('idle_periods') WHERE name = 'justification_submitted_at_utc'");
+
+        if (idleJustificationSubmittedAtExists == 0)
+        {
+            _logger.LogInformation("Adding justification_submitted_at_utc column to idle_periods");
+            await connection.ExecuteAsync("ALTER TABLE idle_periods ADD COLUMN justification_submitted_at_utc TEXT");
+        }
+
+        var orgIdleJustificationPromptThresholdExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('org_policies_cache') WHERE name = 'idle_justification_prompt_threshold_seconds'");
+
+        if (orgIdleJustificationPromptThresholdExists == 0)
+        {
+            _logger.LogInformation("Adding idle_justification_prompt_threshold_seconds column to org_policies_cache");
+            await connection.ExecuteAsync("ALTER TABLE org_policies_cache ADD COLUMN idle_justification_prompt_threshold_seconds INTEGER");
         }
 
         // Add work_goal_seconds column to local_settings

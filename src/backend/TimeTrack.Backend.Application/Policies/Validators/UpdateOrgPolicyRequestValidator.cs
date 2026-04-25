@@ -30,6 +30,18 @@ public sealed class UpdateOrgPolicyRequestValidator : AbstractValidator<UpdateOr
             .WithMessage("Idle threshold must be between 60 and 3600 seconds")
             .When(x => x.IdleThresholdSeconds.HasValue);
 
+        RuleFor(x => x.IdleJustificationPromptThresholdSeconds)
+            .InclusiveBetween(60, 3600)
+            .WithMessage("Idle justification prompt threshold must be between 60 and 3600 seconds")
+            .When(x => x.IdleJustificationPromptThresholdSecondsSpecified && x.IdleJustificationPromptThresholdSeconds.HasValue);
+
+        RuleFor(x => x)
+            .Must(x => !x.IdleJustificationPromptThresholdSecondsSpecified
+                || !x.IdleJustificationPromptThresholdSeconds.HasValue
+                || !x.IdleThresholdSeconds.HasValue
+                || x.IdleJustificationPromptThresholdSeconds.Value >= x.IdleThresholdSeconds.Value)
+            .WithMessage("Idle justification prompt threshold must be greater than or equal to idle threshold");
+
         RuleFor(x => x.RetentionDays)
             .Must(BeValidRetentionDays)
             .WithMessage("Retention days must be one of: 30, 60, 90, 180, 365")

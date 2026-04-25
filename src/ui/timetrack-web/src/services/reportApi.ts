@@ -30,6 +30,15 @@ export type DailyActivitiesResponse = {
     endedAt: string;
     durationSeconds: number;
   }>;
+  idlePeriods: Array<{
+    id: string;
+    startedAt: string;
+    endedAt: string;
+    durationSeconds: number;
+    reasonCode?: string;
+    note?: string;
+    submittedAtUtc?: string;
+  }>;
 };
 
 export type {

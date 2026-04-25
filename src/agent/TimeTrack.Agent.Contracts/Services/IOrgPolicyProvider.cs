@@ -6,6 +6,6 @@ namespace TimeTrack.Agent.Contracts.Services;
 public interface IOrgPolicyProvider
 {
     Task<int?> GetIdleThresholdSecondsAsync(CancellationToken cancellationToken = default);
+    Task<int?> GetIdleJustificationPromptThresholdSecondsAsync(CancellationToken cancellationToken = default);
     Task RefreshAsync(bool force = false, CancellationToken cancellationToken = default);
 }
-

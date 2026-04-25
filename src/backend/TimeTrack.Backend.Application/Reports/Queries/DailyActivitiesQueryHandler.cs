@@ -17,17 +17,20 @@ namespace TimeTrack.Backend.Application.Reports.Queries;
 public sealed class DailyActivitiesQueryHandler : IRequestHandler<DailyActivitiesQuery, DailyActivitiesResponse>
 {
     private readonly IActivitySessionRepository _sessionRepository;
+    private readonly IIdlePeriodRepository _idlePeriodRepository;
     private readonly IAppCategoryOverrideRepository _overrideRepository;
     private readonly IUserAuthorizationService _authorizationService;
     private readonly ICurrentUserContext _currentUser;
 
     public DailyActivitiesQueryHandler(
         IActivitySessionRepository sessionRepository,
+        IIdlePeriodRepository idlePeriodRepository,
         IAppCategoryOverrideRepository overrideRepository,
         IUserAuthorizationService authorizationService,
         ICurrentUserContext currentUser)
     {
         _sessionRepository = sessionRepository;
+        _idlePeriodRepository = idlePeriodRepository;
         _overrideRepository = overrideRepository;
         _authorizationService = authorizationService;
         _currentUser = currentUser;
@@ -68,6 +71,8 @@ public sealed class DailyActivitiesQueryHandler : IRequestHandler<DailyActivitie
 
         var sessions = await _sessionRepository.GetByUserIdAndDateRangeAsync(
             targetUserId, startOfDay, endOfDay, cancellationToken);
+        var idlePeriods = await _idlePeriodRepository.GetByUserIdAndDateRangeAsync(
+            targetUserId, startOfDay, endOfDay, cancellationToken);
 
         // Load org-level overrides for the user's org
         var overrideLookup = await BuildOverrideLookupAsync(sessions, cancellationToken);
@@ -88,6 +93,18 @@ public sealed class DailyActivitiesQueryHandler : IRequestHandler<DailyActivitie
         {
             Date = request.Date.ToString("yyyy-MM-dd"),
             Sessions = sessionDtos,
+            IdlePeriods = idlePeriods
+                .Select(i => new IdlePeriodDto
+                {
+                    Id = i.Id,
+                    StartedAt = i.StartedAt,
+                    EndedAt = i.EndedAt,
+                    DurationSeconds = i.DurationSeconds,
+                    ReasonCode = i.JustificationReasonCode,
+                    Note = i.JustificationNote,
+                    SubmittedAtUtc = i.JustificationSubmittedAtUtc
+                })
+                .ToList(),
         };
     }
 

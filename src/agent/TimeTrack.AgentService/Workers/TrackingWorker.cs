@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Application.UseCases.RecordActiveWindow;
+using TimeTrack.Agent.Application.UseCases.IdleJustification;
 using TimeTrack.Agent.Application.UseCases.RecordIdlePeriod;
 using TimeTrack.Agent.Application.UseCases.TrackingControl;
 using TimeTrack.Agent.Contracts.Providers;
@@ -28,6 +29,7 @@ public sealed class TrackingWorker : BackgroundService
     private readonly IOrgPolicyProvider _orgPolicyProvider;
     private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
     private readonly RecordIdlePeriodUseCase _recordIdlePeriodUseCase;
+    private readonly MarkIdleJustificationPendingUseCase _markIdleJustificationPendingUseCase;
     private readonly TrackingControlUseCase _trackingControl;
     private readonly IIpcServer _ipcServer;
 
@@ -60,6 +62,7 @@ public sealed class TrackingWorker : BackgroundService
         IOrgPolicyProvider orgPolicyProvider,
         RecordActiveWindowUseCase recordActiveWindowUseCase,
         RecordIdlePeriodUseCase recordIdlePeriodUseCase,
+        MarkIdleJustificationPendingUseCase markIdleJustificationPendingUseCase,
         TrackingControlUseCase trackingControl,
         IIpcServer ipcServer)
     {
@@ -73,6 +76,7 @@ public sealed class TrackingWorker : BackgroundService
         _orgPolicyProvider = orgPolicyProvider;
         _recordActiveWindowUseCase = recordActiveWindowUseCase;
         _recordIdlePeriodUseCase = recordIdlePeriodUseCase;
+        _markIdleJustificationPendingUseCase = markIdleJustificationPendingUseCase;
         _trackingControl = trackingControl;
         _ipcServer = ipcServer;
 
@@ -256,6 +260,7 @@ public sealed class TrackingWorker : BackgroundService
         // Resolve effective idle threshold (org policy -> local override -> agent default)
         var localSettings = await _localSettingsRepository.GetAsync(cancellationToken);
         var orgIdleThreshold = await _orgPolicyProvider.GetIdleThresholdSecondsAsync(cancellationToken);
+        var idleJustificationPromptThresholdSecs = await _orgPolicyProvider.GetIdleJustificationPromptThresholdSecondsAsync(cancellationToken);
         var effectiveIdleThresholdSecs = orgIdleThreshold ?? localSettings.IdleThresholdSeconds ?? _settings.IdleThresholdSeconds;
         var effectiveIdleThreshold = TimeSpan.FromSeconds(effectiveIdleThresholdSecs);
 
@@ -336,7 +341,7 @@ public sealed class TrackingWorker : BackgroundService
             // Salvar o período de idle no banco com sincronização
             try
             {
-                await _recordIdlePeriodUseCase.ExecuteAsync(
+                var idleResult = await _recordIdlePeriodUseCase.ExecuteAsync(
                     new RecordIdlePeriodRequest
                     {
                         StartedAt = _idleStartedAt!.Value,
@@ -349,6 +354,27 @@ public sealed class TrackingWorker : BackgroundService
                 _logger.LogInformation(
                     "Período de idle salvo: {Duration:mm\\:ss}",
                     idleDuration);
+
+                if (idleJustificationPromptThresholdSecs.HasValue &&
+                    idleDuration.TotalSeconds >= idleJustificationPromptThresholdSecs.Value)
+                {
+                    await _markIdleJustificationPendingUseCase.ExecuteAsync(idleResult.IdlePeriodId, cancellationToken);
+
+                    if (_ipcServer.IsClientConnected)
+                    {
+                        await _ipcServer.SendEventAsync(new IpcEvent
+                        {
+                            EventType = "showIdleJustificationPrompt",
+                            Payload = new
+                            {
+                                idlePeriodId = idleResult.IdlePeriodId,
+                                startedAt = _idleStartedAt!.Value.ToString("O"),
+                                endedAt = idleEndedAt.ToString("O"),
+                                durationSeconds = (int)idleDuration.TotalSeconds
+                            }
+                        }, cancellationToken);
+                    }
+                }
             }
             catch (Exception ex)
             {

@@ -62,7 +62,21 @@ export async function getDailyActivities(_date: string, _userId?: string) {
     },
   ];
 
-  return { date, sessions };
+  return {
+    date,
+    sessions,
+    idlePeriods: [
+      {
+        id: 'idle-demo-1',
+        startedAt: formatIsoDate(date, 10, 32),
+        endedAt: formatIsoDate(date, 10, 44),
+        durationSeconds: 12 * 60,
+        reasonCode: 'break',
+        note: 'Coffee refill',
+        submittedAtUtc: formatIsoDate(date, 10, 45),
+      },
+    ],
+  };
 }
 
 export async function getDailySummary(date: string, _userId?: string): Promise<DailySummaryResponse> {
@@ -293,4 +307,3 @@ export async function getReportsBundle(
     categoryDistribution,
   };
 }
-

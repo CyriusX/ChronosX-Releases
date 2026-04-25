@@ -95,6 +95,36 @@ public sealed class IngestController : ControllerBase
     }
 
     /// <summary>
+    /// Ingest idle justification updates from the agent
+    /// </summary>
+    [HttpPost("idle-justifications")]
+    [ProducesResponseType(typeof(IngestResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
+    public async Task<ActionResult<IngestResponse>> IngestIdleJustifications(
+        [FromBody] IdleJustificationIngestRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (Request.ContentLength > 2 * 1024 * 1024)
+        {
+            return StatusCode(StatusCodes.Status413PayloadTooLarge, new
+            {
+                error = "PayloadTooLarge",
+                message = "Payload size cannot exceed 2MB"
+            });
+        }
+
+        var command = new IngestIdleJustificationsCommand
+        {
+            Items = request.Items
+        };
+
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Ingest focus sessions from the agent
     /// </summary>
     /// <param name="request">Batch of focus sessions</param>

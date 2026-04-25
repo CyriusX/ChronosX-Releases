@@ -314,6 +314,10 @@ public sealed class SyncWorker : BackgroundService
                 .Where(i => i.EntityType == "idle_period")
                 .ToList();
 
+            var idleJustifications = pendingItems
+                .Where(i => i.EntityType == "idle_justification")
+                .ToList();
+
             var focusSessions = pendingItems
                 .Where(i => i.EntityType == "focus_session")
                 .ToList();
@@ -327,9 +331,10 @@ public sealed class SyncWorker : BackgroundService
                 .ToList();
 
             _logger.LogInformation(
-                "Processando batch: {ActivityCount} activity sessions, {IdleCount} idle periods, {FocusCount} focus sessions, {MetricsCount} machine metrics, {EventCount} agent events",
+                "Processando batch: {ActivityCount} activity sessions, {IdleCount} idle periods, {IdleJustificationCount} idle justifications, {FocusCount} focus sessions, {MetricsCount} machine metrics, {EventCount} agent events",
                 activitySessions.Count,
                 idlePeriods.Count,
+                idleJustifications.Count,
                 focusSessions.Count,
                 machineMetrics.Count,
                 agentEvents.Count);
@@ -370,6 +375,27 @@ public sealed class SyncWorker : BackgroundService
                 var result = await ProcessBatchAsync(
                     idlePeriods,
                     batch => _syncTransport.SendIdlePeriodsAsync(batch, cancellationToken),
+                    cancellationToken);
+
+                if (result.IsSuccess)
+                {
+                    await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
+                    totalSentIds.AddRange(result.ProcessedIds);
+                }
+                else
+                {
+                    hasFailures = true;
+                }
+            }
+
+            if (idleJustifications.Any())
+            {
+                var progress = (int)((double)totalSentIds.Count / totalItems * 100);
+                await _statusBroadcaster.BroadcastSyncProgressAsync("in_progress", progress, "Sincronizando justificativas de inatividade...", cancellationToken);
+
+                var result = await ProcessBatchAsync(
+                    idleJustifications,
+                    batch => _syncTransport.SendIdleJustificationsAsync(batch, cancellationToken),
                     cancellationToken);
 
                 if (result.IsSuccess)

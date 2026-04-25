@@ -37,6 +37,18 @@ public sealed class OrgPolicyProvider : IOrgPolicyProvider
 
     public async Task<int?> GetIdleThresholdSecondsAsync(CancellationToken cancellationToken = default)
     {
+        var entry = await GetEffectiveCacheEntryAsync(cancellationToken);
+        return entry?.IdleThresholdSeconds;
+    }
+
+    public async Task<int?> GetIdleJustificationPromptThresholdSecondsAsync(CancellationToken cancellationToken = default)
+    {
+        var entry = await GetEffectiveCacheEntryAsync(cancellationToken);
+        return entry?.IdleJustificationPromptThresholdSeconds;
+    }
+
+    private async Task<OrgPolicyCacheEntry?> GetEffectiveCacheEntryAsync(CancellationToken cancellationToken)
+    {
         if (!_userContext.OrgId.HasValue)
             return null;
 
@@ -65,7 +77,7 @@ public sealed class OrgPolicyProvider : IOrgPolicyProvider
             _ = RefreshAsync(force: false, cancellationToken);
         }
 
-        return _memoryEntry?.IdleThresholdSeconds;
+        return _memoryEntry;
     }
 
     public async Task RefreshAsync(bool force = false, CancellationToken cancellationToken = default)
@@ -96,6 +108,7 @@ public sealed class OrgPolicyProvider : IOrgPolicyProvider
             {
                 OrgId = policy.OrgId,
                 IdleThresholdSeconds = policy.IdleThresholdSeconds,
+                IdleJustificationPromptThresholdSeconds = policy.IdleJustificationPromptThresholdSeconds,
                 Version = policy.Version,
                 UpdatedAtUtc = policy.UpdatedAt?.ToUniversalTime() ?? DateTime.UtcNow
             };
@@ -104,8 +117,8 @@ public sealed class OrgPolicyProvider : IOrgPolicyProvider
             _memoryEntry = entry;
 
             _logger.LogInformation(
-                "Org policy refreshed. OrgId={OrgId}, IdleThreshold={Idle}s, Version={Version}",
-                entry.OrgId, entry.IdleThresholdSeconds, entry.Version);
+                "Org policy refreshed. OrgId={OrgId}, IdleThreshold={Idle}s, IdleJustificationPromptThreshold={PromptThreshold}s, Version={Version}",
+                entry.OrgId, entry.IdleThresholdSeconds, entry.IdleJustificationPromptThresholdSeconds, entry.Version);
         }
         catch (Exception ex)
         {
@@ -117,4 +130,3 @@ public sealed class OrgPolicyProvider : IOrgPolicyProvider
         }
     }
 }
-

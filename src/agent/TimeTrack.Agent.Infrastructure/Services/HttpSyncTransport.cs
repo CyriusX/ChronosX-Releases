@@ -241,6 +241,78 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
         }
     }
 
+    public async Task<SyncResult> SendIdleJustificationsAsync(
+        IEnumerable<OutboxItem> items,
+        CancellationToken cancellationToken = default)
+    {
+        var itemList = items.ToList();
+        if (!itemList.Any())
+        {
+            return SyncResult.Success(0, 0, Array.Empty<Guid>());
+        }
+
+        try
+        {
+            if (!await EnsureValidTokenAsync(cancellationToken))
+            {
+                return SyncResult.Failure("Authentication failed - user may be deactivated", 401);
+            }
+
+            var payload = BuildIdleJustificationsPayload(itemList);
+            var content = new StringContent(
+                JsonSerializer.Serialize(payload, _jsonOptions),
+                Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient.PostAsync(
+                "/api/v1/ingest/idle-justifications",
+                content,
+                cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized && _tokenStore is not null)
+            {
+                _logger.LogWarning("Received 401, attempting token refresh and retry");
+
+                if (await _tokenStore.RefreshAsync(cancellationToken))
+                {
+                    var jwt = await _tokenStore.GetJwtAsync(cancellationToken);
+                    if (!string.IsNullOrEmpty(jwt))
+                    {
+                        _httpClient.DefaultRequestHeaders.Authorization =
+                            new AuthenticationHeaderValue("Bearer", jwt);
+                    }
+
+                    var retryContent = new StringContent(
+                        JsonSerializer.Serialize(payload, _jsonOptions),
+                        Encoding.UTF8,
+                        "application/json");
+
+                    response = await _httpClient.PostAsync(
+                        "/api/v1/ingest/idle-justifications",
+                        retryContent,
+                        cancellationToken);
+                }
+            }
+
+            return await ProcessResponseAsync(response, itemList);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error sending idle justifications");
+            return SyncResult.Failure($"HTTP error: {ex.Message}");
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Timeout sending idle justifications");
+            return SyncResult.Failure("Request timeout");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending idle justifications");
+            return SyncResult.Failure($"Unexpected error: {ex.Message}");
+        }
+    }
+
     /// <inheritdoc />
     public async Task<SyncResult> SendFocusSessionsAsync(
         IEnumerable<OutboxItem> items,
@@ -574,6 +646,32 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
         return new { Items = idleItems };
     }
 
+    private object BuildIdleJustificationsPayload(IEnumerable<OutboxItem> items)
+    {
+        var itemList = items.ToList();
+        var justificationItems = new List<object>(itemList.Count);
+
+        foreach (var item in itemList)
+        {
+            var payload = JsonSerializer.Deserialize<IdleJustificationPayload>(
+                item.PayloadJson, _jsonOptions);
+
+            if (payload != null)
+            {
+                justificationItems.Add(new
+                {
+                    payload.IdlePeriodId,
+                    payload.ReasonCode,
+                    payload.Note,
+                    payload.SubmittedAtUtc,
+                    item.IdempotencyKey
+                });
+            }
+        }
+
+        return new { Items = justificationItems };
+    }
+
     private object BuildFocusSessionsPayload(IEnumerable<OutboxItem> items)
     {
         var itemList = items.ToList();
@@ -739,6 +837,14 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
         public DateTime EndedAt { get; set; }
         public int ThresholdSeconds { get; set; }
         public bool IsSystemDetected { get; set; }
+    }
+
+    private sealed class IdleJustificationPayload
+    {
+        public Guid IdlePeriodId { get; set; }
+        public string ReasonCode { get; set; } = string.Empty;
+        public string? Note { get; set; }
+        public DateTime SubmittedAtUtc { get; set; }
     }
 
     private sealed class FocusSessionPayload

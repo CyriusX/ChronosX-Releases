@@ -48,7 +48,11 @@ export async function getDailySummary(
 export async function getDailyActivities(
   date: string,
   userId?: string
-): Promise<{ date: string; sessions: Array<{ processName: string; windowTitle?: string; appCategory?: string; startedAt: string; endedAt: string; durationSeconds: number }> }> {
+): Promise<{
+  date: string;
+  sessions: Array<{ processName: string; windowTitle?: string; appCategory?: string; startedAt: string; endedAt: string; durationSeconds: number }>;
+  idlePeriods: Array<{ id: string; startedAt: string; endedAt: string; durationSeconds: number; reasonCode?: string; note?: string; submittedAtUtc?: string }>;
+}> {
   const params = new URLSearchParams({ date, timezone: getUserTimezone() });
   if (userId) {
     params.append('userId', userId);

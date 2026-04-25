@@ -15,7 +15,7 @@ public sealed class OrgPolicyCacheEntry
 {
     public Guid OrgId { get; init; }
     public int IdleThresholdSeconds { get; init; }
+    public int? IdleJustificationPromptThresholdSeconds { get; init; }
     public int Version { get; init; }
     public DateTime UpdatedAtUtc { get; init; }
 }
-

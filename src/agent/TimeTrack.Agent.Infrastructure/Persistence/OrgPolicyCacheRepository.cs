@@ -25,6 +25,7 @@ public sealed class OrgPolicyCacheRepository : IOrgPolicyCacheRepository
         const string sql = @"
             SELECT org_id as OrgId,
                    idle_threshold_seconds as IdleThresholdSeconds,
+                   idle_justification_prompt_threshold_seconds as IdleJustificationPromptThresholdSeconds,
                    version as Version,
                    updated_at as UpdatedAtUtc
             FROM org_policies_cache
@@ -38,6 +39,7 @@ public sealed class OrgPolicyCacheRepository : IOrgPolicyCacheRepository
         {
             OrgId = Guid.Parse(dto.OrgId),
             IdleThresholdSeconds = dto.IdleThresholdSeconds,
+            IdleJustificationPromptThresholdSeconds = dto.IdleJustificationPromptThresholdSeconds,
             Version = dto.Version,
             UpdatedAtUtc = DateTime.TryParse(dto.UpdatedAtUtc, out var parsed)
                 ? DateTime.SpecifyKind(parsed, DateTimeKind.Utc)
@@ -50,10 +52,11 @@ public sealed class OrgPolicyCacheRepository : IOrgPolicyCacheRepository
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
-            INSERT INTO org_policies_cache (org_id, idle_threshold_seconds, version, updated_at)
-            VALUES (@OrgId, @IdleThresholdSeconds, @Version, @UpdatedAtUtc)
+            INSERT INTO org_policies_cache (org_id, idle_threshold_seconds, idle_justification_prompt_threshold_seconds, version, updated_at)
+            VALUES (@OrgId, @IdleThresholdSeconds, @IdleJustificationPromptThresholdSeconds, @Version, @UpdatedAtUtc)
             ON CONFLICT(org_id) DO UPDATE SET
               idle_threshold_seconds = excluded.idle_threshold_seconds,
+              idle_justification_prompt_threshold_seconds = excluded.idle_justification_prompt_threshold_seconds,
               version = excluded.version,
               updated_at = excluded.updated_at";
 
@@ -61,19 +64,21 @@ public sealed class OrgPolicyCacheRepository : IOrgPolicyCacheRepository
         {
             OrgId = entry.OrgId.ToString(),
             IdleThresholdSeconds = entry.IdleThresholdSeconds,
+            IdleJustificationPromptThresholdSeconds = entry.IdleJustificationPromptThresholdSeconds,
             Version = entry.Version,
             UpdatedAtUtc = entry.UpdatedAtUtc.ToString("o")
         });
 
         _logger.LogDebug(
-            "Org policy cached: OrgId={OrgId}, IdleThreshold={IdleThresholdSeconds}s, Version={Version}",
-            entry.OrgId, entry.IdleThresholdSeconds, entry.Version);
+            "Org policy cached: OrgId={OrgId}, IdleThreshold={IdleThresholdSeconds}s, IdleJustificationPromptThreshold={PromptThreshold}s, Version={Version}",
+            entry.OrgId, entry.IdleThresholdSeconds, entry.IdleJustificationPromptThresholdSeconds, entry.Version);
     }
 
     private sealed class OrgPolicyCacheDto
     {
         public string OrgId { get; init; } = string.Empty;
         public int IdleThresholdSeconds { get; init; }
+        public int? IdleJustificationPromptThresholdSeconds { get; init; }
         public int Version { get; init; }
         public string UpdatedAtUtc { get; init; } = string.Empty;
     }

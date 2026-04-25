@@ -50,6 +50,7 @@ public sealed class BackendOrgPoliciesClient : IBackendOrgPoliciesClient
             OrgId = dto.OrgId,
             Version = dto.Version,
             IdleThresholdSeconds = dto.IdleThresholdSeconds,
+            IdleJustificationPromptThresholdSeconds = dto.IdleJustificationPromptThresholdSeconds,
             UpdatedAt = dto.UpdatedAt
         };
     }
@@ -98,7 +99,7 @@ public sealed class BackendOrgPoliciesClient : IBackendOrgPoliciesClient
         public Guid OrgId { get; init; }
         public int Version { get; init; }
         public int IdleThresholdSeconds { get; init; }
+        public int? IdleJustificationPromptThresholdSeconds { get; init; }
         public DateTime? UpdatedAt { get; init; }
     }
 }
-

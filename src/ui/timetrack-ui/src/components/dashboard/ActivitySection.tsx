@@ -28,6 +28,7 @@ interface TabDetail {
 
 interface ActivityBlock {
   id: string;
+  kind?: 'activity' | 'idle';
   name: string;
   startUtc: string;
   endUtc: string;
@@ -35,6 +36,9 @@ interface ActivityBlock {
   productivity: string;
   subcategory: string;
   color: string;
+  reasonCode?: string;
+  note?: string;
+  submittedAtUtc?: string;
   tabs?: TabDetail[];
 }
 
@@ -253,7 +257,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     if (isControlled) return;
     const today = new Date().toISOString().split('T')[0];
     getDailyActivities(today).then(result => {
-      if (!result?.sessions?.length) return;
+      if (!result?.sessions?.length && !result?.idlePeriods?.length) return;
       const hiddenSet = new Set(hiddenApps.map(a => a.toLowerCase()));
       const APP_PALETTE = [
         '#38bdf8','#f472b6','#34d399','#fb923c','#a78bfa',
@@ -279,6 +283,24 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
           color: colorMap.get(s.processName) ?? '#94a3b8',
         });
       }
+      for (const idlePeriod of result.idlePeriods ?? []) {
+        blocks.push({
+          id: idlePeriod.id,
+          kind: 'idle',
+          name: 'Idle',
+          startUtc: idlePeriod.startedAt,
+          endUtc: idlePeriod.endedAt,
+          duration: idlePeriod.durationSeconds,
+          productivity: 'idle',
+          subcategory: 'idle',
+          color: '#64748b',
+          reasonCode: idlePeriod.reasonCode,
+          note: idlePeriod.note,
+          submittedAtUtc: idlePeriod.submittedAtUtc,
+          tabs: [],
+        });
+      }
+      blocks.sort((a, b) => new Date(a.startUtc).getTime() - new Date(b.startUtc).getTime());
       setInternalActivities(blocks);
     }).catch(() => { /* ignore — IPC will fill in once connected */ });
   // Only run once on mount; IPC polling below keeps it fresh
@@ -597,6 +619,20 @@ function ActivityTooltip({ block, anchorRect }: { block: ActivityBlock; anchorRe
           {fmtTime(block.startUtc)} – {fmtTime(block.endUtc)}
           <span className="text-[rgba(245,247,251,0.7)] font-medium ml-1.5">{fmtDuration(block.duration)}</span>
         </p>
+        {(block.reasonCode || block.note) && (
+          <div className="border-t border-[rgba(255,255,255,0.08)] pt-1.5 mb-2 space-y-1">
+            {block.reasonCode && (
+              <p className="text-[9px] text-[rgba(245,247,251,0.72)]">
+                Reason: {block.reasonCode.split('_').join(' ')}
+              </p>
+            )}
+            {block.note && (
+              <p className="text-[9px] text-[rgba(245,247,251,0.55)] leading-relaxed">
+                {block.note}
+              </p>
+            )}
+          </div>
+        )}
         {block.tabs && block.tabs.length > 0 && (
           <div className="border-t border-[rgba(255,255,255,0.08)] pt-1.5 space-y-[5px]">
             <p className="text-[8px] uppercase tracking-wider text-[rgba(245,247,251,0.25)] mb-1">{t('dashboard.activitiesTab')}</p>

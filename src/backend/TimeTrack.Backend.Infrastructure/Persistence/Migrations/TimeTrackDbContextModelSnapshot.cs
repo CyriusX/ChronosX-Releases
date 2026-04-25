@@ -67,6 +67,20 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("idempotency_key");
 
+                    b.Property<string>("JustificationNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("justification_note");
+
+                    b.Property<string>("JustificationReasonCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("justification_reason_code");
+
+                    b.Property<DateTime?>("JustificationSubmittedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("justification_submitted_at_utc");
+
                     b.Property<Guid>("OrgId")
                         .HasColumnType("uuid")
                         .HasColumnName("org_id");
@@ -1157,6 +1171,10 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(180)
                         .HasColumnName("idle_threshold_seconds");
+
+                    b.Property<int?>("IdleJustificationPromptThresholdSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("idle_justification_prompt_threshold_seconds");
 
                     b.Property<Guid>("OrgId")
                         .HasColumnType("uuid")

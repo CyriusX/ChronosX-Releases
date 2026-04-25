@@ -69,6 +69,14 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatReason(reasonCode?: string) {
+  if (!reasonCode) return '';
+  return reasonCode
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 const DEFAULT_VISIBLE = 8;
 
 export function SessionList({ activities, defaultCollapsed = true }: SessionListProps) {
@@ -136,7 +144,7 @@ export function SessionList({ activities, defaultCollapsed = true }: SessionList
                     {visible.map((a, i) => (
                       <motion.div
                         key={a.id || i}
-                        className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+                        className="flex items-start gap-2 py-1.5 px-2 rounded-lg hover:bg-[rgba(255,255,255,0.02)] transition-colors"
                         variants={fadeUp}
                       >
                         {/* Time range */}
@@ -152,9 +160,16 @@ export function SessionList({ activities, defaultCollapsed = true }: SessionList
                         {/* App icon + name */}
                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
                           <AppIcon name={a.name} size={13} />
-                          <span className="text-[10px] text-[rgba(245,247,251,0.7)] truncate">
-                            {a.name}
-                          </span>
+                          <div className="min-w-0">
+                            <span className="block text-[10px] text-[rgba(245,247,251,0.7)] truncate">
+                              {a.name}
+                            </span>
+                            {(a.reasonCode || a.note) && (
+                              <span className="block text-[9px] text-[rgba(245,247,251,0.42)] truncate">
+                                {[formatReason(a.reasonCode), a.note].filter(Boolean).join(' • ')}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Category */}

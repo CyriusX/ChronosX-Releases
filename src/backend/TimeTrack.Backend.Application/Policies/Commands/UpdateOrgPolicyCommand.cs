@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentValidation;
+using ValidationException = FluentValidation.ValidationException;
 using MediatR;
 using TimeTrack.Backend.Application.Policies.DTOs;
 using TimeTrack.Backend.Application.Policies.Validators;
@@ -85,11 +86,21 @@ public sealed class UpdateOrgPolicyCommandHandler : IRequestHandler<UpdateOrgPol
             focusModeJson = JsonSerializer.Serialize(focusMode, JsonOptions);
         }
 
+        var effectiveIdleThresholdSeconds = request.IdleThresholdSeconds ?? policy.IdleThresholdSeconds;
+        if (request.IdleJustificationPromptThresholdSecondsSpecified &&
+            request.IdleJustificationPromptThresholdSeconds.HasValue &&
+            request.IdleJustificationPromptThresholdSeconds.Value < effectiveIdleThresholdSeconds)
+        {
+            throw new ValidationException("Idle justification prompt threshold must be greater than or equal to idle threshold");
+        }
+
         // Update policy
         policy.Update(
             workHoursJson,
             appExclusionsJson,
             request.IdleThresholdSeconds,
+            request.IdleJustificationPromptThresholdSecondsSpecified,
+            request.IdleJustificationPromptThresholdSeconds,
             request.RetentionDays,
             focusModeJson);
 
@@ -128,6 +139,7 @@ public sealed class UpdateOrgPolicyCommandHandler : IRequestHandler<UpdateOrgPol
                 : new WorkHoursDto(),
             AppExclusions = appExclusions ?? new List<string>(),
             IdleThresholdSeconds = policy.IdleThresholdSeconds,
+            IdleJustificationPromptThresholdSeconds = policy.IdleJustificationPromptThresholdSeconds,
             RetentionDays = policy.RetentionDays,
             FocusMode = focusMode != null
                 ? new FocusModeDto

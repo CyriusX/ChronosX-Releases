@@ -156,6 +156,9 @@ export interface OrgPolicyResponse {
   /** Idle threshold in seconds (60-3600) */
   idleThresholdSeconds: number;
 
+  /** Prompt threshold for optional idle justifications. null = disabled */
+  idleJustificationPromptThresholdSeconds: number | null;
+
   /** Data retention period in days */
   retentionDays: number;
 
@@ -181,6 +184,7 @@ export interface UpdateOrgPolicyRequest {
   };
   appExclusions?: string[];
   idleThresholdSeconds?: number;
+  idleJustificationPromptThresholdSeconds?: number | null;
   retentionDays?: number;
   focusMode?: {
     enabled?: boolean;

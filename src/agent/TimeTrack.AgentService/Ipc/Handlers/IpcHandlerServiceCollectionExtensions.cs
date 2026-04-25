@@ -49,6 +49,8 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcCommandHandler, UpdateAppCategoryCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, SetLaunchAtLoginCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, DismissActivityResumePromptCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, SubmitIdleJustificationCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, DismissIdleJustificationCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, TestActivityResumeToastCommandHandler>(); // TODO: Remove after testing
         services.AddSingleton<IIpcCommandHandler, CheckForUpdatesCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, StartUpdateCommandHandler>();

@@ -14,6 +14,6 @@ public sealed class OrgPolicyResult
     public Guid OrgId { get; init; }
     public int Version { get; init; }
     public int IdleThresholdSeconds { get; init; }
+    public int? IdleJustificationPromptThresholdSeconds { get; init; }
     public DateTime? UpdatedAt { get; init; }
 }
-

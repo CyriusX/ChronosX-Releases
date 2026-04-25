@@ -41,6 +41,21 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         return await GetByDateRangeAsync(userId, startOfDayUtc, endOfDayUtc, cancellationToken);
     }
 
+    public async Task<IdlePeriod?> GetByIdAsync(Guid idlePeriodId, CancellationToken cancellationToken = default)
+    {
+        var connection = await _context.GetConnectionAsync(cancellationToken);
+
+        const string sql = @"
+            SELECT id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected,
+                   justification_state, justification_reason_code, justification_note, justification_submitted_at_utc
+            FROM idle_periods
+            WHERE id = @Id
+            LIMIT 1";
+
+        var dto = await connection.QueryFirstOrDefaultAsync<IdlePeriodDto>(sql, new { Id = idlePeriodId.ToString() });
+        return dto is null ? null : MapToDomain(dto);
+    }
+
     public async Task<IReadOnlyList<IdlePeriod>> GetByDateRangeAsync(
         Guid userId,
         DateTime start,
@@ -50,7 +65,8 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
-            SELECT id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected
+            SELECT id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected,
+                   justification_state, justification_reason_code, justification_note, justification_submitted_at_utc
             FROM idle_periods
             WHERE user_id = @UserId AND start_utc >= @Start AND start_utc < @End
             ORDER BY start_utc";
@@ -68,19 +84,13 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
 
         const string sql = @"
             INSERT OR REPLACE INTO idle_periods
-                (id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected)
+                (id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected,
+                 justification_state, justification_reason_code, justification_note, justification_submitted_at_utc)
             VALUES
-                (@Id, @UserId, @StartUtc, @EndUtc, @ThresholdSeconds, @IsSystemDetected)";
+                (@Id, @UserId, @StartUtc, @EndUtc, @ThresholdSeconds, @IsSystemDetected,
+                 @JustificationState, @JustificationReasonCode, @JustificationNote, @JustificationSubmittedAtUtc)";
 
-        await connection.ExecuteAsync(sql, new
-        {
-            Id = period.Id.ToString(),
-            UserId = period.UserId.ToString(),
-            StartUtc = period.Period.StartUtc,
-            EndUtc = period.Period.EndUtc,
-            ThresholdSeconds = period.ThresholdSeconds,
-            IsSystemDetected = period.IsSystemDetected ? 1 : 0
-        });
+        await connection.ExecuteAsync(sql, MapToDto(period));
 
         _logger.LogDebug("Idle period saved: {Period}", period);
     }
@@ -95,19 +105,13 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
 
         const string sql = @"
             INSERT OR REPLACE INTO idle_periods
-                (id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected)
+                (id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected,
+                 justification_state, justification_reason_code, justification_note, justification_submitted_at_utc)
             VALUES
-                (@Id, @UserId, @StartUtc, @EndUtc, @ThresholdSeconds, @IsSystemDetected)";
+                (@Id, @UserId, @StartUtc, @EndUtc, @ThresholdSeconds, @IsSystemDetected,
+                 @JustificationState, @JustificationReasonCode, @JustificationNote, @JustificationSubmittedAtUtc)";
 
-        var parameters = periods.Select(p => new
-        {
-            Id = p.Id.ToString(),
-            UserId = p.UserId.ToString(),
-            StartUtc = p.Period.StartUtc,
-            EndUtc = p.Period.EndUtc,
-            ThresholdSeconds = p.ThresholdSeconds,
-            IsSystemDetected = p.IsSystemDetected ? 1 : 0
-        });
+        var parameters = periods.Select(MapToDto);
 
         await connection.ExecuteAsync(sql, parameters);
 
@@ -119,6 +123,27 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         IEnumerable<OutboxItem> outboxItems,
         CancellationToken cancellationToken = default)
     {
+        await PersistWithOptionalOutboxAsync(period, outboxItems, cancellationToken);
+    }
+
+    public async Task UpdateAsync(IdlePeriod period, CancellationToken cancellationToken = default)
+    {
+        await SaveAsync(period, cancellationToken);
+    }
+
+    public async Task UpdateWithOutboxAsync(
+        IdlePeriod period,
+        IEnumerable<OutboxItem> outboxItems,
+        CancellationToken cancellationToken = default)
+    {
+        await PersistWithOptionalOutboxAsync(period, outboxItems, cancellationToken);
+    }
+
+    private async Task PersistWithOptionalOutboxAsync(
+        IdlePeriod period,
+        IEnumerable<OutboxItem> outboxItems,
+        CancellationToken cancellationToken)
+    {
         var connection = await _context.GetConnectionAsync(cancellationToken);
         var transaction = await _context.BeginTransactionAsync(cancellationToken);
 
@@ -127,20 +152,14 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
             // 1. Salvar idle period
             const string periodSql = @"
                 INSERT OR REPLACE INTO idle_periods
-                    (id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected)
+                    (id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected,
+                     justification_state, justification_reason_code, justification_note, justification_submitted_at_utc)
                 VALUES
-                    (@Id, @UserId, @StartUtc, @EndUtc, @ThresholdSeconds, @IsSystemDetected)
+                    (@Id, @UserId, @StartUtc, @EndUtc, @ThresholdSeconds, @IsSystemDetected,
+                     @JustificationState, @JustificationReasonCode, @JustificationNote, @JustificationSubmittedAtUtc)
             ";
 
-            await connection.ExecuteAsync(periodSql, new
-            {
-                Id = period.Id.ToString(),
-                UserId = period.UserId.ToString(),
-                StartUtc = period.Period.StartUtc,
-                EndUtc = period.Period.EndUtc,
-                ThresholdSeconds = period.ThresholdSeconds,
-                IsSystemDetected = period.IsSystemDetected ? 1 : 0
-            });
+            await connection.ExecuteAsync(periodSql, MapToDto(period));
 
             // 2. Salvar outbox items
             const string outboxSql = @"
@@ -205,12 +224,43 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
     {
         var period = new TimeRange(dto.Start_Utc, dto.End_Utc);
 
-        return new IdlePeriod(
+        var idlePeriod = new IdlePeriod(
             Guid.Parse(dto.Id),
             Guid.Parse(dto.User_Id),
             period,
             dto.Threshold_Seconds,
             dto.Is_System_Detected != 0);
+
+        if (dto.Justification_State == IdleJustificationStates.Pending)
+            idlePeriod.MarkJustificationPending();
+        else if (dto.Justification_State == IdleJustificationStates.Dismissed)
+            idlePeriod.DismissJustification();
+        else if (dto.Justification_State == IdleJustificationStates.Submitted &&
+                 !string.IsNullOrWhiteSpace(dto.Justification_Reason_Code) &&
+                 dto.Justification_Submitted_At_Utc.HasValue)
+            idlePeriod.SubmitJustification(
+                dto.Justification_Reason_Code!,
+                dto.Justification_Note,
+                dto.Justification_Submitted_At_Utc.Value);
+
+        return idlePeriod;
+    }
+
+    private static object MapToDto(IdlePeriod period)
+    {
+        return new
+        {
+            Id = period.Id.ToString(),
+            UserId = period.UserId.ToString(),
+            StartUtc = period.Period.StartUtc,
+            EndUtc = period.Period.EndUtc,
+            ThresholdSeconds = period.ThresholdSeconds,
+            IsSystemDetected = period.IsSystemDetected ? 1 : 0,
+            JustificationState = period.JustificationState,
+            JustificationReasonCode = period.JustificationReasonCode,
+            JustificationNote = period.JustificationNote,
+            JustificationSubmittedAtUtc = period.JustificationSubmittedAtUtc?.ToString("o")
+        };
     }
 
     /// <summary>
@@ -224,5 +274,9 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         public DateTime End_Utc { get; set; }
         public int Threshold_Seconds { get; set; }
         public int Is_System_Detected { get; set; }
+        public string Justification_State { get; set; } = IdleJustificationStates.None;
+        public string? Justification_Reason_Code { get; set; }
+        public string? Justification_Note { get; set; }
+        public DateTime? Justification_Submitted_At_Utc { get; set; }
     }
 }
