@@ -24,7 +24,6 @@ import {
   getCategoryDistribution,
 } from '../services/reportApi';
 import { useIpc } from './useIpc';
-import { isDesktopRuntime } from '../lib/runtime';
 import type {
   DailySummaryRangeResponse,
   ProductivityTrendResponse,
@@ -40,9 +39,6 @@ import type {
 } from '../types/reports';
 import { PERIOD_PRESETS as periodPresets, toLocalDateStr } from '../types/reports';
 import type { TodaySummaryResponse } from '../types/ipc';
-
-// Polling interval for automatic refresh (60 seconds)
-const POLLING_INTERVAL_MS = 60000;
 
 // ============================================================================
 // TYPES
@@ -159,8 +155,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     topFoldersLimit: 20,
   }));
 
-  // Polling refs
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Fetch coordination refs
   const isFetchingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
   const refreshImplRef = useRef<() => Promise<void>>(async () => {});
@@ -210,7 +205,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
   // IPC FOR LOCAL DATA (Today only)
   // ============================================================================
 
-  const { sendQuery, subscribeToEvent, isConnected } = useIpc();
+  const { sendQuery, isConnected } = useIpc();
 
   // ============================================================================
   // DATA FETCHERS
@@ -567,69 +562,10 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     refresh,
   ]);
 
-  // ============================================================================
-  // POLLING - Automatic refresh every 60 seconds
-  // ============================================================================
-
-  useEffect(() => {
-    if (!autoFetch || !filters.dateRange.startDate) {
-      return;
-    }
-
-    pollingIntervalRef.current = setInterval(() => {
-      // Prevent concurrent fetches
-      if (isFetchingRef.current) {
-        console.log('[useReportsData] Skipping polling refresh - fetch already in progress');
-        return;
-      }
-
-      // Avoid polling while tab is hidden to reduce request volume/rate limiting.
-      if (document.visibilityState !== 'visible') {
-        console.log('[useReportsData] Skipping polling refresh - tab not visible');
-        return;
-      }
-
-      console.log('[useReportsData] Polling refresh triggered');
-      refresh();
-    }, POLLING_INTERVAL_MS);
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, [autoFetch, filters.dateRange.startDate, refresh]);
-
-  // ============================================================================
-  // DESKTOP IPC EVENTS - Refresh after sync completes
-  // ============================================================================
-
-  useEffect(() => {
-    if (!autoFetch) return;
-    if (!isDesktopRuntime()) return;
-    if (!isConnected) return;
-
-    const unsubscribe = subscribeToEvent('syncCompleted', () => {
-      console.log('[useReportsData] Sync completed - refreshing reports');
-      refresh();
-    });
-
-    return unsubscribe;
-  }, [autoFetch, isConnected, subscribeToEvent, refresh]);
-
-  // Refresh when window becomes visible (restored from tray) on Desktop.
-  useEffect(() => {
-    if (!autoFetch) return;
-    if (!isDesktopRuntime()) return;
-
-    const handleAppVisible = () => {
-      console.log('[useReportsData] App became visible - refreshing reports');
-      refresh();
-    };
-    window.addEventListener('app-visible', handleAppVisible);
-    return () => window.removeEventListener('app-visible', handleAppVisible);
-  }, [autoFetch, refresh]);
+  // Auto-refresh on polling interval, syncCompleted IPC events, and window
+  // visibility was intentionally removed. The Reports page now fetches once on
+  // mount (and whenever filters change) and leaves updates to the user via the
+  // header's manual refresh button.
 
   // ============================================================================
   // RETURN
