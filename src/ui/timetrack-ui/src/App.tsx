@@ -207,11 +207,17 @@ function App() {
   // Restore UI session from the Agent's token store (Keychain/DPAPI) when the desktop
   // webview starts on a fresh origin (e.g., macOS localhost port changes) and localStorage
   // doesn't have `timetrack-auth`. This avoids forcing the user to login on every launch.
+  //
+  // We only flip `attemptedAgentSessionRestoreRef` to true when we either succeed or
+  // learn definitively that the Agent has no tokens. Transient failures (e.g. the
+  // /auth/me/summary call returning 5xx for a minute on app start) leave the flag
+  // unset so the effect retries on the next render — otherwise a momentary backend
+  // blip at 09:00 would force the user to log in even though the Agent holds a
+  // perfectly valid session.
   useEffect(() => {
     if (!isReady || !isConnected) return;
     if (isAuthenticated) return;
     if (attemptedAgentSessionRestoreRef.current) return;
-    attemptedAgentSessionRestoreRef.current = true;
 
     const restore = async () => {
       try {
@@ -219,7 +225,12 @@ function App() {
         const result = await ipcService.sendQuery('getTokens');
         const data = result.data as { hasTokens?: boolean; accessToken?: string; refreshToken?: string; expiresIn?: number } | undefined;
 
-        if (!result.success || !data?.hasTokens || !data.accessToken) return;
+        if (!result.success) return; // transient IPC failure — retry next render
+        if (!data?.hasTokens || !data.accessToken) {
+          // Definitive: Agent has no session to restore. Stop retrying.
+          attemptedAgentSessionRestoreRef.current = true;
+          return;
+        }
 
         const authStore = useAuthStore.getState();
         authStore.setTokens({
@@ -246,11 +257,14 @@ function App() {
               subscriptionStatus: me.subscriptionStatus ?? 'none',
               planTier: me.planTier ?? '',
             });
+            attemptedAgentSessionRestoreRef.current = true;
             dispatchNavigate('/', true);
             return;
           }
+          // Non-OK /auth/me/summary (e.g. 5xx) — fall through to JWT claim fallback.
+          // We only give up on the claim path too; don't flip the retry flag here.
         } catch {
-          // fall through to JWT claim fallback
+          // Network error — fall through to JWT claim fallback.
         }
 
         // Fallback: minimal identity from JWT claims (keeps the UI usable offline).
@@ -272,10 +286,13 @@ function App() {
             subscriptionStatus: 'none',
             planTier: '',
           });
+          attemptedAgentSessionRestoreRef.current = true;
           dispatchNavigate('/', true);
         }
+        // If claim parsing failed we leave the flag unset — the next render
+        // (or the "sync tokens on IPC connect" effect below) can retry.
       } catch {
-        // non-critical
+        // Transient — leave retry flag unset.
       }
     };
 

@@ -43,7 +43,8 @@ export type AgentEventType =
   | 'updateAvailable'
   | 'updateProgress'
   | 'updateComplete'
-  | 'updateFailed';
+  | 'updateFailed'
+  | 'sessionRevoked';
 
 // ============================================================================
 // EVENT PAYLOADS
@@ -214,6 +215,10 @@ export interface TokensRefreshedPayload {
   expiresIn: number;
 }
 
+export interface SessionRevokedPayload {
+  reason: string;
+}
+
 export interface DevToolsAccessChangedPayload {
   devToolsEnabled: boolean;
 }
@@ -240,6 +245,7 @@ export interface EventPayloadMap {
   updateComplete: UpdateCompletePayload;
   updateFailed: UpdateFailedPayload;
   tokensRefreshed: TokensRefreshedPayload;
+  sessionRevoked: SessionRevokedPayload;
   devToolsAccessChanged: DevToolsAccessChangedPayload;
 }
 
@@ -249,6 +255,7 @@ export interface EventPayloadMap {
 
 export type AgentCommand =
   | 'storeTokens'
+  | 'refreshTokens'
   | 'startTracking'
   | 'stopTracking'
   | 'pauseTracking'
@@ -330,6 +337,7 @@ export interface RecordFocusSessionPayload {
 // Command payload map for type-safe commands
 export interface CommandPayloadMap {
   storeTokens: StoreTokensPayload;
+  refreshTokens: undefined;
   startTracking: undefined;
   stopTracking: undefined;
   pauseTracking: PauseTrackingPayload;

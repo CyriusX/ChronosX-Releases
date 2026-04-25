@@ -27,6 +27,7 @@ public static class IpcHandlerServiceCollectionExtensions
     {
         // Command Handlers
         services.AddSingleton<IIpcCommandHandler, StoreTokensCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, RefreshTokensCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, StartTrackingCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, StopTrackingCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, PauseTrackingCommandHandler>();

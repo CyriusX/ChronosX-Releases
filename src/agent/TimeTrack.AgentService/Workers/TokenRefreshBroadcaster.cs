@@ -5,14 +5,14 @@ using TimeTrack.AgentService.Ipc;
 namespace TimeTrack.AgentService.Workers;
 
 /// <summary>
-/// Subscribes to ITokenStore.TokensStored and broadcasts new tokens to the
-/// DesktopHost (and ultimately the WebView2 UI) so that the React app's
-/// localStorage stays in sync after the Agent refreshes tokens.
+/// Subscribes to ITokenStore token lifecycle events and forwards them to the
+/// DesktopHost (and ultimately the WebView2 UI).
 ///
-/// The backend uses single-use refresh-token rotation. When the Agent calls
-/// RefreshAsync(), the old refresh token is revoked. Without this broadcaster
-/// the UI would hold a stale, revoked refresh token and fail to restore the
-/// session on the next app start.
+/// - TokensStored  -> tokensRefreshed event (keeps the UI's localStorage in sync
+///   after the Agent rotates the refresh token against the single-use backend).
+/// - TokensCleared -> sessionRevoked event (the Agent only clears tokens when
+///   the backend tells it the refresh token is permanently invalid; the UI uses
+///   this as a signal to log out the user, as opposed to a transient error).
 /// </summary>
 public sealed class TokenRefreshBroadcaster
 {
@@ -30,6 +30,7 @@ public sealed class TokenRefreshBroadcaster
         _logger = logger;
 
         _tokenStore.TokensStored += OnTokensStored;
+        _tokenStore.TokensCleared += OnTokensCleared;
     }
 
     private async void OnTokensStored(object? sender, TokensStoredEventArgs e)
@@ -58,6 +59,29 @@ public sealed class TokenRefreshBroadcaster
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error broadcasting tokensRefreshed event");
+        }
+    }
+
+    private async void OnTokensCleared(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (!_ipcServer.IsClientConnected)
+                return;
+
+            _logger.LogInformation("Broadcasting sessionRevoked event to DesktopHost");
+
+            await _ipcServer.SendEventAsync(
+                new IpcEvent
+                {
+                    EventType = "sessionRevoked",
+                    Payload = new { reason = "refresh_token_revoked" }
+                },
+                CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error broadcasting sessionRevoked event");
         }
     }
 

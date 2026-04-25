@@ -54,7 +54,6 @@ interface AuthState {
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, displayName: string, organizationName: string) => Promise<RegisterResponse | null>;
   logout: () => Promise<void>;
-  refreshTokens: () => Promise<boolean>;
   setUser: (user: User) => void;
   setTokens: (tokens: AuthTokens) => void;
   setLoading: (loading: boolean) => void;
@@ -95,28 +94,6 @@ async function loginApi(email: string, password: string) {
   }
 
   return response.json();
-}
-
-async function refreshApi(refreshToken: string) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
-  try {
-    const response = await fetch(`${apiBase()}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error('Token refresh failed');
-    }
-
-    return response.json();
-  } finally {
-    clearTimeout(timeout);
-  }
 }
 
 async function registerApi(email: string, password: string, displayName: string, organizationName: string): Promise<RegisterResponse> {
@@ -312,34 +289,6 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
-      refreshTokens: async () => {
-        const { tokens } = get();
-
-        if (!tokens?.refreshToken) {
-          return false;
-        }
-
-        try {
-          const response = await refreshApi(tokens.refreshToken);
-
-          const newTokens: AuthTokens = {
-            accessToken: response.accessToken,
-            refreshToken: response.refreshToken,
-            expiresAt: Date.now() + response.expiresIn * 1000,
-          };
-
-          set({ tokens: newTokens });
-          return true;
-        } catch {
-          set({
-            user: null,
-            tokens: null,
-            isAuthenticated: false,
-          });
-          return false;
-        }
-      },
-
       setUser: (user) => set({ user, isAuthenticated: true }),
 
       setTokens: (tokens) => set({ tokens }),
@@ -454,4 +403,14 @@ globalEventDispatcher.subscribe('tokensRefreshed', async (payload) => {
   }
 
   console.log('[AuthStore] Tokens synced from Agent refresh');
+});
+
+// The Agent only emits sessionRevoked when its backend refresh attempt returned
+// a definitive "this token will never work again" signal (401 user_deactivated,
+// or 400 validation_failed). That's our one reliable signal to actually log
+// the user out — transient network blips are handled silently by both clients.
+globalEventDispatcher.subscribe('sessionRevoked', (payload) => {
+  console.warn('[AuthStore] Session revoked by Agent:', payload?.reason ?? 'unknown');
+  useAuthStore.getState().clearAuth();
+  dispatchNavigate('/login', true);
 });

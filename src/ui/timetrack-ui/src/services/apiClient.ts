@@ -13,6 +13,7 @@
 import { useAuthStore } from '../stores/authStore';
 import { getApiBaseUrl } from './apiBase';
 import { dispatchNavigate } from './navigationEvents';
+import { isDesktopRuntime } from '../lib/runtime';
 
 const apiBase = () => getApiBaseUrl();
 
@@ -88,11 +89,78 @@ async function tryGetAgentTokens(): Promise<string | null> {
   }
 }
 
+/**
+ * Ask the Agent to refresh via IPC. In desktop mode the Agent is the single
+ * authority that talks to /auth/refresh — this prevents the UI and Agent from
+ * racing on the backend's single-use refresh-token rotation.
+ * Returns 'unavailable' when IPC isn't connected (caller should fall through
+ * to a direct HTTP refresh).
+ */
+async function refreshViaAgent(): Promise<'success' | 'auth_failed' | 'network_error' | 'unavailable'> {
+  try {
+    const { getIpcService } = await import('./index');
+    const ipcService = getIpcService();
+
+    if (!ipcService.isConnected) return 'unavailable';
+
+    const result = await ipcService.sendCommand('refreshTokens');
+    const data = result.data as { accessToken?: string; refreshToken?: string; expiresIn?: number } | undefined;
+
+    if (result.success && data?.accessToken && data.refreshToken) {
+      useAuthStore.getState().setTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresAt: Date.now() + (data.expiresIn ?? 3600) * 1000,
+      });
+      return 'success';
+    }
+
+    // The Agent distinguishes "refresh_failed" (token revoked/expired) from
+    // transient errors. Any non-success from the IPC response should be treated
+    // as a definitive auth failure — the Agent will have cleared its tokens
+    // and emitted sessionRevoked if the failure was terminal, or returned a
+    // retryable error code. Either way, don't fall back to a direct HTTP
+    // refresh with what we know is the same revoked token.
+    return 'auth_failed';
+  } catch {
+    return 'network_error';
+  }
+}
+
+/**
+ * After a successful direct /auth/refresh (web mode, or desktop mode when
+ * the Agent isn't connected), push the rotated tokens to the Agent so its
+ * DPAPI store doesn't hold a stale refresh token that will 400 on its next
+ * proactive refresh cycle.
+ */
+async function pushTokensToAgent(accessToken: string, refreshToken: string): Promise<void> {
+  try {
+    const { getIpcService } = await import('./index');
+    const ipcService = getIpcService();
+    if (!ipcService.isConnected) return;
+    await ipcService.sendCommand('storeTokens', { accessToken, refreshToken });
+  } catch {
+    // non-critical — Agent will recover on next IPC connect via App.tsx bootstrap
+  }
+}
+
 async function refreshTokens(): Promise<'success' | 'auth_failed' | 'network_error'> {
   const authStore = useAuthStore.getState();
 
   if (!authStore.tokens?.refreshToken) {
     return 'auth_failed';
+  }
+
+  // Desktop mode: delegate to the Agent. This is the primary path when running
+  // inside the desktop host — the Agent holds the authoritative refresh token
+  // in DPAPI and serializes refresh calls across all consumers.
+  if (isDesktopRuntime()) {
+    const result = await refreshViaAgent();
+    if (result !== 'unavailable') {
+      return result;
+    }
+    // Fall through to direct refresh only when the Agent isn't reachable
+    // (e.g., desktop launched before the AgentService started).
   }
 
   try {
@@ -113,6 +181,12 @@ async function refreshTokens(): Promise<'success' | 'auth_failed' | 'network_err
       refreshToken: data.refreshToken,
       expiresAt: Date.now() + data.expiresIn * 1000,
     });
+
+    // Keep the Agent's DPAPI store in sync so it doesn't proactively refresh
+    // later with the now-revoked token we just rotated.
+    if (isDesktopRuntime()) {
+      void pushTokensToAgent(data.accessToken, data.refreshToken);
+    }
 
     return 'success';
   } catch {
