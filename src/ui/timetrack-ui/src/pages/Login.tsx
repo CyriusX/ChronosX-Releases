@@ -41,11 +41,12 @@ export default function Login() {
 
   return (
     <div
-      className="min-h-screen bg-[#0b0d14] flex items-center justify-center p-4"
+      className="h-full overflow-y-auto bg-[#0b0d14]"
       onMouseDown={() => emailRef.current?.focus()}
       onTouchStart={() => emailRef.current?.focus()}
     >
-      <div className="w-full max-w-md">
+      <div className="min-h-full flex items-center justify-center p-4 py-8">
+        <div className="w-full max-w-md">
         {/* Logo/Title */}
         <div className="text-center mb-8">
           <motion.img
@@ -197,6 +198,7 @@ export default function Login() {
             {t('auth.createAccount')}
           </Link>
         </motion.p>
+        </div>
       </div>
     </div>
   );
