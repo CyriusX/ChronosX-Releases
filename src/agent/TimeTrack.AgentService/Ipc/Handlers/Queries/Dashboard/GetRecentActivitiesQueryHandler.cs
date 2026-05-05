@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
@@ -109,7 +110,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         var appColors = AssignAppColors(filtered);
         var blocks = MergeConsecutiveByExe(filtered, appColors, categoryLookup)
             .Concat(BuildLocalIdleBlocks(idlePeriods))
-            .OrderBy(b => DateTime.Parse((string)b.startUtc))
+            .OrderBy(GetBlockStartUtc)
             .ToArray();
 
         return SuccessResponse(requestId, new { activities = blocks });
@@ -137,7 +138,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
                 var appColors = AssignCloudAppColors(filtered);
                 var blocks = MergeConsecutiveCloudSessions(filtered, appColors)
                     .Concat(BuildCloudIdleBlocks(result.IdlePeriods))
-                    .OrderBy(b => DateTime.Parse((string)b.startUtc))
+                    .OrderBy(GetBlockStartUtc)
                     .ToArray();
 
                 return SuccessResponse(requestId, new { activities = blocks });
@@ -154,6 +155,29 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
         // Fallback: try local SQLite (may have data if cleanup hasn't run)
         return await BuildFromLocalSqlite(requestId, userId, targetDate, ct);
+    }
+
+    private static DateTime GetBlockStartUtc(object block)
+    {
+        try
+        {
+            var startUtcProp = block.GetType().GetProperty("startUtc");
+            if (startUtcProp?.GetValue(block) is string startUtcStr
+                && DateTime.TryParse(
+                    startUtcStr,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind,
+                    out var startUtc))
+            {
+                return startUtc;
+            }
+        }
+        catch
+        {
+            // Ignore and fall through
+        }
+
+        return DateTime.MinValue;
     }
 
     // ============================================================================

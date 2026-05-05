@@ -328,11 +328,11 @@ public sealed class TrackingWorker : BackgroundService
             return;
         }
 
-        // 3. Se estava idle e retornou - salvar o período de inatividade
-        if (_isIdle)
-        {
-            var idleEndedAt = DateTime.UtcNow;
-            var idleDuration = idleEndedAt - _idleStartedAt;
+            // 3. Se estava idle e retornou - salvar o período de inatividade
+            if (_isIdle)
+            {
+                var idleEndedAt = DateTime.UtcNow;
+                var idleDuration = idleEndedAt - _idleStartedAt!.Value;
 
             _logger.LogInformation(
                 "Usuário retornou de idle após {Duration}. Salvando período...",

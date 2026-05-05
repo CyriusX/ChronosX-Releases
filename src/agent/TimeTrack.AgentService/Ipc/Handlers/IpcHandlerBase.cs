@@ -31,6 +31,15 @@ public abstract class IpcHandlerBase
             Error = ex.Message
         };
 
+    protected static IpcResponse ValidationErrorResponse(int requestId, string error)
+        => new()
+        {
+            RequestId = requestId,
+            Success = false,
+            Error = error,
+            Data = JsonSerializer.SerializeToElement(new { error })
+        };
+
     /// <summary>
     /// Extracts an optional "date" property from the request payload.
     /// Returns DateTime.Today if no date is provided.
