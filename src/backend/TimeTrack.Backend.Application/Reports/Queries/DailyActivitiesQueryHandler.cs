@@ -77,9 +77,6 @@ public sealed class DailyActivitiesQueryHandler : IRequestHandler<DailyActivitie
         // Load org-level overrides for the user's org
         var overrideLookup = await BuildOverrideLookupAsync(sessions, cancellationToken);
 
-        // Load org-level overrides for the user's org
-        var overrideLookup = await BuildOverrideLookupAsync(sessions, cancellationToken);
-
         var sessionDtos = sessions
             .Select(s => new ActivitySessionDto
             {

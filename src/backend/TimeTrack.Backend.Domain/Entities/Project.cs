@@ -30,17 +30,6 @@ public sealed class Project
     public string? LinearWorkspaceId { get; private set; }
     public DateTime? LastSyncedAt { get; private set; }
 
-    // ── Billable project fields ──
-    public bool IsBillable { get; private set; }
-    public string? Currency { get; private set; }
-    public decimal? HourlyRate { get; private set; }
-
-    // ── Linear sync (nullable — only populated on Linear-sourced projects) ──
-    public ProjectSyncSource SyncSource { get; private set; } = ProjectSyncSource.Local;
-    public string? LinearProjectId { get; private set; }
-    public string? LinearWorkspaceId { get; private set; }
-    public DateTime? LastSyncedAt { get; private set; }
-
     // Navigation properties
     public Organization? Organization { get; private set; }
 
