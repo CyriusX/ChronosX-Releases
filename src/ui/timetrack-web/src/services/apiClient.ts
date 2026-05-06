@@ -10,12 +10,16 @@ import { useAuthStore } from '../stores/authStore';
 
 // Get API URL from runtime config (set by config.js) or fallback to default
 const getApiBaseUrl = () => {
+  let url: string | undefined;
   // Check for runtime config (injected by config.js)
   if (typeof window !== 'undefined' && window.__APP_CONFIG__?.VITE_API_URL) {
-    return window.__APP_CONFIG__.VITE_API_URL;
+    url = window.__APP_CONFIG__.VITE_API_URL;
   }
   // Fallback to build-time env var (for development)
-  return import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+  if (!url) {
+    url = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+  }
+  return url.replace(/\/+$/, '');
 };
 
 const API_BASE = getApiBaseUrl();

@@ -37,6 +37,22 @@ services:
     networks:
       - timetrack-network
 
+  web:
+    build:
+      context: .
+      dockerfile: ops/docker/Dockerfile.web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://chronosx.cyriusx.com/api/v1}
+    container_name: timetrack-web
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-https://chronosx.cyriusx.com/api/v1}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - timetrack-network
+
   nginx:
     image: nginx:alpine
     container_name: timetrack-nginx
@@ -45,12 +61,14 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./ops/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ops/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - ./ops/nginx/ssl:/etc/nginx/ssl:ro
       - ./ops/certbot/conf:/etc/letsencrypt:ro
     depends_on:
       api:
         condition: service_healthy
+      web:
+        condition: service_started
     networks:
       - timetrack-network
 

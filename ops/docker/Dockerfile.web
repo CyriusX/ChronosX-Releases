@@ -34,6 +34,10 @@ FROM nginx:alpine
 # Install curl for health check
 RUN apk add --no-cache curl
 
+# Re-declare ARG so it's available in this stage for the ENV below
+ARG VITE_API_URL=https://chronosx-dev-timetrack-api.gpoda0.easypanel.host/api/v1
+ENV VITE_API_URL=$VITE_API_URL
+
 # Copy custom nginx config
 COPY ops/nginx/ui-nginx.conf /etc/nginx/conf.d/default.conf
 

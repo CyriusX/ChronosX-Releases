@@ -44,6 +44,8 @@ services:
         VITE_API_URL: ${VITE_API_URL:-https://chronosx-dev-timetrack-api.gpoda0.easypanel.host/api/v1}
     container_name: timetrack-web
     restart: unless-stopped
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-https://chronosx-dev-timetrack-api.gpoda0.easypanel.host/api/v1}
     depends_on:
       - api
     networks:
