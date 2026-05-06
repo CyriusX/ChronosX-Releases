@@ -61,7 +61,7 @@ public sealed class MainForm : Form
         _ipcClient = ipcClient;
         _bridge = bridge;
         _logger = logger;
-        _backendBaseUrl = (configuration["Agent:Sync:BackendUrl"] ?? "https://chronosx-timetrack-api.gpoda0.easypanel.host").TrimEnd('/');
+        _backendBaseUrl = (configuration["Agent:Sync:BackendUrl"] ?? "https://chronosx-dev-timetrack-api.gpoda0.easypanel.host").TrimEnd('/');
         _proxyHttpClient = new HttpClient(new HttpClientHandler
         {
             AutomaticDecompression = DecompressionMethods.All

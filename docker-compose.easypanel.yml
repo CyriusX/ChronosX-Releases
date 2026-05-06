@@ -1,28 +1,11 @@
-# Docker Compose for EasyPanel deployment
-# This file can be used with EasyPanel's "Docker Compose" template
+# Docker Compose for EasyPanel deployment (dev environment)
+# Connects to the existing production database: chronosx_prod-chronos-db
 #
-# Alternative: Create separate "App" resources in EasyPanel for more control
+# Prerequisites:
+# - The chronosx_prod-chronos-db container must be running on the same Docker host
+# - Both containers must share a network (EasyPanel default or explicit external network)
 
 services:
-  # PostgreSQL Database
-  # Note: In EasyPanel, prefer using the built-in Database resource
-  # This is here for reference if using Docker Compose template
-  postgres:
-    image: postgres:16-alpine
-    container_name: timetrack-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-timetrack}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
-      POSTGRES_DB: ${POSTGRES_DB:-timetrack}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-timetrack}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # .NET API Backend
   api:
     build:
@@ -32,7 +15,7 @@ services:
     restart: unless-stopped
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ConnectionStrings__DefaultConnection=Host=postgres;Database=${POSTGRES_DB:-timetrack};Username=${POSTGRES_USER:-timetrack};Password=${POSTGRES_PASSWORD}
+      - ConnectionStrings__DefaultConnection=Host=chronosx_prod-chronos-db;Port=5432;Database=chronosx;Username=postgres;Password=2ffc8a164abfaf63657e;SSL Mode=Disable
       - Jwt__Secret=${JWT_SECRET:?JWT_SECRET required}
       - Jwt__Issuer=${JWT_ISSUER:-TimeTrack}
       - Jwt__Audience=${JWT_AUDIENCE:-TimeTrack.Api}
@@ -41,16 +24,16 @@ services:
       - Resend__ApiKey=${RESEND_API_KEY:-}
       - Email__From=${EMAIL_FROM:-noreply@yourdomain.com}
       - Email__FromName=${EMAIL_FROM_NAME:-TimeTrack}
-      - Frontend__BaseUrl=${FRONTEND_URL:?FRONTEND_URL required}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - Frontend__BaseUrl=${FRONTEND_URL:-https://chronosx-dev-timetrack-web.gpoda0.easypanel.host}
+      - Database__MigrateOnStartup=true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - easypanel
 
   # React Web Frontend
   web:
@@ -58,11 +41,15 @@ services:
       context: .
       dockerfile: ops/docker/Dockerfile.web
       args:
-        VITE_API_URL: ${VITE_API_URL:?VITE_API_URL required}
+        VITE_API_URL: ${VITE_API_URL:-https://chronosx-dev-timetrack-api.gpoda0.easypanel.host/api/v1}
     container_name: timetrack-web
     restart: unless-stopped
     depends_on:
       - api
+    networks:
+      - easypanel
 
-volumes:
-  postgres_data:
+networks:
+  easypanel:
+    external: true
+    name: easypanel

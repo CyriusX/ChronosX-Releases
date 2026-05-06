@@ -5,7 +5,7 @@ class LocalHTTPServer {
     private(set) var port: UInt16 = 0
     private(set) var baseURL: String = ""
     private var resourcePath: String = ""
-    private let apiBaseURL = "https://chronosx-timetrack-api.gpoda0.easypanel.host"
+    private let apiBaseURL = "https://chronosx-dev-timetrack-api.gpoda0.easypanel.host"
     private static let preferredPortDefaultsKey = "TimeTrack.LocalHTTPServer.preferredPort"
     private static let basePort: UInt16 = 49621
 

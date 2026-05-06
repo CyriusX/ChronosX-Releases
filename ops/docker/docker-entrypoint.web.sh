@@ -5,7 +5,7 @@
 set -e
 
 # Default API URL if not set
-DEFAULT_API_URL="https://chronosx-timetrack-api.gpoda0.easypanel.host/api/v1"
+DEFAULT_API_URL="https://chronosx-dev-timetrack-api.gpoda0.easypanel.host/api/v1"
 API_URL="${VITE_API_URL:-$DEFAULT_API_URL}"
 
 # Generate the JavaScript config file

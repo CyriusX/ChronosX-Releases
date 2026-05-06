@@ -73,7 +73,8 @@ try
                     "http://localhost:5174",
                     "http://localhost:3000",
                     "https://app.local",
-                    "https://chronosx-timetrack-web.gpoda0.easypanel.host"
+                    "https://chronosx-timetrack-web.gpoda0.easypanel.host",
+                    "https://chronosx-dev-timetrack-web.gpoda0.easypanel.host"
                 )
                 .AllowAnyMethod()
                 .AllowAnyHeader()
