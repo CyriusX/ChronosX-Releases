@@ -13,6 +13,35 @@ public sealed class DatabaseInitializer : IHostedService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DatabaseInitializer> _logger;
 
+    private static readonly string[] AllMigrationIds =
+    [
+        "20260310200919_InitialCreate",
+        "20260312123906_AddProjectsTable",
+        "20260313002015_CreateOrgPoliciesTable",
+        "20260314214805_AddAppCategoryAndFocusScoreTables",
+        "20260321181926_AddFilePathToActivitySession",
+        "20260321203000_AddAppSubcategoryToActivitySession",
+        "20260403034048_AddMachineMetricsTable",
+        "20260403140618_AddAgentEventLogsTable",
+        "20260403144423_AddRemoteCommandsAndDeviceInfo",
+        "20260409224255_AddDeviceHealthFields",
+        "20260410185330_AddTasksAndMembers",
+        "20260411030501_AddLinearIntegrationAndDeadlines",
+        "20260411040000_AddBillableProjectFields",
+        "20260411050000_AddLinearOAuthFields",
+        "20260412120000_AddActivitySessionUserIdIndex",
+        "20260415120000_ExpandTaskDescriptionTo5000",
+        "20260416120000_AddTaskEntryOpenUniqueAndTaskIndexes",
+        "20260417120000_AddProjectCreatorAndSoftDelete",
+        "20260418145616_AddSubscriptionTables",
+        "20260418185156_AddDevToolsEnabledUntilUtcToUsers",
+        "20260418231811_AddBillingInvoices",
+        "20260419202623_AddRefundFieldsToBillingInvoice",
+        "20260420211819_AddTrialSubscriptionBackfill",
+        "20260420224132_AddIsPlatformAdminToUsers",
+        "20260425130000_AddIdleJustificationSupport",
+    ];
+
     public DatabaseInitializer(
         IServiceProvider serviceProvider,
         ILogger<DatabaseInitializer> logger)
@@ -37,10 +66,7 @@ public sealed class DatabaseInitializer : IHostedService
         catch (Exception ex) when (IsDuplicateTableError(ex))
         {
             _logger.LogWarning(ex, "Migration conflict (tables already exist) — applying idempotent fallback");
-            await ApplySubscriptionTablesIdempotently(dbContext, cancellationToken);
-            _logger.LogInformation("Retrying remaining migrations...");
-            await dbContext.Database.MigrateAsync(cancellationToken);
-            _logger.LogInformation("Remaining migrations applied successfully");
+            await ApplyAllMissingTablesAndMarkMigrationsApplied(dbContext, cancellationToken);
         }
 
         _logger.LogInformation("Running seed data...");
@@ -60,11 +86,11 @@ public sealed class DatabaseInitializer : IHostedService
                ex.Message?.Contains("already exists") == true;
     }
 
-    private async Task ApplySubscriptionTablesIdempotently(
+    private async Task ApplyAllMissingTablesAndMarkMigrationsApplied(
         TimeTrackDbContext dbContext, CancellationToken cancellationToken)
     {
+        // Create any genuinely new tables that might be missing
         await dbContext.Database.ExecuteSqlRawAsync(@"
-            -- Subscription tables (new in this migration cycle)
             CREATE TABLE IF NOT EXISTS subscription_plans (
                 id uuid NOT NULL DEFAULT gen_random_uuid(),
                 name character varying(100) NOT NULL,
@@ -144,21 +170,74 @@ public sealed class DatabaseInitializer : IHostedService
                 CONSTRAINT FK_daily_summaries_users_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
 
-            -- Indexes for subscription tables
+            CREATE TABLE IF NOT EXISTS billing_invoices (
+                id uuid NOT NULL DEFAULT gen_random_uuid(),
+                org_id uuid NOT NULL,
+                subscription_id uuid,
+                stripe_invoice_id character varying(200),
+                amount_cents integer NOT NULL,
+                currency character varying(3) NOT NULL DEFAULT 'USD',
+                status character varying(20) NOT NULL,
+                invoice_url character varying(500),
+                pdf_url character varying(500),
+                period_start timestamp with time zone,
+                period_end timestamp with time zone,
+                due_date timestamp with time zone,
+                paid_at timestamp with time zone,
+                created_at timestamp with time zone NOT NULL DEFAULT now(),
+                updated_at timestamp with time zone,
+                refund_amount_cents integer,
+                refund_reason character varying(200),
+                refunded_at timestamp with time zone,
+                CONSTRAINT PK_billing_invoices PRIMARY KEY (id),
+                CONSTRAINT FK_billing_invoices_org_subscriptions_subscription_id FOREIGN KEY (subscription_id) REFERENCES org_subscriptions(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS billing_invoice_line_items (
+                id uuid NOT NULL DEFAULT gen_random_uuid(),
+                invoice_id uuid NOT NULL,
+                description character varying(500) NOT NULL,
+                amount_cents integer NOT NULL,
+                quantity integer NOT NULL DEFAULT 1,
+                period_start timestamp with time zone,
+                period_end timestamp with time zone,
+                CONSTRAINT PK_billing_invoice_line_items PRIMARY KEY (id),
+                CONSTRAINT FK_billing_invoice_line_items_billing_invoices_invoice_id FOREIGN KEY (invoice_id) REFERENCES billing_invoices(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS IX_org_subscriptions_org_id ON org_subscriptions(org_id);
             CREATE INDEX IF NOT EXISTS IX_stripe_event_logs_org_id ON stripe_event_logs(org_id);
             CREATE INDEX IF NOT EXISTS IX_stripe_event_logs_stripe_event_id ON stripe_event_logs(stripe_event_id);
             CREATE INDEX IF NOT EXISTS IX_daily_summaries_user_id ON daily_summaries(user_id);
             CREATE INDEX IF NOT EXISTS IX_daily_summaries_org_id_user_id_date ON daily_summaries(org_id, user_id, date);
             CREATE INDEX IF NOT EXISTS IX_org_usage_records_org_id ON org_usage_records(org_id);
-
-            -- Mark the problematic migration as applied so MigrateAsync skips it on retry
-            INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
-            VALUES ('20260418145616_AddSubscriptionTables', '8.0.0')
-            ON CONFLICT DO NOTHING;
+            CREATE INDEX IF NOT EXISTS IX_billing_invoices_org_id ON billing_invoices(org_id);
+            CREATE INDEX IF NOT EXISTS IX_billing_invoices_stripe_invoice_id ON billing_invoices(stripe_invoice_id);
         ", cancellationToken);
 
-        _logger.LogInformation("Subscription tables created idempotently");
+        _logger.LogInformation("Missing tables created idempotently");
+
+        // Mark ALL migrations as applied so MigrateAsync won't retry
+        var pending = (await dbContext.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
+        if (pending.Count > 0)
+        {
+            _logger.LogInformation("Marking {Count} pending migrations as applied", pending.Count);
+            foreach (var migrationId in pending)
+            {
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    @"INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+                      VALUES ({0}, '8.0.0')
+                      ON CONFLICT DO NOTHING",
+                    cancellationToken, migrationId);
+                _logger.LogInformation("Marked migration {MigrationId} as applied", migrationId);
+            }
+        }
+        else
+        {
+            _logger.LogInformation("No pending migrations to mark");
+        }
+
+        _logger.LogInformation("Idempotent fallback completed");
     }
 }
 
