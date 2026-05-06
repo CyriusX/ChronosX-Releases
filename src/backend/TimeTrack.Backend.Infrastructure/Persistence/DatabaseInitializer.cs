@@ -222,15 +222,11 @@ public sealed class DatabaseInitializer : IHostedService
         if (pending.Count > 0)
         {
             _logger.LogInformation("Marking {Count} pending migrations as applied", pending.Count);
+            var values = string.Join(", ", pending.Select(id => $"'{id}', '8.0.0'"));
+            var sql = $"INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES {string.Join(", ", pending.Select(id => $"('{id}', '8.0.0')"))} ON CONFLICT DO NOTHING";
+            await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
             foreach (var migrationId in pending)
-            {
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    @"INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
-                      VALUES ({0}, '8.0.0')
-                      ON CONFLICT DO NOTHING",
-                    cancellationToken, migrationId);
                 _logger.LogInformation("Marked migration {MigrationId} as applied", migrationId);
-            }
         }
         else
         {
