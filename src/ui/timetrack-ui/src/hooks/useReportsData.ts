@@ -208,12 +208,6 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
   const { sendQuery, isConnected } = useIpc();
 
   // ============================================================================
-  // IPC FOR LOCAL DATA (Today only)
-  // ============================================================================
-
-  const { sendQuery, isConnected } = useIpc();
-
-  // ============================================================================
   // DATA FETCHERS
   // ============================================================================
 
