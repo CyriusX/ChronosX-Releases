@@ -12,6 +12,18 @@ public sealed class MacOSFilePathExtractor : IFilePathExtractor
 {
     private readonly ILogger<MacOSFilePathExtractor> _logger;
 
+    // Browsers are tracked via Domain/BrowserUrl; do not put titles into FilePath.
+    private static readonly HashSet<string> BrowserProcesses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "safari",
+        "google chrome", "chrome", "chromium",
+        "firefox",
+        "microsoft edge", "edge",
+        "brave browser", "brave",
+        "opera",
+        "arc"
+    };
+
     private static readonly HashSet<string> AppsWithPathExtraction = new(StringComparer.OrdinalIgnoreCase)
     {
         "code", "vscode",
@@ -35,6 +47,12 @@ public sealed class MacOSFilePathExtractor : IFilePathExtractor
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    private static bool LooksLikeAbsolutePath(string? value)
+        => !string.IsNullOrWhiteSpace(value) && value.TrimStart().StartsWith("/", StringComparison.Ordinal);
+
+    private static bool IsBrowser(string processLower)
+        => BrowserProcesses.Contains(processLower);
+
     /// <inheritdoc />
     public string? ExtractFilePath(IntPtr windowHandle, string processName, string? windowTitle)
     {
@@ -44,6 +62,9 @@ public sealed class MacOSFilePathExtractor : IFilePathExtractor
         try
         {
             var processLower = processName.ToLowerInvariant();
+
+            if (IsBrowser(processLower))
+                return null;
 
             if (processLower.Contains("finder"))
             {
@@ -61,10 +82,9 @@ public sealed class MacOSFilePathExtractor : IFilePathExtractor
             }
 
             if (AppsWithPathExtraction.Contains(processLower))
-            {
                 return ExtractFromGenericTitle(windowTitle, processName);
-            }
 
+            // Unknown apps: only accept when it already looks like an absolute path.
             return ExtractFromGenericTitle(windowTitle, processName);
         }
         catch (Exception ex)
@@ -79,10 +99,9 @@ public sealed class MacOSFilePathExtractor : IFilePathExtractor
         if (string.IsNullOrEmpty(windowTitle))
             return null;
 
-        if (windowTitle.StartsWith("/"))
-            return windowTitle;
-
-        return windowTitle.Trim();
+        // Prefer AXDocument (handled by MacOSActiveWindowProvider). If we only have a title,
+        // return it only when it's already an absolute POSIX path.
+        return LooksLikeAbsolutePath(windowTitle) ? windowTitle.Trim() : null;
     }
 
     private string? ExtractVsCodePath(string? windowTitle)
@@ -103,18 +122,9 @@ public sealed class MacOSFilePathExtractor : IFilePathExtractor
             }
         }
 
-        var parts = title.Split(new[] { " - ", " — " }, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length >= 2)
-        {
-            return $"{parts[1].Trim()}/{parts[0].Trim()}";
-        }
-
-        if (parts.Length == 1)
-        {
-            return parts[0].Trim();
-        }
-
-        return title.Trim();
+        // VS Code titles often contain only "file - workspace". Only return when the title
+        // itself already contains an absolute path.
+        return LooksLikeAbsolutePath(title) ? title.Trim() : null;
     }
 
     private string? ExtractJetBrainsPath(string? windowTitle)
@@ -129,25 +139,14 @@ public sealed class MacOSFilePathExtractor : IFilePathExtractor
             var parts = windowTitle.Split(new[] { sep }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length >= 2)
             {
-                var project = parts[^1].Trim();
                 var file = parts[0].Trim();
 
-                if (project.Contains("IDEA") || project.Contains("WebStorm") ||
-                    project.Contains("Rider") || project.Contains("PyCharm") ||
-                    project.Contains("CLion"))
-                {
-                    if (parts.Length >= 3)
-                    {
-                        return $"{parts[^2].Trim()}/{file}";
-                    }
-                    return file;
-                }
-
-                return $"{project}/{file}";
+                // Some JetBrains windows can expose the absolute path as the first segment.
+                return LooksLikeAbsolutePath(file) ? file : null;
             }
         }
 
-        return windowTitle;
+        return LooksLikeAbsolutePath(windowTitle) ? windowTitle.Trim() : null;
     }
 
     private string? ExtractFromGenericTitle(string? windowTitle, string processName)
@@ -171,7 +170,9 @@ public sealed class MacOSFilePathExtractor : IFilePathExtractor
             }
         }
 
-        return title.Trim();
+        // Only accept absolute paths; otherwise we'd store plain titles like "Google".
+        var trimmed = title.Trim();
+        return LooksLikeAbsolutePath(trimmed) ? trimmed : null;
     }
 
     private static bool IsJetBrainsIde(string processName)

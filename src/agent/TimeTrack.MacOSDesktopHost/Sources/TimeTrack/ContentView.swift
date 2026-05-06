@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import WebKit
 
@@ -47,12 +48,22 @@ struct ContentView: View {
     @ObservedObject var ipcClient: IpcClient
     @State private var webView: WKWebView?
     @State private var menuBarController = MenuBarController()
+    @State private var devToolsEnabled = false
 
     var body: some View {
         ZStack {
             // Invisible view that configures the NSWindow and sets up the mini bar
             WindowSetupView(ipcClient: ipcClient).frame(width: 0, height: 0)
-            WebViewContainer(ipcClient: ipcClient, webView: $webView)
+            WebViewContainer(
+                ipcClient: ipcClient,
+                webView: $webView,
+                devToolsEnabled: devToolsEnabled,
+                onDevToolsAccessChanged: { enabled in
+                    if devToolsEnabled != enabled {
+                        devToolsEnabled = enabled
+                    }
+                }
+            )
         }
         // Size to 85% of screen, capped at reasonable maximums
         .frame(
@@ -62,13 +73,90 @@ struct ContentView: View {
         .onAppear {
             menuBarController.setupMenuBar(ipcClient: ipcClient)
         }
+        .onChange(of: ipcClient.isConnected) { connected in
+            guard connected else { return }
+            Task { @MainActor in
+                await syncDevToolsFromAgentSettings()
+            }
+        }
+    }
+
+    @MainActor
+    private func syncDevToolsFromAgentSettings() async {
+        do {
+            let resp = try await ipcClient.sendQuery("getSettings")
+            guard resp.success else { return }
+
+            // Agent returns `data` as a JSON string in AnyCodable.string.
+            guard case .string(let jsonStr) = resp.data else { return }
+            guard let data = jsonStr.data(using: .utf8) else { return }
+            guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+
+            let enabled = (obj["devToolsEnabled"] as? Bool) ?? false
+            let untilRaw = obj["devToolsEnabledUntilUtc"] as? String
+            let effectiveEnabled: Bool
+            if let untilRaw = untilRaw, let untilDate = ISO8601DateFormatter().date(from: untilRaw) {
+                effectiveEnabled = enabled && untilDate.timeIntervalSinceNow > 0
+            } else {
+                effectiveEnabled = enabled
+            }
+
+            if devToolsEnabled != effectiveEnabled {
+                devToolsEnabled = effectiveEnabled
+            }
+        } catch {
+            // non-critical
+        }
     }
 }
 
 struct WebViewContainer: NSViewRepresentable {
     @ObservedObject var ipcClient: IpcClient
     @Binding var webView: WKWebView?
+    var devToolsEnabled: Bool
+    var onDevToolsAccessChanged: ((Bool) -> Void)?
     static var schemeHandler: TimeTrackSchemeHandler?
+    static var localServer: LocalHTTPServer?
+
+    private static func resolveDistURL() -> URL? {
+        let fm = FileManager.default
+
+        // 1) Production app bundle: Contents/Resources/dist
+        if let bundleDist = Bundle.main.resourceURL?.appendingPathComponent("dist"),
+           fm.fileExists(atPath: bundleDist.path) {
+            return bundleDist
+        }
+
+        // 2) Dev (SwiftPM): run from repo root or package dir
+        let cwd = URL(fileURLWithPath: fm.currentDirectoryPath)
+        let candidates: [URL] = [
+            cwd.appendingPathComponent("dist"),
+            cwd.appendingPathComponent("../../ui/timetrack-ui/dist"),
+            cwd.appendingPathComponent("../../../ui/timetrack-ui/dist"),
+            cwd.appendingPathComponent("../../../../src/ui/timetrack-ui/dist"),
+        ].map { $0.standardizedFileURL }
+
+        for url in candidates {
+            if fm.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+
+        return nil
+    }
+
+    private static func injectAppConfig(userContentController: WKUserContentController, overrides: [String: Any]) {
+        guard let data = try? JSONSerialization.data(withJSONObject: overrides, options: []),
+              let json = String(data: data, encoding: .utf8)
+        else { return }
+
+        let script = "window.__APP_CONFIG__ = Object.assign({}, window.__APP_CONFIG__ || {}, \(json));"
+        userContentController.addUserScript(WKUserScript(
+            source: script,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
+    }
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -84,24 +172,32 @@ struct WebViewContainer: NSViewRepresentable {
         userContentController.add(context.coordinator, name: "timeTrackBridge")
 
         config.userContentController = userContentController
-        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        config.preferences.setValue(devToolsEnabled, forKey: "developerExtrasEnabled")
 
-        // Resolve dist directory — use resourceURL for reliable directory lookup
-        // (Bundle.path(forResource:ofType:) can fail for directories on some OS versions)
-        let distURL = Bundle.main.resourceURL?.appendingPathComponent("dist")
-        let distExists = distURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+        let distURL = Self.resolveDistURL()
+        let distExists = distURL != nil
 
         NSLog("[WebView] resourceURL: %@", Bundle.main.resourceURL?.path ?? "nil")
         NSLog("[WebView] distPath: %@ exists=%d", distURL?.path ?? "nil", distExists ? 1 : 0)
 
-        // Register scheme handler so timetrack://app/api/... proxies to backend
-        if distExists, let distURL = distURL {
-            let handler = TimeTrackSchemeHandler(resourcePath: distURL.path)
-            Self.schemeHandler = handler
-            config.setURLSchemeHandler(handler, forURLScheme: "timetrack")
-            NSLog("[WebView] Scheme handler registered for dist: %@", distURL.path)
+        // Prefer a localhost origin for the UI bundle to avoid WebKit treating the origin as "null"
+        // (custom URL schemes can break react-router's hash history with history.replaceState throttling).
+        if let distURL = distURL {
+            if let server = LocalHTTPServer(resourcePath: distURL.path) {
+                Self.localServer = server
+                NSLog("[WebView] LocalHTTPServer started at %@", server.baseURL)
+
+                // Provide the UI with a same-origin API base that proxies to production.
+                Self.injectAppConfig(userContentController: userContentController, overrides: ["VITE_API_URL": "/api/v1"])
+            } else {
+                NSLog("[WebView] WARNING: failed to start LocalHTTPServer, falling back to timetrack:// scheme handler")
+                let handler = TimeTrackSchemeHandler(resourcePath: distURL.path)
+                Self.schemeHandler = handler
+                config.setURLSchemeHandler(handler, forURLScheme: "timetrack")
+                NSLog("[WebView] Scheme handler registered for dist: %@", distURL.path)
+            }
         } else {
-            NSLog("[WebView] WARNING: dist not found, no scheme handler registered")
+            NSLog("[WebView] WARNING: dist not found, no local server or scheme handler registered")
         }
 
         let webView = WKWebView(frame: .zero, configuration: config)
@@ -110,12 +206,23 @@ struct WebViewContainer: NSViewRepresentable {
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
+        // The IPC client may connect before the WKWebView exists; ensure we sync
+        // the current connection state into the page as soon as the WebView is attached.
+        context.coordinator.forwardConnectionStateToWebView(ipcClient.isConnected)
         self.webView = webView
 
         if distExists {
-            let url = URL(string: "timetrack://app/")!
-            NSLog("[WebView] Loading timetrack://app/")
-            webView.load(URLRequest(url: url))
+            let url: URL
+            if let server = Self.localServer, let u = URL(string: "\(server.baseURL)/index.html") {
+                url = u
+                NSLog("[WebView] Loading %@", url.absoluteString)
+            } else {
+                url = URL(string: "timetrack://app/")!
+                NSLog("[WebView] Loading timetrack://app/")
+            }
+
+            // Delay to next runloop so the view is in a window before first navigation.
+            DispatchQueue.main.async { webView.load(URLRequest(url: url)) }
         } else {
             let html = """
             <html><body style="background:#0a0c12;display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui;color:#f5f7fb;">
@@ -127,16 +234,139 @@ struct WebViewContainer: NSViewRepresentable {
         return webView
     }
 
-    func updateNSView(_ nsView: WKWebView, context: Context) {}
+    func updateNSView(_ nsView: WKWebView, context: Context) {
+        // Avoid recreating/reloading the WKWebView when DevTools is toggled, otherwise the SPA
+        // may lose its session and force the user to login again.
+        if #available(macOS 13.3, *) {
+            if nsView.isInspectable != devToolsEnabled {
+                nsView.isInspectable = devToolsEnabled
+            }
+        }
+
+        // Keep the legacy toggle for older macOS versions and as a fallback even on newer OSes.
+        nsView.configuration.preferences.setValue(devToolsEnabled, forKey: "developerExtrasEnabled")
+    }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(ipcClient: ipcClient)
+        Coordinator(ipcClient: ipcClient, onDevToolsAccessChanged: onDevToolsAccessChanged)
     }
 
     class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             NSLog("[WebView] didFinish: %@", webView.url?.absoluteString ?? "nil")
-        }
+            // Re-sync connection state after navigations/reloads so the SPA always
+            // receives the latest IPC state even if the initial event was missed.
+            forwardConnectionStateToWebView(ipcClient.isConnected)
+            // Some SPA code may replace `window.timeTrackHandleEvent` shortly after
+            // navigation finishes. Re-send once after a short delay to ensure the
+            // React IPC layer receives the event and updates any subscribed state.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                guard let self else { return }
+                self.forwardConnectionStateToWebView(self.ipcClient.isConnected)
+            }
+#if DEBUG
+            let debugScript = """
+            (function() {
+              try {
+                var hasBridge = !!window.timeTrackBridge;
+                var proto = window.location && window.location.protocol ? window.location.protocol : "unknown";
+                var apiBase = (window.__APP_CONFIG__ && window.__APP_CONFIG__.VITE_API_URL) ? window.__APP_CONFIG__.VITE_API_URL : null;
+                var storageOk = false;
+                try {
+                  if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('__tt_ping', '1');
+                    localStorage.removeItem('__tt_ping');
+                    storageOk = true;
+                  }
+                } catch(e) {}
+                return JSON.stringify({ protocol: proto, hasBridge: hasBridge, localStorageOk: storageOk, apiBase: apiBase });
+              } catch(e) {
+                return "error:" + (e && e.message ? e.message : String(e));
+              }
+            })();
+            """
+            webView.evaluateJavaScript(debugScript) { result, error in
+                if let error = error {
+                    NSLog("[WebView] debug eval error: %@", error.localizedDescription)
+                } else if let s = result as? String {
+                    NSLog("[WebView] debug: %@", s)
+                } else {
+                    NSLog("[WebView] debug: (no string)")
+                }
+            }
+
+	            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+	                let snapshotScript = """
+	                (function() {
+	                  try {
+	                    var hash = window.location && window.location.hash ? window.location.hash : "";
+	                    var title = document.title || "";
+	                    var text = (document.body && document.body.innerText) ? document.body.innerText : "";
+	                    text = text.replace(/\\s+/g,' ').trim().slice(0, 180);
+	                    var root = document.getElementById('root');
+	                    var rootChildCount = root ? root.childElementCount : -1;
+	                    var rootHtmlLen = root && root.innerHTML ? root.innerHTML.length : 0;
+	                    var inputCount = document.querySelectorAll('input').length;
+	                    var errors = (window.__TT_ERRORS__ && Array.isArray(window.__TT_ERRORS__)) ? window.__TT_ERRORS__ : [];
+	                    var lastError = errors.length ? errors[errors.length - 1] : null;
+	                    var authRaw = null;
+	                    var authLen = 0;
+	                    var authParseOk = false;
+	                    try {
+	                      authRaw = (typeof localStorage !== 'undefined') ? localStorage.getItem('timetrack-auth') : null;
+	                      authLen = authRaw ? authRaw.length : 0;
+	                      if (authRaw) {
+	                        JSON.parse(authRaw);
+	                        authParseOk = true;
+	                      }
+	                    } catch(e) {}
+	                    return JSON.stringify({
+	                      hash: hash,
+	                      title: title,
+	                      bodyText: text,
+	                      rootChildCount: rootChildCount,
+	                      rootHtmlLen: rootHtmlLen,
+	                      inputCount: inputCount,
+	                      errorsCount: errors.length,
+	                      lastError: lastError,
+	                      authLen: authLen,
+	                      authParseOk: authParseOk
+	                    });
+	                  } catch(e) {
+	                    return "error:" + (e && e.message ? e.message : String(e));
+	                  }
+	                })();
+	                """
+                webView.evaluateJavaScript(snapshotScript) { result, error in
+                    if let error = error {
+                        NSLog("[WebView] snapshot eval error: %@", error.localizedDescription)
+                    } else if let s = result as? String {
+                        NSLog("[WebView] snapshot: %@", s)
+                    } else {
+                        NSLog("[WebView] snapshot: (no string)")
+                    }
+                }
+            }
+	#endif
+
+	            // Ensure the webview can receive keyboard input immediately (login form typing).
+	            DispatchQueue.main.async {
+	                NSApp.activate(ignoringOtherApps: true)
+	                webView.window?.makeKeyAndOrderFront(nil)
+	                webView.window?.makeFirstResponder(webView)
+	            }
+
+	            // Best-effort focus first input (some webviews ignore HTML autofocus).
+	            let focusScript = """
+	            try {
+	              setTimeout(function() {
+	                var el = document.querySelector('input[autofocus], input, textarea, [contenteditable=\"true\"]');
+	                if (el && el.focus) el.focus();
+	              }, 50);
+	            } catch (e) {}
+	            """
+	            webView.evaluateJavaScript(focusScript, completionHandler: nil)
+	        }
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             NSLog("[WebView] didFail: %@", error.localizedDescription)
         }
@@ -147,23 +377,79 @@ struct WebViewContainer: NSViewRepresentable {
             NSLog("[WebView] didStart: %@", webView.url?.absoluteString ?? "nil")
         }
         let ipcClient: IpcClient
+        let onDevToolsAccessChanged: ((Bool) -> Void)?
         weak var webView: WKWebView?
+        let idleJustificationController: IdleJustificationPromptController
 
-        init(ipcClient: IpcClient) {
+        init(ipcClient: IpcClient, onDevToolsAccessChanged: ((Bool) -> Void)?) {
             self.ipcClient = ipcClient
+            self.onDevToolsAccessChanged = onDevToolsAccessChanged
+            self.idleJustificationController = IdleJustificationPromptController(ipcClient: ipcClient)
             super.init()
 
             ipcClient.onEvent = { [weak self] event in
                 self?.forwardEventToWebView(event)
             }
+
+            ipcClient.onConnectionStateChanged = { [weak self] connected in
+                self?.forwardConnectionStateToWebView(connected)
+            }
         }
 
-        func forwardEventToWebView(_ event: IpcEvent) {
+        func forwardConnectionStateToWebView(_ connected: Bool) {
             guard let wv = webView else { return }
-            // payload is a valid JSON string stored in AnyCodable.string.
-            // dispatchFromJson expects a JSON string argument, so embed as a JS string
-            // literal by constructing it inside the script via JSON.stringify on the
-            // parsed object — avoids needing to escape the raw JSON string.
+            let connectedJs = connected ? "true" : "false"
+            let script = """
+            (function() {
+                try {
+                    if (window.timeTrackBridge) { window.timeTrackBridge.isConnected = \(connectedJs); }
+                    if (typeof window.timeTrackHandleEvent === 'function') {
+                        window.timeTrackHandleEvent('connectionStateChanged', JSON.stringify({ isConnected: \(connectedJs) }));
+                    }
+                } catch (e) {}
+            })();
+            """
+            Task { @MainActor in
+                _ = try? await wv.evaluateJavaScript(script)
+            }
+        }
+
+	        func forwardEventToWebView(_ event: IpcEvent) {
+            if event.eventType == "showIdleJustificationPrompt",
+               let jsonStr = event.payload?.value as? String,
+               let data = jsonStr.data(using: .utf8),
+               let payload = try? JSONDecoder().decode(IdleJustificationPromptPayload.self, from: data)
+            {
+                Task { @MainActor [weak self] in
+                    self?.idleJustificationController.showPrompt(payload)
+                }
+            }
+	            guard let wv = webView else { return }
+	            if event.eventType == "devToolsAccessChanged",
+	               let jsonStr = event.payload?.value as? String,
+	               let data = jsonStr.data(using: .utf8),
+	               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+	               let enabled = obj["devToolsEnabled"] as? Bool
+	            {
+	                Task { @MainActor [weak self] in
+	                    self?.onDevToolsAccessChanged?(enabled)
+	                }
+	            }
+
+	            if event.eventType == "browserAutomationPermissionRequired",
+	               let jsonStr = event.payload?.value as? String,
+	               let data = jsonStr.data(using: .utf8),
+	               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+	               let app = obj["app"] as? String
+	            {
+	                Task { @MainActor in
+	                    Self.showBrowserAutomationPermissionAlertIfNeeded(for: app)
+	                }
+	            }
+	            // payload is a valid JSON string stored in AnyCodable.string.
+	            // dispatchFromJson expects a JSON string argument, so embed as a JS string
+	            // literal by constructing it inside the script via JSON.stringify on the
+	            // parsed object — avoids needing to escape the raw JSON string.
             let payloadJs: String
             if let jsonStr = event.payload?.value as? String {
                 payloadJs = jsonStr  // Already valid JSON — embed as JS value
@@ -179,10 +465,40 @@ struct WebViewContainer: NSViewRepresentable {
                 window.timeTrackHandleEvent('\(safeType)', _p === null ? null : JSON.stringify(_p));
             })();
             """
-            Task { @MainActor in
-                _ = try? await wv.evaluateJavaScript(script)
-            }
-        }
+	            Task { @MainActor in
+	                _ = try? await wv.evaluateJavaScript(script)
+	            }
+	        }
+
+	        private static var shownBrowserAutomationAlerts = Set<String>()
+
+	        @MainActor
+	        private static func showBrowserAutomationPermissionAlertIfNeeded(for app: String) {
+	            let normalized = app.trimmingCharacters(in: .whitespacesAndNewlines)
+	            if normalized.isEmpty { return }
+	            if shownBrowserAutomationAlerts.contains(normalized) { return }
+	            shownBrowserAutomationAlerts.insert(normalized)
+
+	            let alert = NSAlert()
+	            alert.messageText = "Automation Permission Required"
+	            alert.informativeText = """
+TimeTrack needs Automation permission to read the active tab title and website from \(normalized).
+
+Enable it in:
+System Settings → Privacy & Security → Automation
+Then allow TimeTrack to control \(normalized).
+"""
+	            alert.addButton(withTitle: "Open System Settings")
+	            alert.addButton(withTitle: "Later")
+	            alert.alertStyle = .warning
+
+	            let response = alert.runModal()
+	            if response == .alertFirstButtonReturn {
+	                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+	                    NSWorkspace.shared.open(url)
+	                }
+	            }
+	        }
 
         func userContentController(
             _ userContentController: WKUserContentController,
@@ -237,6 +553,31 @@ struct WebViewContainer: NSViewRepresentable {
 
     static let bridgeJavaScript = """
     (function() {
+        // Basic error capture so we can diagnose "black screen" boots without devtools.
+        window.__TT_ERRORS__ = window.__TT_ERRORS__ || [];
+        function _ttPush(kind, args) {
+            try {
+                var arr = window.__TT_ERRORS__;
+                var msg = Array.from(args || []).map(function(a) {
+                    try { return typeof a === 'object' ? JSON.stringify(a) : String(a); }
+                    catch(e) { return String(a); }
+                }).join(' ');
+                arr.push({ kind: kind, message: msg, ts: Date.now() });
+                if (arr.length > 50) arr.shift();
+            } catch(e) {}
+        }
+        try {
+            window.addEventListener('error', function(e) {
+                _ttPush('window.error', [e.message, e.filename, e.lineno, e.colno, (e.error && e.error.stack) ? e.error.stack : '']);
+            });
+            window.addEventListener('unhandledrejection', function(e) {
+                var r = e && e.reason;
+                _ttPush('unhandledrejection', [r && r.stack ? r.stack : String(r)]);
+            });
+            var _origErr = console.error;
+            console.error = function() { _ttPush('console.error', arguments); return _origErr.apply(console, arguments); };
+        } catch(e) {}
+
         var _nextId = 1;
         var _pending = {};
 
@@ -268,7 +609,7 @@ struct WebViewContainer: NSViewRepresentable {
         }
 
         window.timeTrackBridge = {
-            isConnected: true,
+            isConnected: false,
             SendCommand: function(command, payloadJson) {
                 var payload = null;
                 if (payloadJson) {
@@ -312,24 +653,8 @@ struct WebViewContainer: NSViewRepresentable {
 
         console.log('[MacOSDesktopHost] Bridge injected successfully');
 
-        // Rewrite remote API URLs to same-origin timetrack:// scheme so WKURLSchemeHandler
-        // proxies them natively — eliminates the CORS "Origin timetrack://app" rejection.
-        var _origFetch = window.fetch;
-        var _remoteBase = 'https://chronosx-timetrack-api.gpoda0.easypanel.host/api/v1';
-        var _localBase = 'timetrack://app/api/v1';
-        window.fetch = function(input, init) {
-            var url = (typeof input === 'string') ? input : (input instanceof Request ? input.url : String(input));
-            if (url.indexOf(_remoteBase) === 0) {
-                var newUrl = _localBase + url.substring(_remoteBase.length);
-                if (typeof input === 'string') {
-                    input = newUrl;
-                } else if (input instanceof Request) {
-                    input = new Request(newUrl, input);
-                }
-            }
-            return _origFetch.call(window, input, init);
-        };
-        console.log('[MacOSDesktopHost] API proxy active via timetrack:// scheme');
+        // API base is provided by the host via window.__APP_CONFIG__.VITE_API_URL
+        // and points at the embedded localhost proxy.
     })();
     """
 }

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Backend.Application.Notifications;
 
 namespace TimeTrack.Api.Controllers;
@@ -10,6 +11,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/me/notifications")]
 [Authorize]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class NotificationsController : ControllerBase
 {

@@ -57,82 +57,10 @@ public sealed class DeviceActivationService : IDeviceActivationService
     {
         try
         {
-            var deviceId = DeviceId.Current.Value;
-            if (!Guid.TryParse(deviceId, out var deviceIdGuid))
-            {
-                _logger.LogError("Invalid device ID format: {DeviceId}", deviceId);
-                return DeviceActivationResult.Failure("Invalid device ID format");
-            }
-
-            var request = new ActivateDeviceRequest
-            {
-                DeviceId = deviceIdGuid,
-                Hostname = Environment.MachineName,
-                DeviceName = Environment.MachineName,
-                AgentVersion = GetAgentVersion(),
-                DisplayMode = "background"
-            };
-
-            _logger.LogInformation(
-                "Activating device {DeviceId} on backend {BackendUrl}",
-                deviceId,
-                _settings.BackendUrl);
-
-            // Set authorization header with current JWT
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", jwt);
-
-            var content = new StringContent(
-                JsonSerializer.Serialize(request, _jsonOptions),
-                Encoding.UTF8,
-                "application/json");
-
-            var response = await _httpClient.PostAsync(
-                "/api/v1/devices/activate",
-                content,
+            return await ActivateWithOptionalRegenerationAsync(
+                jwt,
+                allowRegenerateOnConflict: true,
                 cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogError(
-                    "Device activation failed with status {StatusCode}: {Error}",
-                    response.StatusCode,
-                    errorContent);
-
-                return DeviceActivationResult.Failure(
-                    $"Activation failed with status {(int)response.StatusCode}: {errorContent}");
-            }
-
-            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            var activationResponse = JsonSerializer.Deserialize<ActivateDeviceResponse>(
-                responseContent,
-                _jsonOptions);
-
-            if (activationResponse == null)
-            {
-                _logger.LogError("Failed to deserialize activation response");
-                return DeviceActivationResult.Failure("Invalid activation response");
-            }
-
-            _logger.LogInformation(
-                "Device activated successfully. DeviceId: {DeviceId}, Status: {Status}",
-                activationResponse.DeviceId,
-                activationResponse.Status);
-
-            // Store new tokens (they include device_id in JWT)
-            await _tokenStore.StoreTokensAsync(
-                activationResponse.AccessToken,
-                activationResponse.RefreshToken,
-                cancellationToken);
-
-            _isDeviceActivated = true;
-
-            return DeviceActivationResult.Success(
-                activationResponse.AccessToken,
-                activationResponse.RefreshToken,
-                activationResponse.DeviceId,
-                activationResponse.Status);
         }
         catch (HttpRequestException ex)
         {
@@ -144,6 +72,107 @@ public sealed class DeviceActivationService : IDeviceActivationService
             _logger.LogError(ex, "Unexpected error during device activation");
             return DeviceActivationResult.Failure($"Unexpected error: {ex.Message}");
         }
+    }
+
+    private async Task<DeviceActivationResult> ActivateWithOptionalRegenerationAsync(
+        string jwt,
+        bool allowRegenerateOnConflict,
+        CancellationToken cancellationToken)
+    {
+        var deviceId = DeviceId.Current.Value;
+        if (!Guid.TryParse(deviceId, out var deviceIdGuid))
+        {
+            _logger.LogError("Invalid device ID format: {DeviceId}", deviceId);
+            return DeviceActivationResult.Failure("Invalid device ID format");
+        }
+
+        var request = new ActivateDeviceRequest
+        {
+            DeviceId = deviceIdGuid,
+            Hostname = Environment.MachineName,
+            DeviceName = Environment.MachineName,
+            AgentVersion = GetAgentVersion(),
+            DisplayMode = "background"
+        };
+
+        _logger.LogInformation(
+            "Activating device {DeviceId} on backend {BackendUrl}",
+            deviceId,
+            _settings.BackendUrl);
+
+        // Set authorization header with current JWT
+        _httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", jwt);
+
+        var content = new StringContent(
+            JsonSerializer.Serialize(request, _jsonOptions),
+            Encoding.UTF8,
+            "application/json");
+
+        var response = await _httpClient.PostAsync(
+            "/api/v1/devices/activate",
+            content,
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError(
+                "Device activation failed with status {StatusCode}: {Error}",
+                response.StatusCode,
+                errorContent);
+
+            // Self-heal: if the backend reports a device id conflict, regenerate and retry once.
+            if (allowRegenerateOnConflict &&
+                (int)response.StatusCode == 409 &&
+                TryParseErrorCode(errorContent, out var code) &&
+                code == "device_id_conflict")
+            {
+                var newDeviceId = DeviceId.Regenerate().Value;
+                _logger.LogWarning(
+                    "Backend reported device id conflict. Regenerated device id from {OldDeviceId} to {NewDeviceId}; retrying activation once.",
+                    deviceId,
+                    newDeviceId);
+
+                return await ActivateWithOptionalRegenerationAsync(
+                    jwt,
+                    allowRegenerateOnConflict: false,
+                    cancellationToken);
+            }
+
+            return DeviceActivationResult.Failure(
+                $"Activation failed with status {(int)response.StatusCode}: {errorContent}");
+        }
+
+        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+        var activationResponse = JsonSerializer.Deserialize<ActivateDeviceResponse>(
+            responseContent,
+            _jsonOptions);
+
+        if (activationResponse == null)
+        {
+            _logger.LogError("Failed to deserialize activation response");
+            return DeviceActivationResult.Failure("Invalid activation response");
+        }
+
+        _logger.LogInformation(
+            "Device activated successfully. DeviceId: {DeviceId}, Status: {Status}",
+            activationResponse.DeviceId,
+            activationResponse.Status);
+
+        // Store new tokens (they include device_id in JWT)
+        await _tokenStore.StoreTokensAsync(
+            activationResponse.AccessToken,
+            activationResponse.RefreshToken,
+            cancellationToken);
+
+        _isDeviceActivated = true;
+
+        return DeviceActivationResult.Success(
+            activationResponse.AccessToken,
+            activationResponse.RefreshToken,
+            activationResponse.DeviceId,
+            activationResponse.Status);
     }
 
     private static string GetAgentVersion()
@@ -173,6 +202,32 @@ public sealed class DeviceActivationService : IDeviceActivationService
         public string AccessToken { get; set; } = string.Empty;
         public string RefreshToken { get; set; } = string.Empty;
         public int ExpiresIn { get; set; }
+    }
+
+    private static bool TryParseErrorCode(string json, out string? code)
+    {
+        code = null;
+        if (string.IsNullOrWhiteSpace(json))
+            return false;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return false;
+
+            if (doc.RootElement.TryGetProperty("code", out var c) && c.ValueKind == JsonValueKind.String)
+            {
+                code = c.GetString();
+                return !string.IsNullOrWhiteSpace(code);
+            }
+        }
+        catch
+        {
+            // ignore parse errors
+        }
+
+        return false;
     }
 
     #endregion

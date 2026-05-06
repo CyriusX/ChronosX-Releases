@@ -102,4 +102,34 @@ public class IdlePeriodTests
         // Assert
         idle.Duration.Should().Be(TimeSpan.FromMinutes(10));
     }
+
+    [Fact]
+    public void SubmitJustification_ShouldStoreReasonAndMarkAsSubmitted()
+    {
+        // Arrange
+        var idle = IdlePeriod.Create(_testUserId, _testPeriod, thresholdSeconds: 60);
+        var submittedAtUtc = DateTime.UtcNow;
+
+        // Act
+        idle.SubmitJustification("meeting", "Weekly sync", submittedAtUtc);
+
+        // Assert
+        idle.JustificationState.Should().Be(IdleJustificationStates.Submitted);
+        idle.JustificationReasonCode.Should().Be("meeting");
+        idle.JustificationNote.Should().Be("Weekly sync");
+        idle.JustificationSubmittedAtUtc.Should().Be(submittedAtUtc);
+    }
+
+    [Fact]
+    public void DismissJustification_ShouldMarkAsDismissed()
+    {
+        // Arrange
+        var idle = IdlePeriod.Create(_testUserId, _testPeriod, thresholdSeconds: 60);
+
+        // Act
+        idle.DismissJustification();
+
+        // Assert
+        idle.JustificationState.Should().Be(IdleJustificationStates.Dismissed);
+    }
 }

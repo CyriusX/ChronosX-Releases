@@ -43,7 +43,8 @@ export type AgentEventType =
   | 'updateAvailable'
   | 'updateProgress'
   | 'updateComplete'
-  | 'updateFailed';
+  | 'updateFailed'
+  | 'sessionRevoked';
 
 // ============================================================================
 // EVENT PAYLOADS
@@ -208,6 +209,20 @@ export interface UpdateFailedPayload {
   error: string;
 }
 
+export interface TokensRefreshedPayload {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
+export interface SessionRevokedPayload {
+  reason: string;
+}
+
+export interface DevToolsAccessChangedPayload {
+  devToolsEnabled: boolean;
+}
+
 // Event payload map for type-safe event handling
 export interface EventPayloadMap {
   trackingStarted: TrackingStartedPayload;
@@ -229,6 +244,9 @@ export interface EventPayloadMap {
   updateProgress: UpdateProgressPayload;
   updateComplete: UpdateCompletePayload;
   updateFailed: UpdateFailedPayload;
+  tokensRefreshed: TokensRefreshedPayload;
+  sessionRevoked: SessionRevokedPayload;
+  devToolsAccessChanged: DevToolsAccessChangedPayload;
 }
 
 // ============================================================================
@@ -237,6 +255,7 @@ export interface EventPayloadMap {
 
 export type AgentCommand =
   | 'storeTokens'
+  | 'refreshTokens'
   | 'startTracking'
   | 'stopTracking'
   | 'pauseTracking'
@@ -318,6 +337,7 @@ export interface RecordFocusSessionPayload {
 // Command payload map for type-safe commands
 export interface CommandPayloadMap {
   storeTokens: StoreTokensPayload;
+  refreshTokens: undefined;
   startTracking: undefined;
   stopTracking: undefined;
   pauseTracking: PauseTrackingPayload;
@@ -349,6 +369,7 @@ export type AgentQuery =
   | 'getTodaySummary'
   | 'getRecentActivities'
   | 'getRecentApps'
+  | 'getTopFolders'
   | 'getProjects'
   | 'getTasks'
   | 'getTrackingState'
@@ -494,6 +515,14 @@ export interface RecentAppsResponse {
   since: string;
 }
 
+export interface TopFoldersResponse {
+  folders: Array<{
+    folderPath: string;
+    totalSeconds: number;
+    visitCount: number;
+  }>;
+}
+
 export interface TrackingStateResponse {
   isTracking: boolean;
   isPaused: boolean;
@@ -565,6 +594,7 @@ export interface QueryResponseMap {
   getTodaySummary: TodaySummaryResponse;
   getRecentActivities: RecentActivityResponse;
   getRecentApps: RecentAppsResponse;
+  getTopFolders: TopFoldersResponse;
   getProjects: ProjectResponse[];
   getTasks: TaskResponse[];
   getTrackingState: TrackingStateResponse;
@@ -574,6 +604,7 @@ export interface QueryResponseMap {
   getSettings: LocalSettingsResponse;
   getFocusModeState: FocusModeSnapshot;
   getLaunchAtLogin: { enabled: boolean };
+  getTokens: { hasTokens: boolean; accessToken?: string; refreshToken?: string; expiresIn?: number };
 }
 
 // ============================================================================

@@ -26,6 +26,7 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
     private readonly IUserIntegrationRepository _integrations;
     private readonly ILinearSyncHistoryRepository _history;
     private readonly IProjectRepository _projects;
+    private readonly IProjectMemberRepository _members;
     private readonly IProjectTaskRepository _tasks;
     private readonly ITaskTimeEntryRepository _entries;
     private readonly ILinearClient _linear;
@@ -37,6 +38,7 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
         IUserIntegrationRepository integrations,
         ILinearSyncHistoryRepository history,
         IProjectRepository projects,
+        IProjectMemberRepository members,
         IProjectTaskRepository tasks,
         ITaskTimeEntryRepository entries,
         ILinearClient linear,
@@ -47,6 +49,7 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
         _integrations = integrations;
         _history = history;
         _projects = projects;
+        _members = members;
         _tasks = tasks;
         _entries = entries;
         _linear = linear;
@@ -118,6 +121,7 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
             {
                 var project = Project.CreateFromLinear(
                     orgId,
+                    userId,
                     lp.Name,
                     ResolveProjectColor(lp.Id),
                     lp.Id,
@@ -134,6 +138,18 @@ public sealed class SyncFromLinearCommandHandler : IRequestHandler<SyncFromLinea
                 projectsByLinearId[lp.Id] = existing;
                 projectsUpdated++;
             }
+        }
+
+        // Ensure synced Linear projects show up under "My Data".
+        // Linear sync is scoped to "issues assigned to me", so the current user should always be a member.
+        var existingMemberships = await _members.ListProjectIdsForUserAsync(userId, ct);
+        var membershipSet = existingMemberships.Count > 0 ? existingMemberships.ToHashSet() : new HashSet<Guid>();
+        foreach (var p in projectsByLinearId.Values.DistinctBy(p => p.Id))
+        {
+            if (membershipSet.Contains(p.Id)) continue;
+            var member = ProjectMember.Create(orgId, p.Id, userId, userId, ProjectMemberRole.Member);
+            await _members.AddAsync(member, ct);
+            membershipSet.Add(p.Id);
         }
 
         // ── Task upsert ──────────────────────────────────────────────────

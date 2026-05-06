@@ -11,9 +11,9 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>ChronosX TimeTrack</string>
+    <string>Chronos TimeTrack</string>
     <key>CFBundleDisplayName</key>
-    <string>TimeTrack</string>
+    <string>Chronos TimeTrack</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>

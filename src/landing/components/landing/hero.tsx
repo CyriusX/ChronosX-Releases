@@ -2,12 +2,13 @@
 
 import { useRef } from "react";
 import { motion, useInView } from "motion/react";
-import { ArrowRight, Sparkles } from "lucide-react";
-import { HERO } from "@/lib/landing-data";
+import { Sparkles, CheckCircle2 } from "lucide-react";
 import { fadeUp, staggerContainer, STAGGER, sectionTransition } from "@/lib/animations";
-import { MockupDashboard } from "./mockups/mockup-dashboard";
+import { useLandingContent } from "./content-provider";
+import { WaitlistForm } from "./waitlist-form";
 
 export function Hero() {
+  const { copy } = useLandingContent();
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, amount: 0.1 });
 
@@ -42,7 +43,7 @@ export function Hero() {
           <div className="inline-flex items-center gap-2 rounded-full border border-accent-violet/30 bg-accent-violet/10 px-4 py-1.5">
             <Sparkles className="h-3.5 w-3.5 text-accent-violet" />
             <span className="text-xs font-medium text-accent-violet">
-              {HERO.eyebrow}
+              {copy.hero.eyebrow}
             </span>
           </div>
         </motion.div>
@@ -53,7 +54,7 @@ export function Hero() {
           transition={sectionTransition}
           className="mx-auto max-w-4xl text-center font-heading text-4xl leading-[1.1] font-bold tracking-tight text-text-primary sm:text-5xl md:text-6xl lg:text-7xl"
         >
-          {HERO.headline.split("\n").map((line, i) => (
+          {copy.hero.headline.split("\n").map((line, i) => (
             <span key={i}>
               {i > 0 && <br />}
               {i === 1 ? (
@@ -71,45 +72,36 @@ export function Hero() {
           transition={sectionTransition}
           className="mx-auto mt-6 max-w-2xl text-center text-base leading-relaxed text-text-muted md:text-lg"
         >
-          {HERO.subheadline}
+          {copy.hero.subheadline}
         </motion.p>
+
+        {/* Bullets */}
+        <motion.div
+          variants={fadeUp}
+          transition={sectionTransition}
+          className="mx-auto mt-6 grid max-w-2xl gap-2 text-left sm:grid-cols-3 sm:gap-3"
+        >
+          {copy.hero.bullets.map((b) => (
+            <div
+              key={b}
+              className="flex items-start gap-2 rounded-xl border border-border-subtle bg-card/25 px-4 py-3 text-sm text-text-muted"
+            >
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent-cyan" />
+              <span>{b}</span>
+            </div>
+          ))}
+        </motion.div>
 
         {/* CTA Form */}
         <motion.div
           variants={fadeUp}
           transition={sectionTransition}
-          className="mx-auto mt-8 flex max-w-md flex-col items-center gap-3 sm:flex-row"
+          className="mx-auto mt-8 w-full max-w-2xl"
         >
-          <div className="relative w-full flex-1">
-            <input
-              type="email"
-              placeholder={HERO.inputPlaceholder}
-              className="w-full rounded-full border border-border-subtle bg-card/60 px-5 py-3 text-sm text-text-primary placeholder:text-text-dim outline-none transition-all focus:border-accent-blue/50 focus:ring-2 focus:ring-accent-blue/20"
-            />
-          </div>
-          <button className="pill-button inline-flex w-full items-center justify-center gap-2 bg-accent-blue font-semibold text-white shadow-lg shadow-accent-blue/25 transition-all hover:bg-accent-blue/90 hover:shadow-xl hover:shadow-accent-blue/30 sm:w-auto">
-            {HERO.ctaText}
-            <ArrowRight className="h-4 w-4" />
-          </button>
+          <div id="waitlist" className="scroll-mt-28" />
+          <WaitlistForm />
         </motion.div>
 
-        {/* Dashboard mockup */}
-        <motion.div
-          variants={fadeUp}
-          transition={{ ...sectionTransition, duration: 0.7, delay: 0.2 }}
-          className="mt-14 md:mt-20"
-          style={{
-            perspective: "1200px",
-          }}
-        >
-          <div
-            style={{
-              transform: "rotateX(2deg)",
-            }}
-          >
-            <MockupDashboard />
-          </div>
-        </motion.div>
       </motion.div>
     </section>
   );

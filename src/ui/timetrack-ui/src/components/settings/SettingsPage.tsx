@@ -12,6 +12,7 @@ import { FocusTimerSection } from './FocusTimerSection';
 import { AboutSection } from './AboutSection';
 import { MembersSection } from './MembersSection';
 import { OrganizationSection } from './OrganizationSection';
+import { BillingSection } from './BillingSection';
 import { AgentStatusSection } from './AgentStatusSection';
 import { TimelineSection } from './TimelineSection';
 import { IntegrationsSection } from './IntegrationsSection';
@@ -149,7 +150,13 @@ export function SettingsPage() {
         ) : null;
       case 'notifications':
         return settings ? (
-          <NotificationsSection settings={settings} onUpdate={handleUpdateSettings} />
+          <NotificationsSection
+            settings={settings}
+            onUpdate={handleUpdateSettings}
+            orgIdleThresholdSeconds={policy?.idleThresholdSeconds ?? null}
+            canEditOrgPolicies={canEditOrgPolicies}
+            onEditOrgPolicies={() => handleSectionChange('organization')}
+          />
         ) : null;
       case 'timeline':
         return <TimelineSection />;
@@ -194,6 +201,8 @@ export function SettingsPage() {
         return <MaintenanceSection />;
       case 'agent-status':
         return <AgentStatusSection />;
+      case 'billing':
+        return <BillingSection />;
       default:
         return null;
     }

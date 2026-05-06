@@ -1,11 +1,14 @@
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Infrastructure.MacOS.Interop;
+using TimeTrack.Agent.Infrastructure.Providers.Windows;
+using TimeTrack.Agent.Infrastructure.Utilities;
 
 namespace TimeTrack.Agent.Infrastructure.MacOS.Providers;
 
@@ -17,7 +20,6 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 {
     private readonly ILogger<MacOSActiveWindowProvider> _logger;
     private readonly ActiveWindowProviderOptions _options;
-    private readonly IFilePathExtractor _filePathExtractor;
     private readonly int _currentProcessId;
 
     private ActiveWindowInfo? _cachedWindow;
@@ -29,6 +31,15 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
     private readonly ConcurrentDictionary<string, string> _hashByInput = new();
     private readonly ConcurrentDictionary<string, string> _displayNameByExePath = new();
     private readonly ConcurrentDictionary<int, string?> _exePathByPid = new();
+
+    private string? _finderFolderCache;
+    private DateTime _finderFolderCacheAtUtc = DateTime.MinValue;
+    private DateTime _finderPermissionDeniedLoggedAtUtc = DateTime.MinValue;
+
+    private string? _safariTabTitleCache;
+    private string? _safariTabUrlCache;
+    private DateTime _safariTabCacheAtUtc = DateTime.MinValue;
+    private DateTime _safariPermissionDeniedLoggedAtUtc = DateTime.MinValue;
 
     // Compiled once — the previous code recompiled this regex on every poll cycle.
     private static readonly Regex s_bundleNameRegex = new(
@@ -44,18 +55,17 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 
     public MacOSActiveWindowProvider(
         ILogger<MacOSActiveWindowProvider> logger,
-        IFilePathExtractor filePathExtractor,
         IOptions<ActiveWindowProviderOptions>? options = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _filePathExtractor = filePathExtractor ?? throw new ArgumentNullException(nameof(filePathExtractor));
         _options = options?.Value ?? new ActiveWindowProviderOptions();
         _currentProcessId = Environment.ProcessId;
 
-        // Ask macOS to prompt the user for Accessibility permission if not already granted.
-        // Without it, window titles come back empty; the app name and bundle path are still
-        // captured so tracking remains functional.
-        AccessibilityPermission.CheckAndPrompt(prompt: true, _logger);
+        // DO NOT auto-trigger the macOS Accessibility system prompt on every launch.
+        // It can show repeatedly in dev/bundled scenarios and is a poor UX.
+        // We only *check* here; the UI should guide the user to System Settings when needed.
+        // Without permission, window titles can be empty; app name and bundle path are still captured.
+        AccessibilityPermission.CheckAndPrompt(prompt: false, _logger);
     }
 
     /// <inheritdoc />
@@ -141,15 +151,80 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
                 : null;
 
             var processName = Path.GetFileNameWithoutExtension(exePath) ?? "";
-            var filePath = _filePathExtractor.ExtractFilePath(IntPtr.Zero, processName, windowTitle);
+            var isFinder = IsFinderBundle(exePath, appName, processName);
 
-            string? browserUrl = null;
-            if (IsBrowserBundle(appName, exePath))
+            // Top Folders: only Finder should produce a FilePath. Do not capture file paths for other apps.
+            string? filePath = null;
+
+            if (isFinder)
             {
-                browserUrl = ExtractBrowserUrl(pid, windowTitle);
+                // Prefer AXDocument when it provides a real file:// or absolute POSIX path.
+                filePath = NormalizeFinderFolderPath(GetActiveWindowDocumentPath(pid));
+
+                // AXDocument may be empty on some macOS versions / permission states.
+                // Use AppleScript fallback to get the target folder of the front window.
+                if (string.IsNullOrWhiteSpace(filePath))
+                {
+                    var finderFolder = TryGetFinderFrontWindowFolderPath();
+                    if (!string.IsNullOrWhiteSpace(finderFolder))
+                    {
+                        filePath = finderFolder;
+                    }
+                }
             }
 
             var displayName = GetDisplayName(appName, exePath);
+
+            string? browserUrl = null;
+            var browserAutomationPermissionRequiredForApp = (string?)null;
+            if (IsBrowserBundle(appName, exePath))
+            {
+                var siteFromTitle = BrowserUrlExtractor.ExtractSiteFromTitle(windowTitle, displayName);
+
+                // Safari often does not expose a stable "Site - Browser" window title format on macOS,
+                // and window titles may be empty without Accessibility permission. For reliability,
+                // fall back to AppleScript (Safari only) to read the active tab title + URL.
+                if (IsSafariBundle(exePath, appName, processName) &&
+                    (string.IsNullOrWhiteSpace(windowTitle) || !BrowserSiteLabelFromUrl.IsLikelyStableSiteLabel(siteFromTitle)))
+                {
+                    var (tabTitle, tabUrl, permissionDenied) = TryGetSafariFrontTabInfo(exePath, appName, timeoutMs: 500);
+
+                    if (!string.IsNullOrWhiteSpace(tabTitle))
+                    {
+                        windowTitle = tabTitle;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(tabUrl))
+                    {
+                        var stableSite = BrowserSiteLabelFromUrl.FromUrl(tabUrl);
+                        if (!string.IsNullOrWhiteSpace(stableSite))
+                        {
+                            browserUrl = stableSite;
+                        }
+                    }
+
+                    if (permissionDenied)
+                    {
+                        browserAutomationPermissionRequiredForApp = exePath.Contains("Safari Technology Preview.app", StringComparison.OrdinalIgnoreCase)
+                            ? "Safari Technology Preview"
+                            : "Safari";
+                    }
+
+                    if (permissionDenied && (DateTime.UtcNow - _safariPermissionDeniedLoggedAtUtc) > TimeSpan.FromMinutes(10))
+                    {
+                        _safariPermissionDeniedLoggedAtUtc = DateTime.UtcNow;
+                        _logger.LogWarning(
+                            "Safari tab tracking requires Automation permission. macOS denied Apple Events to Safari; browser site details may be missing until allowed in System Settings.");
+                    }
+
+                    // If AppleScript didn't yield a stable site label, fall back to title parsing.
+                    browserUrl ??= siteFromTitle;
+                }
+                else
+                {
+                    browserUrl = siteFromTitle;
+                }
+            }
 
             return new ActiveWindowInfo
             {
@@ -159,13 +234,291 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
                 WindowTitle = windowTitle,
                 WindowHash = windowHash,
                 FilePath = filePath,
-                BrowserUrl = browserUrl
+                BrowserUrl = browserUrl,
+                BrowserAutomationPermissionRequiredForApp = browserAutomationPermissionRequiredForApp
             };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error building ActiveWindowInfo for process {ProcessId}", pid);
             return null;
+        }
+    }
+
+    private static string? NormalizeFinderFolderPath(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        var value = raw.Trim();
+
+        if (value.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                value = new Uri(value).LocalPath;
+            }
+            catch
+            {
+                // fall through to raw
+            }
+        }
+
+        if (!LooksLikePosixAbsolutePath(value))
+            return null;
+
+        // Finder should report a folder; if we got a file path, normalize to its directory.
+        try
+        {
+            if (File.Exists(value) && !Directory.Exists(value))
+            {
+                value = Path.GetDirectoryName(value) ?? value;
+            }
+        }
+        catch
+        {
+            // best-effort
+        }
+
+        if (!value.EndsWith("/", StringComparison.Ordinal))
+            value += "/";
+
+        return value;
+    }
+
+    private static bool LooksLikePosixAbsolutePath(string? value)
+        => !string.IsNullOrWhiteSpace(value) && value.TrimStart().StartsWith("/", StringComparison.Ordinal);
+
+    private static bool IsFinderBundle(string exePath, string appName, string processName)
+    {
+        if (!string.IsNullOrWhiteSpace(processName) &&
+            processName.Contains("finder", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(appName) &&
+            string.Equals(appName.Trim(), "Finder", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return exePath.Contains("Finder.app", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSafariBundle(string exePath, string appName, string processName)
+    {
+        if (!string.IsNullOrWhiteSpace(processName) &&
+            processName.Contains("safari", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(appName) &&
+            appName.Contains("Safari", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (exePath.Contains("Safari.app", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (exePath.Contains("Safari Technology Preview.app", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
+
+    private (string? TabTitle, string? TabUrl, bool PermissionDenied) TryGetSafariFrontTabInfo(
+        string exePath,
+        string appName,
+        int timeoutMs)
+    {
+        var now = DateTime.UtcNow;
+        if ((now - _safariTabCacheAtUtc) <= TimeSpan.FromSeconds(2))
+            return (_safariTabTitleCache, _safariTabUrlCache, false);
+
+        var scriptApp = exePath.Contains("Safari Technology Preview.app", StringComparison.OrdinalIgnoreCase)
+            ? "Safari Technology Preview"
+            : "Safari";
+
+        var (title, url, permissionDenied) = TryGetSafariFrontTabInfoViaAppleScript(scriptApp, timeoutMs);
+
+        _safariTabTitleCache = title;
+        _safariTabUrlCache = url;
+        _safariTabCacheAtUtc = now;
+
+        if (!string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(url))
+        {
+            _logger.LogDebug("Resolved Safari tab via AppleScript. Title={Title} UrlHost={Host}",
+                title ?? "(null)",
+                TryGetUrlHost(url) ?? "(null)");
+        }
+
+        return (_safariTabTitleCache, _safariTabUrlCache, permissionDenied);
+    }
+
+    private static (string? TabTitle, string? TabUrl, bool PermissionDenied) TryGetSafariFrontTabInfoViaAppleScript(
+        string safariAppName,
+        int timeoutMs)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "/usr/bin/osascript",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            // Output: "<title>\n<url>" (empty if no windows).
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add($"tell application \"{safariAppName}\"");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("if (count of windows) is 0 then return \"\"");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("set theTab to current tab of front window");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("set t to (name of theTab as text)");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("set u to (URL of theTab as text)");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("return t & \"\\n\" & u");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("end tell");
+
+            using var proc = Process.Start(psi);
+            if (proc == null)
+                return (null, null, false);
+
+            if (!proc.WaitForExit(timeoutMs))
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { }
+                return (null, null, false);
+            }
+
+            var stdout = proc.StandardOutput.ReadToEnd().Trim();
+            var stderr = proc.StandardError.ReadToEnd().Trim();
+
+            if (!string.IsNullOrWhiteSpace(stderr) &&
+                (stderr.Contains("Not authorized", StringComparison.OrdinalIgnoreCase) ||
+                 stderr.Contains("not authorised", StringComparison.OrdinalIgnoreCase) ||
+                 stderr.Contains("AppleEvent", StringComparison.OrdinalIgnoreCase) ||
+                 stderr.Contains("(-1743)", StringComparison.OrdinalIgnoreCase)))
+            {
+                return (null, null, true);
+            }
+
+            if (string.IsNullOrWhiteSpace(stdout))
+                return (null, null, false);
+
+            var lines = stdout
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            if (lines.Length == 0)
+                return (null, null, false);
+
+            var title = lines[0];
+            var url = lines.Length > 1 ? lines[^1] : null;
+
+            return (string.IsNullOrWhiteSpace(title) ? null : title,
+                    string.IsNullOrWhiteSpace(url) ? null : url,
+                    false);
+        }
+        catch
+        {
+            return (null, null, false);
+        }
+    }
+
+    private static string? TryGetUrlHost(string? rawUrl)
+    {
+        if (string.IsNullOrWhiteSpace(rawUrl))
+            return null;
+
+        if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var uri))
+            return null;
+
+        return string.IsNullOrWhiteSpace(uri.Host) ? null : uri.Host;
+    }
+
+    private string? TryGetFinderFrontWindowFolderPath()
+    {
+        var now = DateTime.UtcNow;
+        if ((now - _finderFolderCacheAtUtc) <= TimeSpan.FromSeconds(2))
+            return _finderFolderCache;
+
+        var previous = _finderFolderCache;
+        var (path, permissionDenied) = TryGetFinderFrontWindowFolderPathViaAppleScript(timeoutMs: 500);
+        _finderFolderCache = path;
+        _finderFolderCacheAtUtc = now;
+
+        if (!string.IsNullOrWhiteSpace(path) && !string.Equals(previous, path, StringComparison.Ordinal))
+        {
+            _logger.LogDebug("Resolved Finder folder path via AppleScript: {FolderPath}", path);
+        }
+
+        if (permissionDenied && (now - _finderPermissionDeniedLoggedAtUtc) > TimeSpan.FromMinutes(10))
+        {
+            _finderPermissionDeniedLoggedAtUtc = now;
+            _logger.LogWarning(
+                "Finder folder tracking requires Automation permission. macOS denied Apple Events to Finder; Top Folders may be empty until allowed in System Settings.");
+        }
+
+        return _finderFolderCache;
+    }
+
+    private static (string? Path, bool PermissionDenied) TryGetFinderFrontWindowFolderPathViaAppleScript(int timeoutMs)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "/usr/bin/osascript",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            // Returns empty output when no Finder windows are open.
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("tell application \"Finder\"");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("if (count of windows) is 0 then return \"\"");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("return POSIX path of (target of front window as alias)");
+            psi.ArgumentList.Add("-e");
+            psi.ArgumentList.Add("end tell");
+
+            using var proc = Process.Start(psi);
+            if (proc == null)
+                return (null, false);
+
+            if (!proc.WaitForExit(timeoutMs))
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { }
+                return (null, false);
+            }
+
+            var stdout = proc.StandardOutput.ReadToEnd().Trim();
+            var stderr = proc.StandardError.ReadToEnd().Trim();
+
+            if (!string.IsNullOrWhiteSpace(stderr) &&
+                (stderr.Contains("Not authorized", StringComparison.OrdinalIgnoreCase) ||
+                 stderr.Contains("not authorised", StringComparison.OrdinalIgnoreCase) ||
+                 stderr.Contains("AppleEvent", StringComparison.OrdinalIgnoreCase)))
+            {
+                return (null, true);
+            }
+
+            if (string.IsNullOrWhiteSpace(stdout))
+                return (null, false);
+
+            // Ensure directory marker
+            if (!stdout.EndsWith("/", StringComparison.Ordinal))
+                stdout += "/";
+
+            // Only accept absolute POSIX paths
+            return LooksLikePosixAbsolutePath(stdout) ? (stdout, false) : (null, false);
+        }
+        catch
+        {
+            return (null, false);
         }
     }
 
@@ -394,6 +747,79 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
         }
     }
 
+    private string? GetActiveWindowDocumentPath(int pid)
+    {
+        try
+        {
+            var appRef = AXUIElementCreateApplication(pid);
+            if (appRef == IntPtr.Zero)
+                return null;
+
+            try
+            {
+                var focusedWindowRef = IntPtr.Zero;
+                var result = AXUIElementCopyAttributeValue(
+                    appRef,
+                    kAXFocusedWindowAttribute,
+                    out focusedWindowRef);
+
+                if (result != 0 || focusedWindowRef == IntPtr.Zero)
+                    return null;
+
+                try
+                {
+                    var docValue = IntPtr.Zero;
+                    result = AXUIElementCopyAttributeValue(
+                        focusedWindowRef,
+                        kAXDocumentAttribute,
+                        out docValue);
+
+                    if (result != 0 || docValue == IntPtr.Zero)
+                        return null;
+
+                    try
+                    {
+                        var raw = ObjCRuntime.NSStringToManaged(docValue);
+                        if (string.IsNullOrWhiteSpace(raw))
+                            return null;
+
+                        if (raw.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                var uri = new Uri(raw);
+                                return uri.LocalPath;
+                            }
+                            catch
+                            {
+                                // fall through to raw
+                            }
+                        }
+
+                        return raw;
+                    }
+                    finally
+                    {
+                        CFRelease(docValue);
+                    }
+                }
+                finally
+                {
+                    CFRelease(focusedWindowRef);
+                }
+            }
+            finally
+            {
+                CFRelease(appRef);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Error getting active window document path for PID {Pid}", pid);
+            return null;
+        }
+    }
+
     private string GetDisplayName(string appName, string exePath)
     {
         // The display name for a given bundle path never changes at runtime, so
@@ -540,6 +966,7 @@ public sealed class MacOSActiveWindowProvider : IActiveWindowProvider, IDisposab
 
     private static readonly IntPtr kAXFocusedWindowAttribute = CoreFoundationNative.CFStringCreate("AXFocusedWindow");
     private static readonly IntPtr kAXTitleAttribute = CoreFoundationNative.CFStringCreate("AXTitle");
+    private static readonly IntPtr kAXDocumentAttribute = CoreFoundationNative.CFStringCreate("AXDocument");
 
     #endregion
 }

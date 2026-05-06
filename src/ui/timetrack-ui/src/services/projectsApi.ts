@@ -6,6 +6,7 @@
  */
 
 import { api } from './apiClient';
+import { getUserTimezone } from '../types/reports';
 
 // ============================================================================
 // TYPES — Projects
@@ -81,6 +82,7 @@ export interface Task {
   totalSecondsWorked: number;
   rowVersion: number;
   isRunning: boolean;
+  isPaused: boolean;
   runningSeconds: number | null;
   isLinearSourced: boolean;
   linearIssueIdentifier: string | null;
@@ -153,8 +155,11 @@ export interface ListNotificationsResponse {
 // API
 // ============================================================================
 
-export function listProjects(activeOnly: boolean = true): Promise<ListProjectsResponse> {
-  return api.get<ListProjectsResponse>(`/projects?activeOnly=${activeOnly}`);
+export function listProjects(activeOnly: boolean = true, mineOnly: boolean = true): Promise<ListProjectsResponse> {
+  const params = new URLSearchParams();
+  params.set('activeOnly', String(activeOnly));
+  if (mineOnly) params.set('mineOnly', 'true');
+  return api.get<ListProjectsResponse>(`/projects?${params.toString()}`);
 }
 
 export function getProject(id: string): Promise<ProjectItem> {
@@ -167,6 +172,10 @@ export function listProjectTasks(projectId: string): Promise<ListTasksResponse> 
 
 export function listProjectMembers(projectId: string): Promise<ListMembersResponse> {
   return api.get<ListMembersResponse>(`/projects/${encodeURIComponent(projectId)}/members`);
+}
+
+export function addProjectMember(projectId: string, userId: string, role: string = 'member'): Promise<ProjectMember> {
+  return api.post<ProjectMember>(`/projects/${encodeURIComponent(projectId)}/members`, { userId, role });
 }
 
 export function createTask(projectId: string, body: CreateTaskRequest): Promise<Task> {
@@ -226,6 +235,8 @@ export interface TaskEntryDto {
   projectColor: string;
   startedAt: string;
   endedAt: string | null;
+  pausedAt?: string | null;
+  isPaused?: boolean;
 }
 
 export interface ListTaskEntriesResponse {
@@ -233,11 +244,21 @@ export interface ListTaskEntriesResponse {
 }
 
 export function getMyTaskEntries(date: string): Promise<ListTaskEntriesResponse> {
-  return api.get<ListTaskEntriesResponse>(`/me/task-entries?date=${encodeURIComponent(date)}`);
+  const params = new URLSearchParams({ date, timezone: getUserTimezone() });
+  return api.get<ListTaskEntriesResponse>(`/me/task-entries?${params.toString()}`);
+}
+
+export function getUserTaskEntries(userId: string, date: string): Promise<ListTaskEntriesResponse> {
+  const params = new URLSearchParams({ date, timezone: getUserTimezone() });
+  return api.get<ListTaskEntriesResponse>(`/users/${encodeURIComponent(userId)}/task-entries?${params.toString()}`);
 }
 
 export function listMyNotifications(unreadOnly: boolean = false, take: number = 50): Promise<ListNotificationsResponse> {
   return api.get<ListNotificationsResponse>(`/me/notifications?unreadOnly=${unreadOnly}&take=${take}`);
+}
+
+export function closeMyOpenTaskTimer(): Promise<void> {
+  return api.post<void>('/me/tasks/open/close');
 }
 
 export function markNotificationRead(id: string): Promise<void> {

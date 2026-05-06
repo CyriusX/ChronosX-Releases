@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
-using TimeTrack.Api.Security;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Backend.Application.Ingest.Commands;
 using TimeTrack.Backend.Application.Ingest.DTOs;
 
@@ -15,6 +15,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/ingest")]
 [Authorize]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Ingest)]
 public sealed class IngestController : ControllerBase
 {
@@ -85,6 +86,36 @@ public sealed class IngestController : ControllerBase
         }
 
         var command = new IngestIdlePeriodsCommand
+        {
+            Items = request.Items
+        };
+
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Ingest idle justification updates from the agent
+    /// </summary>
+    [HttpPost("idle-justifications")]
+    [ProducesResponseType(typeof(IngestResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
+    public async Task<ActionResult<IngestResponse>> IngestIdleJustifications(
+        [FromBody] IdleJustificationIngestRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (Request.ContentLength > 2 * 1024 * 1024)
+        {
+            return StatusCode(StatusCodes.Status413PayloadTooLarge, new
+            {
+                error = "PayloadTooLarge",
+                message = "Payload size cannot exceed 2MB"
+            });
+        }
+
+        var command = new IngestIdleJustificationsCommand
         {
             Items = request.Items
         };

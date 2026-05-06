@@ -18,7 +18,6 @@ public sealed class UpdateWorker : BackgroundService
     private readonly UpdateEventBroadcaster _eventBroadcaster;
 
     private DateTime _lastCheck = DateTime.MinValue;
-    private bool _updateInProgress;
 
     public UpdateWorker(
         ILogger<UpdateWorker> logger,
@@ -52,6 +51,9 @@ public sealed class UpdateWorker : BackgroundService
             _settings.CheckIntervalMinutes,
             _settings.Channel);
 
+        // Check if a previous update completed or failed while we were down
+        await BroadcastPendingUpdateResultAsync(stoppingToken);
+
         // Check on startup if configured
         if (_settings.CheckOnStartup)
         {
@@ -77,12 +79,6 @@ public sealed class UpdateWorker : BackgroundService
 
     private async Task CheckForUpdatesAsync(CancellationToken cancellationToken)
     {
-        if (_updateInProgress)
-        {
-            _logger.LogDebug("Skipping update check - update already in progress");
-            return;
-        }
-
         _logger.LogInformation("Checking for updates...");
 
         try
@@ -93,21 +89,16 @@ public sealed class UpdateWorker : BackgroundService
             if (result?.HasUpdate == true)
             {
                 _logger.LogInformation(
-                    "Update available: {Version}. Starting forced update...",
+                    "Update available: {Version}. Notifying user...",
                     result.LatestVersion);
 
-                // Broadcast update available event
                 await _eventBroadcaster.BroadcastUpdateAvailableAsync(result);
 
-                // Start forced update with try/finally to guarantee _updateInProgress is reset
-                _updateInProgress = true;
-                try
+                // Only auto-start update when ForceUpdate is enabled
+                if (_settings.ForceUpdate)
                 {
+                    _logger.LogInformation("ForceUpdate enabled — starting update automatically");
                     await _updateService.StartUpdateAsync(cancellationToken);
-                }
-                finally
-                {
-                    _updateInProgress = false;
                 }
             }
             else
@@ -118,7 +109,6 @@ public sealed class UpdateWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to check for updates");
-            _updateInProgress = false;
         }
     }
 
@@ -149,6 +139,75 @@ public sealed class UpdateWorker : BackgroundService
             // Broadcast failure
             _ = _eventBroadcaster.BroadcastUpdateFailedAsync(result.ErrorMessage ?? "Unknown error");
         }
+    }
+
+    /// <summary>
+    /// Reads the update-status.json left by update.exe and broadcasts the
+    /// result to connected IPC clients so the frontend can resolve its state
+    /// after being killed and restarted by the installer.
+    /// </summary>
+    private async Task BroadcastPendingUpdateResultAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var statusPath = Path.Combine(Path.GetTempPath(), "ChronosX-Update", "update-status.json");
+            if (!File.Exists(statusPath))
+                return;
+
+            var json = await File.ReadAllTextAsync(statusPath, cancellationToken);
+            var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            var stage = root.TryGetProperty("stage", out var s) ? s.GetString() : null;
+            var version = root.TryGetProperty("version", out var v) ? v.GetString() : "unknown";
+            var timestampStr = root.TryGetProperty("timestamp", out var t) ? t.GetString() : null;
+            var error = root.TryGetProperty("error", out var e) ? e.GetString() : null;
+
+            // Only act on recent status files (within last 30 minutes)
+            if (DateTime.TryParse(timestampStr, out var timestamp))
+            {
+                if (DateTime.UtcNow - timestamp > TimeSpan.FromMinutes(30))
+                {
+                    _logger.LogDebug("Stale update status file from {Time}, ignoring", timestamp);
+                    TryDeleteStatusFile(statusPath);
+                    return;
+                }
+            }
+
+            _logger.LogInformation("Found pending update status: Stage={Stage}, Version={Version}", stage, version);
+
+            // Give the IPC server a moment to connect clients
+            await Task.Delay(2000, cancellationToken);
+
+            switch (stage?.ToLowerInvariant())
+            {
+                case "completed":
+                    await _eventBroadcaster.BroadcastUpdateCompleteAsync(version, cancellationToken);
+                    _logger.LogInformation("Broadcast pending update complete for v{Version}", version);
+                    break;
+
+                case "failed":
+                    await _eventBroadcaster.BroadcastUpdateFailedAsync(error ?? "Update failed", false, cancellationToken);
+                    _logger.LogInformation("Broadcast pending update failure: {Error}", error);
+                    break;
+
+                default:
+                    // "installing", "startingservices" etc. — update may still be in progress,
+                    // don't broadcast anything; the frontend stale timer will handle it.
+                    break;
+            }
+
+            TryDeleteStatusFile(statusPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read broadcast pending update status");
+        }
+    }
+
+    private static void TryDeleteStatusFile(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); } catch { }
     }
 
     public override void Dispose()

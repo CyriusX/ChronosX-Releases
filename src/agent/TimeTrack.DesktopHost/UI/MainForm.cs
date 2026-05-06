@@ -1,10 +1,15 @@
 using System;
 using System.Drawing;
 using System.IO;
+using System.Net;
+using System.Net.Http;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
+using System.Globalization;
 using System.Windows.Forms;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -30,10 +35,18 @@ public sealed class MainForm : Form
     private readonly IIpcClient _ipcClient;
     private readonly WebViewBridge _bridge;
     private readonly ILogger<MainForm> _logger;
+    private readonly string _backendBaseUrl;
+    private readonly HttpClient _proxyHttpClient;
 
     private WebView2? _webView;
     private bool _isInitialized;
     private bool _isClosing;
+    private bool _devToolsEnabled;
+
+    /// <summary>Raised when the main window is minimized or hidden to tray.</summary>
+    public event EventHandler? WindowMinimized;
+    /// <summary>Raised when the main window is restored from minimized/tray state.</summary>
+    public event EventHandler? WindowRestored;
 
     /// <summary>Raised when the main window is minimized or hidden to tray.</summary>
     public event EventHandler? WindowMinimized;
@@ -46,12 +59,21 @@ public sealed class MainForm : Form
         DesktopHostSettings settings,
         IIpcClient ipcClient,
         WebViewBridge bridge,
-        ILogger<MainForm> logger)
+        ILogger<MainForm> logger,
+        IConfiguration configuration)
     {
         _settings = settings;
         _ipcClient = ipcClient;
         _bridge = bridge;
         _logger = logger;
+        _backendBaseUrl = (configuration["Agent:Sync:BackendUrl"] ?? "https://chronosx-dev-timetrack-api.gpoda0.easypanel.host").TrimEnd('/');
+        _proxyHttpClient = new HttpClient(new HttpClientHandler
+        {
+            AutomaticDecompression = DecompressionMethods.All
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(60)
+        };
 
         InitializeComponent();
     }
@@ -161,6 +183,11 @@ public sealed class MainForm : Form
             // Initialize WebView2
             await _webView.EnsureCoreWebView2Async(env);
 
+            // Configure API proxy BEFORE navigation so /api/* requests are intercepted
+            // immediately. Setting it up in OnWebViewInitialized causes a race condition
+            // because the event fires after navigation has already started.
+            ConfigureApiProxy(_webView.CoreWebView2!);
+
             // Set source after initialization
             if (bundlePath.StartsWith("http"))
             {
@@ -177,7 +204,13 @@ public sealed class MainForm : Form
                     "app.local",
                     distFolder,
                     CoreWebView2HostResourceAccessKind.Allow);
-                _webView.Source = new Uri("https://app.local/index.html");
+
+
+                // Append version as query parameter to bust WebView2 HTTP cache.
+                // Vite hashes JS/CSS filenames, but the index.html itself can be
+                // cached. The ?v= parameter forces a fresh fetch on each new version.
+                var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0";
+                _webView.Source = new Uri($"https://app.local/index.html?v={version}");
             }
         }
         catch (Exception ex)
@@ -199,17 +232,19 @@ public sealed class MainForm : Form
             _logger.LogInformation("WebView2 initialized successfully");
 
             var coreWebView = _webView!.CoreWebView2!;
-
-#if DEBUG
-            // Open DevTools in debug mode
-            coreWebView.OpenDevToolsWindow();
-#endif
+            coreWebView.NavigationCompleted += (_, _) =>
+            {
+                FocusWebViewContent();
+                // After the first navigation completes, the injected bridge is available.
+                // Push the current IPC connection state so the React app can reliably hydrate settings.
+                OnConnectionStateChanged(this, _ipcClient.IsConnected);
+            };
 
             // Configure WebView2 settings
             coreWebView.Settings.IsScriptEnabled = true;
             coreWebView.Settings.AreDefaultScriptDialogsEnabled = true;
             coreWebView.Settings.IsWebMessageEnabled = true;
-            coreWebView.Settings.AreDefaultContextMenusEnabled = true;
+            ApplyDevToolsAccess(false);
 
             // Add bridge object to JavaScript
             coreWebView.AddHostObjectToScript("timeTrackBridge", _bridge);
@@ -235,6 +270,15 @@ public sealed class MainForm : Form
             // This MUST run BEFORE React loads, so we use AddScriptToExecuteOnDocumentCreatedAsync
             _ = coreWebView.AddScriptToExecuteOnDocumentCreatedAsync(@"
                 (function() {
+                    // Override the API base URL so the UI calls the configured backend
+                    // (either local for dev or production). Without this, apiBase.ts
+                    // would hardcode the production URL when running inside WebView2.
+                    try {
+                        window.__APP_CONFIG__ = Object.assign({}, window.__APP_CONFIG__ || {}, {
+                            VITE_API_URL: '" + _backendBaseUrl + @"/api/v1'
+                        });
+                    } catch(e) {}
+
                     // Override console.log to send messages to C# for diagnostics
                     var origLog = console.log;
                     var origError = console.error;
@@ -281,7 +325,7 @@ public sealed class MainForm : Form
 
                     // Expose the bridge object that the React IpcService expects
                     window.timeTrackBridge = {
-                        isConnected: true,
+                        isConnected: false,
                         SendCommand: function(command, payloadJson) { return ipcCall('command', command, payloadJson); },
                         SendQuery: function(query, payloadJson) { return ipcCall('query', query, payloadJson); }
                     };
@@ -290,11 +334,19 @@ public sealed class MainForm : Form
                 })();
             ");
 
+            ConfigureApiProxy(coreWebView);
+
             // Subscribe to IPC events
             _ipcClient.EventReceived += OnIpcEventReceived;
             _ipcClient.ConnectionStateChanged += OnConnectionStateChanged;
 
             _logger.LogInformation("Bridge setup complete, IPC client connected: {IsConnected}", _ipcClient.IsConnected);
+
+            // Push the initial connection state into the web UI (important after app restarts).
+            OnConnectionStateChanged(this, _ipcClient.IsConnected);
+
+            // Initial focus so login inputs can be typed into without requiring a manual click/reload.
+            FocusWebViewContent();
         }
         else
         {
@@ -302,30 +354,198 @@ public sealed class MainForm : Form
         }
     }
 
-    private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
-    {
-        // Block external navigation for security
-        if (!string.IsNullOrEmpty(e.Uri))
-        {
-            var uri = new Uri(e.Uri);
+    private bool _proxyConfigured;
 
-            // Allow localhost and file:// protocols
-            if (uri.Scheme != "http" && uri.Scheme != "https" && uri.Scheme != "file")
+    private void ConfigureApiProxy(CoreWebView2 coreWebView)
+    {
+        if (_proxyConfigured) return;
+        try
+        {
+            _proxyConfigured = true;
+            coreWebView.AddWebResourceRequestedFilter("https://app.local/api/*", CoreWebView2WebResourceContext.All);
+            coreWebView.WebResourceRequested += OnWebResourceRequested;
+            _logger.LogInformation("API proxy enabled: https://app.local/api/* -> {Backend}", _backendBaseUrl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to configure API proxy");
+        }
+    }
+
+    private async void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
+    {
+        // Proxy /api/* from the embedded UI origin to the real backend.
+        if (!e.Request.Uri.StartsWith("https://app.local/api/", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var deferral = e.GetDeferral();
+        try
+        {
+            var incoming = new Uri(e.Request.Uri);
+            var targetUri = new Uri($"{_backendBaseUrl}{incoming.PathAndQuery}");
+
+            using var request = new HttpRequestMessage(new HttpMethod(e.Request.Method), targetUri);
+
+            var auth = e.Request.Headers.GetHeader("Authorization");
+            if (!string.IsNullOrWhiteSpace(auth))
             {
-                _logger.LogWarning("Blocked navigation to unsupported protocol: {Uri}", e.Uri);
-                e.Cancel = true;
+                request.Headers.TryAddWithoutValidation("Authorization", auth);
+            }
+
+            var accept = e.Request.Headers.GetHeader("Accept");
+            if (!string.IsNullOrWhiteSpace(accept))
+            {
+                request.Headers.TryAddWithoutValidation("Accept", accept);
+            }
+
+            var contentType = e.Request.Headers.GetHeader("Content-Type");
+            Stream? bodyStream = e.Request.Content;
+            if (bodyStream != null)
+            {
+                using var ms = new MemoryStream();
+                await bodyStream.CopyToAsync(ms);
+                var bytes = ms.ToArray();
+                request.Content = new ByteArrayContent(bytes);
+                if (!string.IsNullOrWhiteSpace(contentType))
+                {
+                    request.Content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+                }
+            }
+
+            using var response = await _proxyHttpClient.SendAsync(request);
+
+            var responseBytes = await response.Content.ReadAsByteArrayAsync();
+            var responseStream = new MemoryStream(responseBytes);
+
+            var headersBuilder = new StringBuilder();
+            if (response.Content.Headers.ContentType != null)
+            {
+                headersBuilder.Append("Content-Type: ").Append(response.Content.Headers.ContentType.ToString()).Append("\r\n");
+            }
+            if (response.Headers.TryGetValues("Cache-Control", out var cache))
+            {
+                headersBuilder.Append("Cache-Control: ").Append(string.Join(", ", cache)).Append("\r\n");
+            }
+
+            e.Response = _webView?.CoreWebView2?.Environment?.CreateWebResourceResponse(
+                responseStream,
+                (int)response.StatusCode,
+                response.ReasonPhrase ?? "",
+                headersBuilder.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "API proxy failed for {Uri}", e.Request.Uri);
+
+            var body = Encoding.UTF8.GetBytes("{\"message\":\"DesktopHost API proxy error\",\"status\":502,\"code\":\"bad_gateway\"}");
+            var stream = new MemoryStream(body);
+            e.Response = _webView?.CoreWebView2?.Environment?.CreateWebResourceResponse(
+                stream,
+                502,
+                "Bad Gateway",
+                "Content-Type: application/json\r\n");
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
+    private void FocusWebViewContent()
+    {
+        if (_webView?.CoreWebView2 == null || _isClosing) return;
+
+        try
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(FocusWebViewContent));
                 return;
             }
 
-            // Block external domains in production
-#if !DEBUG
-            if (uri.Host != "localhost" && uri.Host != "app.local" && uri.Scheme != "file")
+            _webView.Focus();
+            ActiveControl = _webView;
+
+            try
             {
-                _logger.LogWarning("Blocked external navigation to: {Uri}", e.Uri);
-                e.Cancel = true;
+                if (_webView is { IsHandleCreated: true })
+                {
+                    _webView.Focus();
+                }
             }
-#endif
+            catch
+            {
+                // Some WebView2 versions may not expose controller focus; ignore.
+            }
+
+            _ = _webView.CoreWebView2.ExecuteScriptAsync(@"
+                try {
+                    setTimeout(function() {
+                        var el = document.querySelector('input[autofocus], input, textarea, [contenteditable=""true""]');
+                        if (el && el.focus) el.focus();
+                    }, 50);
+                } catch(e) {}
+            ");
         }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to focus WebView2 content");
+        }
+    }
+
+    private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.Uri)) return;
+        var uri = new Uri(e.Uri);
+
+        // Allow only http, https, file protocols
+        if (uri.Scheme != "http" && uri.Scheme != "https" && uri.Scheme != "file")
+        {
+            _logger.LogWarning("Blocked navigation to unsupported protocol: {Uri}", e.Uri);
+            e.Cancel = true;
+            return;
+        }
+
+        // SPA fallback for app.local: non-file paths redirect to index.html
+        if (uri.Host.Equals("app.local", StringComparison.OrdinalIgnoreCase))
+        {
+            var path = uri.AbsolutePath.Trim('/');
+            var isStaticFile = path.StartsWith("assets/", StringComparison.OrdinalIgnoreCase)
+                               || path.Equals("index.html", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".js", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".css", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase)
+                               || path.EndsWith(".woff", StringComparison.OrdinalIgnoreCase);
+
+            if (!isStaticFile && !string.IsNullOrEmpty(path))
+            {
+                var query = !string.IsNullOrEmpty(uri.Query) ? uri.Query : "";
+                e.Cancel = true;
+                _webView!.CoreWebView2!.Navigate($"https://app.local/index.html{query}");
+            }
+            return;
+        }
+
+        // Block external domains in production (allow Stripe for checkout)
+#if !DEBUG
+        var allowedHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "localhost", "app.local",
+            "checkout.stripe.com", "billing.stripe.com", "billing.stripe.me",
+            "js.stripe.com", "fonts.googleapis.com"
+        };
+
+        if (!allowedHosts.Contains(uri.Host) && uri.Scheme != "file")
+        {
+            _logger.LogWarning("Blocked external navigation to: {Uri}", e.Uri);
+            e.Cancel = true;
+        }
+#endif
     }
 
     /// <summary>
@@ -400,6 +620,14 @@ public sealed class MainForm : Form
 
         try
         {
+            if (string.Equals(e.EventType, "devToolsAccessChanged", StringComparison.OrdinalIgnoreCase)
+                && e.Payload.ValueKind == JsonValueKind.Object
+                && e.Payload.TryGetProperty("devToolsEnabled", out var enabledProp)
+                && enabledProp.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                ApplyDevToolsAccess(enabledProp.GetBoolean());
+            }
+
             // Serialize payload to JSON
             var payloadJson = JsonSerializer.Serialize(e.Payload);
             _logger.LogInformation("OnIpcEventReceived: Forwarding to JavaScript, payload length={Length}", payloadJson.Length);
@@ -443,12 +671,109 @@ public sealed class MainForm : Form
 
         try
         {
-            _ = _webView.CoreWebView2.ExecuteScriptAsync(
-                $"window.timeTrackBridge?.onConnectionStateChanged?.({isConnected.ToString().ToLower()})");
+            var isConnectedJs = isConnected.ToString().ToLowerInvariant();
+            var payloadJson = $"{{\"isConnected\":{isConnectedJs}}}";
+
+            // Keep window.timeTrackBridge.isConnected up-to-date so the React IPC client can read it on init.
+            // Also push a connectionStateChanged event through the same channel used for IPC events
+            // (window.timeTrackHandleEvent) so the UI reacts to reconnects.
+            var script = $@"
+                (function() {{
+                    try {{
+                        if (window.timeTrackBridge) {{
+                            window.timeTrackBridge.isConnected = {isConnectedJs};
+                        }}
+                        if (window.timeTrackHandleEvent) {{
+                            window.timeTrackHandleEvent('connectionStateChanged', '{EscapeJavaScriptString(payloadJson)}');
+                        }}
+                    }} catch(e) {{}}
+                }})()";
+
+            _ = _webView.CoreWebView2.ExecuteScriptAsync(script);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error notifying connection state change");
+        }
+
+        if (isConnected)
+            _ = Task.Run(SyncDevToolsAccessFromAgentAsync);
+    }
+
+    private void ApplyDevToolsAccess(bool enabled)
+    {
+        _devToolsEnabled = enabled;
+
+        if (_webView?.CoreWebView2 == null)
+            return;
+
+        var settings = _webView.CoreWebView2.Settings;
+        settings.AreDefaultContextMenusEnabled = enabled;
+        settings.AreBrowserAcceleratorKeysEnabled = enabled;
+        settings.AreDevToolsEnabled = enabled;
+
+        _logger.LogInformation("DevTools access applied to WebView2: Enabled={Enabled}", enabled);
+    }
+
+    private async Task SyncDevToolsAccessFromAgentAsync()
+    {
+        try
+        {
+            if (!_ipcClient.IsConnected)
+                return;
+
+            // If the UI loads before AgentService is connected, the initial getSettings call from React may fail
+            // and never retry. DesktopHost also needs to robustly sync DevTools access on reconnect.
+            IpcResponse? resp = null;
+            for (var attempt = 1; attempt <= 3; attempt++)
+            {
+                resp = await _ipcClient.SendQueryAsync("getSettings");
+                if (resp.Success && resp.Data is not null)
+                    break;
+
+                _logger.LogDebug(
+                    "DevTools sync: getSettings failed (attempt {Attempt}/3). Error={Error}",
+                    attempt,
+                    resp.Error ?? "unknown");
+
+                await Task.Delay(TimeSpan.FromMilliseconds(800 * attempt));
+            }
+
+            if (resp == null || !resp.Success || resp.Data is null)
+                return;
+
+            var data = resp.Data.Value;
+            if (!data.TryGetProperty("devToolsEnabled", out var enabledProp)
+                || enabledProp.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                return;
+
+            var enabled = enabledProp.GetBoolean();
+
+            if (data.TryGetProperty("devToolsEnabledUntilUtc", out var untilProp)
+                && untilProp.ValueKind == JsonValueKind.String)
+            {
+                var raw = untilProp.GetString();
+                if (!string.IsNullOrWhiteSpace(raw)
+                    && DateTime.TryParse(raw, null, DateTimeStyles.RoundtripKind, out var until)
+                    && until <= DateTime.UtcNow)
+                {
+                    enabled = false;
+                }
+            }
+
+            _logger.LogInformation(
+                "DevTools sync: agent settings fetched. Enabled={Enabled}, Until={UntilUtc}",
+                enabled,
+                data.TryGetProperty("devToolsEnabledUntilUtc", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null);
+
+            if (InvokeRequired)
+                BeginInvoke(new Action(() => ApplyDevToolsAccess(enabled)));
+            else
+                ApplyDevToolsAccess(enabled);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to sync DevTools access from AgentService");
         }
     }
 
@@ -504,9 +829,10 @@ public sealed class MainForm : Form
             }
         }
 
-        // Fallback to development server
-        _logger.LogWarning("UI bundle not found, falling back to development server");
-        return "http://localhost:5174";
+        // In production builds we must NOT silently fall back to a localhost dev server, which changes origin and
+        // can make users appear "logged out" due to separate localStorage. Fail loudly instead.
+        _logger.LogError("UI bundle not found in production paths. Aborting WebView2 initialization.");
+        throw new FileNotFoundException("UI bundle not found. Please reinstall the app.");
 #endif
     }
 
@@ -706,6 +1032,7 @@ public sealed class MainForm : Form
         if (disposing)
         {
             _webView?.Dispose();
+            _proxyHttpClient.Dispose();
         }
 
         base.Dispose(disposing);

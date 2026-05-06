@@ -67,7 +67,7 @@ public sealed class MachineMetricsWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogCritical(ex, "MachineMetricsWorker crashed");
-            throw;
+            // Do not crash the whole agent host. This worker is optional and can restart on next app run.
         }
 
         _logger.LogInformation("MachineMetricsWorker encerrado");

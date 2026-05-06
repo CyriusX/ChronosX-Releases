@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 
-var connectionString = "Host=cyriusx.com;Port=4003;Database=chronosx;Username=chronos;Password=chronos;SSL Mode=Disable";
+var connectionString = "Host=easypanel.cyriusx.com;Port=6543;Database=chronosx;Username=chronosx;Password=chronosx;SSL Mode=Disable";
 
 Console.WriteLine("Connecting to database...");
 

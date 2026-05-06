@@ -1,4 +1,4 @@
-import { Download, ExternalLink, HardDrive, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Download, ExternalLink, HardDrive, CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAgentStatus } from '../../hooks/useAgentStatus';
 import { useUpdate } from '../../hooks/useUpdate';
@@ -145,6 +145,24 @@ export function MaintenanceSection() {
               </span>
               <span className="text-[11px] text-[rgba(245,247,251,0.5)]">{progress.percentage}%</span>
             </div>
+          </div>
+        )}
+
+        {/* Update in progress (agent killed by installer, waiting for restart) */}
+        {progress.stage === 'updateInProgress' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 py-2">
+              <RefreshCw className="w-4 h-4 text-[#f59e0b] animate-spin" />
+              <span className="text-[13px] text-[rgba(245,247,251,0.7)]">
+                {t('settings.maintenance.update.updateInProgress', 'Installing update — the app will restart shortly...')}
+              </span>
+            </div>
+            <div className="w-full h-2 bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-[#f59e0b] to-[#8B5CF6] rounded-full animate-pulse" style={{ width: '100%' }} />
+            </div>
+            <p className="text-[11px] text-[rgba(245,247,251,0.4)]">
+              {t('settings.maintenance.update.updateInProgressHint', 'If the app does not restart, you can safely close and reopen it.')}
+            </p>
           </div>
         )}
 

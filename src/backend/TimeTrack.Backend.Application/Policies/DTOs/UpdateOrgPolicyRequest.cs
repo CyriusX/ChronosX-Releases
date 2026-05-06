@@ -8,6 +8,8 @@ namespace TimeTrack.Backend.Application.Policies.DTOs;
 /// </summary>
 public sealed class UpdateOrgPolicyRequest
 {
+    private int? _idleJustificationPromptThresholdSeconds;
+
     /// <summary>
     /// Work hours configuration
     /// </summary>
@@ -25,6 +27,23 @@ public sealed class UpdateOrgPolicyRequest
     /// </summary>
     [JsonPropertyName("idleThresholdSeconds")]
     public int? IdleThresholdSeconds { get; init; }
+
+    /// <summary>
+    /// Optional prompt threshold for idle justification in seconds. Null disables the feature.
+    /// </summary>
+    [JsonPropertyName("idleJustificationPromptThresholdSeconds")]
+    public int? IdleJustificationPromptThresholdSeconds
+    {
+        get => _idleJustificationPromptThresholdSeconds;
+        init
+        {
+            _idleJustificationPromptThresholdSeconds = value;
+            IdleJustificationPromptThresholdSecondsSpecified = true;
+        }
+    }
+
+    [JsonIgnore]
+    public bool IdleJustificationPromptThresholdSecondsSpecified { get; private init; }
 
     /// <summary>
     /// Data retention period in days (30, 60, 90, 180, 365)

@@ -296,4 +296,43 @@ public sealed class AgentStatusEventBroadcaster : BackgroundService
             _logger.LogError(ex, "Error broadcasting ConnectionStateChanged event");
         }
     }
+
+    /// <summary>
+    /// Broadcasts a subscription status change event to the WebView2 UI.
+    /// Called by SyncWorker when the backend reports a subscription state transition.
+    /// </summary>
+    public async Task BroadcastSubscriptionStatusChangedAsync(
+        string subscriptionStatus,
+        DateTime? gracePeriodEnd,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_ipcServer.IsClientConnected)
+            return;
+
+        try
+        {
+            _logger.LogInformation(
+                "Broadcasting SubscriptionStatusChanged: Status={Status}, GracePeriodEnd={GracePeriodEnd}",
+                subscriptionStatus, gracePeriodEnd);
+
+            var payload = new
+            {
+                subscriptionStatus,
+                gracePeriodEnd = gracePeriodEnd?.ToString("O"),
+                timestamp = DateTime.UtcNow.ToString("O")
+            };
+
+            var ipcEvent = new IpcEvent
+            {
+                EventType = "subscriptionStatusChanged",
+                Payload = payload
+            };
+
+            await _ipcServer.SendEventAsync(ipcEvent, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error broadcasting SubscriptionStatusChanged event");
+        }
+    }
 }

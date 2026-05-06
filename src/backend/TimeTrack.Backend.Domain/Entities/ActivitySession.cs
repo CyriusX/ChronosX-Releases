@@ -83,6 +83,12 @@ public sealed class ActivitySession
         TaskId = taskId;
     }
 
+    public void ClearTaskLink()
+    {
+        ProjectId = null;
+        TaskId = null;
+    }
+
     /// <summary>
     /// Extends the session to a new end time
     /// Used during consolidation to merge consecutive sessions

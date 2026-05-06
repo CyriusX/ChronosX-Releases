@@ -28,6 +28,9 @@ public sealed class DailyActivitiesResponse
 
     [JsonPropertyName("sessions")]
     public List<ActivitySessionDto> Sessions { get; init; } = [];
+
+    [JsonPropertyName("idlePeriods")]
+    public List<IdlePeriodDto> IdlePeriods { get; init; } = [];
 }
 
 /// <summary>
@@ -52,4 +55,31 @@ public sealed class ActivitySessionDto
 
     [JsonPropertyName("durationSeconds")]
     public int DurationSeconds { get; init; }
+}
+
+/// <summary>
+/// Individual idle period with optional submitted justification
+/// </summary>
+public sealed class IdlePeriodDto
+{
+    [JsonPropertyName("id")]
+    public Guid Id { get; init; }
+
+    [JsonPropertyName("startedAt")]
+    public DateTime StartedAt { get; init; }
+
+    [JsonPropertyName("endedAt")]
+    public DateTime EndedAt { get; init; }
+
+    [JsonPropertyName("durationSeconds")]
+    public int DurationSeconds { get; init; }
+
+    [JsonPropertyName("reasonCode")]
+    public string? ReasonCode { get; init; }
+
+    [JsonPropertyName("note")]
+    public string? Note { get; init; }
+
+    [JsonPropertyName("submittedAtUtc")]
+    public DateTime? SubmittedAtUtc { get; init; }
 }

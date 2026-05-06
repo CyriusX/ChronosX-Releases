@@ -21,6 +21,7 @@ public class LoginCommandTests
     private readonly Mock<IPasswordHasher> _passwordHasherMock;
     private readonly Mock<ITokenService> _tokenServiceMock;
     private readonly Mock<IAuditLogService> _auditLogServiceMock;
+    private readonly Mock<ISubscriptionService> _subscriptionServiceMock;
     private readonly LoginCommandHandler _handler;
 
     public LoginCommandTests()
@@ -30,13 +31,19 @@ public class LoginCommandTests
         _passwordHasherMock = new Mock<IPasswordHasher>();
         _tokenServiceMock = new Mock<ITokenService>();
         _auditLogServiceMock = new Mock<IAuditLogService>();
+        _subscriptionServiceMock = new Mock<ISubscriptionService>();
+
+        _subscriptionServiceMock
+            .Setup(s => s.CheckSubscriptionAccessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SubscriptionCheckResult { HasAccess = true, Status = "none" });
 
         _handler = new LoginCommandHandler(
             _userRepositoryMock.Object,
             _refreshTokenRepositoryMock.Object,
             _passwordHasherMock.Object,
             _tokenServiceMock.Object,
-            _auditLogServiceMock.Object
+            _auditLogServiceMock.Object,
+            _subscriptionServiceMock.Object
         );
     }
 

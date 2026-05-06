@@ -3,6 +3,7 @@ using TimeTrack.Agent.Application.FocusMode;
 using TimeTrack.Agent.Application.UseCases.ConsolidateSession;
 using TimeTrack.Agent.Application.UseCases.GetLocalDashboard;
 using TimeTrack.Agent.Application.UseCases.GetSyncState;
+using TimeTrack.Agent.Application.UseCases.IdleJustification;
 using TimeTrack.Agent.Application.UseCases.LocalSettings;
 using TimeTrack.Agent.Application.UseCases.RecordActiveWindow;
 using TimeTrack.Agent.Application.UseCases.RecordIdlePeriod;
@@ -28,6 +29,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<GetSyncStateUseCase>();
         services.AddSingleton<RecordActiveWindowUseCase>();
         services.AddSingleton<RecordIdlePeriodUseCase>();
+        services.AddSingleton<MarkIdleJustificationPendingUseCase>();
+        services.AddSingleton<DismissIdleJustificationUseCase>();
+        services.AddSingleton<SubmitIdleJustificationUseCase>();
         services.AddSingleton<LocalSettingsUseCase>();
 
         return services;

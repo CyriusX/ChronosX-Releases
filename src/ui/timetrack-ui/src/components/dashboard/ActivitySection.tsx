@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { useIpc } from '../../hooks/useIpc';
 import { useTrackingStore } from '../../stores/trackingStore';
 import { getDailyActivities } from '../../services/reportApi';
-import { getMyTaskEntries, type TaskEntryDto } from '../../services/projectsApi';
+import { closeMyOpenTaskTimer, getMyTaskEntries, getUserTaskEntries, type TaskEntryDto } from '../../services/projectsApi';
 import { useHiddenAppsStore } from '../../stores/hiddenAppsStore';
 import { cardBase } from './shared/styles';
 
@@ -28,6 +28,7 @@ interface TabDetail {
 
 interface ActivityBlock {
   id: string;
+  kind?: 'activity' | 'idle';
   name: string;
   startUtc: string;
   endUtc: string;
@@ -35,6 +36,9 @@ interface ActivityBlock {
   productivity: string;
   subcategory: string;
   color: string;
+  reasonCode?: string;
+  note?: string;
+  submittedAtUtc?: string;
   tabs?: TabDetail[];
 }
 
@@ -72,9 +76,10 @@ type DateRange = 'today' | 'yesterday' | '7days';
 interface ActivitySectionProps {
   activities?: ActivityBlock[];
   selectedDate?: Date;
+  userId?: string;
 }
 
-export function ActivitySection({ activities: controlledActivities, selectedDate: externalSelectedDate }: ActivitySectionProps = {}) {
+export function ActivitySection({ activities: controlledActivities, selectedDate: externalSelectedDate, userId }: ActivitySectionProps = {}) {
   const { t } = useTranslation();
   const [dateRange, setDateRange] = useState<DateRange>('today');
 
@@ -174,24 +179,76 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
 
   // ── Task time entries ────────────────────────────────────────────────────────
   const [taskEntries, setTaskEntries] = useState<TaskEntryDto[]>([]);
+  const [closingTaskTimer, setClosingTaskTimer] = useState(false);
+  const taskEntriesTick = (isViewingToday && !userId) ? now : 0;
 
   useEffect(() => {
     const d = selectedDate ?? new Date();
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    getMyTaskEntries(dateStr)
+    let fetchPromise: Promise<{ entries: TaskEntryDto[] }>;
+    if (userId) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.debug('[ActivitySection] fetching user task entries', { userId, dateStr });
+      }
+      fetchPromise = getUserTaskEntries(userId, dateStr);
+    } else {
+      fetchPromise = getMyTaskEntries(dateStr);
+    }
+
+    // Avoid stale task bars when switching users/dates (especially when team endpoint returns 403).
+    // Do NOT clear during the "today + me" tick refresh to avoid visible flicker every 5s.
+    if (userId || !isViewingToday) {
+      setTaskEntries([]);
+    }
+
+    fetchPromise
       .then(res => setTaskEntries(res.entries ?? []))
-      .catch(() => {});
-  }, [selectedDate, now]); // re-fetch on date change; `now` ticks every 5s to keep open entry fresh
+      .catch(() => setTaskEntries([]));
+  // Re-fetch on date change; when viewing today (own timeline), `now` ticks every 5s to keep an open entry fresh
+  }, [selectedDate, userId, taskEntriesTick]);
 
   const taskBlocks = useMemo(() => {
-    return taskEntries.map((e, i) => {
-      const start = new Date(e.startedAt).getTime();
-      const end = e.endedAt ? new Date(e.endedAt).getTime() : now;
+    const dayEnd = dayStart + dayMs;
+    const blocks: Array<TaskEntryDto & { left: number; width: number; key: string }> = [];
+
+    for (const e of taskEntries) {
+      const startedMs = new Date(e.startedAt).getTime();
+      const rawEndMs =
+        e.endedAt ? new Date(e.endedAt).getTime()
+          : e.pausedAt ? new Date(e.pausedAt).getTime()
+            : now;
+
+      const start = Math.max(startedMs, dayStart);
+      const end = Math.min(rawEndMs, dayEnd);
+      if (!isFinite(start) || !isFinite(end) || end <= start) continue;
+
       const left = Math.max(0, Math.min(100, ((start - dayStart) / dayMs) * 100));
-      const width = Math.max(0.2, Math.min(100 - left, ((end - start) / dayMs) * 100));
-      return { ...e, left, width, key: i };
-    });
+      const unclampedWidth = ((end - start) / dayMs) * 100;
+      const width = Math.max(0.2, Math.min(100 - left, unclampedWidth));
+
+      blocks.push({ ...e, left, width, key: e.id });
+    }
+
+    return blocks;
   }, [taskEntries, dayStart, dayMs, now]);
+
+  const hasOpenTaskEntry = useMemo(() => taskEntries.some(e => !e.endedAt), [taskEntries]);
+  const canStopTaskTimer = isViewingToday && !userId && hasOpenTaskEntry;
+
+  const stopTaskTimer = useCallback(async () => {
+    if (!canStopTaskTimer || closingTaskTimer) return;
+    setClosingTaskTimer(true);
+    try {
+      await closeMyOpenTaskTimer();
+    } finally {
+      setClosingTaskTimer(false);
+      // force-refresh task entries after closing
+      const d = selectedDate ?? new Date();
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      getMyTaskEntries(dateStr).then(res => setTaskEntries(res.entries ?? [])).catch(() => {});
+    }
+  }, [canStopTaskTimer, closingTaskTimer, selectedDate]);
 
   // ── Fast path: REST API fetch on mount (no IPC dependency) ──────────────────
   // Fires immediately without waiting for the named pipe connection.
@@ -200,7 +257,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     if (isControlled) return;
     const today = new Date().toISOString().split('T')[0];
     getDailyActivities(today).then(result => {
-      if (!result?.sessions?.length) return;
+      if (!result?.sessions?.length && !result?.idlePeriods?.length) return;
       const hiddenSet = new Set(hiddenApps.map(a => a.toLowerCase()));
       const APP_PALETTE = [
         '#38bdf8','#f472b6','#34d399','#fb923c','#a78bfa',
@@ -226,6 +283,24 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
           color: colorMap.get(s.processName) ?? '#94a3b8',
         });
       }
+      for (const idlePeriod of result.idlePeriods ?? []) {
+        blocks.push({
+          id: idlePeriod.id,
+          kind: 'idle',
+          name: 'Idle',
+          startUtc: idlePeriod.startedAt,
+          endUtc: idlePeriod.endedAt,
+          duration: idlePeriod.durationSeconds,
+          productivity: 'idle',
+          subcategory: 'idle',
+          color: '#64748b',
+          reasonCode: idlePeriod.reasonCode,
+          note: idlePeriod.note,
+          submittedAtUtc: idlePeriod.submittedAtUtc,
+          tabs: [],
+        });
+      }
+      blocks.sort((a, b) => new Date(a.startUtc).getTime() - new Date(b.startUtc).getTime());
       setInternalActivities(blocks);
     }).catch(() => { /* ignore — IPC will fill in once connected */ });
   // Only run once on mount; IPC polling below keeps it fresh
@@ -457,10 +532,21 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                   </div>
 
                   {/* Task timeline — thin row showing task work periods */}
-                  {taskBlocks.length > 0 && (
+                  {(taskBlocks.length > 0 || canStopTaskTimer) && (
                     <div className="mt-1.5">
-                      <div className="flex items-center gap-1.5 mb-0.5">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
                         <span className="text-[8px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.3)]">{t('dashboard.tasksTab')}</span>
+                        {canStopTaskTimer && (
+                          <button
+                            type="button"
+                            onClick={stopTaskTimer}
+                            disabled={closingTaskTimer}
+                            className="text-[9px] font-semibold text-[#fbbf24] hover:text-[#ffd66e] disabled:opacity-50"
+                            title="Stop stuck task timer"
+                          >
+                            {closingTaskTimer ? 'Stopping…' : t('dashboard.stop')}
+                          </button>
+                        )}
                       </div>
                       <div className="relative h-[10px] rounded-sm bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]">
                         {taskBlocks.map((block) => (
@@ -533,6 +619,20 @@ function ActivityTooltip({ block, anchorRect }: { block: ActivityBlock; anchorRe
           {fmtTime(block.startUtc)} – {fmtTime(block.endUtc)}
           <span className="text-[rgba(245,247,251,0.7)] font-medium ml-1.5">{fmtDuration(block.duration)}</span>
         </p>
+        {(block.reasonCode || block.note) && (
+          <div className="border-t border-[rgba(255,255,255,0.08)] pt-1.5 mb-2 space-y-1">
+            {block.reasonCode && (
+              <p className="text-[9px] text-[rgba(245,247,251,0.72)]">
+                Reason: {block.reasonCode.split('_').join(' ')}
+              </p>
+            )}
+            {block.note && (
+              <p className="text-[9px] text-[rgba(245,247,251,0.55)] leading-relaxed">
+                {block.note}
+              </p>
+            )}
+          </div>
+        )}
         {block.tabs && block.tabs.length > 0 && (
           <div className="border-t border-[rgba(255,255,255,0.08)] pt-1.5 space-y-[5px]">
             <p className="text-[8px] uppercase tracking-wider text-[rgba(245,247,251,0.25)] mb-1">{t('dashboard.activitiesTab')}</p>

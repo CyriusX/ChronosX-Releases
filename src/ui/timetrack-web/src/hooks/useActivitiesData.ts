@@ -18,6 +18,7 @@ import type { DailySummaryRangeResponse, TopAppsResponse, DailyActivitiesRespons
 
 export interface ActivityBlock {
   id: string;
+  kind?: 'activity' | 'idle';
   name: string;
   startUtc: string;
   endUtc: string;
@@ -25,6 +26,9 @@ export interface ActivityBlock {
   productivity: string;
   subcategory: string;
   color: string;
+  reasonCode?: string;
+  note?: string;
+  submittedAtUtc?: string;
   tabs?: { title: string; duration: number; subcategory: string; color: string }[];
 }
 
@@ -182,7 +186,12 @@ export function useActivitiesData(): ActivitiesData {
       }
 
       if (activitiesResult?.sessions) {
-        setActivities(convertSessionsToBlocks(activitiesResult.sessions));
+        setActivities(
+          convertActivitiesToBlocks(
+            activitiesResult.sessions,
+            activitiesResult.idlePeriods ?? []
+          )
+        );
       }
     } catch {
       /* ignore */
@@ -271,10 +280,12 @@ const APP_PALETTE = [
   '#fbbf24', '#22d3ee', '#f87171', '#4ade80', '#e879f9',
 ];
 
-function convertSessionsToBlocks(
+function convertActivitiesToBlocks(
   sessions: Array<{ processName: string; windowTitle?: string; appCategory?: string; startedAt: string; endedAt: string; durationSeconds: number }>
+  ,idlePeriods: Array<{ id: string; startedAt: string; endedAt: string; durationSeconds: number; reasonCode?: string; note?: string; submittedAtUtc?: string }>
 ): ActivityBlock[] {
-  if (sessions.length === 0) return [];
+  const blocks: ActivityBlock[] = [];
+  if (sessions.length === 0 && idlePeriods.length === 0) return blocks;
 
   const colorMap = new Map<string, string>();
   let colorIdx = 0;
@@ -285,47 +296,67 @@ function convertSessionsToBlocks(
     }
   }
 
-  const blocks: ActivityBlock[] = [];
-  let cur = sessions[0];
-  let curStart = cur.startedAt;
-  let curEnd = cur.endedAt;
-  let tabs: { title: string; duration: number; subcategory: string; color: string }[] = [
-    { title: cur.windowTitle || cur.processName, duration: cur.durationSeconds, subcategory: cur.appCategory || 'unknown', color: colorMap.get(cur.processName) || '#94a3b8' }
-  ];
+  if (sessions.length > 0) {
+    let cur = sessions[0];
+    let curStart = cur.startedAt;
+    let curEnd = cur.endedAt;
+    let tabs: { title: string; duration: number; subcategory: string; color: string }[] = [
+      { title: cur.windowTitle || cur.processName, duration: cur.durationSeconds, subcategory: cur.appCategory || 'unknown', color: colorMap.get(cur.processName) || '#94a3b8' }
+    ];
 
-  const flush = () => {
-    const prod = mapCategoryToProductivity(cur.appCategory);
-    blocks.push({
-      id: `${curStart}-${cur.processName}`,
-      name: extractAppName(cur.windowTitle, cur.processName),
-      startUtc: curStart,
-      endUtc: curEnd,
-      duration: Math.round((new Date(curEnd).getTime() - new Date(curStart).getTime()) / 1000),
-      productivity: prod,
-      subcategory: cur.appCategory || 'unknown',
-      color: colorMap.get(cur.processName) || '#94a3b8',
-      tabs: groupTabs(tabs),
-    });
-  };
+    const flush = () => {
+      const prod = mapCategoryToProductivity(cur.appCategory);
+      blocks.push({
+        id: `${curStart}-${cur.processName}`,
+        kind: 'activity',
+        name: extractAppName(cur.windowTitle, cur.processName),
+        startUtc: curStart,
+        endUtc: curEnd,
+        duration: Math.round((new Date(curEnd).getTime() - new Date(curStart).getTime()) / 1000),
+        productivity: prod,
+        subcategory: cur.appCategory || 'unknown',
+        color: colorMap.get(cur.processName) || '#94a3b8',
+        tabs: groupTabs(tabs),
+      });
+    };
 
-  for (let i = 1; i < sessions.length; i++) {
-    const s = sessions[i];
-    const gap = (new Date(s.startedAt).getTime() - new Date(curEnd).getTime()) / 1000;
+    for (let i = 1; i < sessions.length; i++) {
+      const s = sessions[i];
+      const gap = (new Date(s.startedAt).getTime() - new Date(curEnd).getTime()) / 1000;
 
-    if (s.processName === cur.processName && gap < 120) {
-      curEnd = s.endedAt > curEnd ? s.endedAt : curEnd;
-      tabs.push({ title: s.windowTitle || s.processName, duration: s.durationSeconds, subcategory: s.appCategory || 'unknown', color: colorMap.get(s.processName) || '#94a3b8' });
-    } else {
-      flush();
-      cur = s;
-      curStart = s.startedAt;
-      curEnd = s.endedAt;
-      tabs = [{ title: s.windowTitle || s.processName, duration: s.durationSeconds, subcategory: s.appCategory || 'unknown', color: colorMap.get(s.processName) || '#94a3b8' }];
+      if (s.processName === cur.processName && gap < 120) {
+        curEnd = s.endedAt > curEnd ? s.endedAt : curEnd;
+        tabs.push({ title: s.windowTitle || s.processName, duration: s.durationSeconds, subcategory: s.appCategory || 'unknown', color: colorMap.get(s.processName) || '#94a3b8' });
+      } else {
+        flush();
+        cur = s;
+        curStart = s.startedAt;
+        curEnd = s.endedAt;
+        tabs = [{ title: s.windowTitle || s.processName, duration: s.durationSeconds, subcategory: s.appCategory || 'unknown', color: colorMap.get(s.processName) || '#94a3b8' }];
+      }
     }
+    flush();
   }
-  flush();
 
-  return blocks;
+  for (const idlePeriod of idlePeriods) {
+    blocks.push({
+      id: idlePeriod.id,
+      kind: 'idle',
+      name: 'Idle',
+      startUtc: idlePeriod.startedAt,
+      endUtc: idlePeriod.endedAt,
+      duration: idlePeriod.durationSeconds,
+      productivity: 'idle',
+      subcategory: 'idle',
+      color: '#64748b',
+      reasonCode: idlePeriod.reasonCode,
+      note: idlePeriod.note,
+      submittedAtUtc: idlePeriod.submittedAtUtc,
+      tabs: [],
+    });
+  }
+
+  return blocks.sort((a, b) => new Date(a.startUtc).getTime() - new Date(b.startUtc).getTime());
 }
 
 function extractAppName(windowTitle?: string, processName?: string): string {

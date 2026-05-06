@@ -163,9 +163,29 @@ public sealed class WindowsActiveWindowProvider : IActiveWindowProvider, IDispos
                 ? ComputeSha256Hash(windowTitle)
                 : null;
 
-            // Extract file path from the active window
-            var processName = Path.GetFileNameWithoutExtension(exePath) ?? "";
-            var filePath = _filePathExtractor.ExtractFilePath(hWnd, processName, windowTitle);
+            // Top Folders: only File Explorer should produce a FilePath.
+            // For all other apps (including our own DesktopHost), do not set FilePath.
+            var exeName = Path.GetFileNameWithoutExtension(exePath) ?? "";
+            string? filePath = null;
+            if (string.Equals(exeName, "explorer", StringComparison.OrdinalIgnoreCase))
+            {
+                filePath = _filePathExtractor.ExtractFilePath(hWnd, exeName, windowTitle);
+            }
+
+            // Extract site name from browser window title
+            string? browserUrl = null;
+            var resolvedDisplayName = displayName ?? Path.GetFileNameWithoutExtension(exePath) ?? "Unknown";
+
+            // Canonicalize Explorer display name (avoid localized product-name drift).
+            if (string.Equals(exeName, "explorer", StringComparison.OrdinalIgnoreCase))
+            {
+                resolvedDisplayName = "File Explorer";
+            }
+
+            if (BrowserUrlExtractor.IsBrowserExe(exePath))
+            {
+                browserUrl = BrowserUrlExtractor.ExtractSiteFromTitle(windowTitle, resolvedDisplayName);
+            }
 
             // Extract site name from browser window title
             string? browserUrl = null;

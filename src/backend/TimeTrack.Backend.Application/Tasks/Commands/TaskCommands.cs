@@ -61,6 +61,13 @@ public sealed class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand
         var project = await _projects.GetByIdAsync(request.ProjectId, ct)
             ?? throw new NotFoundException("Project", request.ProjectId);
 
+        if (!isManager)
+        {
+            var isMember = await _members.IsMemberAsync(project.Id, _currentUser.UserId.Value, ct);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
+
         // Default to the current user when no assignee is specified.
         // Managers may explicitly assign to others; everyone else always gets self-assigned.
         var assignedUserId = isManager
@@ -68,17 +75,30 @@ public sealed class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand
             : _currentUser.UserId;
 
         // Validate org membership and auto-add to project if needed.
-        if (assignedUserId.HasValue && assignedUserId != _currentUser.UserId)
+        // This keeps ProjectMembers as the source of truth for "My Data" project lists.
+        if (assignedUserId.HasValue)
         {
-            var assignee = await _users.GetByIdAsync(assignedUserId.Value, ct)
-                ?? throw new NotFoundException("User", assignedUserId.Value);
-            if (assignee.OrgId != project.OrgId)
-                throw new ValidationException("AssignedUserId", "Assignee must belong to the same organization");
-            var isMember = await _members.IsMemberAsync(project.Id, assignee.Id, ct);
-            if (!isMember)
+            if (assignedUserId.Value == _currentUser.UserId.Value)
             {
-                var member = ProjectMember.Create(project.OrgId, project.Id, assignee.Id, _currentUser.UserId.Value);
-                await _members.AddAsync(member, ct);
+                var isMember = await _members.IsMemberAsync(project.Id, assignedUserId.Value, ct);
+                if (!isMember)
+                {
+                    var member = ProjectMember.Create(project.OrgId, project.Id, assignedUserId.Value, _currentUser.UserId.Value);
+                    await _members.AddAsync(member, ct);
+                }
+            }
+            else
+            {
+                var assignee = await _users.GetByIdAsync(assignedUserId.Value, ct)
+                    ?? throw new NotFoundException("User", assignedUserId.Value);
+                if (assignee.OrgId != project.OrgId)
+                    throw new ValidationException("AssignedUserId", "Assignee must belong to the same organization");
+                var isMember = await _members.IsMemberAsync(project.Id, assignee.Id, ct);
+                if (!isMember)
+                {
+                    var member = ProjectMember.Create(project.OrgId, project.Id, assignee.Id, _currentUser.UserId.Value);
+                    await _members.AddAsync(member, ct);
+                }
             }
         }
 
@@ -170,6 +190,13 @@ public sealed class UpdateTaskCommandHandler : IRequestHandler<UpdateTaskCommand
         if (project is null)
             throw new NotFoundException("Project", task.ProjectId);
 
+        if (!isManager)
+        {
+            var isMember = await _members.IsMemberAsync(project.Id, _currentUser.UserId.Value, ct);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
+
         var previousAssignee = task.AssignedUserId;
 
         if (request.AssignedUserId.HasValue && request.AssignedUserId != previousAssignee)
@@ -221,6 +248,7 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
     private readonly IProjectTaskRepository _tasks;
     private readonly IProjectRepository _projects;
     private readonly ITaskTimeEntryRepository _entries;
+    private readonly IProjectMemberRepository _members;
     private readonly IUserIntegrationRepository _integrations;
     private readonly ILinearClient _linear;
     private readonly IUserIntegrationTokenProtector _protector;
@@ -231,6 +259,7 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
         IProjectTaskRepository tasks,
         IProjectRepository projects,
         ITaskTimeEntryRepository entries,
+        IProjectMemberRepository members,
         IUserIntegrationRepository integrations,
         ILinearClient linear,
         IUserIntegrationTokenProtector protector,
@@ -240,6 +269,7 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
         _tasks = tasks;
         _projects = projects;
         _entries = entries;
+        _members = members;
         _integrations = integrations;
         _linear = linear;
         _protector = protector;
@@ -254,6 +284,15 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
 
         var task = await _tasks.GetByIdAsync(request.TaskId, ct)
             ?? throw new NotFoundException("Task", request.TaskId);
+
+        var role = _currentUser.Role;
+        var isManager = role == UserRole.Admin || role == UserRole.Gestor;
+        if (!isManager)
+        {
+            var isMember = await _members.IsMemberAsync(task.ProjectId, _currentUser.UserId.Value, ct);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
 
         if (request.RowVersion.HasValue && request.RowVersion.Value != task.RowVersion)
             throw new ConflictException("task_version_stale", "Task has been modified by someone else. Reload and retry.");
@@ -279,38 +318,17 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
 
         if (oldStatus == ProjectTaskStatus.InProgress && newStatus != ProjectTaskStatus.InProgress)
         {
-            // Closing the in-progress phase: close any open entry on this task for this user.
-            var open = await _entries.GetOpenForUserAsync(workerId, ct);
-            if (open is not null && open.TaskId == task.Id)
-            {
-                var added = open.Close(now);
-                await _entries.UpdateAsync(open, ct);
-                if (added > 0)
-                    task.AccumulateWorkedTime(added);
-            }
+            // Closing an in-progress phase: we expect at most one open entry per user,
+            // but historically duplicates could exist. Close ALL open entries to ensure
+            // we always credit time correctly and end up in a consistent state.
+            await CloseAllOpenEntriesForUserAsync(workerId, now, preferredKeepOpenTaskId: null, ct);
         }
 
         if (newStatus == ProjectTaskStatus.InProgress && oldStatus != ProjectTaskStatus.InProgress)
         {
-            // Auto-stop any other open entry the user has (only ONE in-progress task at a time).
-            var existingOpen = await _entries.GetOpenForUserAsync(workerId, ct);
-            if (existingOpen is not null)
-            {
-                var added = existingOpen.Close(now);
-                await _entries.UpdateAsync(existingOpen, ct);
-                // Try to credit the previous task too.
-                if (added > 0 && existingOpen.TaskId != task.Id)
-                {
-                    var prevTask = await _tasks.GetByIdAsync(existingOpen.TaskId, ct);
-                    if (prevTask is not null)
-                    {
-                        prevTask.AccumulateWorkedTime(added);
-                        // Auto-flip the previous task back to Todo so it doesn't stay in-progress.
-                        prevTask.MoveTo(ProjectTaskStatus.Todo, prevTask.Position);
-                        await _tasks.UpdateAsync(prevTask, ct);
-                    }
-                }
-            }
+            // Starting a new in-progress phase: close any existing open entries for this user
+            // so we guarantee at most one open timer (and don't leak time to the wrong task).
+            await CloseAllOpenEntriesForUserAsync(workerId, now, preferredKeepOpenTaskId: null, ct);
 
             var entry = TaskTimeEntry.Open(task.OrgId, task.Id, workerId);
             await _entries.AddAsync(entry, ct);
@@ -342,6 +360,47 @@ public sealed class MoveTaskCommandHandler : IRequestHandler<MoveTaskCommand, Ta
 
         var project = task.Project ?? await _projects.GetByIdAsync(task.ProjectId, ct);
         return TaskMapper.Map(task, project, null, null);
+    }
+
+    /// <summary>
+    /// Closes ALL open task time entries for a user, credits time to their tasks,
+    /// and normalizes any affected tasks back to Todo (except the task we are
+    /// about to start, if provided).
+    /// </summary>
+    private async Task CloseAllOpenEntriesForUserAsync(
+        Guid workerId,
+        DateTime nowUtc,
+        Guid? preferredKeepOpenTaskId,
+        CancellationToken ct)
+    {
+        var openEntries = await _entries.ListOpenForUserAsync(workerId, ct);
+        if (openEntries.Count == 0) return;
+
+        foreach (var open in openEntries)
+        {
+            // If we ever introduce "keep one open" flows, this hook allows it.
+            if (preferredKeepOpenTaskId.HasValue && open.TaskId == preferredKeepOpenTaskId.Value)
+                continue;
+
+            var added = open.Close(nowUtc);
+            await _entries.UpdateAsync(open, ct);
+
+            // Credit the task if it still exists.
+            var affectedTask = await _tasks.GetByIdAsync(open.TaskId, ct);
+            if (affectedTask is null) continue;
+
+            if (added > 0) affectedTask.AccumulateWorkedTime(added);
+
+            // If the task still claims to be InProgress but its timer is closed,
+            // flip it back to Todo so the UI doesn't show a "running" status.
+            if (affectedTask.Status == ProjectTaskStatus.InProgress &&
+                (!preferredKeepOpenTaskId.HasValue || affectedTask.Id != preferredKeepOpenTaskId.Value))
+            {
+                affectedTask.MoveTo(ProjectTaskStatus.Todo, affectedTask.Position);
+            }
+
+            await _tasks.UpdateAsync(affectedTask, ct);
+        }
     }
 
     private async Task PushStatusToLinearAsync(ProjectTask task, ProjectTaskStatus newStatus, CancellationToken ct)
@@ -453,15 +512,18 @@ public sealed class DeleteTaskCommandHandler : IRequestHandler<DeleteTaskCommand
 {
     private readonly IProjectTaskRepository _tasks;
     private readonly ITaskTimeEntryRepository _entries;
+    private readonly IProjectMemberRepository _members;
     private readonly ICurrentUserContext _currentUser;
 
     public DeleteTaskCommandHandler(
         IProjectTaskRepository tasks,
         ITaskTimeEntryRepository entries,
+        IProjectMemberRepository members,
         ICurrentUserContext currentUser)
     {
         _tasks = tasks;
         _entries = entries;
+        _members = members;
         _currentUser = currentUser;
     }
 
@@ -478,6 +540,13 @@ public sealed class DeleteTaskCommandHandler : IRequestHandler<DeleteTaskCommand
 
         if (!isManager && task.CreatedByUserId != _currentUser.UserId.Value)
             throw new ForbiddenException("You can only delete tasks you created");
+
+        if (!isManager)
+        {
+            var isMember = await _members.IsMemberAsync(task.ProjectId, _currentUser.UserId.Value, ct);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
 
         // Close any in-progress entry tied to this task.
         if (task.Status == ProjectTaskStatus.InProgress && task.AssignedUserId.HasValue)
@@ -497,8 +566,55 @@ public sealed class DeleteTaskCommandHandler : IRequestHandler<DeleteTaskCommand
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PAUSE / RESUME / REJECT (idle handling)
+// PAUSE / RESUME / CLOSE (task timer handling)
 // ═══════════════════════════════════════════════════════════════════════════
+
+public sealed record CloseOpenTaskTimerCommand : IRequest<Unit>;
+
+public sealed class CloseOpenTaskTimerCommandHandler : IRequestHandler<CloseOpenTaskTimerCommand, Unit>
+{
+    private readonly ITaskTimeEntryRepository _entries;
+    private readonly IProjectTaskRepository _tasks;
+    private readonly ICurrentUserContext _currentUser;
+
+    public CloseOpenTaskTimerCommandHandler(
+        ITaskTimeEntryRepository entries,
+        IProjectTaskRepository tasks,
+        ICurrentUserContext currentUser)
+    {
+        _entries = entries;
+        _tasks = tasks;
+        _currentUser = currentUser;
+    }
+
+    public async Task<Unit> Handle(CloseOpenTaskTimerCommand request, CancellationToken ct)
+    {
+        if (!_currentUser.UserId.HasValue) throw new UnauthorizedAccessException();
+
+        var openEntries = await _entries.ListOpenForUserAsync(_currentUser.UserId.Value, ct);
+        if (openEntries.Count == 0) return Unit.Value;
+
+        var now = DateTime.UtcNow;
+        foreach (var open in openEntries)
+        {
+            var added = open.Close(now);
+            await _entries.UpdateAsync(open, ct);
+
+            var task = await _tasks.GetByIdAsync(open.TaskId, ct);
+            if (task is null) continue;
+
+            if (added > 0) task.AccumulateWorkedTime(added);
+
+            // Normalize status so the UI doesn't show a "stuck" in-progress phase.
+            if (task.Status == ProjectTaskStatus.InProgress)
+                task.MoveTo(ProjectTaskStatus.Todo, task.Position);
+
+            await _tasks.UpdateAsync(task, ct);
+        }
+
+        return Unit.Value;
+    }
+}
 
 public sealed record PauseOpenTaskTimerCommand : IRequest<Unit>;
 
@@ -516,10 +632,12 @@ public sealed class PauseOpenTaskTimerCommandHandler : IRequestHandler<PauseOpen
     public async Task<Unit> Handle(PauseOpenTaskTimerCommand request, CancellationToken ct)
     {
         if (!_currentUser.UserId.HasValue) throw new UnauthorizedAccessException();
-        var open = await _entries.GetOpenForUserAsync(_currentUser.UserId.Value, ct);
-        if (open is null) return Unit.Value;
-        open.Pause();
-        await _entries.UpdateAsync(open, ct);
+        var openEntries = await _entries.ListOpenForUserAsync(_currentUser.UserId.Value, ct);
+        foreach (var open in openEntries)
+        {
+            open.Pause();
+            await _entries.UpdateAsync(open, ct);
+        }
         return Unit.Value;
     }
 }
@@ -540,10 +658,12 @@ public sealed class ResumeOpenTaskTimerCommandHandler : IRequestHandler<ResumeOp
     public async Task<Unit> Handle(ResumeOpenTaskTimerCommand request, CancellationToken ct)
     {
         if (!_currentUser.UserId.HasValue) throw new UnauthorizedAccessException();
-        var open = await _entries.GetOpenForUserAsync(_currentUser.UserId.Value, ct);
-        if (open is null) return Unit.Value;
-        open.Resume();
-        await _entries.UpdateAsync(open, ct);
+        var openEntries = await _entries.ListOpenForUserAsync(_currentUser.UserId.Value, ct);
+        foreach (var open in openEntries)
+        {
+            open.Resume();
+            await _entries.UpdateAsync(open, ct);
+        }
         return Unit.Value;
     }
 }
@@ -569,18 +689,19 @@ public sealed class CloseOpenTaskTimerOnIdleRejectCommandHandler : IRequestHandl
     public async Task<Unit> Handle(CloseOpenTaskTimerOnIdleRejectCommand request, CancellationToken ct)
     {
         if (!_currentUser.UserId.HasValue) throw new UnauthorizedAccessException();
-        var open = await _entries.GetOpenForUserAsync(_currentUser.UserId.Value, ct);
-        if (open is null) return Unit.Value;
-
-        var added = open.Close();
-        await _entries.UpdateAsync(open, ct);
-
-        var task = await _tasks.GetByIdAsync(open.TaskId, ct);
-        if (task is not null)
+        var openEntries = await _entries.ListOpenForUserAsync(_currentUser.UserId.Value, ct);
+        foreach (var open in openEntries)
         {
+            var added = open.Close();
+            await _entries.UpdateAsync(open, ct);
+
+            var task = await _tasks.GetByIdAsync(open.TaskId, ct);
+            if (task is null) continue;
+
             if (added > 0) task.AccumulateWorkedTime(added);
             // Move it back to Todo so the user can resume later.
-            task.MoveTo(ProjectTaskStatus.Todo, task.Position);
+            if (task.Status == ProjectTaskStatus.InProgress)
+                task.MoveTo(ProjectTaskStatus.Todo, task.Position);
             await _tasks.UpdateAsync(task, ct);
         }
         return Unit.Value;
@@ -598,7 +719,12 @@ internal static class TaskMapper
         var now = DateTime.UtcNow;
         long? running = null;
         if (openEntry is not null && openEntry.IsOpen)
-            running = (long)(now - openEntry.StartedAt).TotalSeconds - openEntry.PausedSeconds;
+        {
+            var effectiveNow = openEntry.IsPaused && openEntry.PausedAt.HasValue
+                ? openEntry.PausedAt.Value
+                : now;
+            running = (long)(effectiveNow - openEntry.StartedAt).TotalSeconds - openEntry.PausedSeconds;
+        }
 
         return new TaskResponse
         {
@@ -621,7 +747,8 @@ internal static class TaskMapper
             CompletedAt = task.CompletedAt,
             TotalSecondsWorked = task.TotalSecondsWorked,
             RowVersion = task.RowVersion,
-            IsRunning = openEntry is not null && openEntry.IsOpen,
+            IsRunning = openEntry is not null && openEntry.IsOpen && !openEntry.IsPaused,
+            IsPaused = openEntry is not null && openEntry.IsOpen && openEntry.IsPaused,
             RunningSeconds = running,
             IsLinearSourced = task.IsLinearSourced,
             LinearIssueIdentifier = task.LinearIssueIdentifier,

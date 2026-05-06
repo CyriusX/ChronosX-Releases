@@ -17,7 +17,7 @@ export function usePermissions() {
   const canInviteMembers = (): boolean => isAdmin() || isManager();
   const canRemoveMembers = (): boolean => isAdmin();
   const canChangeMemberRole = (): boolean => isAdmin();
-  const canEditOrgPolicies = (): boolean => isAdmin();
+  const canEditOrgPolicies = (): boolean => isAdmin() || isManager();
 
   return {
     role,

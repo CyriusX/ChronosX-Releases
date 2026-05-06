@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using TimeTrack.Backend.Infrastructure.Integrations.Stripe;
 using TimeTrack.Backend.Infrastructure.Persistence.Seeds;
 
 namespace TimeTrack.Backend.Infrastructure.Persistence;
@@ -46,6 +48,8 @@ public sealed class DatabaseInitializer : IHostedService
             // Run seed data
             _logger.LogInformation("Running seed data...");
             await AppCategoryGlobalSeed.SeedAsync(dbContext, cancellationToken);
+            var plansOptions = scope.ServiceProvider.GetRequiredService<IOptions<PlansOptions>>();
+            await SubscriptionPlanSeed.SeedAsync(dbContext, plansOptions, cancellationToken);
             _logger.LogInformation("Seed data completed");
 
             _logger.LogInformation("Database initialization completed successfully");

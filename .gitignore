@@ -32,8 +32,14 @@ x86/
 *.pdb
 *.cache
 
-# Allow update installers
-!src/backend/TimeTrack.Api/updates/*.exe
+*.msi
+*.dmg
+*.pkg
+*.mpkg
+*.app
+
+# Never commit large local artifacts
+neon_backup.dump
 
 # .NET Core
 project.lock.json
@@ -57,7 +63,17 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 dist/
+dist.*/
 .webpack/
+src/landing/public/demos/
+**/dist-demo/
+.next/
+test-results/
+src/landing/test-results/
+
+# TypeScript build cache (auto-generated, no need to track)
+tsconfig.tsbuildinfo
+**/*.tsbuildinfo
 
 # TypeScript build cache (auto-generated, no need to track)
 tsconfig.tsbuildinfo
@@ -88,4 +104,10 @@ CLAUDE.md
 src/build/
 .build/
 Package.resolved
-*.png
+## Keep app/marketing images tracked; avoid blanket ignores like *.png
+
+# Internal pitch docs (generated for presentations)
+Pitch Docs/
+
+# Local editor / tooling artifacts
+.kilo/

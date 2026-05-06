@@ -3,7 +3,7 @@ import WebKit
 
 class TimeTrackSchemeHandler: NSObject, WKURLSchemeHandler {
     private let resourcePath: String
-    private let apiBaseURL = "https://chronosx-timetrack-api.gpoda0.easypanel.host"
+    private let apiBaseURL = "https://chronosx-dev-timetrack-api.gpoda0.easypanel.host"
     private var activeTasks: [ObjectIdentifier: URLSessionDataTask] = [:]
     private let lock = NSLock()
 

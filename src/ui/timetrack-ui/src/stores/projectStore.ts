@@ -4,6 +4,8 @@
 
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
+import { getApiBaseUrl } from '../services/apiBase';
+import { emitProjectUpdated } from '../lib/appEvents';
 
 // ============================================================================
 // TYPES
@@ -11,15 +13,19 @@ import { useAuthStore } from './authStore';
 
 export interface Project {
   id: string;
+  createdByUserId: string | null;
   name: string;
   description?: string;
   color: string;
-  status: 'Active' | 'Archived';
+  status: string;
   createdAt: string;
   updatedAt?: string;
   isBillable: boolean;
   currency: string | null;
   hourlyRate: number | null;
+  canArchive: boolean;
+  canDelete: boolean;
+  canReactivate: boolean;
 }
 
 interface ListProjectsResponse {
@@ -31,7 +37,7 @@ interface ProjectState {
   projects: Project[];
   isLoading: boolean;
   error: string | null;
-  fetchProjects: (activeOnly?: boolean) => Promise<void>;
+  fetchProjects: (activeOnly?: boolean, mineOnly?: boolean) => Promise<void>;
   createProject: (name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null) => Promise<Project | null>;
   updateProject: (id: string, name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null) => Promise<Project | null>;
   archiveProject: (id: string) => Promise<boolean>;
@@ -44,7 +50,7 @@ interface ProjectState {
 // API HELPERS
 // ============================================================================
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const apiBase = () => getApiBaseUrl();
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   const tokens = useAuthStore.getState().tokens;
@@ -54,12 +60,13 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   };
 }
 
-async function fetchProjectsApi(activeOnly?: boolean): Promise<ListProjectsResponse> {
+async function fetchProjectsApi(activeOnly?: boolean, mineOnly?: boolean): Promise<ListProjectsResponse> {
   const headers = await getAuthHeaders();
   const params = new URLSearchParams();
   if (activeOnly) params.append('activeOnly', 'true');
+  if (mineOnly) params.append('mineOnly', 'true');
 
-  const url = `${API_BASE}/projects${params.toString() ? `?${params.toString()}` : ''}`;
+  const url = `${apiBase()}/projects${params.toString() ? `?${params.toString()}` : ''}`;
   const response = await fetch(url, { headers });
 
   if (!response.ok) {
@@ -72,7 +79,7 @@ async function fetchProjectsApi(activeOnly?: boolean): Promise<ListProjectsRespo
 
 async function createProjectApi(name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null): Promise<Project> {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/projects`, {
+  const response = await fetch(`${apiBase()}/projects`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ name, description, color, isBillable, currency, hourlyRate }),
@@ -88,7 +95,7 @@ async function createProjectApi(name: string, description?: string, color?: stri
 
 async function updateProjectApi(id: string, name: string, description?: string, color?: string, isBillable?: boolean, currency?: string | null, hourlyRate?: number | null): Promise<Project> {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/projects/${id}`, {
+  const response = await fetch(`${apiBase()}/projects/${id}`, {
     method: 'PUT',
     headers,
     body: JSON.stringify({ name, description, color, isBillable, currency, hourlyRate }),
@@ -104,7 +111,7 @@ async function updateProjectApi(id: string, name: string, description?: string, 
 
 async function archiveProjectApi(id: string): Promise<void> {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/projects/${id}/archive`, {
+  const response = await fetch(`${apiBase()}/projects/${id}/archive`, {
     method: 'POST',
     headers,
   });
@@ -117,7 +124,7 @@ async function archiveProjectApi(id: string): Promise<void> {
 
 async function reactivateProjectApi(id: string): Promise<void> {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/projects/${id}/reactivate`, {
+  const response = await fetch(`${apiBase()}/projects/${id}/reactivate`, {
     method: 'POST',
     headers,
   });
@@ -130,7 +137,7 @@ async function reactivateProjectApi(id: string): Promise<void> {
 
 async function deleteProjectApi(id: string): Promise<void> {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/projects/${id}`, {
+  const response = await fetch(`${apiBase()}/projects/${id}`, {
     method: 'DELETE',
     headers,
   });
@@ -150,11 +157,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchProjects: async (activeOnly?: boolean) => {
+  fetchProjects: async (activeOnly?: boolean, mineOnly?: boolean) => {
     set({ isLoading: true, error: null });
 
     try {
-      const result = await fetchProjectsApi(activeOnly);
+      const result = await fetchProjectsApi(activeOnly, mineOnly);
       set({ projects: result.projects, isLoading: false, error: null });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch projects';
@@ -188,6 +195,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         isLoading: false,
         error: null,
       });
+      emitProjectUpdated(updatedProject);
       return updatedProject;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update project';
@@ -204,7 +212,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const { projects } = get();
       set({
         projects: projects.map(p =>
-          p.id === id ? { ...p, status: 'Archived' as const } : p
+          p.id === id ? { ...p, status: 'Archived', canArchive: false, canReactivate: p.canDelete } : p
         ),
         isLoading: false,
         error: null,
@@ -225,7 +233,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const { projects } = get();
       set({
         projects: projects.map(p =>
-          p.id === id ? { ...p, status: 'Active' as const } : p
+          p.id === id ? { ...p, status: 'Active', canArchive: p.canDelete, canReactivate: false } : p
         ),
         isLoading: false,
         error: null,

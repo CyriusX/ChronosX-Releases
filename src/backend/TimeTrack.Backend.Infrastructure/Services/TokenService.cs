@@ -35,10 +35,10 @@ public sealed class TokenService : ITokenService
         _refreshTokenExpirationDays = configuration.GetValue("Jwt:RefreshTokenExpirationDays", 90);
     }
 
-    public string GenerateAccessToken(Guid userId, Guid orgId, string role, bool mustChangePassword = false)
-        => GenerateAccessToken(userId, orgId, null, role, mustChangePassword);
+    public string GenerateAccessToken(Guid userId, Guid orgId, string role, bool mustChangePassword = false, bool isPlatformAdmin = false)
+        => GenerateAccessToken(userId, orgId, null, role, mustChangePassword, isPlatformAdmin);
 
-    public string GenerateAccessToken(Guid userId, Guid orgId, Guid? deviceId, string role, bool mustChangePassword = false)
+    public string GenerateAccessToken(Guid userId, Guid orgId, Guid? deviceId, string role, bool mustChangePassword = false, bool isPlatformAdmin = false)
     {
         var claims = new List<Claim>
         {
@@ -47,7 +47,8 @@ public sealed class TokenService : ITokenService
             new("org_id", orgId.ToString()),
             new(ClaimTypes.Role, role),
             new("role", role),
-            new("must_change_password", mustChangePassword.ToString().ToLowerInvariant())
+            new("must_change_password", mustChangePassword.ToString().ToLowerInvariant()),
+            new("is_platform_admin", isPlatformAdmin.ToString().ToLowerInvariant())
         };
 
         // Add device_id claim if device is specified (for Agent/desktop clients).

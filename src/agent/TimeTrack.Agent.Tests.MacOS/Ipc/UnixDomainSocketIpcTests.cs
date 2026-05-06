@@ -88,6 +88,12 @@ public class UnixDomainSocketIpcTests : IAsyncLifetime
         var endpoint = new UnixDomainSocketEndPoint(TestSocketPath);
         await clientSocket.ConnectAsync(endpoint);
 
+        // Connection is accepted asynchronously on the server loop.
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (!server.IsClientConnected && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(25);
+        }
         server.IsClientConnected.Should().BeTrue();
 
         cts.Cancel();

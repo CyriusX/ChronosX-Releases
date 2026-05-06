@@ -11,6 +11,7 @@ public interface IProjectTaskRepository
     Task<double> GetMaxPositionInColumnAsync(Guid projectId, ProjectTaskStatus status, CancellationToken cancellationToken = default);
     Task AddAsync(ProjectTask task, CancellationToken cancellationToken = default);
     Task UpdateAsync(ProjectTask task, CancellationToken cancellationToken = default);
+    Task SoftDeleteByProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns every non-deleted, non-Done task whose DueDate falls on the given UTC calendar day

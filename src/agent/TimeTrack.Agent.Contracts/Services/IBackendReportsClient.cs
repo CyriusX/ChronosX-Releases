@@ -52,6 +52,7 @@ public sealed class DailyReportApp
 public sealed class DailyActivitiesResult
 {
     public List<DailyActivitySession> Sessions { get; init; } = [];
+    public List<DailyIdlePeriod> IdlePeriods { get; init; } = [];
 }
 
 /// <summary>
@@ -65,4 +66,15 @@ public sealed class DailyActivitySession
     public DateTime StartedAt { get; init; }
     public DateTime EndedAt { get; init; }
     public int DurationSeconds { get; init; }
+}
+
+public sealed class DailyIdlePeriod
+{
+    public Guid Id { get; init; }
+    public DateTime StartedAt { get; init; }
+    public DateTime EndedAt { get; init; }
+    public int DurationSeconds { get; init; }
+    public string? ReasonCode { get; init; }
+    public string? Note { get; init; }
+    public DateTime? SubmittedAtUtc { get; init; }
 }

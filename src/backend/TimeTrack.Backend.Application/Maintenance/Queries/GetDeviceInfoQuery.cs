@@ -41,6 +41,7 @@ public sealed class GetDeviceInfoQueryHandler
         return new DeviceInfoResponse
         {
             DeviceId = device.Id,
+            UserId = device.UserId,
             Hostname = device.Hostname,
             DeviceName = device.DeviceName,
             AgentVersion = device.AgentVersion,
@@ -56,7 +57,8 @@ public sealed class GetDeviceInfoQueryHandler
             ActivatedAt = device.ActivatedAt,
             Status = status,
             DisplayMode = device.DisplayMode.ToString(),
-            UserDisplayName = device.User?.DisplayName
+            UserDisplayName = device.User?.DisplayName,
+            DevToolsEnabledUntilUtc = device.User?.DevToolsEnabledUntilUtc
         };
     }
 }

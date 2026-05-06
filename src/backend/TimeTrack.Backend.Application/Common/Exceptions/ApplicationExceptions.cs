@@ -83,3 +83,33 @@ public class UserDeactivatedException : Exception
     {
     }
 }
+
+/// <summary>
+/// Exception thrown when an active subscription is required.
+/// Returns 402 Payment Required.
+/// </summary>
+public class SubscriptionRequiredException : Exception
+{
+    public string Code => "subscription_required";
+
+    public SubscriptionRequiredException(string message = "Active subscription required")
+        : base(message)
+    {
+    }
+}
+
+/// <summary>
+/// Exception thrown when a subscription limit is exceeded.
+/// Returns 402 Payment Required.
+/// </summary>
+public class SubscriptionLimitExceededException : Exception
+{
+    public string Code => "subscription_limit_exceeded";
+    public string LimitType { get; }
+
+    public SubscriptionLimitExceededException(string limitType, string message)
+        : base(message)
+    {
+        LimitType = limitType;
+    }
+}

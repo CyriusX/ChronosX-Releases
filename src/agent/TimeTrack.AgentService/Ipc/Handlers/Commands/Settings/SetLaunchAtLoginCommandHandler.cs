@@ -9,11 +9,10 @@ namespace TimeTrack.AgentService.Ipc.Handlers.Commands.Settings;
 /// <summary>
 /// Installs or removes auto-start so TimeTrack launches at every login.
 ///
-/// macOS  — creates/removes a user-level LaunchAgent plist that runs the
-///          background agent service via launchctl.
-/// Windows — adds/removes a Run registry value (HKCU) that launches the
-///           TimeTrack.DesktopHost.exe (or the agent if the desktop host
-///           is not found alongside the agent executable).
+/// macOS   — creates/removes a user-level LaunchAgent plist that launches the
+///          Desktop app (best-effort, minimized) via /usr/bin/open.
+/// Windows — creates/removes a Task Scheduler task ("ChronosX Desktop") that
+///          runs TimeTrack.DesktopHost.exe --start-minimized at user logon.
 /// </summary>
 public sealed class SetLaunchAtLoginCommandHandler : IpcHandlerBase, IIpcCommandHandler
 {
@@ -21,10 +20,9 @@ public sealed class SetLaunchAtLoginCommandHandler : IpcHandlerBase, IIpcCommand
 
     private readonly ILogger<SetLaunchAtLoginCommandHandler> _logger;
 
-    private static readonly string Label    = "com.cyriusx.timetrack.agent";
-    private static readonly string PlistName = "com.cyriusx.timetrack.agent.plist";
-    private const string WinRunKeyPath       = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string WinRunValueName     = "TimeTrack";
+    private static readonly string MacLabel     = "com.cyriusx.timetrack.desktop";
+    private static readonly string MacPlistName = "com.cyriusx.timetrack.desktop.plist";
+    private const string WinTaskName = "ChronosX Desktop";
 
     public SetLaunchAtLoginCommandHandler(ILogger<SetLaunchAtLoginCommandHandler> logger)
     {
@@ -70,7 +68,7 @@ public sealed class SetLaunchAtLoginCommandHandler : IpcHandlerBase, IIpcCommand
         else
             UninstallLaunchAgent();
 
-        bool isNowEnabled = File.Exists(PlistPath());
+        bool isNowEnabled = File.Exists(MacPlistPath());
         _logger.LogInformation("SetLaunchAtLogin (macOS): enabled={Enabled}", isNowEnabled);
         return SuccessResponse(requestId, new { enabled = isNowEnabled });
     }
@@ -82,44 +80,94 @@ public sealed class SetLaunchAtLoginCommandHandler : IpcHandlerBase, IIpcCommand
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private IpcResponse HandleWindows(int requestId, bool enabled)
     {
-        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(WinRunKeyPath, writable: true);
-        if (key == null)
+        try
         {
-            _logger.LogWarning("SetLaunchAtLogin (Windows): could not open Run registry key");
+            if (enabled)
+                RegisterWindowsDesktopTask();
+            else
+                UnregisterWindowsDesktopTask();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "SetLaunchAtLogin (Windows): failed to update scheduled task");
             return SuccessResponse(requestId, new { enabled = false });
         }
 
-        if (enabled)
-        {
-            var launchPath = WindowsLaunchPath();
-            key.SetValue(WinRunValueName, $"\"{launchPath}\"");
-            _logger.LogInformation("SetLaunchAtLogin (Windows): registered \"{Path}\"", launchPath);
-        }
-        else
-        {
-            key.DeleteValue(WinRunValueName, throwOnMissingValue: false);
-            _logger.LogInformation("SetLaunchAtLogin (Windows): removed registry value");
-        }
-
-        bool isNowEnabled = key.GetValue(WinRunValueName) != null;
+        bool isNowEnabled = IsWindowsDesktopTaskEnabled();
         return SuccessResponse(requestId, new { enabled = isNowEnabled });
     }
 
     /// <summary>
-    /// Returns the path of the executable to register in the Windows Run key.
-    /// Prefers TimeTrack.DesktopHost.exe (the UI + tray) alongside the agent;
-    /// falls back to the agent executable itself.
+    /// Returns the path of the executable to register in the Windows Scheduled Task.
+    /// Prefers TimeTrack.DesktopHost.exe (the UI + tray) alongside the agent.
     /// </summary>
     private static string WindowsLaunchPath()
     {
         var agentPath = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
         var agentDir  = Path.GetDirectoryName(agentPath) ?? string.Empty;
 
-        var desktopHost = Path.Combine(agentDir, "TimeTrack.DesktopHost.exe");
-        if (File.Exists(desktopHost))
-            return desktopHost;
+        // Most installs place AgentService under {app}\service\ and DesktopHost at {app}\.
+        var candidates = new[]
+        {
+            Path.Combine(agentDir, "TimeTrack.DesktopHost.exe"),
+            Path.GetFullPath(Path.Combine(agentDir, "..", "TimeTrack.DesktopHost.exe")),
+        };
+        foreach (var c in candidates)
+        {
+            if (File.Exists(c))
+                return c;
+        }
 
         return agentPath;
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private void RegisterWindowsDesktopTask()
+    {
+        var exePath = WindowsLaunchPath();
+        var workDir = Path.GetDirectoryName(exePath) ?? AppContext.BaseDirectory;
+
+        // Mirror the installer behavior: task at logon, highest, ignore new instances, small delay.
+        var script =
+            "$u = $env:USERNAME; " +
+            $"$exe = '{EscapePwshSingleQuoted(exePath)}'; " +
+            $"$wd = '{EscapePwshSingleQuoted(workDir)}'; " +
+            "$a = New-ScheduledTaskAction -Execute $exe -Argument '--start-minimized' -WorkingDirectory $wd; " +
+            "$t = New-ScheduledTaskTrigger -AtLogOn -User $u; $t.Delay = 'PT5S'; " +
+            "$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -MultipleInstances IgnoreNew -StartWhenAvailable -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1); " +
+            "$p = New-ScheduledTaskPrincipal -UserId $u -LogonType Interactive -RunLevel Highest; " +
+            $"Register-ScheduledTask -TaskName '{WinTaskName}' -Action $a -Trigger $t -Settings $s -Principal $p -Force | Out-Null";
+
+        var (exitCode, stdout, stderr) = RunPowerShellEncoded(script);
+        _logger.LogInformation("RegisterDesktopTask exit={Code} stdout={Out} stderr={Err}", exitCode, stdout, stderr);
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private void UnregisterWindowsDesktopTask()
+    {
+        var script =
+            $"Stop-ScheduledTask -TaskName '{WinTaskName}' -ErrorAction SilentlyContinue; " +
+            $"Unregister-ScheduledTask -TaskName '{WinTaskName}' -Confirm:$false -ErrorAction SilentlyContinue";
+        var (exitCode, stdout, stderr) = RunPowerShellEncoded(script);
+        _logger.LogInformation("UnregisterDesktopTask exit={Code} stdout={Out} stderr={Err}", exitCode, stdout, stderr);
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static bool IsWindowsDesktopTaskEnabled()
+    {
+        try
+        {
+            var script =
+                $"$t = Get-ScheduledTask -TaskName '{WinTaskName}' -ErrorAction SilentlyContinue; " +
+                "if ($null -eq $t) { exit 1 }; " +
+                "if ($t.Enabled -ne $true) { exit 2 }; exit 0";
+            var (exitCode, _, _) = RunPowerShellEncoded(script);
+            return exitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -128,11 +176,32 @@ public sealed class SetLaunchAtLoginCommandHandler : IpcHandlerBase, IIpcCommand
 
     private void InstallLaunchAgent()
     {
-        var execPath    = AgentExecutablePath();
-        var contentRoot = Path.GetDirectoryName(execPath) ?? string.Empty;
-        var plistPath   = PlistPath();
+        var execPath  = AgentExecutablePath();
+        var plistPath = MacPlistPath();
 
         Directory.CreateDirectory(Path.GetDirectoryName(plistPath)!);
+
+        // Best-effort: launch the desktop app minimized so the tray/menubar is available at login.
+        // If we can't find the .app bundle, fall back to launching the agent itself.
+        var bundlePath = TryResolveMacDesktopBundleFromAgent(execPath);
+        var programArgs = bundlePath != null
+            ? $"""
+    <array>
+        <string>/usr/bin/open</string>
+        <string>-g</string>
+        <string>-a</string>
+        <string>{bundlePath}</string>
+        <string>--args</string>
+        <string>--start-minimized</string>
+    </array>
+"""
+            : $"""
+    <array>
+        <string>{execPath}</string>
+    </array>
+""";
+
+        var label = bundlePath != null ? MacLabel : "com.cyriusx.timetrack.agent";
 
         var plist = $"""
 <?xml version="1.0" encoding="UTF-8"?>
@@ -141,41 +210,29 @@ public sealed class SetLaunchAtLoginCommandHandler : IpcHandlerBase, IIpcCommand
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>{Label}</string>
+    <string>{label}</string>
     <key>ProgramArguments</key>
-    <array>
-        <string>{execPath}</string>
-    </array>
+{programArgs}
     <key>RunAtLoad</key>
     <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>ProcessType</key>
-    <string>Background</string>
     <key>ThrottleInterval</key>
     <integer>5</integer>
     <key>StandardOutPath</key>
     <string>/tmp/timetrack-agent.log</string>
     <key>StandardErrorPath</key>
     <string>/tmp/timetrack-agent.log</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>DOTNET_ENVIRONMENT</key>
-        <string>Production</string>
-        <key>DOTNET_CONTENT_ROOT</key>
-        <string>{contentRoot}</string>
-    </dict>
 </dict>
 </plist>
 """;
+
         File.WriteAllText(plistPath, plist, Encoding.UTF8);
         Launchctl("load", "-w", plistPath);
-        _logger.LogInformation("LaunchAgent installed at {Path}", plistPath);
+        _logger.LogInformation("LaunchAgent installed at {Path} (bundle={Bundle})", plistPath, bundlePath ?? "agent-only");
     }
 
     private void UninstallLaunchAgent()
     {
-        var plistPath = PlistPath();
+        var plistPath = MacPlistPath();
         if (File.Exists(plistPath))
         {
             Launchctl("unload", "-w", plistPath);
@@ -184,10 +241,10 @@ public sealed class SetLaunchAtLoginCommandHandler : IpcHandlerBase, IIpcCommand
         }
     }
 
-    private static string PlistPath()
+    private static string MacPlistPath()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.Combine(home, "Library", "LaunchAgents", PlistName);
+        return Path.Combine(home, "Library", "LaunchAgents", MacPlistName);
     }
 
     private static string AgentExecutablePath()
@@ -202,6 +259,60 @@ public sealed class SetLaunchAtLoginCommandHandler : IpcHandlerBase, IIpcCommand
         var contentRoot = Environment.GetEnvironmentVariable("DOTNET_CONTENT_ROOT")
             ?? AppContext.BaseDirectory;
         return Path.Combine(contentRoot, "TimeTrack.MacOSAgentService");
+    }
+
+    private static string? TryResolveMacDesktopBundleFromAgent(string agentExePath)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(agentExePath))
+                return null;
+
+            var dir = new DirectoryInfo(Path.GetDirectoryName(agentExePath) ?? ".");
+            while (dir != null)
+            {
+                if (dir.FullName.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
+                    return dir.FullName;
+                dir = dir.Parent;
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+        return null;
+    }
+
+    private static string EscapePwshSingleQuoted(string s) => s.Replace("'", "''");
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static (int exitCode, string stdout, string stderr) RunPowerShellEncoded(string script)
+    {
+        var bytes = Encoding.Unicode.GetBytes(script);
+        var encoded = Convert.ToBase64String(bytes);
+
+        using var p = new Process();
+        p.StartInfo = new ProcessStartInfo("powershell.exe")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError  = true,
+            UseShellExecute        = false,
+            CreateNoWindow         = true
+        };
+        p.StartInfo.ArgumentList.Add("-NonInteractive");
+        p.StartInfo.ArgumentList.Add("-WindowStyle");
+        p.StartInfo.ArgumentList.Add("Hidden");
+        p.StartInfo.ArgumentList.Add("-ExecutionPolicy");
+        p.StartInfo.ArgumentList.Add("Bypass");
+        p.StartInfo.ArgumentList.Add("-EncodedCommand");
+        p.StartInfo.ArgumentList.Add(encoded);
+
+        p.Start();
+        p.WaitForExit(10_000);
+
+        var stdout = p.StandardOutput.ReadToEnd();
+        var stderr = p.StandardError.ReadToEnd();
+        return (p.ExitCode, stdout.Trim(), stderr.Trim());
     }
 
     private void Launchctl(params string[] args)

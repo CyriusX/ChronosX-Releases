@@ -57,6 +57,8 @@ export function ProductivityHeatmap({ activities, selectedDate }: ProductivityHe
     const nowMs = Date.now();
 
     for (const a of activities) {
+      if (a.kind === 'idle' || a.productivity === 'idle') continue;
+
       const start = new Date(a.startUtc).getTime();
       // Cap end time to now — prevents showing data for future hours
       const end = Math.min(new Date(a.endUtc).getTime(), nowMs);

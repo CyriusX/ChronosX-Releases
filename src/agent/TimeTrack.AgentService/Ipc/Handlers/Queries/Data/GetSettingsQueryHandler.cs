@@ -36,6 +36,8 @@ public sealed class GetSettingsQueryHandler : IpcHandlerBase, IIpcQueryHandler
                 language = settings.Language,
                 idleThresholdSeconds = settings.IdleThresholdSeconds,
                 workGoalSeconds = settings.WorkGoalSeconds,
+                devToolsEnabled = settings.DevToolsEnabled,
+                devToolsEnabledUntilUtc = settings.DevToolsEnabledUntilUtc?.ToString("O"),
                 updatedAt = settings.UpdatedAt.ToString("O")
             });
         }

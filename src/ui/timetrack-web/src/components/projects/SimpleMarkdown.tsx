@@ -13,12 +13,28 @@
  */
 
 import React from 'react';
+import { LinkEmbed } from './LinkEmbed';
 
 type Block =
   | { kind: 'heading'; level: 1 | 2 | 3; text: string }
   | { kind: 'bullet'; items: string[] }
   | { kind: 'ordered'; items: string[] }
-  | { kind: 'paragraph'; text: string };
+  | { kind: 'paragraph'; text: string }
+  | { kind: 'embed'; url: string };
+
+// A paragraph counts as "standalone link" if, once trimmed, it is only a URL
+// or only a single `[text](url)` — in which case we render a rich LinkEmbed
+// instead of inline text.
+const STANDALONE_URL = /^https?:\/\/\S+$/i;
+const STANDALONE_MD_LINK = /^\[[^\]]+\]\((https?:\/\/[^\s)]+)\)$/i;
+
+function asStandaloneEmbedUrl(paragraphText: string): string | null {
+  const t = paragraphText.trim();
+  if (STANDALONE_URL.test(t)) return t;
+  const m = t.match(STANDALONE_MD_LINK);
+  if (m) return m[1];
+  return null;
+}
 
 export function SimpleMarkdown({ source }: { source: string }) {
   if (!source?.trim()) return null;
@@ -93,7 +109,13 @@ function parseBlocks(source: string): Block[] {
       paraLines.push(next);
       i++;
     }
-    blocks.push({ kind: 'paragraph', text: paraLines.join('\n') });
+    const paragraphText = paraLines.join('\n');
+    const embedUrl = asStandaloneEmbedUrl(paragraphText);
+    if (embedUrl) {
+      blocks.push({ kind: 'embed', url: embedUrl });
+    } else {
+      blocks.push({ kind: 'paragraph', text: paragraphText });
+    }
   }
 
   return blocks;
@@ -136,6 +158,8 @@ function renderBlock(block: Block, key: number): React.ReactNode {
           {renderInline(block.text)}
         </p>
       );
+    case 'embed':
+      return <LinkEmbed key={key} url={block.url} />;
   }
 }
 
@@ -202,6 +226,24 @@ function tokenizeInline(text: string): Token[] {
         tokens.push({ kind: 'code', value: text.slice(i + 1, end) });
         i = end + 1;
         continue;
+      }
+    }
+
+    // Bare URL autolink: http(s)://... stopping at whitespace or common terminators.
+    // Must be at start of string or preceded by whitespace/punctuation so URLs
+    // embedded inside other tokens aren't partially consumed.
+    if ((text[i] === 'h' || text[i] === 'H') && (i === 0 || /[\s([{<]/.test(text[i - 1]))) {
+      const match = text.slice(i).match(/^https?:\/\/[^\s<>"']+/i);
+      if (match) {
+        let href = match[0];
+        // Strip trailing punctuation that is almost certainly not part of the URL.
+        while (/[.,;:!?)\]]$/.test(href)) href = href.slice(0, -1);
+        if (href.length > 8) {
+          flush();
+          tokens.push({ kind: 'link', text: href, href });
+          i += href.length;
+          continue;
+        }
       }
     }
 

@@ -65,7 +65,13 @@ export class IpcService implements IIpcClient {
   // ============================================================================
 
   get isConnected(): boolean {
-    return this._connectionState === 'connected' || !!this.getBridge();
+    const bridge = this.getBridge();
+    if (!bridge) return false;
+    const b = bridge as unknown as { isConnected?: unknown };
+    if (typeof b.isConnected === 'boolean') {
+      return b.isConnected;
+    }
+    return this._connectionState === 'connected' || !!bridge;
   }
 
   get isReady(): boolean {
@@ -103,18 +109,31 @@ export class IpcService implements IIpcClient {
     if (!bridge) {
       return { success: false, error: 'Bridge not available' };
     }
+    const bState = bridge as unknown as { isConnected?: unknown };
+    if (typeof bState.isConnected === 'boolean' && !bState.isConnected) {
+      return { success: false, error: 'AgentService not connected' };
+    }
 
     try {
       const payloadJson = payload !== undefined ? JSON.stringify(payload) : undefined;
 
-      // Bridge is either a postMessage-based bridge (returns native Promises)
-      // or a COM proxy. Both expose SendCommand returning Promise<string>.
-      const responseJson = await (bridge as unknown as {
-        SendCommand: (command: string, payloadJson?: string) => Promise<string>;
-      }).SendCommand(command, payloadJson);
+      // Bridge implementations differ:
+      // - Some expose `SendCommand/SendQuery` and return JSON string payloads (COM/WV2 proxy).
+      // - Others expose `sendCommand/sendQuery` and return objects directly (postMessage shims / tests).
+      const b = bridge as unknown as Record<string, unknown>;
+      const fn =
+        (b.SendCommand as ((c: string, p?: string) => Promise<unknown>) | undefined) ??
+        (b.sendCommand as ((c: string, p?: string) => Promise<unknown>) | undefined);
 
-      const response = JSON.parse(responseJson);
-      return response as IpcResponse<void>;
+      if (!fn) {
+        return { success: false, error: 'Bridge command method not available' };
+      }
+
+      const raw = await fn(command, payloadJson);
+      if (typeof raw === 'string') {
+        return JSON.parse(raw) as IpcResponse<void>;
+      }
+      return raw as IpcResponse<void>;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { success: false, error: errorMessage };
@@ -135,16 +154,26 @@ export class IpcService implements IIpcClient {
       console.warn(`[IpcService] Bridge not available for query: ${query}`);
       return { success: false, error: 'Bridge not available' };
     }
+    const bState = bridge as unknown as { isConnected?: unknown };
+    if (typeof bState.isConnected === 'boolean' && !bState.isConnected) {
+      return { success: false, error: 'AgentService not connected' };
+    }
 
     try {
-      // Bridge is either a postMessage-based bridge (returns native Promises)
-      // or a COM proxy. Both expose SendQuery returning Promise<string>.
-      const responseJson = await (bridge as unknown as {
-        SendQuery: (query: string, payloadJson?: string) => Promise<string>;
-      }).SendQuery(query as string, payloadJson);
+      const b = bridge as unknown as Record<string, unknown>;
+      const fn =
+        (b.SendQuery as ((q: string, p?: string) => Promise<unknown>) | undefined) ??
+        (b.sendQuery as ((q: string, p?: string) => Promise<unknown>) | undefined);
 
-      const response = JSON.parse(responseJson);
-      return response as IpcResponse<QueryResponseMap[K]>;
+      if (!fn) {
+        return { success: false, error: 'Bridge query method not available' };
+      }
+
+      const raw = await fn(query as string, payloadJson);
+      if (typeof raw === 'string') {
+        return JSON.parse(raw) as IpcResponse<QueryResponseMap[K]>;
+      }
+      return raw as IpcResponse<QueryResponseMap[K]>;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[IpcService] Error sending query ${query}:`, errorMessage);
@@ -208,9 +237,11 @@ export class IpcService implements IIpcClient {
     this._isReady = hasBridge;
 
     if (hasBridge) {
-      this._connectionState = 'connected';
+      const b = bridge as unknown as { isConnected?: unknown };
+      const connected = typeof b.isConnected === 'boolean' ? b.isConnected : true;
+      this._connectionState = connected ? 'connected' : 'connecting';
       this.setupBridgeHandlers();
-      console.log('[IpcService] Bridge available, assuming connected (no polling)');
+      console.log('[IpcService] Bridge available, connection:', this._connectionState);
     } else {
       console.warn('[IpcService] Bridge not available, starting connection check interval');
       this._connectionState = 'disconnected';
@@ -238,6 +269,22 @@ export class IpcService implements IIpcClient {
       payloadJson: string
     ) => {
       console.log(`[IpcService] timeTrackHandleEvent called: eventType=${eventType}`);
+      if (eventType === 'connectionStateChanged') {
+        try {
+          const parsed = payloadJson ? (JSON.parse(payloadJson) as { isConnected?: boolean } | null) : null;
+          const connected = !!parsed?.isConnected;
+          // Keep the bridge's isConnected flag consistent so `isConnected` reflects reality.
+          // Some hosts may not update it, and `isConnected` prefers the bridge flag when present.
+          const bridge = this.getBridge();
+          if (bridge) {
+            (bridge as unknown as { isConnected?: boolean }).isConnected = connected;
+          }
+          this._connectionState = connected ? 'connected' : 'disconnected';
+          this.notifyConnectionChange();
+        } catch {
+          /* ignore */
+        }
+      }
       this.config.eventDispatcher.dispatchFromJson(eventType, payloadJson);
     };
   }

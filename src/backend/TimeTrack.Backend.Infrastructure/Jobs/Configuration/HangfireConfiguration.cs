@@ -62,6 +62,11 @@ public static class HangfireConfiguration
         services.AddScoped<IActivitySessionConsolidationJob, ActivitySessionConsolidationJob>();
         services.AddScoped<IMachineMetricsCleanupJob, MachineMetricsCleanupJob>();
         services.AddScoped<IDeadlineScanJob, DeadlineScanJob>();
+        services.AddScoped<IProjectPurgeJob, ProjectPurgeJob>();
+        services.AddScoped<ISubscriptionStatusJob, SubscriptionStatusJob>();
+        services.AddScoped<IUsageCounterRefreshJob, UsageCounterRefreshJob>();
+        services.AddScoped<ITaskTimerStalePauseJob, TaskTimerStalePauseJob>();
+        services.AddScoped<IDevToolsAutoRevokeJob, DevToolsAutoRevokeJob>();
 
         return services;
     }
@@ -141,6 +146,60 @@ public static class HangfireConfiguration
             "deadline-scan",
             job => job.ExecuteAsync(),
             "0 * * * *", // Every hour on the :00
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Project purge job - runs daily at 02:00 UTC
+        // Hard-deletes projects soft-deleted more than 30 days ago.
+        RecurringJob.AddOrUpdate<IProjectPurgeJob>(
+            "project-purge",
+            job => job.ExecuteAsync(),
+            "0 2 * * *", // Daily at 02:00 UTC
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Subscription status job - runs daily at 01:00 UTC
+        // Transitions past_due subscriptions with expired grace periods to unpaid
+        RecurringJob.AddOrUpdate<ISubscriptionStatusJob>(
+            "subscription-status-check",
+            job => job.ExecuteAsync(),
+            "0 1 * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Usage counter refresh job - runs every 6 hours
+        RecurringJob.AddOrUpdate<IUsageCounterRefreshJob>(
+            "usage-counter-refresh",
+            job => job.ExecuteAsync(),
+            "15 */6 * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Task timer stale pause watchdog - runs every 5 minutes
+        // Pauses open task timers when devices haven't heartbeated recently
+        RecurringJob.AddOrUpdate<ITaskTimerStalePauseJob>(
+            "task-timer-stale-pause",
+            job => job.ExecuteAsync(),
+            "*/5 * * * *", // Every 5 minutes
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // DevTools access auto-revoke watchdog - runs every 10 minutes
+        // Revokes per-user devtools flags when they expire and pushes disable commands to devices
+        RecurringJob.AddOrUpdate<IDevToolsAutoRevokeJob>(
+            "devtools-auto-revoke",
+            job => job.ExecuteAsync(),
+            "*/10 * * * *", // Every 10 minutes
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc

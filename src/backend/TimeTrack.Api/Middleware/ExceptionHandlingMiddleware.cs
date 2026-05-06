@@ -1,5 +1,8 @@
 using System.Net;
 using System.Text.Json;
+using System.Diagnostics;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using TimeTrack.Backend.Application.Common.Exceptions;
 
 namespace TimeTrack.Api.Middleware;
@@ -35,42 +38,72 @@ public class ExceptionHandlingMiddleware
         int statusCode;
         object response;
         string errorDetails;
+        var traceId = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
 
         switch (exception)
         {
             case UserDeactivatedException ex:
                 statusCode = (int)HttpStatusCode.Unauthorized;
-                response = new ErrorResponse(ex.Code, ex.Message);
+                response = new ErrorResponse(ex.Code, ex.Message, traceId);
                 errorDetails = $"UserDeactivatedException: {ex.Message}";
+                break;
+            case DbUpdateException ex when TryGetPostgresException(ex, out var pg):
+                (statusCode, response) = MapPostgresException(pg, traceId);
+                errorDetails = $"DbUpdateException({pg.SqlState}): {pg.MessageText}";
+                break;
+            case PostgresException ex:
+                (statusCode, response) = MapPostgresException(ex, traceId);
+                errorDetails = $"PostgresException({ex.SqlState}): {ex.MessageText}";
+                break;
+            case NpgsqlException ex:
+                // Typically: connection failures, timeouts, or pool exhaustion.
+                statusCode = (int)HttpStatusCode.ServiceUnavailable;
+                response = new ErrorResponse(
+                    "database_unavailable",
+                    "Database is temporarily unavailable. Please retry shortly.",
+                    traceId);
+                errorDetails = $"NpgsqlException: {ex.Message}";
                 break;
             case ForbiddenException ex:
                 statusCode = (int)HttpStatusCode.Forbidden;
-                response = new ErrorResponse("forbidden", ex.Reason);
+                response = new ErrorResponse("forbidden", ex.Reason, traceId);
                 errorDetails = $"ForbiddenException: {ex.Reason}";
                 break;
             case NotFoundException ex:
                 statusCode = (int)HttpStatusCode.NotFound;
-                response = new ErrorResponse("not_found", $"{ex.EntityType} with key '{ex.Key}' was not found");
+                response = new ErrorResponse("not_found", $"{ex.EntityType} with key '{ex.Key}' was not found", traceId);
                 errorDetails = $"NotFoundException: {ex.EntityType} with key '{ex.Key}'";
                 break;
             case ValidationException ex:
                 statusCode = (int)HttpStatusCode.BadRequest;
-                response = new ValidationErrorResponse("validation_failed", ex.Errors);
+                response = new ValidationErrorResponse("validation_failed", ex.Errors, traceId);
                 errorDetails = $"ValidationException: {string.Join(", ", ex.Errors.Select(e => $"{e.Key}: {string.Join(", ", e.Value)}"))}";
                 break;
             case ConflictException ex:
                 statusCode = (int)HttpStatusCode.Conflict;
-                response = new ErrorResponse(ex.Code, ex.Message);
+                response = new ErrorResponse(ex.Code, ex.Message, traceId);
                 errorDetails = $"ConflictException: {ex.Code} - {ex.Message}";
                 break;
             case UnauthorizedAccessException ex:
                 statusCode = (int)HttpStatusCode.Unauthorized;
-                response = new ErrorResponse("unauthorized", ex.Message);
+                response = new ErrorResponse("unauthorized", ex.Message, traceId);
                 errorDetails = $"UnauthorizedAccessException: {ex.Message}";
+                break;
+
+            case SubscriptionRequiredException ex:
+                statusCode = (int)HttpStatusCode.PaymentRequired;
+                response = new ErrorResponse(ex.Code, ex.Message, traceId);
+                errorDetails = $"SubscriptionRequiredException: {ex.Message}";
+                break;
+
+            case SubscriptionLimitExceededException ex:
+                statusCode = (int)HttpStatusCode.PaymentRequired;
+                response = new ErrorResponse(ex.Code, ex.Message, traceId);
+                errorDetails = $"SubscriptionLimitExceededException: {ex.LimitType} - {ex.Message}";
                 break;
             default:
                 statusCode = (int)HttpStatusCode.InternalServerError;
-                response = new ErrorResponse("internal_error", "An unexpected error occurred");
+                response = new ErrorResponse("internal_error", "An unexpected error occurred", traceId);
                 errorDetails = $"Unhandled exception: {exception.GetType().Name}: {exception.Message}";
                 break;
         }
@@ -84,11 +117,12 @@ public class ExceptionHandlingMiddleware
 
         // Log full exception details for debugging
         _logger.LogError(exception,
-            "Request failed: {RequestMethod} {RequestPath} - {StatusCode} {ErrorCode}\nExceptionType: {ExceptionType}\nMessage: {Message}\nStack Trace: {StackTrace}",
+            "Request failed: {RequestMethod} {RequestPath} - {StatusCode} {ErrorCode} (TraceId: {TraceId})\nExceptionType: {ExceptionType}\nMessage: {Message}\nStack Trace: {StackTrace}",
             context.Request.Method,
             context.Request.Path.Value,
             statusCode,
             errorCode,
+            traceId,
             exception.GetType().Name,
             exception.Message,
             exception.StackTrace);
@@ -98,7 +132,49 @@ public class ExceptionHandlingMiddleware
         await context.Response.WriteAsJsonAsync(response);
     }
 
-    private record ErrorResponse(string Code, string Message);
+    private record ErrorResponse(string Code, string Message, string TraceId);
 
-    private record ValidationErrorResponse(string Code, IDictionary<string, string[]> Errors);
+    private record ValidationErrorResponse(string Code, IDictionary<string, string[]> Errors, string TraceId);
+
+    private static bool TryGetPostgresException(DbUpdateException ex, out PostgresException pg)
+    {
+        var cur = ex.InnerException;
+        while (cur is not null)
+        {
+            if (cur is PostgresException pe)
+            {
+                pg = pe;
+                return true;
+            }
+            cur = cur.InnerException;
+        }
+
+        pg = null!;
+        return false;
+    }
+
+    private static (int StatusCode, ErrorResponse Response) MapPostgresException(PostgresException pg, string traceId) => pg.SqlState switch
+    {
+        // Likely: API deployed without applying EF migrations (common in containerized deploys).
+        "42703" or "42P01" => ((int)HttpStatusCode.InternalServerError, new ErrorResponse(
+            "db_schema_out_of_date",
+            "Database schema is out of date. Apply migrations and restart the API.",
+            traceId)),
+
+        // Unique violation (can happen under concurrency/races). For device PK collisions, surface a
+        // conflict so the agent can regenerate its device id and retry.
+        "23505" when pg.TableName == "devices" && pg.ConstraintName == "PK_devices"
+            => ((int)HttpStatusCode.Conflict, new ErrorResponse(
+                "device_id_conflict",
+                "This device is already registered. Please restart the agent to generate a new device ID and retry.",
+                traceId)),
+
+        "23505"
+            => ((int)HttpStatusCode.Conflict, new ErrorResponse(
+                "duplicate_key",
+                "A unique constraint was violated.",
+                traceId)),
+
+        _ => ((int)HttpStatusCode.InternalServerError, new ErrorResponse("database_error", "A database error occurred", traceId))
+    };
 }

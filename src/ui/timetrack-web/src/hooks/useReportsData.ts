@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
+  getReportsBundle,
   getDailySummaryRange,
   getProductivityTrend,
   getTopApps,
@@ -19,6 +20,7 @@ import type {
   ProductivityTrendResponse,
   TopAppsResponse,
   TopPathsResponse,
+  TopFoldersResponse,
   DistractionStatsResponse,
   CategoryDistributionResponse,
   DateRange,
@@ -38,6 +40,7 @@ export interface ReportsDataState {
   productivityTrend: ProductivityTrendResponse | null;
   topApps: TopAppsResponse | null;
   topPaths: TopPathsResponse | null;
+  topFolders: TopFoldersResponse | null;
   distractionStats: DistractionStatsResponse | null;
   categoryDistribution: CategoryDistributionResponse | null;
 }
@@ -49,6 +52,7 @@ export interface ReportsFilters {
   groupBy: GroupByOption;
   topAppsLimit: number;
   topPathsLimit: number;
+  topFoldersLimit: number;
 }
 
 export interface UseReportsDataOptions {
@@ -69,11 +73,13 @@ export interface UseReportsDataReturn {
   setGroupBy: (groupBy: GroupByOption) => void;
   setTopAppsLimit: (limit: number) => void;
   setTopPathsLimit: (limit: number) => void;
+  setTopFoldersLimit: (limit: number) => void;
   refresh: () => Promise<void>;
   refreshDailySummaryRange: () => Promise<void>;
   refreshProductivityTrend: () => Promise<void>;
   refreshTopApps: () => Promise<void>;
   refreshTopPaths: () => Promise<void>;
+  refreshTopFolders: () => Promise<void>;
   refreshDistractionStats: () => Promise<void>;
   refreshCategoryDistribution: () => Promise<void>;
 }
@@ -95,6 +101,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     productivityTrend: null,
     topApps: null,
     topPaths: null,
+    topFolders: null,
     distractionStats: null,
     categoryDistribution: null,
   });
@@ -109,6 +116,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     groupBy: 'day' as GroupByOption,
     topAppsLimit: 20,
     topPathsLimit: 20,
+    topFoldersLimit: 20,
   }));
 
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -138,6 +146,10 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
 
   const setTopPathsLimit = useCallback((limit: number) => {
     setFilters(prev => ({ ...prev, topPathsLimit: Math.max(1, Math.min(100, limit)) }));
+  }, []);
+
+  const setTopFoldersLimit = useCallback((limit: number) => {
+    setFilters(prev => ({ ...prev, topFoldersLimit: Math.max(1, Math.min(100, limit)) }));
   }, []);
 
   // Data fetchers — always from backend API (no IPC)
@@ -243,14 +255,35 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     setError(null);
 
     try {
-      await Promise.all([
-        refreshDailySummaryRange(),
-        refreshProductivityTrend(),
-        refreshTopApps(),
-        refreshTopPaths(),
-        refreshDistractionStats(),
-        refreshCategoryDistribution(),
-      ]);
+      const bundle = await getReportsBundle(
+        filters.dateRange.startDate,
+        filters.dateRange.endDate,
+        filters.groupBy,
+        {
+          topApps: filters.topAppsLimit,
+          topPaths: filters.topPathsLimit,
+          topFolders: filters.topFoldersLimit,
+        },
+        filters.userId
+      );
+
+      const failedSections = (bundle.errors ?? [])
+        .map(e => e.section)
+        .filter(Boolean);
+      if (failedSections.length > 0) {
+        console.warn('[useReportsData] Bundle returned partial data:', bundle.errors);
+        setError(`Some report sections failed to load: ${failedSections.join(', ')}`);
+      }
+
+      setData({
+        dailySummaryRange: bundle.dailySummaryRange,
+        productivityTrend: bundle.productivityTrend,
+        topApps: bundle.topApps,
+        topPaths: bundle.topPaths,
+        topFolders: bundle.topFolders ?? null,
+        distractionStats: bundle.distractionStats,
+        categoryDistribution: bundle.categoryDistribution,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load reports');
     } finally {
@@ -259,13 +292,17 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     }
   }, [
     filters.dateRange.startDate,
-    refreshDailySummaryRange,
-    refreshProductivityTrend,
-    refreshTopApps,
-    refreshTopPaths,
-    refreshDistractionStats,
-    refreshCategoryDistribution,
+    filters.dateRange.endDate,
+    filters.userId,
+    filters.groupBy,
+    filters.topAppsLimit,
+    filters.topPathsLimit,
+    filters.topFoldersLimit,
   ]);
+
+  const refreshTopFolders = useCallback(async () => {
+    await refresh();
+  }, [refresh]);
 
   // Auto-fetch on mount and filter changes
   const lastFetchFiltersRef = useRef<string>('');
@@ -286,7 +323,9 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     if (!autoFetch || !filters.dateRange.startDate) return;
 
     pollingIntervalRef.current = setInterval(() => {
-      if (!isFetchingRef.current) refresh();
+      if (isFetchingRef.current) return;
+      if (document.visibilityState !== 'visible') return;
+      refresh();
     }, POLLING_INTERVAL_MS);
 
     return () => {
@@ -308,11 +347,13 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     setGroupBy,
     setTopAppsLimit,
     setTopPathsLimit,
+    setTopFoldersLimit,
     refresh,
     refreshDailySummaryRange,
     refreshProductivityTrend,
     refreshTopApps,
     refreshTopPaths,
+    refreshTopFolders,
     refreshDistractionStats,
     refreshCategoryDistribution,
   };

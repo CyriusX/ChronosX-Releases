@@ -4,6 +4,7 @@ import type { OrgPolicyResponse, UpdateOrgPolicyRequest } from '../../types/sett
 import { usePolicyCards } from './usePolicyCards';
 import { WorkHoursCard } from './WorkHoursCard';
 import { IdleThresholdCard } from './IdleThresholdCard';
+import { IdleJustificationThresholdCard } from './IdleJustificationThresholdCard';
 import { AppExclusionsCard } from './AppExclusionsCard';
 import { RetentionCard } from './RetentionCard';
 import { FocusModeCard } from './FocusModeCard';
@@ -23,11 +24,13 @@ export function OrganizationSection({ policy, onUpdate, canEdit, orgId }: Organi
     isSaving,
     workHours,
     idleThresholdMinutes,
+    idleJustificationPromptThresholdMinutes,
     retentionDays,
     focusMode,
     setEditingCard,
     setWorkHours,
     setIdleThresholdMinutes,
+    setIdleJustificationPromptThresholdMinutes,
     setRetentionDays,
     setFocusMode,
     handleToggleDay,
@@ -89,6 +92,18 @@ export function OrganizationSection({ policy, onUpdate, canEdit, orgId }: Organi
             onCancel={() => handleCancel('idleThreshold')}
             isSaving={isSaving}
             onThresholdChange={setIdleThresholdMinutes}
+          />
+          <IdleJustificationThresholdCard
+            promptThresholdSeconds={policy.idleJustificationPromptThresholdSeconds}
+            promptThresholdMinutes={idleJustificationPromptThresholdMinutes}
+            minMinutes={Math.max(1, Math.ceil(policy.idleThresholdSeconds / 60))}
+            isEditing={editingCard === 'idleJustificationThreshold'}
+            canEdit={canEdit}
+            onEdit={() => setEditingCard('idleJustificationThreshold')}
+            onSave={() => handleSave('idleJustificationThreshold', onUpdate)}
+            onCancel={() => handleCancel('idleJustificationThreshold')}
+            isSaving={isSaving}
+            onPromptThresholdChange={setIdleJustificationPromptThresholdMinutes}
           />
         </div>
       </div>

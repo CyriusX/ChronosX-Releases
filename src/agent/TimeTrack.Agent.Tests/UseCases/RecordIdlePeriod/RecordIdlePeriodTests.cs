@@ -94,12 +94,12 @@ public class RecordIdlePeriodTests
         // Verify payload JSON (properties are in camelCase)
         var payloadJson = capturedOutboxItem.PayloadJson;
         Assert.NotNull(payloadJson);
-        Assert.Contains(payloadJson, "\"startedAt\"");
-        Assert.Contains(payloadJson, "\"endedAt\"");
+        Assert.Contains("\"startedAt\"", payloadJson);
+        Assert.Contains("\"endedAt\"", payloadJson);
 
         // Verify idempotency key
         var idempotencyKey = capturedOutboxItem.IdempotencyKey;
         Assert.NotNull(idempotencyKey);
-        Assert.Contains(idempotencyKey, "idle_period");
+        Assert.Contains("idle_period", idempotencyKey);
     }
 }

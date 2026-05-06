@@ -162,7 +162,8 @@ public sealed class BackendReportsClient : IBackendReportsClient
             var dateStr = date.ToString("yyyy-MM-dd");
             _logger.LogInformation("[BackendReports] Fetching daily activities for {Date}", dateStr);
 
-            var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/reports/activities?date={dateStr}");
+            var timezone = Uri.EscapeDataString(GetLocalIanaTimezone());
+            var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/reports/activities?date={dateStr}&timezone={timezone}");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
 
             var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -174,7 +175,7 @@ public sealed class BackendReportsClient : IBackendReportsClient
                 if (refreshed)
                 {
                     jwt = await _tokenStore.GetJwtAsync(cancellationToken);
-                    var retryRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/reports/activities?date={dateStr}");
+                    var retryRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/reports/activities?date={dateStr}&timezone={timezone}");
                     retryRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
                     response = await _httpClient.SendAsync(retryRequest, cancellationToken);
                 }
@@ -202,6 +203,16 @@ public sealed class BackendReportsClient : IBackendReportsClient
                     StartedAt = s.StartedAt,
                     EndedAt = s.EndedAt,
                     DurationSeconds = s.DurationSeconds,
+                }).ToList() ?? [],
+                IdlePeriods = dto.IdlePeriods?.Select(i => new DailyIdlePeriod
+                {
+                    Id = i.Id,
+                    StartedAt = i.StartedAt,
+                    EndedAt = i.EndedAt,
+                    DurationSeconds = i.DurationSeconds,
+                    ReasonCode = i.ReasonCode,
+                    Note = i.Note,
+                    SubmittedAtUtc = i.SubmittedAtUtc
                 }).ToList() ?? []
             };
         }
@@ -234,6 +245,7 @@ public sealed class BackendReportsClient : IBackendReportsClient
     {
         public string? Date { get; set; }
         public List<ActivitySessionDto>? Sessions { get; set; }
+        public List<IdlePeriodDto>? IdlePeriods { get; set; }
     }
 
     private sealed class ActivitySessionDto
@@ -244,5 +256,16 @@ public sealed class BackendReportsClient : IBackendReportsClient
         public DateTime StartedAt { get; set; }
         public DateTime EndedAt { get; set; }
         public int DurationSeconds { get; set; }
+    }
+
+    private sealed class IdlePeriodDto
+    {
+        public Guid Id { get; set; }
+        public DateTime StartedAt { get; set; }
+        public DateTime EndedAt { get; set; }
+        public int DurationSeconds { get; set; }
+        public string? ReasonCode { get; set; }
+        public string? Note { get; set; }
+        public DateTime? SubmittedAtUtc { get; set; }
     }
 }

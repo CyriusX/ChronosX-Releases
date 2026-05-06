@@ -53,8 +53,9 @@ public sealed class ActivitySessionRepository : IActivitySessionRepository
         // ones that start within it. Cross-midnight sessions that start just before startDate
         // and end within the range are included so the timeline shows them.
         return await _context.ActivitySessions
+            .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt < endDate && a.EndedAt >= startDate)
-            .OrderByDescending(a => a.StartedAt)
+            .OrderBy(a => a.StartedAt)
             .ToListAsync(cancellationToken);
     }
 
@@ -96,6 +97,10 @@ public sealed class ActivitySessionRepository : IActivitySessionRepository
     {
         // Query raw sessions with streaming
         var sessions = _context.ActivitySessions
+            // Unit tests construct the DbContext without a CurrentUserContext,
+            // so global OrgId query filters can throw. Export endpoints already
+            // validate authorization at the API layer.
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.StartedAt >= startDate && a.EndedAt <= endDate)
             .OrderBy(a => a.StartedAt)

@@ -4,6 +4,7 @@ using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.Ingest.DTOs;
 using TimeTrack.Backend.Domain.Entities;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using TimeTrack.Backend.Domain.ValueObjects;
 
 namespace TimeTrack.Backend.Application.Ingest.Commands;
 
@@ -118,12 +119,13 @@ public sealed class IngestActivitySessionsCommandHandler : IRequestHandler<Inges
                 }
 
                 // Create new entity
+                var normalizedProcessName = BrowserProcessNameNormalizer.Normalize(item.ProcessName);
                 var session = ActivitySession.Create(
                     item.Id,
                     orgId,
                     deviceIdClaim.Value,
                     userId,
-                    item.ProcessName,
+                    normalizedProcessName,
                     item.WindowTitle,
                     item.AppCategory,
                     item.StartedAt,

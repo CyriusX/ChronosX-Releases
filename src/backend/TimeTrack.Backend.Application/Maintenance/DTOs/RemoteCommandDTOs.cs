@@ -14,6 +14,19 @@ public sealed class CreateRemoteCommandResponse
     public string Status { get; init; } = "pending";
 }
 
+public sealed class SetDevToolsAccessRequest
+{
+    public required bool Enabled { get; init; }
+}
+
+public sealed class SetDevToolsAccessResponse
+{
+    public Guid UserId { get; init; }
+    public bool Enabled { get; init; }
+    public DateTime? ExpiresAtUtc { get; init; }
+    public int QueuedDeviceCount { get; init; }
+}
+
 public sealed class CommandHistoryResponse
 {
     public IReadOnlyList<CommandHistoryItem> Commands { get; init; } = Array.Empty<CommandHistoryItem>();
@@ -56,6 +69,7 @@ public sealed class AcknowledgeCommandRequest
 public sealed class DeviceInfoResponse
 {
     public Guid DeviceId { get; init; }
+    public Guid UserId { get; init; }
     public string Hostname { get; init; } = string.Empty;
     public string? DeviceName { get; init; }
     public string AgentVersion { get; init; } = string.Empty;
@@ -72,6 +86,7 @@ public sealed class DeviceInfoResponse
     public string Status { get; init; } = string.Empty;
     public string DisplayMode { get; init; } = string.Empty;
     public string? UserDisplayName { get; init; }
+    public DateTime? DevToolsEnabledUntilUtc { get; init; }
 }
 
 public sealed class HealthSummaryResponse

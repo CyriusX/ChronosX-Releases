@@ -57,9 +57,25 @@ Email__From=noreply@timetrack.com
 # Frontend URL para CORS
 Frontend__BaseUrl=https://app.timetrack.com
 
+# Updates (download do instalador Windows via /api/v1/updates/download)
+# O arquivo do instalador deve existir dentro do container no caminho abaixo (volume mount).
+Updates__InstallerPath=/app/updates/Chronos-TimeTrack-Setup.exe
+
 # Logging
 LOG_LEVEL=Information
 ```
+
+---
+
+## Instalador (Updates) via Volume (EasyPanel)
+
+O endpoint `GET /api/v1/updates/download` serve o instalador configurado em `Updates__InstallerPath`.
+
+Para evitar commitar instaladores no git/imagem Docker, o `.exe` deve ser fornecido **em runtime** via **volume mount** para dentro do container em:
+
+- `/app/updates/<nome-do-instalador>.exe`
+
+Depois, configure `Updates__InstallerPath` apontando para esse arquivo.
 
 ---
 

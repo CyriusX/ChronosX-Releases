@@ -9,6 +9,7 @@ import { User, Check, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { listMembers } from '../../services/memberApi';
 import { updateTask, type Task } from '../../services/projectsApi';
+import { emitTaskUpdated } from '../../lib/appEvents';
 
 interface OrgMember {
   userId: string;
@@ -119,7 +120,8 @@ export function AssigneeDropdown({
     };
     console.log('[AssigneeDropdown] sending payload:', JSON.stringify(payload, null, 2));
     try {
-      await updateTask(task.id, payload);
+      const updated = await updateTask(task.id, payload);
+      emitTaskUpdated(updated);
       setOpen(false);
       onAssigned?.();
     } catch (err: any) {

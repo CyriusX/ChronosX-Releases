@@ -23,6 +23,7 @@ import { useTimerStore, selectCurrentUserSessions } from '../../stores/timerStor
 import { fadeUp, staggerContainer, STAGGER, SPRING, TIMING_MS } from '../../lib/animation';
 import { useAnimatedCounter } from '../../hooks/useAnimatedCounter';
 import { cardBase } from './shared/styles';
+import { isDesktopRuntime } from '../../lib/runtime';
 
 interface TopCardsProps {
   summary: TodaySummaryResponse | null;
@@ -50,6 +51,7 @@ export function TopCards({
   workGoalSeconds = 28800,
 }: TopCardsProps) {
   const { t } = useTranslation();
+  const desktopRuntime = isDesktopRuntime();
   const totalSeconds = summary?.totalDuration ?? 0;
   const idleSeconds = summary?.idleTime ?? 0;
 
@@ -314,7 +316,7 @@ export function TopCards({
       </motion.div>
 
       {/* ─── Timer Card (Meu dia only) ─── */}
-      {!isTeamTab && (
+      {!isTeamTab && desktopRuntime && (
         <motion.div variants={fadeUp} transition={{ type: 'spring', ...SPRING.gentle }}>
           <TimerFocusCard summary={summary} />
         </motion.div>

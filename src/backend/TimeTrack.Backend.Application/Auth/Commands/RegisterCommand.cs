@@ -1,4 +1,6 @@
 using MediatR;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using TimeTrack.Backend.Application.Auth.DTOs;
 using TimeTrack.Backend.Application.Common.Exceptions;
 using TimeTrack.Backend.Application.Common.Interfaces;
@@ -19,21 +21,35 @@ public sealed record RegisterCommand(
 
 public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, RegisterResponse>
 {
+    private const int DefaultTrialDays = 14;
+
     private readonly IUserRepository _userRepository;
     private readonly IOrganizationRepository _organizationRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IPasswordValidator _passwordValidator;
+    private readonly ISubscriptionPlanRepository _subscriptionPlanRepository;
+    private readonly IOrgSubscriptionRepository _orgSubscriptionRepository;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<RegisterCommandHandler> _logger;
 
     public RegisterCommandHandler(
         IUserRepository userRepository,
         IOrganizationRepository organizationRepository,
         IPasswordHasher passwordHasher,
-        IPasswordValidator passwordValidator)
+        IPasswordValidator passwordValidator,
+        ISubscriptionPlanRepository subscriptionPlanRepository,
+        IOrgSubscriptionRepository orgSubscriptionRepository,
+        IConfiguration configuration,
+        ILogger<RegisterCommandHandler> logger)
     {
         _userRepository = userRepository;
         _organizationRepository = organizationRepository;
         _passwordHasher = passwordHasher;
         _passwordValidator = passwordValidator;
+        _subscriptionPlanRepository = subscriptionPlanRepository;
+        _orgSubscriptionRepository = orgSubscriptionRepository;
+        _configuration = configuration;
+        _logger = logger;
     }
 
     public async Task<RegisterResponse> Handle(RegisterCommand request, CancellationToken cancellationToken)
@@ -78,6 +94,36 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
             passwordMustChange: false);
 
         await _userRepository.AddAsync(user, cancellationToken);
+
+        // Grant a 14-day trial subscription so the org can use the product immediately.
+        // Prefer the Free plan; fall back to Pro if Free isn't seeded (older deployments).
+        try
+        {
+            var plan = await _subscriptionPlanRepository.GetByTierAsync(PlanTier.Free, cancellationToken)
+                    ?? await _subscriptionPlanRepository.GetByTierAsync(PlanTier.Pro, cancellationToken);
+
+            if (plan is not null)
+            {
+                var trialDays = _configuration.GetValue<int>("Subscription:TrialDays", DefaultTrialDays);
+                if (trialDays <= 0) trialDays = DefaultTrialDays;
+
+                var subscription = OrgSubscription.Create(organization.Id);
+                subscription.EnterTrial(plan.Id, DateTime.UtcNow.AddDays(trialDays), quantity: 1);
+                await _orgSubscriptionRepository.AddAsync(subscription, cancellationToken);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "No SubscriptionPlan found for Free or Pro tier — org {OrgId} created without a trial subscription.",
+                    organization.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Don't fail registration if trial creation fails — users can still log in and
+            // admins can recover via backfill. Log loud so ops can investigate.
+            _logger.LogError(ex, "Failed to create trial subscription for org {OrgId}", organization.Id);
+        }
 
         return new RegisterResponse
         {

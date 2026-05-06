@@ -2,7 +2,9 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Security.Claims;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Backend.Application.Auth.Commands;
 using TimeTrack.Backend.Application.Auth.DTOs;
 
@@ -14,14 +16,17 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/devices")]
 [Authorize]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class DevicesController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly ILogger<DevicesController> _logger;
 
-    public DevicesController(IMediator mediator)
+    public DevicesController(IMediator mediator, ILogger<DevicesController> logger)
     {
         _mediator = mediator;
+        _logger = logger;
     }
 
     /// <summary>
@@ -34,6 +39,18 @@ public sealed class DevicesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<ActivateDeviceResponse>> Activate([FromBody] ActivateDeviceRequest request)
     {
+        // Log context (no secrets) to make production troubleshooting easier.
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        var orgId = User.FindFirst("org_id")?.Value;
+        _logger.LogInformation(
+            "Device activation request: userId={UserId} orgId={OrgId} deviceId={DeviceId} hostname={Hostname} agentVersion={AgentVersion} displayMode={DisplayMode}",
+            userId,
+            orgId,
+            request.DeviceId,
+            request.Hostname,
+            request.AgentVersion,
+            request.DisplayMode);
+
         var result = await _mediator.Send(new ActivateDeviceCommand(
             request.DeviceId,
             request.Hostname,

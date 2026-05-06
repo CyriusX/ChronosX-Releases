@@ -31,16 +31,35 @@ public sealed class TrackingControlUseCase
         PauseTrackingRequest request,
         CancellationToken cancellationToken = default)
     {
+        var userId = _userContext.UserId
+            ?? throw new InvalidOperationException("User not authenticated");
+
+        var state = await GetOrCreateStateAsync(userId, cancellationToken);
+
+        // Idempotency: repeated pause clicks should not error/crash the host.
+        if (state.IsPaused)
+        {
+            return new PauseTrackingResponse
+            {
+                Status = state.Status.ToString(),
+                PausedAt = state.PausedAt ?? DateTime.UtcNow
+            };
+        }
+
+        if (state.IsDisabled)
+        {
+            return new PauseTrackingResponse
+            {
+                Status = state.Status.ToString(),
+                PausedAt = state.UpdatedAt
+            };
+        }
+
         if (string.IsNullOrWhiteSpace(request.Reason))
             throw new ArgumentException("Reason is required", nameof(request));
 
         if (string.IsNullOrWhiteSpace(request.PausedBy))
             throw new ArgumentException("PausedBy is required", nameof(request));
-
-        var userId = _userContext.UserId
-            ?? throw new InvalidOperationException("User not authenticated");
-
-        var state = await GetOrCreateStateAsync(userId, cancellationToken);
 
         state.Pause(request.Reason, request.PausedBy, request.IsPolicy);
 
@@ -64,13 +83,32 @@ public sealed class TrackingControlUseCase
         ResumeTrackingRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.ResumedBy))
-            throw new ArgumentException("ResumedBy is required", nameof(request));
-
         var userId = _userContext.UserId
             ?? throw new InvalidOperationException("User not authenticated");
 
         var state = await GetOrCreateStateAsync(userId, cancellationToken);
+
+        // Idempotency: repeated resume clicks should not error.
+        if (state.IsActive)
+        {
+            return new ResumeTrackingResponse
+            {
+                Status = state.Status.ToString(),
+                ResumedAt = state.UpdatedAt
+            };
+        }
+
+        if (state.IsDisabled)
+        {
+            return new ResumeTrackingResponse
+            {
+                Status = state.Status.ToString(),
+                ResumedAt = state.UpdatedAt
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ResumedBy))
+            throw new ArgumentException("ResumedBy is required", nameof(request));
 
         state.Resume(request.ResumedBy);
 
@@ -186,6 +224,16 @@ public sealed class TrackingControlUseCase
             {
                 Status = "None",
                 StoppedAt = DateTime.UtcNow
+            };
+        }
+
+        // Idempotency: stopping twice should succeed.
+        if (state.IsDisabled)
+        {
+            return new StopTrackingResponse
+            {
+                Status = state.Status.ToString(),
+                StoppedAt = state.UpdatedAt
             };
         }
 

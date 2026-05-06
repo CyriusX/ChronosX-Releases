@@ -45,6 +45,32 @@ public sealed class DeviceId : ValueObject
     }
 
     /// <summary>
+    /// Forces regeneration of the device id (e.g., when the backend reports a device id conflict).
+    /// </summary>
+    public static DeviceId Regenerate()
+    {
+        lock (_fileLock)
+        {
+            var filePath = GetFilePath();
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+            catch
+            {
+                // Best-effort: if we can't delete, we'll overwrite on SaveToFile below.
+            }
+
+            _instance = null;
+            _instance = ReadOrCreate();
+            return _instance;
+        }
+    }
+
+    /// <summary>
     /// Loads from storage or creates if not exists
     /// </summary>
     private static DeviceId ReadOrCreate()

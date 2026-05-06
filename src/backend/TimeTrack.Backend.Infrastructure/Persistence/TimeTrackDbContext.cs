@@ -57,6 +57,13 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<UserIntegration> UserIntegrations => Set<UserIntegration>();
     public DbSet<LinearSyncHistory> LinearSyncHistory => Set<LinearSyncHistory>();
 
+    // Subscriptions & Billing
+    public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
+    public DbSet<OrgSubscription> OrgSubscriptions => Set<OrgSubscription>();
+    public DbSet<StripeEventLog> StripeEventLogs => Set<StripeEventLog>();
+    public DbSet<OrgUsageRecord> OrgUsageRecords => Set<OrgUsageRecord>();
+    public DbSet<BillingInvoice> BillingInvoices => Set<BillingInvoice>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -112,7 +119,23 @@ public sealed class TimeTrackDbContext : DbContext
 
         // Projects
         modelBuilder.Entity<Project>()
-            .HasQueryFilter(p => !_currentUser.IsAuthenticated || p.OrgId == _currentUser.OrgId);
+            .HasQueryFilter(p => (!_currentUser.IsAuthenticated || p.OrgId == _currentUser.OrgId) && p.DeletedAt == null);
+
+        // Project Members
+        modelBuilder.Entity<ProjectMember>()
+            .HasQueryFilter(pm => !_currentUser.IsAuthenticated || pm.OrgId == _currentUser.OrgId);
+
+        // Project Tasks (also exclude soft-deleted)
+        modelBuilder.Entity<ProjectTask>()
+            .HasQueryFilter(t => (!_currentUser.IsAuthenticated || t.OrgId == _currentUser.OrgId) && t.DeletedAt == null);
+
+        // Task Time Entries
+        modelBuilder.Entity<TaskTimeEntry>()
+            .HasQueryFilter(e => !_currentUser.IsAuthenticated || e.OrgId == _currentUser.OrgId);
+
+        // Notification Inbox
+        modelBuilder.Entity<AgentNotificationInbox>()
+            .HasQueryFilter(n => !_currentUser.IsAuthenticated || n.OrgId == _currentUser.OrgId);
 
         // Project Members
         modelBuilder.Entity<ProjectMember>()
@@ -161,6 +184,22 @@ public sealed class TimeTrackDbContext : DbContext
         // Linear Sync History
         modelBuilder.Entity<LinearSyncHistory>()
             .HasQueryFilter(h => !_currentUser.IsAuthenticated || h.OrgId == _currentUser.OrgId);
+
+        // Org Subscriptions (tenant-scoped)
+        modelBuilder.Entity<OrgSubscription>()
+            .HasQueryFilter(s => !_currentUser.IsAuthenticated || s.OrgId == _currentUser.OrgId);
+
+        // Stripe Event Logs (tenant-scoped)
+        modelBuilder.Entity<StripeEventLog>()
+            .HasQueryFilter(e => !_currentUser.IsAuthenticated || e.OrgId == _currentUser.OrgId);
+
+        // Org Usage Records (tenant-scoped)
+        modelBuilder.Entity<OrgUsageRecord>()
+            .HasQueryFilter(r => !_currentUser.IsAuthenticated || r.OrgId == _currentUser.OrgId);
+
+        // Billing Invoices (tenant-scoped)
+        modelBuilder.Entity<BillingInvoice>()
+            .HasQueryFilter(i => !_currentUser.IsAuthenticated || i.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()

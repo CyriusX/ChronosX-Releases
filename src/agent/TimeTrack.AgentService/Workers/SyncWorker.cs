@@ -37,6 +37,7 @@ public sealed class SyncWorker : BackgroundService
     private int _consecutiveFailures;
     private DateTime? _lastSuccessfulSync;
     private DateTime _lastCleanup = DateTime.MinValue;
+    private string _lastSubscriptionStatus = "active";
 
     public SyncWorker(
         ILogger<SyncWorker> logger,
@@ -109,29 +110,57 @@ public sealed class SyncWorker : BackgroundService
         try
         {
             // Redefinir itens presos no outbox ao iniciar (recuperação de backoff acumulado)
-            var resetCount = await _outboxRepository.ResetStuckItemsAsync(stoppingToken);
-            if (resetCount > 0)
+            try
             {
-                _logger.LogInformation(
-                    "SyncWorker: {Count} itens do outbox presos foram redefinidos na inicialização.",
-                    resetCount);
+                var resetCount = await _outboxRepository.ResetStuckItemsAsync(stoppingToken);
+                if (resetCount > 0)
+                {
+                    _logger.LogInformation(
+                        "SyncWorker: {Count} itens do outbox presos foram redefinidos na inicialização.",
+                        resetCount);
 
-                await _eventLogger.LogAsync("outbox.stuck_reset", AgentEventCategory.Error, AgentEventSeverity.Warning,
-                    $"{resetCount} itens do outbox presos foram redefinidos na inicialização",
-                    new { resetCount }, stoppingToken);
+                    await _eventLogger.LogAsync("outbox.stuck_reset", AgentEventCategory.Error, AgentEventSeverity.Warning,
+                        $"{resetCount} itens do outbox presos foram redefinidos na inicialização",
+                        new { resetCount }, stoppingToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SyncWorker failed to reset stuck outbox items on startup");
             }
 
             // Cleanup old data on startup — SQLite should only hold today's data + cache.
             // Runs independently of authentication: stale data from previous sessions must go.
-            await CleanupOldDataAsync(stoppingToken);
+            try
+            {
+                await CleanupOldDataAsync(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SyncWorker cleanup on startup failed, will retry in next cycles");
+            }
 
             // Primeira execução imediata
-            await ExecuteSyncCycleAsync(stoppingToken);
+            try
+            {
+                await ExecuteSyncCycleAsync(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "SyncWorker initial sync cycle failed");
+            }
 
             while (!stoppingToken.IsCancellationRequested &&
                    await periodicTimer.WaitForNextTickAsync(stoppingToken))
             {
-                await ExecuteSyncCycleAsync(stoppingToken);
+                try
+                {
+                    await ExecuteSyncCycleAsync(stoppingToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "SyncWorker sync cycle failed");
+                }
             }
         }
         catch (OperationCanceledException)
@@ -140,8 +169,7 @@ public sealed class SyncWorker : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogCritical(ex, "SyncWorker crashed");
-            throw;
+            _logger.LogCritical(ex, "SyncWorker crashed (outer loop). Worker will stop but host will remain alive.");
         }
 
         _logger.LogInformation("SyncWorker encerrado");
@@ -226,11 +254,23 @@ public sealed class SyncWorker : BackgroundService
                     LastSuccessfulSyncAt: _lastSuccessfulSync,
                     IpcConnected: _ipcServer.IsClientConnected);
 
-                await _heartbeatService.SendHeartbeatAsync(snapshot, cancellationToken);
+                var heartbeatResult = await _heartbeatService.SendHeartbeatAsync(snapshot, cancellationToken);
+
+                if (heartbeatResult.Success)
+                {
+                    await HandleSubscriptionStatusAsync(heartbeatResult, cancellationToken);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Heartbeat failed, will retry next cycle");
+            }
+
+            // Block sync when subscription denies access (unpaid, none, canceled, incomplete)
+            if (!_subscriptionStatusAllowsSync(_lastSubscriptionStatus))
+            {
+                _logger.LogWarning("Sync skipped: subscription status is '{Status}'. Data is preserved locally.", _lastSubscriptionStatus);
+                return;
             }
 
             // Poll and execute remote commands from admin
@@ -274,6 +314,10 @@ public sealed class SyncWorker : BackgroundService
                 .Where(i => i.EntityType == "idle_period")
                 .ToList();
 
+            var idleJustifications = pendingItems
+                .Where(i => i.EntityType == "idle_justification")
+                .ToList();
+
             var focusSessions = pendingItems
                 .Where(i => i.EntityType == "focus_session")
                 .ToList();
@@ -287,9 +331,10 @@ public sealed class SyncWorker : BackgroundService
                 .ToList();
 
             _logger.LogInformation(
-                "Processando batch: {ActivityCount} activity sessions, {IdleCount} idle periods, {FocusCount} focus sessions, {MetricsCount} machine metrics, {EventCount} agent events",
+                "Processando batch: {ActivityCount} activity sessions, {IdleCount} idle periods, {IdleJustificationCount} idle justifications, {FocusCount} focus sessions, {MetricsCount} machine metrics, {EventCount} agent events",
                 activitySessions.Count,
                 idlePeriods.Count,
+                idleJustifications.Count,
                 focusSessions.Count,
                 machineMetrics.Count,
                 agentEvents.Count);
@@ -330,6 +375,27 @@ public sealed class SyncWorker : BackgroundService
                 var result = await ProcessBatchAsync(
                     idlePeriods,
                     batch => _syncTransport.SendIdlePeriodsAsync(batch, cancellationToken),
+                    cancellationToken);
+
+                if (result.IsSuccess)
+                {
+                    await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
+                    totalSentIds.AddRange(result.ProcessedIds);
+                }
+                else
+                {
+                    hasFailures = true;
+                }
+            }
+
+            if (idleJustifications.Any())
+            {
+                var progress = (int)((double)totalSentIds.Count / totalItems * 100);
+                await _statusBroadcaster.BroadcastSyncProgressAsync("in_progress", progress, "Sincronizando justificativas de inatividade...", cancellationToken);
+
+                var result = await ProcessBatchAsync(
+                    idleJustifications,
+                    batch => _syncTransport.SendIdleJustificationsAsync(batch, cancellationToken),
                     cancellationToken);
 
                 if (result.IsSuccess)
@@ -640,4 +706,62 @@ public sealed class SyncWorker : BackgroundService
             _logger.LogWarning(ex, "SQLite cleanup failed (non-critical)");
         }
     }
+
+    /// <summary>
+    /// Handles subscription status transitions received via heartbeat.
+    /// Broadcasts IPC events to the WebView2 UI and logs state changes.
+    /// </summary>
+    private async Task HandleSubscriptionStatusAsync(HeartbeatResult heartbeat, CancellationToken cancellationToken)
+    {
+        var current = heartbeat.SubscriptionStatus;
+        var previous = _lastSubscriptionStatus;
+
+        if (current == previous)
+            return;
+
+        _logger.LogInformation(
+            "Subscription status changed: {Previous} → {Current}",
+            previous, current);
+
+        _lastSubscriptionStatus = current;
+
+        // Broadcast to UI via IPC
+        await _statusBroadcaster.BroadcastSubscriptionStatusChangedAsync(
+            current, heartbeat.GracePeriodEnd, cancellationToken);
+
+        // Log the event
+        var severity = current switch
+        {
+            "unpaid" => AgentEventSeverity.Critical,
+            "past_due" => AgentEventSeverity.Warning,
+            _ => AgentEventSeverity.Info
+        };
+
+        var message = current switch
+        {
+            "unpaid" => "Assinatura expirada. Monitoramento pausado — dados preservados localmente.",
+            "past_due" => "Pagamento falhou. Período de carência ativo — sincronização continua.",
+            "active" when previous == "unpaid" => "Assinatura reativada. Retomando sincronização.",
+            "active" => "Assinatura ativa.",
+            "trialing" => "Período de trial ativo.",
+            _ => $"Status da assinatura: {current}"
+        };
+
+        await _eventLogger.LogAsync("subscription.changed", AgentEventCategory.System, severity,
+            message, new { from = previous, to = current }, cancellationToken);
+    }
+
+    /// <summary>
+    /// "none" = legacy org (never subscribed) → allow sync.
+    /// Active, Trialing, PastDue (grace period) → allow sync.
+    /// Unpaid, Canceled, Incomplete → block sync, data stays in local SQLite.
+    /// </summary>
+    private static bool _subscriptionStatusAllowsSync(string status) => status switch
+    {
+        "active" => true,
+        "trialing" => true,
+        "past_due" => true,
+        "none" => true,
+        _ => false
+    };
 }

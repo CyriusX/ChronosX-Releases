@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Providers;
 
@@ -99,13 +100,13 @@ public sealed class BrowserUrlExtractor : IBrowserUrlExtractor
             {
                 var site = stripped[(lastIdx + sep.Length)..].Trim();
                 if (site.Length > 1 && !IsGenericTitle(site))
-                    return site;
+                    return NormalizeSiteName(site);
             }
         }
 
         // No segments — the entire stripped title is the site name (e.g., "YouTube")
         if (!IsGenericTitle(stripped))
-            return stripped;
+            return NormalizeSiteName(stripped);
 
         return null;
     }
@@ -126,5 +127,39 @@ public sealed class BrowserUrlExtractor : IBrowserUrlExtractor
         return lower is "new tab" or "nova guia" or "nova aba"
             or "about:blank" or "start page" or "home"
             or "untitled" or "sem título";
+    }
+
+    /// <summary>
+    /// Removes dynamic content from a site name so the same site always
+    /// produces the same string regardless of notification counts or meeting IDs.
+    /// Examples:
+    ///   "(55) WhatsApp Web" → "WhatsApp Web"
+    ///   "Meet · abc-xyz-def" → "Google Meet"
+    /// </summary>
+    public static string NormalizeSiteName(string site)
+    {
+        if (string.IsNullOrWhiteSpace(site))
+            return site;
+
+        // Strip notification/badge counts (common in browser tabs).
+        // Leading: "(55) WhatsApp Web" / "● (55) WhatsApp Web" → "WhatsApp Web"
+        // Trailing: "WhatsApp Web (55)" / "WhatsApp Web(30)" / "Slack (99+)" → "WhatsApp Web" / "Slack"
+        //
+        // Note: we intentionally only strip 1–3 digit counts (optionally with '+') so
+        // we don't accidentally strip years like "(2026)".
+        site = Regex.Replace(site, @"^(?:[•●]\s*)?\((\d{1,3}\+?)\)\s*", string.Empty).Trim();
+        site = Regex.Replace(site, @"\s*\((\d{1,3}\+?)\)\s*$", string.Empty).Trim();
+
+        // Strip leading marker bullets that some browsers prepend to titles.
+        site = Regex.Replace(site, @"^[•●]\s*", string.Empty).Trim();
+
+        // Collapse whitespace introduced by stripping.
+        site = Regex.Replace(site, @"\s{2,}", " ").Trim();
+
+        // Normalize Google Meet: "Meet · abc-xyz" or "Meet: abc-xyz" → "Google Meet"
+        if (Regex.IsMatch(site, @"^Meet\s*[·:\-]", RegexOptions.IgnoreCase))
+            return "Google Meet";
+
+        return site;
     }
 }

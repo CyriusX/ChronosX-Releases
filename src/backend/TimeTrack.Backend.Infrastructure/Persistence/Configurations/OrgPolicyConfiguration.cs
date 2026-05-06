@@ -40,6 +40,9 @@ internal sealed class OrgPolicyConfiguration : IEntityTypeConfiguration<OrgPolic
             .HasDefaultValue(180)
             .IsRequired();
 
+        builder.Property(p => p.IdleJustificationPromptThresholdSeconds)
+            .HasColumnName("idle_justification_prompt_threshold_seconds");
+
         builder.Property(p => p.RetentionDays)
             .HasColumnName("retention_days")
             .HasDefaultValue(90)
