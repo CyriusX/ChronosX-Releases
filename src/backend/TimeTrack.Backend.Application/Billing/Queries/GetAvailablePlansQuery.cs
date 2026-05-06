@@ -28,6 +28,7 @@ public sealed class GetAvailablePlansQueryHandler : IRequestHandler<GetAvailable
             YearlyPriceCents = p.YearlyPriceCents,
             MaxUsers = p.MaxUsers,
             MaxDevices = p.MaxDevices,
+            StripePriceId = p.StripePriceId ?? string.Empty,
             Features = new PlanFeatureSet
             {
                 Flags = p.ToFeatureDictionary()

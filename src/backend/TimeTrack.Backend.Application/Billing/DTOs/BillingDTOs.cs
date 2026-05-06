@@ -32,6 +32,7 @@ public record PlanResponse
     public int? YearlyPriceCents { get; init; }
     public int MaxUsers { get; init; }
     public int MaxDevices { get; init; }
+    public string StripePriceId { get; init; } = string.Empty;
     public PlanFeatureSet Features { get; init; } = new();
 }
 
