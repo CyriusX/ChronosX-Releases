@@ -21,6 +21,7 @@ export default function Onboarding() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [isInviting, setIsInviting] = useState(false);
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [invitedEmails, setInvitedEmails] = useState<string[]>([]);
 
   // Step 3 — invite link
   const [inviteLink, setInviteLink] = useState<GenerateInviteLinkResponse | null>(null);
@@ -42,6 +43,7 @@ export default function Onboarding() {
     const displayName = inviteEmail.split('@')[0];
     try {
       await api.post('/auth/invite', { email: inviteEmail, displayName, role: 'Colaborador' });
+      setInvitedEmails((prev) => [...prev, inviteEmail]);
       setInviteStatus('success');
       setInviteEmail('');
     } catch {
@@ -152,6 +154,18 @@ export default function Onboarding() {
               {/* Step 2 — Invite team */}
               {step === 2 && (
                 <div>
+                  {invitedEmails.length > 0 && (
+                    <div className="mb-4 space-y-1">
+                      {invitedEmails.map((email) => (
+                        <div key={email} className="flex items-center gap-2 text-sm text-green-400">
+                          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="truncate">{email}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-zinc-300 mb-2">
                       {t('onboarding.inviteEmailPlaceholder')}
@@ -159,14 +173,12 @@ export default function Onboarding() {
                     <input
                       type="email"
                       value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
+                      onChange={(e) => { setInviteEmail(e.target.value); setInviteStatus('idle'); }}
+                      onKeyDown={(e) => e.key === 'Enter' && inviteEmail && handleInvite()}
                       className="w-full px-4 py-2.5 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                       placeholder="colaborador@empresa.com"
                     />
                   </div>
-                  {inviteStatus === 'success' && (
-                    <p className="text-green-400 text-sm mb-3">{t('settings.members.inviteSuccess')}</p>
-                  )}
                   {inviteStatus === 'error' && (
                     <p className="text-red-400 text-sm mb-3">{t('common.error')}</p>
                   )}
@@ -185,7 +197,7 @@ export default function Onboarding() {
                       {t('onboarding.skip')}
                     </button>
                   </div>
-                  {inviteStatus === 'success' && (
+                  {invitedEmails.length > 0 && (
                     <button
                       onClick={() => setStep(3)}
                       className="w-full mt-3 py-2.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"

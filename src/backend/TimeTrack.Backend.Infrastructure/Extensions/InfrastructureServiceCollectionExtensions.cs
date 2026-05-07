@@ -119,7 +119,7 @@ public static class InfrastructureServiceCollectionExtensions
                 ?? configuration["RESEND_API_KEY"]
                 ?? throw new InvalidOperationException("Resend API key not found. Set Resend:ApiKey or RESEND_API_KEY");
         });
-        services.AddTransient<IResend, ResendClient>();
+        services.AddTransient<IResend>(sp => sp.GetRequiredService<ResendClient>());
         services.AddScoped<IEmailService, ResendEmailService>();
 
         // HttpContextAccessor for CurrentUserContext
