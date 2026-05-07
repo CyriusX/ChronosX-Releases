@@ -19,7 +19,6 @@ export default function Onboarding() {
 
   // Step 2 — invite by email
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('Colaborador');
   const [isInviting, setIsInviting] = useState(false);
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
@@ -40,8 +39,9 @@ export default function Onboarding() {
   const handleInvite = async () => {
     if (!inviteEmail) return;
     setIsInviting(true);
+    const displayName = inviteEmail.split('@')[0];
     try {
-      await api.post('/auth/invite', { email: inviteEmail, role: inviteRole });
+      await api.post('/auth/invite', { email: inviteEmail, displayName, role: 'Colaborador' });
       setInviteStatus('success');
       setInviteEmail('');
     } catch {
@@ -163,19 +163,6 @@ export default function Onboarding() {
                       className="w-full px-4 py-2.5 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                       placeholder="colaborador@empresa.com"
                     />
-                  </div>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-zinc-300 mb-2">
-                      {t('onboarding.inviteRoleLabel')}
-                    </label>
-                    <select
-                      value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-[#0b0d14] border border-zinc-800 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                    >
-                      <option value="Colaborador">Colaborador</option>
-                      <option value="Gestor">Gestor</option>
-                    </select>
                   </div>
                   {inviteStatus === 'success' && (
                     <p className="text-green-400 text-sm mb-3">{t('settings.members.inviteSuccess')}</p>

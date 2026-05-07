@@ -1,5 +1,6 @@
 {
   "common": {
+    "hello": "Olá, {{name}}!",
     "save": "Salvar",
     "saving": "Salvando...",
     "saved": "Salvo!",
