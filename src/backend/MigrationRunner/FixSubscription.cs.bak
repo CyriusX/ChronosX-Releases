@@ -21,5 +21,5 @@ cmd.CommandText = """
 """;
 await using var reader = await cmd.ExecuteReaderAsync();
 while (await reader.ReadAsync()) {
-    Console.WriteLine($"Sub: id={reader.GetGuid(0)}, status={reader[1]}, stripe_sub_id={reader.IsDBNull(2)?"null":reader.GetString(2)}, plan_id={reader.IsDBNull(3)?"null":reader[3]}, period_start={reader.IsDBNull(4)?"null":reader[4]}, period_end={reader.IsDBNull(5)?"null":reader[5]}");
+    Console.WriteLine($"Sub: id={reader.GetGuid(0)}, status={reader[1]}, stripe_sub_id={(reader.IsDBNull(2)?"null":reader.GetString(2))}, plan_id={(reader.IsDBNull(3)?"null":reader[3].ToString())}, period_start={(reader.IsDBNull(4)?"null":reader[4].ToString())}, period_end={(reader.IsDBNull(5)?"null":reader[5].ToString())}");
 }

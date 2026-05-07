@@ -102,18 +102,6 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
             categoryLookup = new CategoryLookup();
         }
 
-        // Build override lookup from local cache — never let failure break activities
-        CategoryLookup categoryLookup;
-        try
-        {
-            var cacheEntries = await _categoryCacheRepository.GetAllAsync();
-            categoryLookup = BuildCategoryLookup(cacheEntries);
-        }
-        catch
-        {
-            categoryLookup = new CategoryLookup();
-        }
-
         var filtered = sessions
             .Where(s => !InternalApps.Contains(s.App.DisplayName))
             .OrderBy(s => s.Period.StartUtc)

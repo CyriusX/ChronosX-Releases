@@ -760,6 +760,7 @@ public sealed class SyncWorker : BackgroundService
     {
         "active" => true,
         "trialing" => true,
+        "trial_required" => true,
         "past_due" => true,
         "none" => true,
         _ => false

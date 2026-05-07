@@ -187,14 +187,6 @@ public sealed class WindowsActiveWindowProvider : IActiveWindowProvider, IDispos
                 browserUrl = BrowserUrlExtractor.ExtractSiteFromTitle(windowTitle, resolvedDisplayName);
             }
 
-            // Extract site name from browser window title
-            string? browserUrl = null;
-            var resolvedDisplayName = displayName ?? Path.GetFileNameWithoutExtension(exePath) ?? "Unknown";
-            if (BrowserUrlExtractor.IsBrowserExe(exePath))
-            {
-                browserUrl = BrowserUrlExtractor.ExtractSiteFromTitle(windowTitle, resolvedDisplayName);
-            }
-
             return new ActiveWindowInfo
             {
                 ExePathHash = exePathHash,
