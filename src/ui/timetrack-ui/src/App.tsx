@@ -171,6 +171,67 @@ function App() {
     };
   }, []);
 
+  // Sync UI language from the Agent's stored settings on every IPC connection.
+  // Without this, the app always starts in the default language (en-US) and
+  // ignores the language the user saved in a previous session.
+  useEffect(() => {
+    if (!isReady) return;
+    sendQuery('getSettings').then((result) => {
+      const lang = (result.data as LocalSettings | undefined)?.language;
+      if (lang) i18n.changeLanguage(lang);
+    }).catch(() => { /* non-critical */ });
+  }, [isReady]);
+
+  // Block browser shortcuts — this app runs as a desktop webview, not a browser
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // F5 / Ctrl+R / Ctrl+Shift+R — reload
+      if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+        e.preventDefault();
+        return;
+      }
+      // Ctrl+L — address bar focus
+      if (e.ctrlKey && e.key === 'l') {
+        e.preventDefault();
+        return;
+      }
+      // Ctrl+T / Ctrl+N / Ctrl+W — tab/window management
+      if (e.ctrlKey && (e.key === 't' || e.key === 'n' || e.key === 'w')) {
+        e.preventDefault();
+        return;
+      }
+      // F7 — caret browsing
+      if (e.key === 'F7') {
+        e.preventDefault();
+        return;
+      }
+      // Alt+Left / Alt+Right — back/forward navigation
+      if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        return;
+      }
+      // Ctrl+Shift+I / F12 — devtools (optional, keep for dev)
+      // Ctrl+G / Ctrl+F — find (allow for inputs)
+    };
+
+    // Prevent drag-and-drop of files into the webview
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('dragover', handleDragOver);
+    document.addEventListener('drop', handleDrop);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('dragover', handleDragOver);
+      document.removeEventListener('drop', handleDrop);
+    };
+  }, []);
+
   // Sync connection state with store
   useEffect(() => {
     setConnected(isConnected);

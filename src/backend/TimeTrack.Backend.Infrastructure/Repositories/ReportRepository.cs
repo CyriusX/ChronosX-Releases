@@ -689,11 +689,13 @@ public sealed class ReportRepository : IReportRepository
         // Load org-level overrides for this user
         var overrides = await GetOverridesForUserAsync(userIds[0], cancellationToken);
 
-        var idlePeriods = await _context.IdlePeriods
+        // Overlap query for idle periods: include periods crossing day boundaries.
+        // Keep EndedAt so ClipDuration can split cross-midnight idle periods correctly.
+        var idlePeriods = (await _context.IdlePeriods
             .AsNoTracking()
             .Where(i => userIds.Contains(i.UserId) && i.StartedAt <= end && i.EndedAt > start)
             .Select(i => new IdleRangeRow(i.StartedAt, i.EndedAt))
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken));
 
         // Pre-compute UTC boundaries for each local day once.
         var dayBounds = new Dictionary<DateTime, (DateTime StartUtc, DateTime EndUtcExclusive)>();

@@ -137,6 +137,22 @@ public sealed class TimeTrackDbContext : DbContext
         modelBuilder.Entity<AgentNotificationInbox>()
             .HasQueryFilter(n => !_currentUser.IsAuthenticated || n.OrgId == _currentUser.OrgId);
 
+        // Project Members
+        modelBuilder.Entity<ProjectMember>()
+            .HasQueryFilter(pm => !_currentUser.IsAuthenticated || pm.OrgId == _currentUser.OrgId);
+
+        // Project Tasks (also exclude soft-deleted)
+        modelBuilder.Entity<ProjectTask>()
+            .HasQueryFilter(t => (!_currentUser.IsAuthenticated || t.OrgId == _currentUser.OrgId) && t.DeletedAt == null);
+
+        // Task Time Entries
+        modelBuilder.Entity<TaskTimeEntry>()
+            .HasQueryFilter(e => !_currentUser.IsAuthenticated || e.OrgId == _currentUser.OrgId);
+
+        // Notification Inbox
+        modelBuilder.Entity<AgentNotificationInbox>()
+            .HasQueryFilter(n => !_currentUser.IsAuthenticated || n.OrgId == _currentUser.OrgId);
+
         // Daily Summaries
         modelBuilder.Entity<DailySummary>()
             .HasQueryFilter(d => !_currentUser.IsAuthenticated || d.OrgId == _currentUser.OrgId);

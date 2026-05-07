@@ -359,6 +359,95 @@ public sealed class GetTodaySummaryQueryHandler : IpcHandlerBase, IIpcQueryHandl
     }
 
     /// <summary>
+    /// Builds the IpcResponse from an already-fetched cloud report and its pre-filtered apps.
+    /// Used by both BuildTodayMerged and BuildFromBackendApi to avoid duplicate fetch + transform code.
+    /// </summary>
+    private async Task<IpcResponse> BuildResponseFromCloudReport(
+        int requestId,
+        DateTime targetDate,
+        DailyReportResult report,
+        List<DailyReportApp> filteredApps,
+        long totalActiveSeconds,
+        CancellationToken ct)
+    {
+        string resolveProductivity(DailyReportApp a) => a.Productivity ?? MapCategoryToProductivity(a.AppCategory);
+
+        var productiveSeconds = filteredApps
+            .Where(a => resolveProductivity(a) == "productive")
+            .Sum(a => a.TotalSeconds);
+
+        var summary = new
+        {
+            totalDuration  = totalActiveSeconds,
+            productiveTime = productiveSeconds,
+            idleTime       = report.TotalIdleSeconds,
+            focusTime      = productiveSeconds,
+            focusScore     = totalActiveSeconds > 0
+                ? (int)Math.Round((double)productiveSeconds / totalActiveSeconds * 100)
+                : 0,
+            sessionsCount  = filteredApps.Sum(a => a.SessionCount),
+            topProjects    = Array.Empty<object>(),
+
+            topApplications = filteredApps.Select(a =>
+            {
+                var pct = totalActiveSeconds > 0
+                    ? Math.Round((double)a.TotalSeconds / totalActiveSeconds * 100, 1)
+                    : 0.0;
+                return new
+                {
+                    name         = a.DisplayName,
+                    duration     = a.TotalSeconds,
+                    percentage   = pct,
+                    productivity = resolveProductivity(a),
+                    subcategory  = a.AppCategory ?? "unknown"
+                };
+            }).OrderByDescending(a => a.duration).Take(10).ToArray(),
+
+            categories = filteredApps
+                .GroupBy(a =>
+                {
+                    var cat = a.AppCategory;
+                    if (string.IsNullOrEmpty(cat) || cat == "unknown")
+                        return resolveProductivity(a);
+                    if (cat == "browser_general")
+                        return "other";
+                    return cat;
+                })
+                .Select(g => new
+                {
+                    name         = FormatCategoryName(g.Key),
+                    duration     = g.Sum(a => a.TotalSeconds),
+                    percentage   = totalActiveSeconds > 0
+                        ? Math.Round(g.Sum(a => (double)a.TotalSeconds) / totalActiveSeconds * 100, 1)
+                        : 0.0,
+                    color        = GetCategoryColor(g.Key),
+                    productivity = resolveProductivity(g.First())
+                })
+                .OrderByDescending(c => c.duration)
+                .ToArray(),
+
+            topAppsByExe = filteredApps.Select(a =>
+            {
+                var pct = totalActiveSeconds > 0
+                    ? Math.Round((double)a.TotalSeconds / totalActiveSeconds * 100, 1)
+                    : 0.0;
+                return new
+                {
+                    name         = a.DisplayName,
+                    duration     = a.TotalSeconds,
+                    percentage   = pct,
+                    productivity = resolveProductivity(a),
+                    subcategory  = a.AppCategory ?? "unknown"
+                };
+            }).OrderByDescending(a => a.duration).Take(10).ToArray(),
+
+            weeklyHistory = await BuildWeeklyHistoryAsync(targetDate, totalActiveSeconds / 3600.0, ct)
+        };
+
+        return SuccessResponse(requestId, summary);
+    }
+
+    /// <summary>
     /// Maps an AppCategory to a productivity classification.
     /// Same logic as GetRecentActivitiesQueryHandler.MapCategoryToProductivity.
     /// </summary>
