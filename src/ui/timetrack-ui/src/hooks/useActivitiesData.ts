@@ -10,6 +10,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useIpc } from './useIpc';
 import { useAuthStore } from '../stores/authStore';
 import { useHiddenAppsStore } from '../stores/hiddenAppsStore';
+import { isDesktopRuntime } from '../lib/runtime';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../types/ipc';
 import { formatDuration } from '../lib/utils';
 import { getDailySummaryRange, getDailyActivities, getTopApps } from '../services/reportApi';
@@ -21,6 +22,7 @@ import { getDailySummaryRange, getDailyActivities, getTopApps } from '../service
 
 export interface ActivityBlock {
   id: string;
+  kind?: 'activity' | 'idle';
   name: string;
   startUtc: string;
   endUtc: string;
@@ -28,6 +30,9 @@ export interface ActivityBlock {
   productivity: string;
   subcategory: string;
   color: string;
+  reasonCode?: string;
+  note?: string;
+  submittedAtUtc?: string;
   tabs?: { title: string; duration: number; subcategory: string; color: string }[];
 }
 
@@ -39,6 +44,10 @@ export interface ActivitiesData {
   goToPrevDay: () => void;
   goToNextDay: () => void;
   goToToday: () => void;
+
+  // Team view state (optional)
+  userId?: string;
+  setSelectedUserId: (userId?: string) => void;
 
   // Data
   summary: TodaySummaryResponse | null;
@@ -83,7 +92,10 @@ export function useActivitiesData(): ActivitiesData {
   const { sendQuery, isConnected } = useIpc();
   const currentUser = useAuthStore(s => s.user);
   const hiddenApps = useHiddenAppsStore(s => s.hiddenApps);
+  const desktopRuntime = isDesktopRuntime();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const userId = searchParams.get('userId') ?? undefined;
 
   // Initialize from URL ?date= parameter (e.g., /activities?date=2026-03-25)
   // Also read ?userId= parameter for viewing other users' data
@@ -96,7 +108,17 @@ export function useActivitiesData(): ActivitiesData {
     return new Date();
   });
 
-  const userId = searchParams.get('userId') ?? undefined;
+  // Keep selectedDate in sync with URL changes (e.g., back/forward navigation).
+  useEffect(() => {
+    const dateParam = searchParams.get('date');
+    const desired = dateParam
+      ? new Date(dateParam + 'T00:00:00')
+      : new Date();
+    if (isNaN(desired.getTime())) return;
+    if (!isSameDay(desired, selectedDate)) {
+      setSelectedDateRaw(desired);
+    }
+  }, [searchParams, selectedDate]);
 
   const [summary, setSummary] = useState<TodaySummaryResponse | null>(null);
   const [activities, setActivities] = useState<ActivityBlock[]>([]);
@@ -112,8 +134,21 @@ export function useActivitiesData(): ActivitiesData {
     setActivities([]);
     // Update URL to reflect the selected date (without full navigation)
     const dateStr = formatDatePayload(date);
-    setSearchParams(dateStr === formatDatePayload(new Date()) ? {} : { date: dateStr }, { replace: true });
-  }, [setSearchParams]);
+    const params: Record<string, string> = {};
+    if (dateStr !== formatDatePayload(new Date())) params.date = dateStr;
+    if (userId) params.userId = userId;
+    setSearchParams(params, { replace: true });
+  }, [setSearchParams, userId]);
+
+  const setSelectedUserId = useCallback((newUserId?: string) => {
+    setSummary(null);
+    setActivities([]);
+    const dateStr = formatDatePayload(selectedDate);
+    const params: Record<string, string> = {};
+    if (dateStr !== formatDatePayload(new Date())) params.date = dateStr;
+    if (newUserId) params.userId = newUserId;
+    setSearchParams(params, { replace: true });
+  }, [setSearchParams, selectedDate]);
 
   // TODAY: use IPC (local SQLite, real-time)
   // PAST DAYS: use backend API (Postgres, authoritative)
@@ -124,7 +159,7 @@ export function useActivitiesData(): ActivitiesData {
     setIsLoading(true);
 
     try {
-      if (isToday && !userId) {
+      if (isToday && !userId && desktopRuntime && isConnected) {
         // Today + own data: IPC (local SQLite) is the source of truth for real-time data.
         // Cloud only has data after sync, which may lag or be unavailable.
         // Load IPC data first (fast), then enrich with calendar data in the background.
@@ -180,11 +215,11 @@ export function useActivitiesData(): ActivitiesData {
         // - getDailyActivities: for timeline blocks
         const calStart = formatDatePayload(addDays(selectedDate, -15));
         const calEnd = formatDatePayload(addDays(selectedDate, 15));
-        const [rangeResult, topAppsResult, activitiesResult] = await Promise.all([
-          getDailySummaryRange(calStart, calEnd, userId).catch(() => null),
-          getTopApps(datePayload, datePayload, 20, userId).catch(() => null),
-          getDailyActivities(datePayload, userId).catch(() => null),
-        ]);
+        // NOTE: Intentionally sequential to avoid triggering the Reports rate limiter (429),
+        // which can cause long UI stalls due to retry/backoff.
+        const rangeResult = await getDailySummaryRange(calStart, calEnd, userId).catch(() => null);
+        const topAppsResult = await getTopApps(datePayload, datePayload, 20, userId).catch(() => null);
+        const activitiesResult = await getDailyActivities(datePayload, userId).catch(() => null);
 
         if (rangeResult) {
           // Find the specific day in the range
@@ -247,7 +282,13 @@ export function useActivitiesData(): ActivitiesData {
         }
 
         if (activitiesResult?.sessions) {
-          setActivities(convertSessionsToBlocks(activitiesResult.sessions, hiddenApps));
+          setActivities(
+            convertActivitiesToBlocks(
+              activitiesResult.sessions,
+              activitiesResult.idlePeriods ?? [],
+              hiddenApps
+            )
+          );
         }
       }
     } catch {
@@ -256,7 +297,7 @@ export function useActivitiesData(): ActivitiesData {
       isFetchingRef.current = false;
       setIsLoading(false);
     }
-  }, [sendQuery, isConnected, datePayload, isToday, userId, currentUser?.id]);
+  }, [sendQuery, desktopRuntime, isConnected, datePayload, isToday, userId, currentUser?.id]);
 
   // Re-fetch when date changes or connection established
   useEffect(() => {
@@ -314,6 +355,8 @@ export function useActivitiesData(): ActivitiesData {
     goToPrevDay,
     goToNextDay,
     goToToday,
+    userId,
+    setSelectedUserId,
     summary,
     activities,
     weeklyHistory,
@@ -351,16 +394,17 @@ const APP_PALETTE = [
   '#fbbf24', '#22d3ee', '#f87171', '#4ade80', '#e879f9',
 ];
 
-function convertSessionsToBlocks(
+function convertActivitiesToBlocks(
   sessions: Array<{ processName: string; windowTitle?: string; appCategory?: string; startedAt: string; endedAt: string; durationSeconds: number }>,
+  idlePeriods: Array<{ id: string; startedAt: string; endedAt: string; durationSeconds: number; reasonCode?: string; note?: string; submittedAtUtc?: string }>,
   hiddenApps: string[] = []
 ): ActivityBlock[] {
-  if (sessions.length === 0) return [];
-
   // Filter out hidden apps (user-configurable from Settings)
   const hiddenSet = new Set(hiddenApps.map(a => a.toLowerCase()));
   sessions = sessions.filter(s => !hiddenSet.has(s.processName.toLowerCase()));
-  if (sessions.length === 0) return [];
+
+  const blocks: ActivityBlock[] = [];
+  if (sessions.length === 0 && idlePeriods.length === 0) return blocks;
 
   // Assign colors per process
   const colorMap = new Map<string, string>();
@@ -373,47 +417,69 @@ function convertSessionsToBlocks(
   }
 
   // Merge consecutive sessions for the same process (< 2min gap)
-  const blocks: ActivityBlock[] = [];
-  let cur = sessions[0];
-  let curStart = cur.startedAt;
-  let curEnd = cur.endedAt;
-  let tabs: { title: string; duration: number; subcategory: string; color: string }[] = [
-    { title: cur.windowTitle || cur.processName, duration: cur.durationSeconds, subcategory: cur.appCategory || 'unknown', color: colorMap.get(cur.processName) || '#94a3b8' }
-  ];
+  if (sessions.length > 0) {
+    let cur = sessions[0];
+    let curStart = cur.startedAt;
+    let curEnd = cur.endedAt;
+    let tabs: { title: string; duration: number; subcategory: string; color: string }[] = [
+      { title: cur.windowTitle || cur.processName, duration: cur.durationSeconds, subcategory: cur.appCategory || 'unknown', color: colorMap.get(cur.processName) || '#94a3b8' }
+    ];
 
-  const flush = () => {
-    const prod = mapCategoryToProductivity(cur.appCategory);
-    blocks.push({
-      id: `${curStart}-${cur.processName}`,
-      name: extractAppName(cur.windowTitle, cur.processName),
-      startUtc: curStart,
-      endUtc: curEnd,
-      duration: Math.round((new Date(curEnd).getTime() - new Date(curStart).getTime()) / 1000),
-      productivity: prod,
-      subcategory: cur.appCategory || 'unknown',
-      color: colorMap.get(cur.processName) || '#94a3b8',
-      tabs: groupTabs(tabs),
-    });
-  };
+    const flush = () => {
+      const prod = mapCategoryToProductivity(cur.appCategory);
+      blocks.push({
+        id: `${curStart}-${cur.processName}`,
+        kind: 'activity',
+        name: extractAppName(cur.windowTitle, cur.processName),
+        startUtc: curStart,
+        endUtc: curEnd,
+        duration: Math.round((new Date(curEnd).getTime() - new Date(curStart).getTime()) / 1000),
+        productivity: prod,
+        subcategory: cur.appCategory || 'unknown',
+        color: colorMap.get(cur.processName) || '#94a3b8',
+        tabs: groupTabs(tabs),
+      });
+    };
 
-  for (let i = 1; i < sessions.length; i++) {
-    const s = sessions[i];
-    const gap = (new Date(s.startedAt).getTime() - new Date(curEnd).getTime()) / 1000;
+    for (let i = 1; i < sessions.length; i++) {
+      const s = sessions[i];
+      const gap = (new Date(s.startedAt).getTime() - new Date(curEnd).getTime()) / 1000;
 
-    if (s.processName === cur.processName && gap < 120) {
-      curEnd = s.endedAt > curEnd ? s.endedAt : curEnd;
-      tabs.push({ title: s.windowTitle || s.processName, duration: s.durationSeconds, subcategory: s.appCategory || 'unknown', color: colorMap.get(s.processName) || '#94a3b8' });
-    } else {
-      flush();
-      cur = s;
-      curStart = s.startedAt;
-      curEnd = s.endedAt;
-      tabs = [{ title: s.windowTitle || s.processName, duration: s.durationSeconds, subcategory: s.appCategory || 'unknown', color: colorMap.get(s.processName) || '#94a3b8' }];
+      if (s.processName === cur.processName && gap < 120) {
+        curEnd = s.endedAt > curEnd ? s.endedAt : curEnd;
+        tabs.push({ title: s.windowTitle || s.processName, duration: s.durationSeconds, subcategory: s.appCategory || 'unknown', color: colorMap.get(s.processName) || '#94a3b8' });
+      } else {
+        flush();
+        cur = s;
+        curStart = s.startedAt;
+        curEnd = s.endedAt;
+        tabs = [{ title: s.windowTitle || s.processName, duration: s.durationSeconds, subcategory: s.appCategory || 'unknown', color: colorMap.get(s.processName) || '#94a3b8' }];
+      }
     }
+    flush();
   }
-  flush();
 
-  return blocks;
+  for (const idlePeriod of idlePeriods) {
+    blocks.push({
+      id: idlePeriod.id,
+      kind: 'idle',
+      name: 'Idle',
+      startUtc: idlePeriod.startedAt,
+      endUtc: idlePeriod.endedAt,
+      duration: idlePeriod.durationSeconds,
+      productivity: 'idle',
+      subcategory: 'idle',
+      color: '#64748b',
+      reasonCode: idlePeriod.reasonCode,
+      note: idlePeriod.note,
+      submittedAtUtc: idlePeriod.submittedAtUtc,
+      tabs: [],
+    });
+  }
+
+  return blocks.sort(
+    (a, b) => new Date(a.startUtc).getTime() - new Date(b.startUtc).getTime()
+  );
 }
 
 const BROWSER_NAMES = new Set([

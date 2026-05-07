@@ -39,6 +39,11 @@ public sealed class OrgPolicyResponse
     public int IdleThresholdSeconds { get; init; }
 
     /// <summary>
+    /// Optional prompt threshold for idle justification in seconds. Null disables the feature.
+    /// </summary>
+    public int? IdleJustificationPromptThresholdSeconds { get; init; }
+
+    /// <summary>
     /// Data retention period in days (30, 60, 90, 180, 365)
     /// </summary>
     public int RetentionDays { get; init; }

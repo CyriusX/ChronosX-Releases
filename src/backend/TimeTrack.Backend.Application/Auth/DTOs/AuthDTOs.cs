@@ -30,6 +30,8 @@ public sealed class LoginResponse
     public string Role { get; init; } = string.Empty;
     public string OrgName { get; init; } = string.Empty;
     public bool PasswordMustChange { get; init; }
+    public string SubscriptionStatus { get; init; } = "none";
+    public string PlanTier { get; init; } = "";
 }
 
 /// <summary>
@@ -50,6 +52,8 @@ public sealed class RefreshTokenResponse
     public string RefreshToken { get; init; } = string.Empty;
     public string TokenType { get; init; } = "Bearer";
     public int ExpiresIn { get; init; }
+    public string SubscriptionStatus { get; init; } = "none";
+    public string PlanTier { get; init; } = "";
 }
 
 /// <summary>
@@ -120,6 +124,8 @@ public sealed class HeartbeatResponse
     public DateTime LastSeenAt { get; init; }
     public string Status { get; init; } = string.Empty;
     public bool HasPendingCommands { get; init; }
+    public string SubscriptionStatus { get; init; } = "active";
+    public DateTime? GracePeriodEnd { get; init; }
 }
 
 /// <summary>

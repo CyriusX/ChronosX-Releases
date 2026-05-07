@@ -16,32 +16,35 @@ public class MacOSMachineMetricsProviderTests
     }
 
     [Fact]
-    public async Task GetCpuUsageAsync_Should_ReturnNonNegativeValue()
+    public async Task GetCurrentAsync_Should_ReturnCpuPercentWithinBounds()
     {
         var provider = new MacOSMachineMetricsProvider(_loggerMock.Object);
 
-        var result = await provider.GetCpuUsageAsync();
+        var result = await provider.GetCurrentAsync();
 
-        result.Should().BeGreaterThanOrEqualTo(0);
+        result.CpuPercent.Should().BeGreaterThanOrEqualTo(0);
+        result.CpuPercent.Should().BeLessThanOrEqualTo(100);
     }
 
     [Fact]
-    public async Task GetMemoryUsageAsync_Should_ReturnNonNegativeValue()
+    public async Task GetCurrentAsync_Should_ReturnMemoryMetrics()
     {
         var provider = new MacOSMachineMetricsProvider(_loggerMock.Object);
 
-        var result = await provider.GetMemoryUsageAsync();
+        var result = await provider.GetCurrentAsync();
 
-        result.Should().BeGreaterThanOrEqualTo(0);
+        result.MemoryUsedMb.Should().BeGreaterThanOrEqualTo(0);
+        result.MemoryTotalMb.Should().BeGreaterThanOrEqualTo(0);
     }
 
     [Fact]
-    public async Task GetDiskUsageAsync_Should_ReturnNonNegativeValue()
+    public async Task GetCurrentAsync_Should_ReturnDiskMetrics()
     {
         var provider = new MacOSMachineMetricsProvider(_loggerMock.Object);
 
-        var result = await provider.GetDiskUsageAsync();
+        var result = await provider.GetCurrentAsync();
 
-        result.Should().BeGreaterThanOrEqualTo(0);
+        result.DiskUsedGb.Should().BeGreaterThanOrEqualTo(0);
+        result.DiskTotalGb.Should().BeGreaterThanOrEqualTo(0);
     }
 }

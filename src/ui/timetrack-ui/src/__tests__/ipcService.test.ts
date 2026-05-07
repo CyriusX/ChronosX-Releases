@@ -77,6 +77,17 @@ describe('IpcService', () => {
       expect(service.connectionState).toBe('connected');
     });
 
+    it('should update connection state from connectionStateChanged event', () => {
+      const service = new IpcService();
+
+      // Simulate DesktopHost pushing connection state through the global handler
+      (window as unknown as { timeTrackHandleEvent?: (eventType: string, payloadJson: string) => void })
+        .timeTrackHandleEvent?.('connectionStateChanged', JSON.stringify({ isConnected: false }));
+
+      expect(service.isConnected).toBe(false);
+      expect(service.connectionState).toBe('disconnected');
+    });
+
     it('should notify on connection change', () => {
       const service = new IpcService();
       const callback = vi.fn();

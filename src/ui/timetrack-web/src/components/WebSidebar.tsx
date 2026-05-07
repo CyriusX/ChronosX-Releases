@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { BarChart3, Activity, CalendarDays, Cog, LogOut, Shield, Menu, X, Wrench, Bell, ChevronDown, FolderKanban } from 'lucide-react';
+import { BarChart3, Activity, CalendarDays, Cog, LogOut, Shield, Menu, X, Wrench, Bell, ChevronDown, FolderKanban, CreditCard } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
@@ -84,6 +84,7 @@ export function WebSidebar() {
     ] : []),
     { icon: <Cog className="w-[16px] h-[16px]" />, label: t('webSidebar.settings'), path: '/settings' },
     ...(user?.role === 'Admin' ? [
+      { icon: <CreditCard className="w-[16px] h-[16px]" />, label: t('webSidebar.billing'), path: '/billing' },
       { icon: <Wrench className="w-[16px] h-[16px]" />, label: t('webSidebar.maintenance'), path: '/maintenance' },
     ] : []),
   ];

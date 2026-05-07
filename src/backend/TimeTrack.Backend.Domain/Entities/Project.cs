@@ -9,12 +9,15 @@ public sealed class Project
 {
     public Guid Id { get; private set; }
     public Guid OrgId { get; private set; }
+    public Guid? CreatedByUserId { get; private set; }
     public string Name { get; private set; } = string.Empty;
     public string? Description { get; private set; }
     public string Color { get; private set; } = "#4A9FFF";
     public ProjectStatus Status { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
+    public DateTime? DeletedAt { get; private set; }
+    public Guid? DeletedByUserId { get; private set; }
 
     // ── Billable project fields ──
     public bool IsBillable { get; private set; }
@@ -34,9 +37,10 @@ public sealed class Project
 
     public static Project Create(
         Guid orgId,
+        Guid createdByUserId,
         string name,
         string? description = null,
-        string color = "#4A9FFF",
+        string? color = "#4A9FFF",
         bool isBillable = false,
         string? currency = null,
         decimal? hourlyRate = null)
@@ -46,6 +50,9 @@ public sealed class Project
 
         if (string.IsNullOrWhiteSpace(color))
             color = "#4A9FFF";
+
+        if (createdByUserId == Guid.Empty)
+            throw new ArgumentException("CreatedByUserId is required", nameof(createdByUserId));
 
         if (isBillable)
         {
@@ -59,6 +66,7 @@ public sealed class Project
         {
             Id = Guid.NewGuid(),
             OrgId = orgId,
+            CreatedByUserId = createdByUserId,
             Name = name.Trim(),
             Description = description?.Trim(),
             Color = color,
@@ -73,6 +81,7 @@ public sealed class Project
 
     public static Project CreateFromLinear(
         Guid orgId,
+        Guid createdByUserId,
         string name,
         string color,
         string linearProjectId,
@@ -83,11 +92,14 @@ public sealed class Project
             throw new ArgumentException("Project name is required", nameof(name));
         if (string.IsNullOrWhiteSpace(linearProjectId))
             throw new ArgumentException("Linear project id is required", nameof(linearProjectId));
+        if (createdByUserId == Guid.Empty)
+            throw new ArgumentException("CreatedByUserId is required", nameof(createdByUserId));
 
         return new Project
         {
             Id = Guid.NewGuid(),
             OrgId = orgId,
+            CreatedByUserId = createdByUserId,
             Name = name.Trim(),
             Description = description?.Trim(),
             Color = string.IsNullOrWhiteSpace(color) ? "#4A9FFF" : color,
@@ -150,6 +162,17 @@ public sealed class Project
         Description = description?.Trim();
         LastSyncedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SoftDelete(Guid deletedByUserId)
+    {
+        if (deletedByUserId == Guid.Empty)
+            throw new ArgumentException("DeletedByUserId is required", nameof(deletedByUserId));
+
+        var now = DateTime.UtcNow;
+        DeletedAt = now;
+        DeletedByUserId = deletedByUserId;
+        UpdatedAt = now;
     }
 
     public void Archive()

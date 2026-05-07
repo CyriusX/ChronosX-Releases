@@ -70,9 +70,23 @@ public sealed class TaskTimeEntry
 
     public void Pause()
     {
+        PauseAt(DateTime.UtcNow);
+    }
+
+    public void PauseAt(DateTime pausedAtUtc)
+    {
         if (EndedAt is not null) return;
         if (PausedAt is not null) return;
-        PausedAt = DateTime.UtcNow;
+
+        var now = DateTime.UtcNow;
+        var effective = pausedAtUtc.Kind == DateTimeKind.Utc
+            ? pausedAtUtc
+            : DateTime.SpecifyKind(pausedAtUtc, DateTimeKind.Utc);
+
+        if (effective > now) effective = now;
+        if (effective < StartedAt) effective = StartedAt;
+
+        PausedAt = effective;
     }
 
     public void Resume()

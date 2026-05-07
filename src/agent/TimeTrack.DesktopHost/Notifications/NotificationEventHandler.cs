@@ -31,6 +31,7 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
     private bool _disposed;
     private ActivityResumeToastForm? _activeResumeToast;
     private ActivityResumeToastForm? _activeTaskResumeToast;
+    private IdleJustificationPromptForm? _activeIdleJustificationPrompt;
 
     public NotificationEventHandler(
         IIpcClient ipcClient,
@@ -85,6 +86,10 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
 
                 case "showTaskResumePrompt":
                     HandleTaskResumePrompt(e.Payload);
+                    break;
+
+                case "showIdleJustificationPrompt":
+                    HandleIdleJustificationPrompt(e.Payload);
                     break;
 
                 case "updateAvailable":
@@ -300,6 +305,80 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
         toast.Show();
     }
 
+    private void HandleIdleJustificationPrompt(JsonElement payload)
+    {
+        var idlePeriodId = payload.TryGetProperty("idlePeriodId", out var idEl) ? idEl.GetString() : null;
+        var startedAt = payload.TryGetProperty("startedAt", out var startEl) &&
+                        DateTime.TryParse(startEl.GetString(), out var parsedStart)
+            ? parsedStart
+            : DateTime.UtcNow;
+        var endedAt = payload.TryGetProperty("endedAt", out var endEl) &&
+                      DateTime.TryParse(endEl.GetString(), out var parsedEnd)
+            ? parsedEnd
+            : DateTime.UtcNow;
+        var durationSeconds = payload.TryGetProperty("durationSeconds", out var durationEl) && durationEl.ValueKind == JsonValueKind.Number
+            ? durationEl.GetInt32()
+            : (int)Math.Max(0, (endedAt - startedAt).TotalSeconds);
+
+        if (string.IsNullOrWhiteSpace(idlePeriodId))
+        {
+            _logger.LogWarning("Idle justification prompt ignored because idlePeriodId is missing");
+            return;
+        }
+
+        if (System.Windows.Forms.Application.OpenForms.Count > 0)
+        {
+            var mainForm = System.Windows.Forms.Application.OpenForms[0];
+            mainForm?.BeginInvoke(() => ShowIdleJustificationPrompt(idlePeriodId, startedAt, endedAt, durationSeconds));
+        }
+        else
+        {
+            _logger.LogWarning("No open forms — cannot show idle justification prompt");
+        }
+    }
+
+    private void ShowIdleJustificationPrompt(string idlePeriodId, DateTime startedAt, DateTime endedAt, int durationSeconds)
+    {
+        if (_activeIdleJustificationPrompt is { Visible: true })
+        {
+            _logger.LogDebug("Idle justification prompt already visible — skipping duplicate for {IdlePeriodId}", idlePeriodId);
+            return;
+        }
+
+        var prompt = new IdleJustificationPromptForm(idlePeriodId, startedAt, endedAt, durationSeconds);
+        _activeIdleJustificationPrompt = prompt;
+
+        prompt.Submitted += async (_, args) =>
+        {
+            _activeIdleJustificationPrompt = null;
+
+            try
+            {
+                if (args.IsSkipped)
+                {
+                    await _ipcClient.SendCommandAsync("dismissIdleJustification", new
+                    {
+                        idlePeriodId = args.IdlePeriodId
+                    });
+                    return;
+                }
+
+                await _ipcClient.SendCommandAsync("submitIdleJustification", new
+                {
+                    idlePeriodId = args.IdlePeriodId,
+                    reasonCode = args.ReasonCode,
+                    note = args.Note
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending idle justification command for {IdlePeriodId}", args.IdlePeriodId);
+            }
+        };
+
+        prompt.Show();
+    }
+
     private AgentNotification? ParseNotification(JsonElement payload)
     {
         try
@@ -408,24 +487,16 @@ public sealed class NotificationEventHandler : IHostedService, IDisposable
             "Update available: Version={Version}, Size={Size:F1}MB",
             version, fileSizeMb);
 
-        // Show notification to user (forced update - no option to defer)
+        // Show notification to user (opt-in — user decides when to update)
         var notification = new AgentNotification(
             "Update Available",
-            $"A new version ({version}) is available. The update will be installed automatically.",
+            $"A new version ({version}) is available. Open the app to update.",
             NotificationKind.System)
         {
             Tag = "update-available"
         };
 
         await _notificationService.SendAsync(notification);
-
-        // Start the update automatically after a brief delay
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(3000);
-            _logger.LogInformation("Auto-starting update to version {Version}", version);
-            await _ipcClient.SendCommandAsync("StartUpdate");
-        });
     }
 
     private void HandleUpdateProgress(JsonElement payload)

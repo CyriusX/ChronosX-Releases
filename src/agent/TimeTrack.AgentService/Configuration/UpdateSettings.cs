@@ -33,7 +33,7 @@ public sealed class UpdateSettings
     /// <summary>
     /// Base URL for update API
     /// </summary>
-    public string UpdateUrl { get; set; } = "https://chronosx-timetrack-api.gpoda0.easypanel.host/api/v1/updates";
+    public string UpdateUrl { get; set; } = "https://chronosx-dev-timetrack-api.gpoda0.easypanel.host/api/v1/updates";
 
     /// <summary>
     /// Timeout for downloading updates (in minutes)
@@ -59,4 +59,10 @@ public sealed class UpdateSettings
     /// Delay between retry attempts (in seconds)
     /// </summary>
     public int RetryDelaySeconds { get; set; } = 30;
+
+    /// <summary>
+    /// When true, updates are installed automatically without user confirmation.
+    /// When false (default), the user is prompted via a modal before installing.
+    /// </summary>
+    public bool ForceUpdate { get; set; } = false;
 }

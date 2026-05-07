@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { getIpcService } from '../services';
+import { isDesktopRuntime } from '../lib/runtime';
 import type {
   IIpcClient,
   IpcResponse,
@@ -318,6 +319,7 @@ class MockIpcClient implements IIpcClient {
       getTrackingState: mockTrackingState,
       getTodaySummary: mockTodaySummary,
       getRecentActivities: buildMockActivities(),
+      getTopFolders: { folders: [] },
       getCurrentStatus: mockCurrentStatus,
       getSyncState: mockSyncState,
       getFocusModeState: { ...mockFocusModeState, timestamp: new Date().toISOString() },
@@ -353,34 +355,63 @@ class MockIpcClient implements IIpcClient {
 }
 
 // ============================================================================
+// NO-IPC CLIENT (WebUI / browser runtime)
+// ============================================================================
+
+class NoIpcClient implements IIpcClient {
+  readonly isConnected = false;
+  readonly isReady = true;
+  readonly connectionState = 'disconnected' as const;
+
+  async sendCommand<K extends keyof CommandPayloadMap>(
+    _command: K,
+    _payload?: CommandPayloadMap[K]
+  ): Promise<IpcResponse<void>> {
+    return { success: false, error: 'IPC not available in WebUI' };
+  }
+
+  async sendQuery<K extends keyof QueryResponseMap>(
+    _query: K,
+    _payloadJson?: string
+  ): Promise<IpcResponse<QueryResponseMap[K]>> {
+    return { success: false, error: 'IPC not available in WebUI' };
+  }
+
+  subscribe<K extends keyof EventPayloadMap>(
+    _eventType: K,
+    _callback: (payload: EventPayloadMap[K]) => void
+  ): () => void {
+    return () => {};
+  }
+
+  onConnectionChange(callback: (isConnected: boolean) => void): () => void {
+    callback(false);
+    return () => {};
+  }
+
+  async reconnect(): Promise<void> {
+    // No-op
+  }
+}
+
+// ============================================================================
 // FACTORY FUNCTION
 // ============================================================================
 
 function createIpcClient(): IIpcClient {
-  // Check if running inside WebView2 (DesktopHost)
-  console.log('[useIpc] Checking for bridge...');
-  console.log('[useIpc] window.timeTrackBridge:', window.timeTrackBridge);
-  const chrome = (window as unknown as Record<string, Record<string, unknown>>).chrome;
-  console.log('[useIpc] chrome.webview:', chrome?.webview);
-
-  if (typeof window !== 'undefined') {
-    // Bridge already injected — use real IPC immediately
-    if (window.timeTrackBridge) {
-      console.log('[useIpc] Bridge found! Using real IpcService');
-      return getIpcService();
-    }
-
-    // Inside WebView2 but bridge not yet injected — use real IpcService
-    // which will poll until the bridge becomes available
-    if (chrome?.webview) {
-      console.log('[useIpc] Inside WebView2, bridge not yet available — using IpcService (will poll)');
-      return getIpcService();
-    }
+  // Desktop (AgentHost): always use the real IpcService. It can start disconnected
+  // and will become connected as soon as the bridge is injected.
+  if (isDesktopRuntime()) {
+    return getIpcService();
   }
 
-  // Not inside WebView2 at all — standalone browser dev mode
-  console.log('[useIpc] Not inside WebView2, using mock client');
-  return new MockIpcClient();
+  // WebUI (browser): never use mock IPC in production. In DEV, allow opting into
+  // mock IPC explicitly to ease UI iteration without a running agent.
+  const useMock =
+    import.meta.env.DEV &&
+    String(import.meta.env.VITE_USE_MOCK_IPC ?? '').toLowerCase() === 'true';
+
+  return useMock ? new MockIpcClient() : new NoIpcClient();
 }
 
 // ============================================================================

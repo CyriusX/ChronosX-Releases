@@ -25,6 +25,12 @@ export default defineConfig({
     port: 5173,
     strictPort: true, // Fail if port is already in use
   },
+  // Pin the dep scan to the real entry; otherwise Vite discovers stale
+  // gitignored build artifacts (e.g. dist-demo/assets/*.js) and fails to
+  // resolve their embedded dependencies.
+  optimizeDeps: {
+    entries: ['index.html'],
+  },
   build: {
     outDir: 'dist',
     modulePreload: false,

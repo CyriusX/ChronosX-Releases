@@ -2,6 +2,18 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TimeTrack.Agent.Infrastructure.Extensions;
 using TimeTrack.AgentService.Extensions;
+using TimeTrack.AgentService.Workers;
+
+// Prevent multiple AgentService instances (double-start or manual launches).
+using var singleInstanceMutex = new System.Threading.Mutex(
+    initiallyOwned: true,
+    name: @"Local\ChronosX.TimeTrack.AgentService",
+    createdNew: out var createdNew);
+if (!createdNew)
+{
+    Console.WriteLine("[AgentService] Another instance is already running. Exiting.");
+    return;
+}
 
 // Configura prioridade do processo o mais cedo possível
 var priority = Environment.GetEnvironmentVariable("TIMETRACK_PROCESS_PRIORITY") ?? "BelowNormal";
@@ -17,6 +29,14 @@ IHost host = Host.CreateDefaultBuilder(args)
     })
     .ConfigureServices((context, services) =>
     {
+        // By default, an unhandled exception in any BackgroundService stops the whole host.
+        // We prefer resiliency: log and keep the agent service alive, relying on health/events
+        // to surface issues instead of hard-crashing the tracking process.
+        services.Configure<HostOptions>(options =>
+        {
+            options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+        });
+
         // Configuration
         services.AddAgentConfiguration(context.Configuration);
 
@@ -51,5 +71,9 @@ using (var scope = host.Services.CreateScope())
 {
     await scope.ServiceProvider.InitializeDatabaseAsync();
 }
+
+// Eagerly resolve TokenRefreshBroadcaster so it subscribes to ITokenStore.TokensStored
+// and forwards refreshed tokens to the UI via IPC.
+_ = host.Services.GetRequiredService<TokenRefreshBroadcaster>();
 
 await host.RunAsync();

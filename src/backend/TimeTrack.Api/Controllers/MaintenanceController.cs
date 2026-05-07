@@ -151,6 +151,27 @@ public sealed class MaintenanceController : ControllerBase
     }
 
     /// <summary>
+    /// Enable/disable DevTools access for the selected device's user (applies to all active devices of that user)
+    /// </summary>
+    [HttpPut("devices/{deviceId:guid}/devtools")]
+    [ProducesResponseType(typeof(SetDevToolsAccessResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<SetDevToolsAccessResponse>> SetDevToolsAccess(
+        Guid orgId,
+        Guid deviceId,
+        [FromBody] SetDevToolsAccessRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.OrgId != orgId) return Forbid();
+
+        var result = await _mediator.Send(
+            new SetDeviceDevToolsAccessCommand(orgId, deviceId, request.Enabled),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Clear event logs for a specific device
     /// </summary>
     [HttpDelete("devices/{deviceId:guid}/events")]

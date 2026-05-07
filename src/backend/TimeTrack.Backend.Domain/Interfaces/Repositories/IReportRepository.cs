@@ -76,6 +76,17 @@ public interface IReportRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Obtém top pastas acessadas (derivadas de ActivitySessions.FilePath).
+    /// </summary>
+    Task<IEnumerable<TopFolderAggregate>> GetTopFoldersAsync(
+        IReadOnlyList<Guid> userIds,
+        DateTime startDate,
+        DateTime endDate,
+        int limit,
+        string? timezone = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Obtém estatísticas de distração (top 5 apps + linha do tempo)
     /// </summary>
     Task<DistractionStats> GetDistractionStatsAsync(
@@ -199,6 +210,16 @@ public sealed class TopPathItem
     /// App de origem (chrome.exe, code.exe, explorer.exe)
     /// </summary>
     public string SourceApp { get; init; } = string.Empty;
+    public long TotalSeconds { get; init; }
+    public int VisitCount { get; init; }
+}
+
+/// <summary>
+/// Item de pasta mais acessada
+/// </summary>
+public sealed class TopFolderAggregate
+{
+    public string FolderPath { get; init; } = string.Empty;
     public long TotalSeconds { get; init; }
     public int VisitCount { get; init; }
 }

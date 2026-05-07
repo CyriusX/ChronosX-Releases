@@ -83,6 +83,17 @@ public sealed class CurrentUserContext : ICurrentUserContext
 
     public bool IsAuthenticated => User?.Identity?.IsAuthenticated ?? false;
 
+    public bool IsPlatformAdmin
+    {
+        get
+        {
+            var claim = User?.FindFirst("is_platform_admin");
+            return claim != null
+                && bool.TryParse(claim.Value, out var value)
+                && value;
+        }
+    }
+
     public bool IsInRole(UserRole role)
     {
         return Role == role;

@@ -82,6 +82,27 @@ public class OrgPolicyTests
         policy.IdleThresholdSeconds.Should().Be(300);
         policy.RetentionDays.Should().Be(180);
     }
+
+    [Fact]
+    public void OrgPolicy_Update_WithIdleJustificationPromptThreshold_UpdatesField()
+    {
+        // Arrange
+        var orgId = Guid.NewGuid();
+        var policy = OrgPolicy.Create(orgId);
+
+        // Act
+        policy.Update(
+            workHoursJson: null,
+            appExclusionsJson: null,
+            idleThresholdSeconds: 300,
+            idleJustificationPromptThresholdSpecified: true,
+            idleJustificationPromptThresholdSeconds: 900,
+            retentionDays: null);
+
+        // Assert
+        policy.IdleThresholdSeconds.Should().Be(300);
+        policy.IdleJustificationPromptThresholdSeconds.Should().Be(900);
+    }
 }
 
 /// <summary>

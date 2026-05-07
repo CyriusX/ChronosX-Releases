@@ -35,6 +35,12 @@ export interface LocalSettings {
   /** Meta diária de trabalho em segundos (1800–86400). null = padrão 28800 (8h) */
   workGoalSeconds: number | null;
 
+  /** Whether DevTools is enabled for the desktop WebView host (admin-controlled). */
+  devToolsEnabled: boolean;
+
+  /** Optional UTC expiry for DevTools access. */
+  devToolsEnabledUntilUtc: string | null;
+
   /** Timestamp da última atualização */
   updatedAt: string;
 }
@@ -150,6 +156,9 @@ export interface OrgPolicyResponse {
   /** Idle threshold in seconds (60-3600) */
   idleThresholdSeconds: number;
 
+  /** Prompt threshold for optional idle justifications. null = disabled */
+  idleJustificationPromptThresholdSeconds: number | null;
+
   /** Data retention period in days */
   retentionDays: number;
 
@@ -175,6 +184,7 @@ export interface UpdateOrgPolicyRequest {
   };
   appExclusions?: string[];
   idleThresholdSeconds?: number;
+  idleJustificationPromptThresholdSeconds?: number | null;
   retentionDays?: number;
   focusMode?: {
     enabled?: boolean;
@@ -261,6 +271,8 @@ export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
   language: 'pt-BR',
   idleThresholdSeconds: null,
   workGoalSeconds: null,
+  devToolsEnabled: false,
+  devToolsEnabledUntilUtc: null,
   updatedAt: new Date().toISOString(),
 };
 

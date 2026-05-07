@@ -78,6 +78,7 @@ public sealed class SqliteContext : IAsyncDisposable
                 end_utc TEXT NOT NULL,
                 window_hash TEXT,
                 window_title TEXT,
+                file_path TEXT,
                 domain TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
@@ -90,6 +91,10 @@ public sealed class SqliteContext : IAsyncDisposable
                 end_utc TEXT NOT NULL,
                 threshold_seconds INTEGER NOT NULL,
                 is_system_detected INTEGER NOT NULL DEFAULT 1,
+                justification_state TEXT NOT NULL DEFAULT 'none',
+                justification_reason_code TEXT,
+                justification_note TEXT,
+                justification_submitted_at_utc TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -126,6 +131,15 @@ public sealed class SqliteContext : IAsyncDisposable
                 auto_resume_notification_enabled INTEGER NOT NULL DEFAULT 1,
                 notification_sounds_enabled INTEGER NOT NULL DEFAULT 1,
                 language TEXT NOT NULL DEFAULT 'pt-BR',
+                updated_at TEXT NOT NULL
+            );
+
+            -- Cache de políticas da organização (fonte de verdade para idle threshold)
+            CREATE TABLE IF NOT EXISTS org_policies_cache (
+                org_id TEXT PRIMARY KEY,
+                idle_threshold_seconds INTEGER NOT NULL,
+                idle_justification_prompt_threshold_seconds INTEGER,
+                version INTEGER NOT NULL,
                 updated_at TEXT NOT NULL
             );
 
@@ -230,6 +244,16 @@ public sealed class SqliteContext : IAsyncDisposable
             await connection.ExecuteAsync("ALTER TABLE activity_sessions ADD COLUMN domain TEXT");
         }
 
+        // Add file_path column to activity_sessions (file/folder path tracking)
+        var filePathExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('activity_sessions') WHERE name = 'file_path'");
+
+        if (filePathExists == 0)
+        {
+            _logger.LogInformation("Adding file_path column to activity_sessions");
+            await connection.ExecuteAsync("ALTER TABLE activity_sessions ADD COLUMN file_path TEXT");
+        }
+
         // Add idle_threshold_seconds column to local_settings
         var idleThresholdExists = await connection.QueryFirstOrDefaultAsync<int>(
             "SELECT COUNT(*) FROM pragma_table_info('local_settings') WHERE name = 'idle_threshold_seconds'");
@@ -240,6 +264,51 @@ public sealed class SqliteContext : IAsyncDisposable
             await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN idle_threshold_seconds INTEGER");
         }
 
+        var idleJustificationStateExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('idle_periods') WHERE name = 'justification_state'");
+
+        if (idleJustificationStateExists == 0)
+        {
+            _logger.LogInformation("Adding justification_state column to idle_periods");
+            await connection.ExecuteAsync("ALTER TABLE idle_periods ADD COLUMN justification_state TEXT NOT NULL DEFAULT 'none'");
+        }
+
+        var idleJustificationReasonCodeExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('idle_periods') WHERE name = 'justification_reason_code'");
+
+        if (idleJustificationReasonCodeExists == 0)
+        {
+            _logger.LogInformation("Adding justification_reason_code column to idle_periods");
+            await connection.ExecuteAsync("ALTER TABLE idle_periods ADD COLUMN justification_reason_code TEXT");
+        }
+
+        var idleJustificationNoteExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('idle_periods') WHERE name = 'justification_note'");
+
+        if (idleJustificationNoteExists == 0)
+        {
+            _logger.LogInformation("Adding justification_note column to idle_periods");
+            await connection.ExecuteAsync("ALTER TABLE idle_periods ADD COLUMN justification_note TEXT");
+        }
+
+        var idleJustificationSubmittedAtExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('idle_periods') WHERE name = 'justification_submitted_at_utc'");
+
+        if (idleJustificationSubmittedAtExists == 0)
+        {
+            _logger.LogInformation("Adding justification_submitted_at_utc column to idle_periods");
+            await connection.ExecuteAsync("ALTER TABLE idle_periods ADD COLUMN justification_submitted_at_utc TEXT");
+        }
+
+        var orgIdleJustificationPromptThresholdExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('org_policies_cache') WHERE name = 'idle_justification_prompt_threshold_seconds'");
+
+        if (orgIdleJustificationPromptThresholdExists == 0)
+        {
+            _logger.LogInformation("Adding idle_justification_prompt_threshold_seconds column to org_policies_cache");
+            await connection.ExecuteAsync("ALTER TABLE org_policies_cache ADD COLUMN idle_justification_prompt_threshold_seconds INTEGER");
+        }
+
         // Add work_goal_seconds column to local_settings
         var workGoalExists = await connection.QueryFirstOrDefaultAsync<int>(
             "SELECT COUNT(*) FROM pragma_table_info('local_settings') WHERE name = 'work_goal_seconds'");
@@ -248,6 +317,26 @@ public sealed class SqliteContext : IAsyncDisposable
         {
             _logger.LogInformation("Adding work_goal_seconds column to local_settings");
             await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN work_goal_seconds INTEGER");
+        }
+
+        // Add devtools_enabled column to local_settings
+        var devToolsEnabledExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('local_settings') WHERE name = 'devtools_enabled'");
+
+        if (devToolsEnabledExists == 0)
+        {
+            _logger.LogInformation("Adding devtools_enabled column to local_settings");
+            await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN devtools_enabled INTEGER");
+        }
+
+        // Add devtools_enabled_until_utc column to local_settings
+        var devToolsUntilExists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info('local_settings') WHERE name = 'devtools_enabled_until_utc'");
+
+        if (devToolsUntilExists == 0)
+        {
+            _logger.LogInformation("Adding devtools_enabled_until_utc column to local_settings");
+            await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN devtools_enabled_until_utc TEXT");
         }
     }
 
@@ -261,6 +350,7 @@ public sealed class SqliteContext : IAsyncDisposable
             CREATE INDEX IF NOT EXISTS ix_activity_sessions_user_id ON activity_sessions(user_id);
             CREATE INDEX IF NOT EXISTS ix_activity_sessions_start_utc ON activity_sessions(start_utc);
             CREATE INDEX IF NOT EXISTS ix_activity_sessions_exe_path_hash ON activity_sessions(exe_path_hash);
+            CREATE INDEX IF NOT EXISTS ix_activity_sessions_file_path ON activity_sessions(file_path);
             CREATE INDEX IF NOT EXISTS ix_idle_periods_user_id ON idle_periods(user_id);
             CREATE INDEX IF NOT EXISTS ix_idle_periods_start_utc ON idle_periods(start_utc);
             CREATE INDEX IF NOT EXISTS ix_sync_outbox_user_id ON sync_outbox(user_id);

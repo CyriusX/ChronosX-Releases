@@ -1,24 +1,32 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-bg-primary: #06081B;
-  --color-bg-secondary: #070B26;
-  --color-bg-tertiary: #0A1030;
-  --color-card: #0C1236;
-  --color-card-hover: #101848;
-  --color-card-alt: #10163F;
-  --color-accent-blue: #2E63FF;
-  --color-accent-violet: #7C5CFF;
-  --color-accent-magenta: #C15CFF;
+  /*
+    Theme aligned to product palette:
+    - `src/ui/timetrack-ui/src/index.css`
+    - `src/ui/timetrack-web/src/index.css`
+  */
+  --color-bg-primary: #0A0C12; /* rgb(10 12 18) */
+  --color-bg-secondary: rgba(18, 21, 33, 0.85);
+  --color-bg-tertiary: rgba(24, 27, 42, 0.8);
+  --color-card: rgba(18, 21, 33, 0.85);
+  --color-card-hover: rgba(30, 34, 52, 0.75);
+  --color-card-alt: rgba(24, 27, 42, 0.8);
+
+  --color-accent-blue: #3B82F6;
+  --color-accent-violet: #8B5CF6; /* product purple */
+  --color-accent-magenta: #EC4899;
   --color-accent-cyan: #22D3EE;
-  --color-text-primary: #F5F7FF;
-  --color-text-muted: #A8B1D8;
-  --color-text-dim: #6B7399;
-  --color-border-subtle: rgba(120, 140, 255, 0.12);
-  --color-border-glow: rgba(46, 99, 255, 0.35);
-  --color-glow-blue: rgba(46, 99, 255, 0.15);
-  --color-glow-violet: rgba(124, 92, 255, 0.15);
-  --color-glow-magenta: rgba(193, 92, 255, 0.1);
+
+  --color-text-primary: #F5F7FB;
+  --color-text-muted: rgba(245, 247, 251, 0.65);
+  --color-text-dim: rgba(245, 247, 251, 0.4);
+
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-glow: rgba(139, 92, 246, 0.25);
+  --color-glow-blue: rgba(59, 130, 246, 0.25);
+  --color-glow-violet: rgba(139, 92, 246, 0.35);
+  --color-glow-magenta: rgba(236, 72, 153, 0.2);
 
   --font-heading: var(--font-sora);
   --font-body: var(--font-inter);
@@ -32,6 +40,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -46,36 +55,29 @@ body {
   font-family: var(--font-body), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-/* Grid background pattern */
-.bg-grid-pattern {
-  background-image:
-    linear-gradient(rgba(120, 140, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120, 140, 255, 0.04) 1px, transparent 1px);
-  background-size: 60px 60px;
+  overflow-x: clip;
 }
 
 /* Glow border utility */
 .glow-border {
-  border: 1px solid rgba(120, 140, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow:
-    0 0 20px rgba(46, 99, 255, 0.06),
-    inset 0 0 20px rgba(46, 99, 255, 0.03);
+    0 0 20px rgba(139, 92, 246, 0.08),
+    inset 0 0 20px rgba(139, 92, 246, 0.03);
 }
 
 .glow-border-hover:hover {
-  border-color: rgba(46, 99, 255, 0.3);
+  border-color: rgba(139, 92, 246, 0.18);
   box-shadow:
-    0 0 30px rgba(46, 99, 255, 0.1),
-    inset 0 0 30px rgba(46, 99, 255, 0.05);
+    0 0 30px rgba(139, 92, 246, 0.12),
+    inset 0 0 30px rgba(139, 92, 246, 0.05);
 }
 
 /* Glass card */
 .glass-card {
-  background: linear-gradient(135deg, rgba(12, 18, 54, 0.9), rgba(16, 22, 63, 0.7));
+  background: linear-gradient(135deg, rgba(22, 25, 40, 0.8), rgba(14, 16, 26, 0.8));
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(120, 140, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 20px;
 }
 
@@ -97,7 +99,7 @@ body {
 }
 
 .gradient-text-accent {
-  background: linear-gradient(135deg, #2E63FF 0%, #7C5CFF 50%, #C15CFF 100%);
+  background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 45%, #22D3EE 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -127,10 +129,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(120, 140, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(120, 140, 255, 0.35);
+  background: rgba(255, 255, 255, 0.14);
 }

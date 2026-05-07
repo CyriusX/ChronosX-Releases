@@ -27,6 +27,10 @@ export type { TopAppsSectionProps } from './TopAppsSection';
 export { TopPathsSection } from './TopPathsSection';
 export type { TopPathsSectionProps } from './TopPathsSection';
 
+// Top Folders Section (File system folders)
+export { TopFoldersSection } from './TopFoldersSection';
+export type { TopFoldersSectionProps } from './TopFoldersSection';
+
 // Category Donut Chart
 export { CategoryDonut } from './CategoryDonut';
 export type { CategoryDonutProps } from './CategoryDonut';

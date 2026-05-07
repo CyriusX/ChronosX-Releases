@@ -2,8 +2,13 @@
 
 import { useRef } from "react";
 import { motion, useInView } from "motion/react";
-import { Activity, Brain, Users } from "lucide-react";
-import { FEATURES } from "@/lib/landing-data";
+import {
+  Activity,
+  Brain,
+  Users,
+  FileBarChart,
+  Shield,
+} from "lucide-react";
 import {
   fadeUp,
   glowIn,
@@ -13,11 +18,14 @@ import {
   TIMING,
   EASING,
 } from "@/lib/animations";
+import { useLandingContent } from "./content-provider";
 
 const iconMap: Record<string, React.ReactNode> = {
   Activity: <Activity className="h-6 w-6" />,
   Brain: <Brain className="h-6 w-6" />,
   Users: <Users className="h-6 w-6" />,
+  FileBarChart: <FileBarChart className="h-6 w-6" />,
+  Shield: <Shield className="h-6 w-6" />,
 };
 
 const cardGradients = [
@@ -29,11 +37,12 @@ const cardGradients = [
 const iconColors = ["text-accent-blue", "text-accent-violet", "text-accent-cyan"];
 
 export function Features() {
+  const { copy } = useLandingContent();
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, amount: 0.2 });
 
   return (
-    <section ref={ref} id="features" className="section-padding relative">
+    <section ref={ref} id="product" className="section-padding relative">
       <motion.div
         className="mx-auto max-w-7xl px-5 md:px-8"
         initial="hidden"
@@ -47,7 +56,7 @@ export function Features() {
           className="mb-4 text-center"
         >
           <span className="text-xs font-semibold tracking-[0.2em] text-accent-violet uppercase">
-            Core Features
+            {copy.features.eyebrow}
           </span>
         </motion.div>
 
@@ -57,7 +66,7 @@ export function Features() {
           transition={sectionTransition}
           className="mx-auto max-w-3xl text-center font-heading text-3xl leading-tight font-bold text-text-primary md:text-4xl lg:text-5xl"
         >
-          Everything you need to track time with clarity
+          {copy.features.headline}
         </motion.h2>
 
         <motion.p
@@ -65,7 +74,7 @@ export function Features() {
           transition={sectionTransition}
           className="mx-auto mt-4 max-w-xl text-center text-base text-text-muted"
         >
-          Three powerful pillars that turn invisible work into visible progress.
+          {copy.features.description}
         </motion.p>
 
         {/* Feature cards */}
@@ -73,7 +82,7 @@ export function Features() {
           variants={staggerContainer(STAGGER.cards)}
           className="mt-14 grid gap-6 md:grid-cols-3"
         >
-          {FEATURES.map((feature, i) => (
+          {copy.features.items.map((feature, i) => (
             <motion.div
               key={feature.title}
               variants={glowIn}
@@ -94,7 +103,7 @@ export function Features() {
                 <div
                   className={`mb-5 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border-subtle bg-bg-tertiary/60 ${iconColors[i]}`}
                 >
-                  {iconMap[feature.icon]}
+                  {iconMap[feature.icon] ?? <Activity className="h-6 w-6" />}
                 </div>
 
                 {/* Title */}

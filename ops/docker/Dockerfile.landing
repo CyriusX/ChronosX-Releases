@@ -1,0 +1,47 @@
+# Stage 1: Build (Next.js standalone + embedded demo builds)
+FROM node:20-alpine AS builder
+
+WORKDIR /repo
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Copy package manifests first for better layer caching
+COPY src/ui/timetrack-ui/package*.json ./src/ui/timetrack-ui/
+COPY src/ui/timetrack-web/package*.json ./src/ui/timetrack-web/
+COPY src/landing/package*.json ./src/landing/
+
+# Install deps for demo builds + landing
+RUN cd src/ui/timetrack-ui && npm ci
+RUN cd src/ui/timetrack-web && npm ci
+RUN cd src/landing && npm ci
+
+# Copy source
+COPY src/ui/timetrack-ui/ ./src/ui/timetrack-ui/
+COPY src/ui/timetrack-web/ ./src/ui/timetrack-web/
+COPY src/landing/ ./src/landing/
+
+# Build landing (runs demo builds via prebuild unless SKIP_DEMOS=1)
+WORKDIR /repo/src/landing
+RUN npm run build
+
+# Stage 2: Run (standalone output)
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+# For healthcheck
+RUN apk add --no-cache curl
+
+COPY --from=builder /repo/src/landing/.next/standalone ./
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:3000/ || exit 1
+
+CMD ["node", "server.js"]
+

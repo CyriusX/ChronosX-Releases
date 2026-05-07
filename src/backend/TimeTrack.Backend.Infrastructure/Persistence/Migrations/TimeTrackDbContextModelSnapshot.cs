@@ -67,6 +67,20 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("idempotency_key");
 
+                    b.Property<string>("JustificationNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("justification_note");
+
+                    b.Property<string>("JustificationReasonCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("justification_reason_code");
+
+                    b.Property<DateTime?>("JustificationSubmittedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("justification_submitted_at_utc");
+
                     b.Property<Guid>("OrgId")
                         .HasColumnType("uuid")
                         .HasColumnName("org_id");
@@ -107,9 +121,11 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TaskId");
 
-                    b.HasIndex("UserId");
-
                     b.HasIndex("DeviceId", "StartedAt");
+
+                    b.HasIndex("UserId", "StartedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_activity_sessions_user_started");
 
                     b.HasIndex("OrgId", "UserId", "StartedAt");
 
@@ -460,6 +476,102 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "CreatedAt");
 
                     b.ToTable("audit_log", (string)null);
+                });
+
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.BillingInvoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long>("AmountCents")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_cents");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("usd")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at");
+
+                    b.Property<string>("PdfUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("pdf_url");
+
+                    b.Property<DateTime>("PeriodEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("period_end");
+
+                    b.Property<DateTime>("PeriodStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("period_start");
+
+                    b.Property<string>("PlanName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("plan_name");
+
+                    b.Property<int>("Quantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("quantity");
+
+                    b.Property<long?>("RefundAmountCents")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RefundId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RefundStatus")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("RefundedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StripeInvoiceId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("stripe_invoice_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StripeInvoiceId")
+                        .IsUnique();
+
+                    b.HasIndex("OrgId", "PeriodStart");
+
+                    b.ToTable("billing_invoices", (string)null);
                 });
 
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.DailyFocusScore", b =>
@@ -1060,6 +1172,10 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(180)
                         .HasColumnName("idle_threshold_seconds");
 
+                    b.Property<int?>("IdleJustificationPromptThresholdSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("idle_justification_prompt_threshold_seconds");
+
                     b.Property<Guid>("OrgId")
                         .HasColumnType("uuid")
                         .HasColumnName("org_id");
@@ -1093,6 +1209,132 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.HasIndex("Version");
 
                     b.ToTable("org_policies", (string)null);
+                });
+
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.OrgSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<bool>("CancelAtPeriodEnd")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("cancel_at_period_end");
+
+                    b.Property<DateTime?>("CanceledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("canceled_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("CurrentPeriodEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("current_period_end");
+
+                    b.Property<DateTime?>("CurrentPeriodStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("current_period_start");
+
+                    b.Property<DateTime?>("GracePeriodEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("grace_period_end");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<Guid?>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<int>("Quantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StripeCustomerId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("stripe_customer_id");
+
+                    b.Property<string>("StripeSubscriptionId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("stripe_subscription_id");
+
+                    b.Property<DateTime?>("TrialEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("trial_end");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrgId")
+                        .IsUnique();
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("StripeCustomerId");
+
+                    b.HasIndex("StripeSubscriptionId");
+
+                    b.ToTable("org_subscriptions", (string)null);
+                });
+
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.OrgUsageRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<int>("ActiveDevicesCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("active_devices_count");
+
+                    b.Property<int>("ActiveUsersCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("active_users_count");
+
+                    b.Property<DateTime>("LastComputedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_computed_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrgId")
+                        .IsUnique();
+
+                    b.ToTable("org_usage_records", (string)null);
                 });
 
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.Organization", b =>
@@ -1266,10 +1508,37 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Currency")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deleted_by_user_id");
+
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("description");
+
+                    b.Property<decimal?>("HourlyRate")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("hourly_rate");
+
+                    b.Property<bool>("IsBillable")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_billable");
 
                     b.Property<DateTime?>("LastSyncedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1405,8 +1674,8 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasColumnName("deleted_at");
 
                     b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)")
                         .HasColumnName("description");
 
                     b.Property<DateTime?>("DueDate")
@@ -1495,13 +1764,15 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.HasIndex("AssignedUserId", "Status");
-
                     b.HasIndex("OrgId", "LinearIssueId")
                         .IsUnique()
                         .HasFilter("linear_issue_id IS NOT NULL");
 
-                    b.HasIndex("OrgId", "ProjectId", "Status");
+                    b.HasIndex("AssignedUserId", "Status", "Position")
+                        .HasDatabaseName("IX_project_tasks_assigned_user_id_status_position");
+
+                    b.HasIndex("OrgId", "ProjectId", "Status", "Position")
+                        .HasDatabaseName("IX_project_tasks_org_id_project_id_status_position");
 
                     b.ToTable("project_tasks", (string)null);
                 });
@@ -1620,6 +1891,173 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.ToTable("remote_commands", (string)null);
                 });
 
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.StripeEventLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text")
+                        .HasColumnName("error_message");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("event_type");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("PayloadHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("payload_hash");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StripeEventId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("stripe_event_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StripeEventId")
+                        .IsUnique();
+
+                    b.HasIndex("OrgId", "ProcessedAt");
+
+                    b.ToTable("stripe_event_logs", (string)null);
+                });
+
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.SubscriptionPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<bool>("AdvancedReports")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("advanced_reports");
+
+                    b.Property<bool>("ApiAccess")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("api_access");
+
+                    b.Property<bool>("BillingAnalytics")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("billing_analytics");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<bool>("CustomCategories")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("custom_categories");
+
+                    b.Property<bool>("FocusMode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("focus_mode");
+
+                    b.Property<bool>("LinearIntegration")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("linear_integration");
+
+                    b.Property<bool>("MachineMonitoring")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("machine_monitoring");
+
+                    b.Property<int>("MaxDevices")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_devices");
+
+                    b.Property<int>("MaxUsers")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_users");
+
+                    b.Property<int>("MonthlyPriceCents")
+                        .HasColumnType("integer")
+                        .HasColumnName("monthly_price_cents");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<bool>("PrioritySupport")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("priority_support");
+
+                    b.Property<string>("StripePriceId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("stripe_price_id");
+
+                    b.Property<string>("StripeProductId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("stripe_product_id");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int?>("YearlyPriceCents")
+                        .HasColumnType("integer")
+                        .HasColumnName("yearly_price_cents");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Tier")
+                        .IsUnique();
+
+                    b.ToTable("subscription_plans", (string)null);
+                });
+
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.TaskTimeEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1670,6 +2108,11 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TaskId");
 
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_task_time_entries_user_id_open")
+                        .HasFilter("ended_at IS NULL");
+
                     b.HasIndex("UserId", "EndedAt");
 
                     b.HasIndex("OrgId", "TaskId", "StartedAt");
@@ -1691,6 +2134,10 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<DateTime?>("DevToolsEnabledUntilUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("devtools_enabled_until_utc");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -1702,6 +2149,12 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("email");
+
+                    b.Property<bool>("IsPlatformAdmin")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_platform_admin");
 
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("timestamp with time zone")
@@ -1755,11 +2208,15 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<DateTime>("ConnectedAt")
+                    b.Property<int>("AuthMethod")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("auth_method");
+
+                    b.Property<DateTime>("ConnectedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("connected_at")
-                        .HasDefaultValueSql("now()");
+                        .HasColumnName("connected_at");
 
                     b.Property<byte[]>("EncryptedToken")
                         .IsRequired()
@@ -1809,6 +2266,10 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(30)")
                         .HasColumnName("provider");
 
+                    b.Property<byte[]>("RefreshToken")
+                        .HasColumnType("bytea")
+                        .HasColumnName("refresh_token");
+
                     b.Property<string>("Scope")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -1819,6 +2280,10 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
                         .HasColumnName("status");
+
+                    b.Property<DateTime?>("TokenExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("token_expires_at");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -1993,6 +2458,24 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Device");
+                });
+
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.OrgSubscription", b =>
+                {
+                    b.HasOne("TimeTrack.Backend.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrgId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TimeTrack.Backend.Domain.Entities.SubscriptionPlan", "Plan")
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Organization");
+
+                    b.Navigation("Plan");
                 });
 
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.PasswordResetToken", b =>

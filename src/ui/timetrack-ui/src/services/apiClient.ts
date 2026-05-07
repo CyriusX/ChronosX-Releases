@@ -3,6 +3,7 @@
  *
  * Features:
  * - Automatic token refresh on 401
+ * - Fallback to Agent tokens when UI's refresh token is revoked
  * - Request queueing during refresh (prevents multiple refresh calls)
  * - Logout redirect on refresh failure
  * - Consistent error handling
@@ -10,8 +11,11 @@
  */
 
 import { useAuthStore } from '../stores/authStore';
+import { getApiBaseUrl } from './apiBase';
+import { dispatchNavigate } from './navigationEvents';
+import { isDesktopRuntime } from '../lib/runtime';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const apiBase = () => getApiBaseUrl();
 
 // ============================================================================
 // TYPES
@@ -45,28 +49,129 @@ export function dispatchSessionExpired(reason: string = 'Sessão expirada') {
 // ============================================================================
 
 let isRefreshing = false;
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<'success' | 'auth_failed' | 'network_error'> | null = null;
 let failedQueue: Array<{
   resolve: (token: string) => void;
   reject: (error: Error) => void;
 }> = [];
+let sessionExpiredDispatched = false;
 
-async function refreshTokens(): Promise<boolean> {
+/**
+ * Try to get fresh tokens from the Agent via IPC.
+ * The Agent manages its own DPAPI-encrypted token store and refreshes independently.
+ * When the UI's refresh token is revoked (token rotation), the Agent may still have
+ * valid tokens.
+ */
+async function tryGetAgentTokens(): Promise<string | null> {
+  try {
+    const { getIpcService } = await import('./index');
+    const ipcService = getIpcService();
+
+    if (!ipcService.isConnected) return null;
+
+    const result = await ipcService.sendQuery('getTokens');
+    const data = result.data as { hasTokens?: boolean; accessToken?: string; refreshToken?: string; expiresIn?: number } | undefined;
+
+    if (!result.success || !data?.hasTokens || !data.accessToken || !data.refreshToken) {
+      return null;
+    }
+
+    const authStore = useAuthStore.getState();
+    authStore.setTokens({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      expiresAt: Date.now() + (data.expiresIn ?? 3600) * 1000,
+    });
+
+    return data.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ask the Agent to refresh via IPC. In desktop mode the Agent is the single
+ * authority that talks to /auth/refresh — this prevents the UI and Agent from
+ * racing on the backend's single-use refresh-token rotation.
+ * Returns 'unavailable' when IPC isn't connected (caller should fall through
+ * to a direct HTTP refresh).
+ */
+async function refreshViaAgent(): Promise<'success' | 'auth_failed' | 'network_error' | 'unavailable'> {
+  try {
+    const { getIpcService } = await import('./index');
+    const ipcService = getIpcService();
+
+    if (!ipcService.isConnected) return 'unavailable';
+
+    const result = await ipcService.sendCommand('refreshTokens');
+    const data = result.data as { accessToken?: string; refreshToken?: string; expiresIn?: number } | undefined;
+
+    if (result.success && data?.accessToken && data.refreshToken) {
+      useAuthStore.getState().setTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresAt: Date.now() + (data.expiresIn ?? 3600) * 1000,
+      });
+      return 'success';
+    }
+
+    // The Agent distinguishes "refresh_failed" (token revoked/expired) from
+    // transient errors. Any non-success from the IPC response should be treated
+    // as a definitive auth failure — the Agent will have cleared its tokens
+    // and emitted sessionRevoked if the failure was terminal, or returned a
+    // retryable error code. Either way, don't fall back to a direct HTTP
+    // refresh with what we know is the same revoked token.
+    return 'auth_failed';
+  } catch {
+    return 'network_error';
+  }
+}
+
+/**
+ * After a successful direct /auth/refresh (web mode, or desktop mode when
+ * the Agent isn't connected), push the rotated tokens to the Agent so its
+ * DPAPI store doesn't hold a stale refresh token that will 400 on its next
+ * proactive refresh cycle.
+ */
+async function pushTokensToAgent(accessToken: string, refreshToken: string): Promise<void> {
+  try {
+    const { getIpcService } = await import('./index');
+    const ipcService = getIpcService();
+    if (!ipcService.isConnected) return;
+    await ipcService.sendCommand('storeTokens', { accessToken, refreshToken });
+  } catch {
+    // non-critical — Agent will recover on next IPC connect via App.tsx bootstrap
+  }
+}
+
+async function refreshTokens(): Promise<'success' | 'auth_failed' | 'network_error'> {
   const authStore = useAuthStore.getState();
 
   if (!authStore.tokens?.refreshToken) {
-    return false;
+    return 'auth_failed';
+  }
+
+  // Desktop mode: delegate to the Agent. This is the primary path when running
+  // inside the desktop host — the Agent holds the authoritative refresh token
+  // in DPAPI and serializes refresh calls across all consumers.
+  if (isDesktopRuntime()) {
+    const result = await refreshViaAgent();
+    if (result !== 'unavailable') {
+      return result;
+    }
+    // Fall through to direct refresh only when the Agent isn't reachable
+    // (e.g., desktop launched before the AgentService started).
   }
 
   try {
-    const response = await fetch(`${API_BASE}/auth/refresh`, {
+    const response = await fetch(`${apiBase()}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: authStore.tokens.refreshToken }),
     });
 
     if (!response.ok) {
-      return false;
+      return 'auth_failed';
     }
 
     const data = await response.json();
@@ -77,9 +182,15 @@ async function refreshTokens(): Promise<boolean> {
       expiresAt: Date.now() + data.expiresIn * 1000,
     });
 
-    return true;
+    // Keep the Agent's DPAPI store in sync so it doesn't proactively refresh
+    // later with the now-revoked token we just rotated.
+    if (isDesktopRuntime()) {
+      void pushTokensToAgent(data.accessToken, data.refreshToken);
+    }
+
+    return 'success';
   } catch {
-    return false;
+    return 'network_error';
   }
 }
 
@@ -97,32 +208,45 @@ async function handleTokenRefresh(): Promise<string | null> {
   isRefreshing = true;
   refreshPromise = refreshTokens();
 
-  const success = await refreshPromise;
+  const result = await refreshPromise;
 
   isRefreshing = false;
   refreshPromise = null;
 
-  if (success) {
+  if (result === 'success') {
     const newToken = useAuthStore.getState().tokens?.accessToken;
-    // Process queued requests
     failedQueue.forEach(({ resolve }) => {
       if (newToken) resolve(newToken);
     });
     failedQueue = [];
     return newToken || null;
+  } else if (result === 'network_error') {
+    // Network error — don't clear auth. The user is still authenticated,
+    // they just can't reach the server right now.
+    const error = new Error('Network error');
+    failedQueue.forEach(({ reject }) => reject(error));
+    failedQueue = [];
+    return null;
   } else {
-    // Refresh failed - logout user
+    // UI's refresh token is revoked (token rotation by Agent).
+    // Before giving up, try to get valid tokens from the Agent via IPC.
+    const agentToken = await tryGetAgentTokens();
+    if (agentToken) {
+      failedQueue.forEach(({ resolve }) => resolve(agentToken));
+      failedQueue = [];
+      return agentToken;
+    }
+
+    // Agent also doesn't have valid tokens — truly expired session
     const error = new Error('Session expired');
     failedQueue.forEach(({ reject }) => reject(error));
     failedQueue = [];
-
-    // Dispatch session expired event before redirect
-    dispatchSessionExpired('Sua sessão expirou. Por favor, faça login novamente.');
-
-    // Clear auth and redirect to login
+    if (!sessionExpiredDispatched) {
+      sessionExpiredDispatched = true;
+      dispatchSessionExpired('Sua sessão expirou. Por favor, faça login novamente.');
+      dispatchNavigate('/login', true);
+    }
     useAuthStore.getState().clearAuth();
-    window.location.href = '/login';
-
     return null;
   }
 }
@@ -154,7 +278,18 @@ export async function apiClient<T>(
   }
 
   // Build URL
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+  const url = endpoint.startsWith('http') ? endpoint : `${apiBase()}${endpoint}`;
+
+  const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+  const getRetryAfterMs = (response: Response) => {
+    const raw = response.headers.get('Retry-After');
+    if (!raw) return 1000;
+    const asSeconds = Number(raw);
+    if (!Number.isNaN(asSeconds)) return Math.max(0, asSeconds) * 1000;
+    const asDate = Date.parse(raw);
+    if (!Number.isNaN(asDate)) return Math.max(0, asDate - Date.now());
+    return 1000;
+  };
 
   // Make request
   const makeRequest = async (token?: string): Promise<Response> => {
@@ -169,19 +304,42 @@ export async function apiClient<T>(
     });
   };
 
-  let response = await makeRequest(accessToken);
+  const max429Retries = 3;
+  let attempt429 = 0;
+  let response: Response;
 
-  // Handle 401 - try refresh
-  if (response.status === 401 && !skipAuth) {
-    const newToken = await handleTokenRefresh();
+  while (true) {
+    response = await makeRequest(accessToken);
 
-    if (newToken) {
-      // Retry with new token
-      response = await makeRequest(newToken);
-    } else {
-      // Refresh failed, throw error (already handled redirect)
-      throw new Error('Session expired. Please login again.');
+    // Handle 401 - try refresh
+    if (response.status === 401 && !skipAuth) {
+      const newToken = await handleTokenRefresh();
+
+      if (newToken) {
+        accessToken = newToken;
+        // Retry with new token
+        response = await makeRequest(newToken);
+      } else if (useAuthStore.getState().isAuthenticated) {
+        // Refresh failed due to network error — auth state is preserved, just throw
+        throw new Error('Network error. Please check your connection and try again.');
+      } else {
+        // Refresh failed due to auth error — already redirected to login
+        throw new Error('Session expired. Please login again.');
+      }
     }
+
+    // Handle 429 (rate limiting) with bounded backoff; GET-only to avoid double-posting.
+    if (response.status === 429 && method === 'GET' && attempt429 < max429Retries) {
+      attempt429 += 1;
+      const delayMs = Math.min(getRetryAfterMs(response), 30000);
+      console.warn(`[apiClient] 429 Rate limit. Retrying in ${delayMs}ms (attempt ${attempt429}/${max429Retries})`, {
+        endpoint: url,
+      });
+      await sleep(delayMs);
+      continue;
+    }
+
+    break;
   }
 
   // Handle response
@@ -191,7 +349,6 @@ export async function apiClient<T>(
 
     try {
       const errorData = await response.json();
-      console.error('[apiClient] Error response body:', JSON.stringify(errorData, null, 2));
       errorMessage = errorData.message
         || errorData.title
         || errorData.error

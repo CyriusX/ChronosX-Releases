@@ -13,6 +13,9 @@ public sealed class IdlePeriod
     public DateTime EndedAt { get; private set; }
     public int DurationSeconds { get; private set; }
     public string IdempotencyKey { get; private set; } = string.Empty;
+    public string? JustificationReasonCode { get; private set; }
+    public string? JustificationNote { get; private set; }
+    public DateTime? JustificationSubmittedAtUtc { get; private set; }
     public DateTime CreatedAt { get; private set; }
 
     // Navigation properties
@@ -48,5 +51,18 @@ public sealed class IdlePeriod
             IdempotencyKey = idempotencyKey,
             CreatedAt = DateTime.UtcNow
         };
+    }
+
+    public void SubmitJustification(string reasonCode, string? note, DateTime submittedAtUtc)
+    {
+        if (string.IsNullOrWhiteSpace(reasonCode))
+            throw new ArgumentException("Reason code is required", nameof(reasonCode));
+
+        if (!string.IsNullOrWhiteSpace(note) && note.Length > 500)
+            throw new ArgumentOutOfRangeException(nameof(note), "Idle justification note must be 500 characters or fewer");
+
+        JustificationReasonCode = reasonCode.Trim();
+        JustificationNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        JustificationSubmittedAtUtc = submittedAtUtc;
     }
 }

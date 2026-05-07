@@ -31,6 +31,7 @@ import {
   ProductivityTrend,
   TopAppsSection,
   TopPathsSection,
+  TopFoldersSection,
   CategoryDonut,
   DistractionSection,
   ProjectTasksAccordion,
@@ -378,6 +379,9 @@ export default function Reports() {
               </motion.div>
               <motion.div variants={fadeUp} className="h-full">
                 <TopPathsSection paths={data.topPaths?.paths ?? []} isLoading={isLoading} title={t('reports.topPaths')} maxItems={10} />
+              </motion.div>
+              <motion.div variants={fadeUp} className="h-full">
+                <TopFoldersSection folders={data.topFolders?.folders ?? []} isLoading={isLoading} title={t('reports.topFolders')} maxItems={10} />
               </motion.div>
               <motion.div variants={fadeUp} className="h-full">
                 <DistractionSection data={data.distractionStats} isLoading={isLoading} title={t('reports.distractionAnalysis')} />

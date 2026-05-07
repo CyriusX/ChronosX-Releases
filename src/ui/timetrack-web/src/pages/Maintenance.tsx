@@ -18,6 +18,7 @@ import {
   getDeviceMetrics,
   getDeviceEvents,
   getDeviceInfo,
+  setDeviceDevToolsAccess,
   sendRemoteCommand,
   getCommandHistory,
   clearDeviceEvents,
@@ -417,6 +418,7 @@ export default function Maintenance() {
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfoResponse | null>(null);
   const [commandHistory, setCommandHistory] = useState<CommandHistoryItem[]>([]);
   const [sendingCommand, setSendingCommand] = useState<string | null>(null);
+  const [settingDevTools, setSettingDevTools] = useState(false);
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [notifTitle, setNotifTitle] = useState('');
   const [notifBody, setNotifBody] = useState('');
@@ -569,6 +571,23 @@ export default function Maintenance() {
       setNotifBody('');
     }
   }, [user?.orgId, selectedDeviceId, fetchDeviceInfo]);
+
+  const handleToggleDevTools = useCallback(async () => {
+    if (!user?.orgId || !selectedDeviceId || !deviceInfo) return;
+    const until = deviceInfo.devToolsEnabledUntilUtc;
+    const currentlyEnabled = !!until && new Date(until).getTime() > Date.now();
+    const nextEnabled = !currentlyEnabled;
+
+    setSettingDevTools(true);
+    try {
+      await setDeviceDevToolsAccess(user.orgId, selectedDeviceId, nextEnabled);
+      fetchDeviceInfo(selectedDeviceId);
+    } catch (err) {
+      console.error('Failed to set DevTools access:', err);
+    } finally {
+      setSettingDevTools(false);
+    }
+  }, [user?.orgId, selectedDeviceId, deviceInfo, fetchDeviceInfo]);
 
   // Delete device
   const handleDeleteDevice = useCallback(async (deviceId: string) => {
@@ -978,6 +997,29 @@ export default function Maintenance() {
                 <Zap className="w-4 h-4 text-[#8B5CF6]" />
                 <h2 className="text-[14px] font-medium text-[rgba(245,247,251,0.9)]">Comandos Remotos</h2>
               </div>
+
+              {deviceInfo && (
+                <div className="mb-3 flex items-center justify-between gap-3 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold text-[rgba(245,247,251,0.9)]">DevTools</p>
+                    {deviceInfo.devToolsEnabledUntilUtc && new Date(deviceInfo.devToolsEnabledUntilUtc).getTime() > Date.now() ? (
+                      <p className="text-[10px] text-[rgba(245,247,251,0.45)] truncate">
+                        Habilitado ate {new Date(deviceInfo.devToolsEnabledUntilUtc).toLocaleString('pt-BR')}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-[rgba(245,247,251,0.45)]">Desabilitado</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleToggleDevTools}
+                    disabled={settingDevTools || sendingCommand !== null}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-[rgba(139,92,246,0.35)] text-[#c4b5fd] bg-[rgba(139,92,246,0.08)] hover:bg-[rgba(139,92,246,0.14)] transition-colors disabled:opacity-40 flex-shrink-0"
+                  >
+                    {settingDevTools ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : null}
+                    {deviceInfo.devToolsEnabledUntilUtc && new Date(deviceInfo.devToolsEnabledUntilUtc).getTime() > Date.now() ? 'Desabilitar' : 'Habilitar'}
+                  </button>
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-2 mb-4">
                 {/* Stop Tracking */}

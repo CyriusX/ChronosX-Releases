@@ -46,6 +46,17 @@ public sealed class LocalSettings
     public int? WorkGoalSeconds { get; private set; }
 
     /// <summary>
+    /// Allows opening DevTools / context menu inside the desktop WebView host.
+    /// Defaults to disabled and is controlled remotely by an admin.
+    /// </summary>
+    public bool DevToolsEnabled { get; private set; }
+
+    /// <summary>
+    /// Optional expiry timestamp for DevTools access. When expired, DevTools should be treated as disabled.
+    /// </summary>
+    public DateTime? DevToolsEnabledUntilUtc { get; private set; }
+
+    /// <summary>
     /// Timestamp da última atualização
     /// </summary>
     public DateTime UpdatedAt { get; private set; }
@@ -63,6 +74,8 @@ public sealed class LocalSettings
             AutoResumeNotificationEnabled = true,
             NotificationSoundsEnabled = true,
             Language = "pt-BR",
+            DevToolsEnabled = false,
+            DevToolsEnabledUntilUtc = null,
             UpdatedAt = DateTime.UtcNow
         };
     }
@@ -157,6 +170,27 @@ public sealed class LocalSettings
         return settings;
     }
 
+    public LocalSettings WithDevToolsAccess(bool enabled, DateTime? enabledUntilUtc)
+    {
+        var now = DateTime.UtcNow;
+        var effectiveEnabled = enabled;
+        if (enabledUntilUtc.HasValue && enabledUntilUtc.Value <= now)
+        {
+            effectiveEnabled = false;
+            enabledUntilUtc = null;
+        }
+
+        var effectiveUntil = effectiveEnabled ? enabledUntilUtc : null;
+        if (effectiveEnabled == DevToolsEnabled && effectiveUntil == DevToolsEnabledUntilUtc)
+            return this;
+
+        var settings = Clone();
+        settings.DevToolsEnabled = effectiveEnabled;
+        settings.DevToolsEnabledUntilUtc = effectiveUntil;
+        settings.UpdatedAt = DateTime.UtcNow;
+        return settings;
+    }
+
     private LocalSettings Clone()
     {
         return new LocalSettings
@@ -167,6 +201,8 @@ public sealed class LocalSettings
             Language = this.Language,
             IdleThresholdSeconds = this.IdleThresholdSeconds,
             WorkGoalSeconds = this.WorkGoalSeconds,
+            DevToolsEnabled = this.DevToolsEnabled,
+            DevToolsEnabledUntilUtc = this.DevToolsEnabledUntilUtc,
             UpdatedAt = this.UpdatedAt
         };
     }

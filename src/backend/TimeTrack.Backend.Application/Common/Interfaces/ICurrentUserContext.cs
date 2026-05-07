@@ -12,5 +12,6 @@ public interface ICurrentUserContext
     Guid? DeviceId { get; }
     UserRole? Role { get; }
     bool IsAuthenticated { get; }
+    bool IsPlatformAdmin { get; }
     bool IsInRole(UserRole role);
 }

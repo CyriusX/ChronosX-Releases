@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
@@ -20,6 +21,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
     public string QueryName => "GetRecentActivities";
 
     private readonly IActivitySessionRepository _sessionRepository;
+    private readonly IIdlePeriodRepository _idlePeriodRepository;
     private readonly IAppCategoryCacheRepository _categoryCacheRepository;
     private readonly IBackendReportsClient _reportsClient;
     private readonly ICurrentUserContext _userContext;
@@ -41,12 +43,14 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     public GetRecentActivitiesQueryHandler(
         IActivitySessionRepository sessionRepository,
+        IIdlePeriodRepository idlePeriodRepository,
         IAppCategoryCacheRepository categoryCacheRepository,
         IBackendReportsClient reportsClient,
         ICurrentUserContext userContext,
         ILogger<GetRecentActivitiesQueryHandler> logger)
     {
         _sessionRepository = sessionRepository;
+        _idlePeriodRepository = idlePeriodRepository;
         _categoryCacheRepository = categoryCacheRepository;
         _reportsClient = reportsClient;
         _userContext = userContext;
@@ -62,6 +66,10 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         try
         {
             var targetDate = ExtractDateOrToday(request);
+            if (targetDate.Date == DateTime.Today)
+            {
+                return await BuildFromLocalSqlite(request.RequestId, userId.Value, targetDate, ct);
+            }
 
             // Always fetch from cloud first — it is the authoritative, safe copy.
             // If the backend is unreachable, BuildFromBackendApi falls back to local SQLite.
@@ -80,6 +88,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
     private async Task<IpcResponse> BuildFromLocalSqlite(int requestId, Guid userId, DateTime targetDate, CancellationToken ct)
     {
         var sessions = await _sessionRepository.GetByDateAsync(userId, targetDate, ct);
+        var idlePeriods = await _idlePeriodRepository.GetByDateAsync(userId, targetDate, ct);
 
         // Build override lookup from local cache — never let failure break activities
         CategoryLookup categoryLookup;
@@ -99,7 +108,10 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
             .ToList();
 
         var appColors = AssignAppColors(filtered);
-        var blocks = MergeConsecutiveByExe(filtered, appColors, categoryLookup);
+        var blocks = MergeConsecutiveByExe(filtered, appColors, categoryLookup)
+            .Concat(BuildLocalIdleBlocks(idlePeriods))
+            .OrderBy(GetBlockStartUtc)
+            .ToArray();
 
         return SuccessResponse(requestId, new { activities = blocks });
     }
@@ -124,7 +136,10 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
                     .ToList();
 
                 var appColors = AssignCloudAppColors(filtered);
-                var blocks = MergeConsecutiveCloudSessions(filtered, appColors);
+                var blocks = MergeConsecutiveCloudSessions(filtered, appColors)
+                    .Concat(BuildCloudIdleBlocks(result.IdlePeriods))
+                    .OrderBy(GetBlockStartUtc)
+                    .ToArray();
 
                 return SuccessResponse(requestId, new { activities = blocks });
             }
@@ -140,6 +155,29 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
         // Fallback: try local SQLite (may have data if cleanup hasn't run)
         return await BuildFromLocalSqlite(requestId, userId, targetDate, ct);
+    }
+
+    private static DateTime GetBlockStartUtc(object block)
+    {
+        try
+        {
+            var startUtcProp = block.GetType().GetProperty("startUtc");
+            if (startUtcProp?.GetValue(block) is string startUtcStr
+                && DateTime.TryParse(
+                    startUtcStr,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind,
+                    out var startUtc))
+            {
+                return startUtc;
+            }
+        }
+        catch
+        {
+            // Ignore and fall through
+        }
+
+        return DateTime.MinValue;
     }
 
     // ============================================================================
@@ -192,6 +230,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
             result.Add(new
             {
                 id = Guid.NewGuid().ToString(),
+                kind = "activity",
                 name = currentAppName,
                 startUtc = currentStart.ToString("o"),
                 endUtc = currentEnd.ToString("o"),
@@ -232,6 +271,54 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
         FlushBlock();
         return result.ToArray();
+    }
+
+    private static object[] BuildCloudIdleBlocks(IEnumerable<DailyIdlePeriod> idlePeriods)
+    {
+        return idlePeriods
+            .OrderBy(i => i.StartedAt)
+            .Select(i => new
+            {
+                id = i.Id.ToString(),
+                kind = "idle",
+                name = "Idle",
+                startUtc = i.StartedAt.ToString("o"),
+                endUtc = i.EndedAt.ToString("o"),
+                duration = i.DurationSeconds,
+                productivity = "idle",
+                subcategory = "idle",
+                color = "#64748b",
+                reasonCode = i.ReasonCode,
+                note = i.Note,
+                submittedAtUtc = i.SubmittedAtUtc?.ToString("o"),
+                tabs = Array.Empty<object>()
+            })
+            .Cast<object>()
+            .ToArray();
+    }
+
+    private static object[] BuildLocalIdleBlocks(IEnumerable<IdlePeriod> idlePeriods)
+    {
+        return idlePeriods
+            .OrderBy(i => i.Period.StartUtc)
+            .Select(i => new
+            {
+                id = i.Id.ToString(),
+                kind = "idle",
+                name = "Idle",
+                startUtc = i.Period.StartUtc.ToString("o"),
+                endUtc = i.Period.EndUtc.ToString("o"),
+                duration = (long)i.Duration.TotalSeconds,
+                productivity = "idle",
+                subcategory = "idle",
+                color = "#64748b",
+                reasonCode = i.JustificationReasonCode,
+                note = i.JustificationNote,
+                submittedAtUtc = i.JustificationSubmittedAtUtc?.ToString("o"),
+                tabs = Array.Empty<object>()
+            })
+            .Cast<object>()
+            .ToArray();
     }
 
     private static void AddCloudTab(List<CloudTabInfo> tabs, DailyActivitySession session)

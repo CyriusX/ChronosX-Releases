@@ -80,6 +80,13 @@ public interface ISyncTransport
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Envia um batch de justificativas de idle para o backend
+    /// </summary>
+    Task<SyncResult> SendIdleJustificationsAsync(
+        IEnumerable<OutboxItem> items,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Envia um batch de focus sessions para o backend
     /// </summary>
     Task<SyncResult> SendFocusSessionsAsync(

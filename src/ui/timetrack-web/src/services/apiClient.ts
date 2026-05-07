@@ -10,12 +10,16 @@ import { useAuthStore } from '../stores/authStore';
 
 // Get API URL from runtime config (set by config.js) or fallback to default
 const getApiBaseUrl = () => {
+  let url: string | undefined;
   // Check for runtime config (injected by config.js)
   if (typeof window !== 'undefined' && window.__APP_CONFIG__?.VITE_API_URL) {
-    return window.__APP_CONFIG__.VITE_API_URL;
+    url = window.__APP_CONFIG__.VITE_API_URL;
   }
   // Fallback to build-time env var (for development)
-  return import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+  if (!url) {
+    url = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+  }
+  return url.replace(/\/+$/, '');
 };
 
 const API_BASE = getApiBaseUrl();
@@ -135,53 +139,83 @@ export async function apiClient<T>(
   // Build URL
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
 
-  try {
-    const response = await fetch(url, {
-      method,
-      headers: requestHeaders,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+  const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+  const getRetryAfterMs = (response: Response) => {
+    const raw = response.headers.get('Retry-After');
+    if (!raw) return 1000;
+    const asSeconds = Number(raw);
+    if (!Number.isNaN(asSeconds)) return Math.max(0, asSeconds) * 1000;
+    const asDate = Date.parse(raw);
+    if (!Number.isNaN(asDate)) return Math.max(0, asDate - Date.now());
+    return 1000;
+  };
 
-    // Handle 401 - try to refresh token
-    if (response.status === 401 && !skipAuth) {
-      const refreshed = await refreshAccessToken();
-      if (refreshed) {
-        // Retry with new token
-        const newTokens = useAuthStore.getState().tokens;
-        if (newTokens?.accessToken) {
-          requestHeaders['Authorization'] = `Bearer ${newTokens.accessToken}`;
-          const retryResponse = await fetch(url, {
-            method,
-            headers: requestHeaders,
-            body: body ? JSON.stringify(body) : undefined,
-          });
-          if (retryResponse.ok) {
-            return retryResponse.json();
+  try {
+    const max429Retries = 3;
+    let attempt429 = 0;
+    let response: Response;
+
+    while (true) {
+      response = await fetch(url, {
+        method,
+        headers: requestHeaders,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+      // Handle 401 - try to refresh token
+      if (response.status === 401 && !skipAuth) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          // Retry with new token
+          const newTokens = useAuthStore.getState().tokens;
+          if (newTokens?.accessToken) {
+            requestHeaders['Authorization'] = `Bearer ${newTokens.accessToken}`;
+            response = await fetch(url, {
+              method,
+              headers: requestHeaders,
+              body: body ? JSON.stringify(body) : undefined,
+            });
           }
         }
+
+        if (response.status === 401) {
+          // Refresh failed - clear auth
+          useAuthStore.getState().clearAuth();
+          dispatchSessionExpired('Sessão expirada');
+          throw new Error('Sessão expirada');
+        }
       }
-      // Refresh failed - clear auth
-      useAuthStore.getState().clearAuth();
-      dispatchSessionExpired('Sessão expirada');
-      throw new Error('Sessão expirada');
+
+      // Handle 429 with bounded backoff (GET-only)
+      if (response.status === 429 && method === 'GET' && attempt429 < max429Retries) {
+        attempt429 += 1;
+        const delayMs = Math.min(getRetryAfterMs(response), 30000);
+        console.warn(`[apiClient] 429 Rate limit. Retrying in ${delayMs}ms (attempt ${attempt429}/${max429Retries})`, {
+          endpoint: url,
+        });
+        await sleep(delayMs);
+        continue;
+      }
+
+      break;
     }
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+    if (!response!.ok) {
+      const errorData = await response!.json().catch(() => ({}));
       const error: ApiError = {
-        message: errorData.message || errorData.error || `HTTP error ${response.status}`,
-        status: response.status,
+        message: errorData.message || errorData.error || `HTTP error ${response!.status}`,
+        status: response!.status,
         code: errorData.code,
       };
       throw error;
     }
 
     // Handle 204 No Content
-    if (response.status === 204) {
+    if (response!.status === 204) {
       return undefined as T;
     }
 
-    return response.json();
+    return response!.json();
   } catch (error) {
     console.error('API Error:', error);
     throw error;

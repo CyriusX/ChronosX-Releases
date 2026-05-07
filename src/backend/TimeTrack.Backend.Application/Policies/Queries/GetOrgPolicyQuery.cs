@@ -57,6 +57,7 @@ public sealed class GetOrgPolicyQueryHandler : IRequestHandler<GetOrgPolicyQuery
             },
             AppExclusions = new List<string>(),
             IdleThresholdSeconds = 180,
+            IdleJustificationPromptThresholdSeconds = null,
             RetentionDays = 90,
             FocusMode = new FocusModeDto
             {
@@ -103,6 +104,7 @@ public sealed class GetOrgPolicyQueryHandler : IRequestHandler<GetOrgPolicyQuery
                 : new WorkHoursDto(),
             AppExclusions = appExclusions ?? new List<string>(),
             IdleThresholdSeconds = policy.IdleThresholdSeconds,
+            IdleJustificationPromptThresholdSeconds = policy.IdleJustificationPromptThresholdSeconds,
             RetentionDays = policy.RetentionDays,
             FocusMode = focusMode != null
                 ? new FocusModeDto

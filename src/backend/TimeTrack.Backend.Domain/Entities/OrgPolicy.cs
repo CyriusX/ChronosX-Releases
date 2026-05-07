@@ -34,6 +34,7 @@ public sealed class OrgPolicy
 
     // Simple fields
     public int IdleThresholdSeconds { get; private set; } = 180;
+    public int? IdleJustificationPromptThresholdSeconds { get; private set; }
     public int RetentionDays { get; private set; } = 90;
 
     public DateTime CreatedAt { get; private set; }
@@ -97,6 +98,25 @@ public sealed class OrgPolicy
         int? retentionDays,
         string? focusModeJson = null)
     {
+        Update(
+            workHoursJson,
+            appExclusionsJson,
+            idleThresholdSeconds,
+            idleJustificationPromptThresholdSpecified: false,
+            idleJustificationPromptThresholdSeconds: null,
+            retentionDays,
+            focusModeJson);
+    }
+
+    public void Update(
+        string? workHoursJson,
+        string? appExclusionsJson,
+        int? idleThresholdSeconds,
+        bool idleJustificationPromptThresholdSpecified,
+        int? idleJustificationPromptThresholdSeconds,
+        int? retentionDays,
+        string? focusModeJson = null)
+    {
         if (workHoursJson != null)
             WorkHoursJson = workHoursJson;
 
@@ -105,6 +125,9 @@ public sealed class OrgPolicy
 
         if (idleThresholdSeconds.HasValue)
             IdleThresholdSeconds = idleThresholdSeconds.Value;
+
+        if (idleJustificationPromptThresholdSpecified)
+            IdleJustificationPromptThresholdSeconds = idleJustificationPromptThresholdSeconds;
 
         if (retentionDays.HasValue)
             RetentionDays = retentionDays.Value;

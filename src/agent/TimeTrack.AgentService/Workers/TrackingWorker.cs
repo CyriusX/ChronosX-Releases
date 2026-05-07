@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Application.UseCases.RecordActiveWindow;
+using TimeTrack.Agent.Application.UseCases.IdleJustification;
 using TimeTrack.Agent.Application.UseCases.RecordIdlePeriod;
 using TimeTrack.Agent.Application.UseCases.TrackingControl;
 using TimeTrack.Agent.Contracts.Providers;
@@ -25,8 +26,10 @@ public sealed class TrackingWorker : BackgroundService
     private readonly ITrackingStateRepository _stateRepository;
     private readonly ILocalSettingsRepository _localSettingsRepository;
     private readonly ICurrentUserContext _userContext;
+    private readonly IOrgPolicyProvider _orgPolicyProvider;
     private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
     private readonly RecordIdlePeriodUseCase _recordIdlePeriodUseCase;
+    private readonly MarkIdleJustificationPendingUseCase _markIdleJustificationPendingUseCase;
     private readonly TrackingControlUseCase _trackingControl;
     private readonly IIpcServer _ipcServer;
 
@@ -39,6 +42,15 @@ public sealed class TrackingWorker : BackgroundService
     private DateTime _lastCycleUtc = DateTime.UtcNow;
     private const int SleepDetectionGapMs = 30_000; // Gap > 30s = assume sleep/resume
 
+    // Diagnostics for "Top Folders" (File Explorer / Finder) extraction reliability.
+    private int _folderFilePathMissingStreak;
+    private string? _folderFilePathMissingAppKey;
+    private bool _folderFilePathMissingLogged;
+
+    // Diagnostics/UX: Automation permission required for Safari tab details (AppleScript).
+    private DateTime _lastBrowserAutomationPermissionEventAtUtc = DateTime.MinValue;
+    private string? _lastBrowserAutomationPermissionApp;
+
     public TrackingWorker(
         ILogger<TrackingWorker> logger,
         AgentSettings settings,
@@ -47,8 +59,10 @@ public sealed class TrackingWorker : BackgroundService
         ITrackingStateRepository stateRepository,
         ILocalSettingsRepository localSettingsRepository,
         ICurrentUserContext userContext,
+        IOrgPolicyProvider orgPolicyProvider,
         RecordActiveWindowUseCase recordActiveWindowUseCase,
         RecordIdlePeriodUseCase recordIdlePeriodUseCase,
+        MarkIdleJustificationPendingUseCase markIdleJustificationPendingUseCase,
         TrackingControlUseCase trackingControl,
         IIpcServer ipcServer)
     {
@@ -59,8 +73,10 @@ public sealed class TrackingWorker : BackgroundService
         _stateRepository = stateRepository;
         _localSettingsRepository = localSettingsRepository;
         _userContext = userContext;
+        _orgPolicyProvider = orgPolicyProvider;
         _recordActiveWindowUseCase = recordActiveWindowUseCase;
         _recordIdlePeriodUseCase = recordIdlePeriodUseCase;
+        _markIdleJustificationPendingUseCase = markIdleJustificationPendingUseCase;
         _trackingControl = trackingControl;
         _ipcServer = ipcServer;
 
@@ -241,6 +257,13 @@ public sealed class TrackingWorker : BackgroundService
 
         _logger.LogDebug("Tracking ativo. Executando ciclo de captura...");
 
+        // Resolve effective idle threshold (org policy -> local override -> agent default)
+        var localSettings = await _localSettingsRepository.GetAsync(cancellationToken);
+        var orgIdleThreshold = await _orgPolicyProvider.GetIdleThresholdSecondsAsync(cancellationToken);
+        var idleJustificationPromptThresholdSecs = await _orgPolicyProvider.GetIdleJustificationPromptThresholdSecondsAsync(cancellationToken);
+        var effectiveIdleThresholdSecs = orgIdleThreshold ?? localSettings.IdleThresholdSeconds ?? _settings.IdleThresholdSeconds;
+        var effectiveIdleThreshold = TimeSpan.FromSeconds(effectiveIdleThresholdSecs);
+
         // 2a. Sleep/wake detection — runs before idle check.
         // TickCount64 (and Task.Delay) freeze during system sleep. When the machine
         // wakes, the next cycle fires almost immediately but the wall-clock gap since
@@ -262,7 +285,7 @@ public sealed class TrackingWorker : BackgroundService
                     {
                         StartedAt = _lastCycleUtc,
                         EndedAt = cycleNow,
-                        ThresholdSeconds = _settings.IdleThresholdSeconds,
+                        ThresholdSeconds = effectiveIdleThresholdSecs,
                         IsSystemDetected = true
                     },
                     cancellationToken);
@@ -278,13 +301,10 @@ public sealed class TrackingWorker : BackgroundService
         }
         _lastCycleUtc = cycleNow;
 
-        // 2. Verificar idle (user setting overrides agent default)
+        // 2. Verificar idle (org policy overrides local override)
         var idleTime = await _idleDetector.GetIdleTimeAsync(cancellationToken);
-        var localSettings = await _localSettingsRepository.GetAsync(cancellationToken);
-        var idleThresholdSecs = localSettings.IdleThresholdSeconds ?? _settings.IdleThresholdSeconds;
-        var idleThreshold = TimeSpan.FromSeconds(idleThresholdSecs);
 
-        if (idleTime.HasValue && idleTime.Value >= idleThreshold)
+        if (idleTime.HasValue && idleTime.Value >= effectiveIdleThreshold)
         {
             if (!_isIdle)
             {
@@ -308,11 +328,11 @@ public sealed class TrackingWorker : BackgroundService
             return;
         }
 
-        // 3. Se estava idle e retornou - salvar o período de inatividade
-        if (_isIdle)
-        {
-            var idleEndedAt = DateTime.UtcNow;
-            var idleDuration = idleEndedAt - _idleStartedAt;
+            // 3. Se estava idle e retornou - salvar o período de inatividade
+            if (_isIdle)
+            {
+                var idleEndedAt = DateTime.UtcNow;
+                var idleDuration = idleEndedAt - _idleStartedAt!.Value;
 
             _logger.LogInformation(
                 "Usuário retornou de idle após {Duration}. Salvando período...",
@@ -321,12 +341,12 @@ public sealed class TrackingWorker : BackgroundService
             // Salvar o período de idle no banco com sincronização
             try
             {
-                await _recordIdlePeriodUseCase.ExecuteAsync(
+                var idleResult = await _recordIdlePeriodUseCase.ExecuteAsync(
                     new RecordIdlePeriodRequest
                     {
                         StartedAt = _idleStartedAt!.Value,
                         EndedAt = idleEndedAt,
-                        ThresholdSeconds = _settings.IdleThresholdSeconds,
+                        ThresholdSeconds = effectiveIdleThresholdSecs,
                         IsSystemDetected = true
                     },
                     cancellationToken);
@@ -334,6 +354,27 @@ public sealed class TrackingWorker : BackgroundService
                 _logger.LogInformation(
                     "Período de idle salvo: {Duration:mm\\:ss}",
                     idleDuration);
+
+                if (idleJustificationPromptThresholdSecs.HasValue &&
+                    idleDuration.TotalSeconds >= idleJustificationPromptThresholdSecs.Value)
+                {
+                    await _markIdleJustificationPendingUseCase.ExecuteAsync(idleResult.IdlePeriodId, cancellationToken);
+
+                    if (_ipcServer.IsClientConnected)
+                    {
+                        await _ipcServer.SendEventAsync(new IpcEvent
+                        {
+                            EventType = "showIdleJustificationPrompt",
+                            Payload = new
+                            {
+                                idlePeriodId = idleResult.IdlePeriodId,
+                                startedAt = _idleStartedAt!.Value.ToString("O"),
+                                endedAt = idleEndedAt.ToString("O"),
+                                durationSeconds = (int)idleDuration.TotalSeconds
+                            }
+                        }, cancellationToken);
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -356,6 +397,9 @@ public sealed class TrackingWorker : BackgroundService
             return;
         }
 
+        TrackFolderExtractionBreadcrumb(activeWindow);
+        await BroadcastBrowserAutomationPermissionIfNeededAsync(activeWindow, cancellationToken);
+
         // 5. Registrar atividade via Use Case
         var request = new RecordActiveWindowRequest
         {
@@ -372,6 +416,94 @@ public sealed class TrackingWorker : BackgroundService
             "Ciclo concluído: {App} - {Title}",
             activeWindow.DisplayName,
             activeWindow.WindowTitle ?? "sem título");
+    }
+
+    private void TrackFolderExtractionBreadcrumb(ActiveWindowInfo activeWindow)
+    {
+        var exePath = activeWindow.ExePath ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(exePath))
+        {
+            ResetFolderBreadcrumb();
+            return;
+        }
+
+        var isExplorer = exePath.EndsWith("explorer.exe", StringComparison.OrdinalIgnoreCase);
+        var isFinder = exePath.Contains("Finder.app", StringComparison.OrdinalIgnoreCase);
+        if (!isExplorer && !isFinder)
+        {
+            ResetFolderBreadcrumb();
+            return;
+        }
+
+        var appKey = exePath;
+
+        if (!string.Equals(_folderFilePathMissingAppKey, appKey, StringComparison.OrdinalIgnoreCase))
+        {
+            _folderFilePathMissingAppKey = appKey;
+            _folderFilePathMissingStreak = 0;
+            _folderFilePathMissingLogged = false;
+        }
+
+        if (string.IsNullOrWhiteSpace(activeWindow.FilePath))
+        {
+            _folderFilePathMissingStreak++;
+
+            // Once per streak: if we still can't extract a folder path after ~10 cycles,
+            // Top Folders will show as empty; emit a breadcrumb to speed up diagnosis.
+            if (!_folderFilePathMissingLogged && _folderFilePathMissingStreak >= 10)
+            {
+                _folderFilePathMissingLogged = true;
+                _logger.LogWarning(
+                    "TopFolders breadcrumb: active {App} window but FilePath extraction is empty for {Streak} cycles.",
+                    isFinder ? "Finder" : "File Explorer",
+                    _folderFilePathMissingStreak);
+            }
+
+            return;
+        }
+
+        ResetFolderBreadcrumb();
+    }
+
+    private async Task BroadcastBrowserAutomationPermissionIfNeededAsync(ActiveWindowInfo activeWindow, CancellationToken ct)
+    {
+        var app = activeWindow.BrowserAutomationPermissionRequiredForApp;
+        if (string.IsNullOrWhiteSpace(app))
+            return;
+
+        if (!_ipcServer.IsClientConnected)
+            return;
+
+        // Rate limit: once per app per ~10 minutes.
+        var now = DateTime.UtcNow;
+        if (string.Equals(_lastBrowserAutomationPermissionApp, app, StringComparison.OrdinalIgnoreCase) &&
+            (now - _lastBrowserAutomationPermissionEventAtUtc) < TimeSpan.FromMinutes(10))
+        {
+            return;
+        }
+
+        _lastBrowserAutomationPermissionApp = app;
+        _lastBrowserAutomationPermissionEventAtUtc = now;
+
+        try
+        {
+            await _ipcServer.SendEventAsync(new IpcEvent
+            {
+                EventType = "browserAutomationPermissionRequired",
+                Payload = new { app }
+            }, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to broadcast browserAutomationPermissionRequired");
+        }
+    }
+
+    private void ResetFolderBreadcrumb()
+    {
+        _folderFilePathMissingStreak = 0;
+        _folderFilePathMissingAppKey = null;
+        _folderFilePathMissingLogged = false;
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

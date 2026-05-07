@@ -2,56 +2,56 @@ import AppKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let startMinimized = CommandLine.arguments.contains("--start-minimized")
+
+        // Enforce single-instance. If another instance is already running, activate it (unless
+        // this is an auto-start minimized launch) and terminate this process.
+        if let bundleId = Bundle.main.bundleIdentifier {
+            let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId)
+                .filter { $0.processIdentifier != NSRunningApplication.current.processIdentifier }
+            if !others.isEmpty {
+                if !startMinimized {
+                    others.first?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                }
+                NSApp.terminate(nil)
+                return
+            }
+        }
+
+        // When running via `swift run` (not an app bundle), macOS may treat this as a background
+        // process: no Dock icon and the window may not receive keyboard focus (keystrokes go to the
+        // previously active app, e.g. VS Code). Force a regular activation policy.
+        NSApp.setActivationPolicy(.regular)
+        if !startMinimized {
+            NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        }
+
         // Ensure the background agent service is running. This covers the case
         // where the user launched the app directly (e.g. double-click, Spotlight)
         // without the LaunchAgent having started the service first.
-        ensureAgentRunning()
+        AgentLauncher.shared.ensureRunning()
+
+        if startMinimized {
+            // Keep the app running (menu bar item active) but don't show the main window.
+            for delay in [0.2, 0.6, 1.2] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    NSApp.windows.first?.orderOut(nil)
+                }
+            }
+        } else {
+            // Bring the main window front and give it focus once SwiftUI has created it.
+            for delay in [0.1, 0.4, 1.0] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                    NSApp.windows.first?.makeKeyAndOrderFront(nil)
+                }
+            }
+        }
     }
 
     // MARK: - Agent lifecycle
 
-    /// Launches the .NET background agent if it is not already running.
-    private func ensureAgentRunning() {
-        let agentPath = Bundle.main.bundlePath
-            .appending("/Contents/Resources/agent/TimeTrack.MacOSAgentService")
-
-        guard FileManager.default.fileExists(atPath: agentPath) else {
-            NSLog("[AppDelegate] Agent executable not found at: %@", agentPath)
-            return
-        }
-
-        // pgrep exits 0 if at least one matching process is found.
-        let check = Process()
-        check.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        check.arguments = ["-f", "TimeTrack.MacOSAgentService"]
-        check.standardOutput = Pipe()   // discard output
-        check.standardError  = Pipe()
-        try? check.run()
-        check.waitUntilExit()
-
-        guard check.terminationStatus != 0 else {
-            NSLog("[AppDelegate] Agent is already running — skipping launch")
-            return
-        }
-
-        NSLog("[AppDelegate] Agent not running — launching %@", agentPath)
-        let agentDir = URL(fileURLWithPath: agentPath).deletingLastPathComponent().path
-
-        let agent = Process()
-        agent.executableURL = URL(fileURLWithPath: agentPath)
-        agent.currentDirectoryURL = URL(fileURLWithPath: agentDir)
-        agent.environment = ProcessInfo.processInfo.environment.merging([
-            "DOTNET_ENVIRONMENT":   "Production",
-            "DOTNET_CONTENT_ROOT":  agentDir
-        ]) { _, new in new }
-
-        do {
-            try agent.run()
-            NSLog("[AppDelegate] Agent started with PID %d", agent.processIdentifier)
-        } catch {
-            NSLog("[AppDelegate] Failed to start agent: %@", error.localizedDescription)
-        }
-    }
+    // (Agent lifecycle moved to AgentLauncher.swift)
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {

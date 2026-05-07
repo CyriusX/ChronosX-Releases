@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.Policies.Commands;
@@ -17,6 +18,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/orgs/{orgId:guid}/policies")]
 [Authorize]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class OrgPoliciesController : ControllerBase
 {
@@ -57,14 +59,14 @@ public sealed class OrgPoliciesController : ControllerBase
     }
 
     /// <summary>
-    /// Updates the organization's policy (Admin only)
+    /// Updates the organization's policy (Admin/Gestor)
     /// </summary>
     /// <param name="orgId">Organization ID</param>
     /// <param name="request">Policy update request</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The updated policy</returns>
     [HttpPut]
-    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
     [ProducesResponseType(typeof(OrgPolicyResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

@@ -31,6 +31,16 @@ public sealed class LocalSettingsResponse
     public int? WorkGoalSeconds { get; init; }
 
     /// <summary>
+    /// Whether DevTools is enabled for the desktop WebView host (admin-controlled).
+    /// </summary>
+    public bool DevToolsEnabled { get; init; }
+
+    /// <summary>
+    /// Optional UTC expiry for DevTools access.
+    /// </summary>
+    public DateTime? DevToolsEnabledUntilUtc { get; init; }
+
+    /// <summary>
     /// Timestamp da última atualização
     /// </summary>
     public DateTime UpdatedAt { get; init; }

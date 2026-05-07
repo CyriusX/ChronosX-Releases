@@ -12,5 +12,6 @@ public interface IDeviceRepository
     Task<Device?> GetByIdUnfilteredAsync(Guid id, CancellationToken cancellationToken = default);
     Task AddAsync(Device device, CancellationToken cancellationToken = default);
     Task UpdateAsync(Device device, CancellationToken cancellationToken = default);
+    Task<int> CountActiveByOrgIdAsync(Guid orgId, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 }

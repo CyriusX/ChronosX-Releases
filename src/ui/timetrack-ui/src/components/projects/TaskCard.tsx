@@ -88,7 +88,7 @@ export function TaskCard({
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const worked = task.isRunning && task.runningSeconds
+  const worked = (task.isRunning || task.isPaused) && task.runningSeconds
     ? task.totalSecondsWorked + task.runningSeconds
     : task.totalSecondsWorked;
 

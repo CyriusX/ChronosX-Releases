@@ -29,7 +29,13 @@ public sealed class LocalSettingsUseCase
     public async Task<LocalSettingsResponse> GetAsync(CancellationToken cancellationToken = default)
     {
         var settings = await _repository.GetAsync(cancellationToken);
-        return MapToResponse(settings);
+
+        // Self-disable DevTools when the local expiry is reached (defense-in-depth for offline devices).
+        var normalized = settings.WithDevToolsAccess(settings.DevToolsEnabled, settings.DevToolsEnabledUntilUtc);
+        if (!ReferenceEquals(normalized, settings))
+            await _repository.SaveAsync(normalized, cancellationToken);
+
+        return MapToResponse(normalized);
     }
 
     /// <summary>
@@ -59,6 +65,17 @@ public sealed class LocalSettingsUseCase
         return MapToResponse(updatedSettings);
     }
 
+    public async Task<LocalSettingsResponse> SetDevToolsAccessAsync(
+        bool enabled,
+        DateTime? enabledUntilUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var currentSettings = await _repository.GetAsync(cancellationToken);
+        var updatedSettings = currentSettings.WithDevToolsAccess(enabled, enabledUntilUtc);
+        await _repository.SaveAsync(updatedSettings, cancellationToken);
+        return MapToResponse(updatedSettings);
+    }
+
     private static LocalSettingsResponse MapToResponse(Domain.Entities.LocalSettings settings)
     {
         return new LocalSettingsResponse
@@ -68,6 +85,8 @@ public sealed class LocalSettingsUseCase
             Language = settings.Language,
             IdleThresholdSeconds = settings.IdleThresholdSeconds,
             WorkGoalSeconds = settings.WorkGoalSeconds,
+            DevToolsEnabled = settings.DevToolsEnabled,
+            DevToolsEnabledUntilUtc = settings.DevToolsEnabledUntilUtc,
             UpdatedAt = settings.UpdatedAt
         };
     }

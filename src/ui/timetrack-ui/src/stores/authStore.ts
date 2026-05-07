@@ -6,6 +6,10 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { PersistStorage, StorageValue } from 'zustand/middleware';
+import { globalEventDispatcher } from '../services/eventDispatcher';
+import { getApiBaseUrl } from '../services/apiBase';
+import { dispatchNavigate } from '../services/navigationEvents';
 
 // ============================================================================
 // TYPES
@@ -19,6 +23,8 @@ export interface User {
   orgId: string;
   orgName: string;
   passwordMustChange: boolean;
+  subscriptionStatus: string;
+  planTier: string;
 }
 
 interface AuthTokens {
@@ -41,13 +47,13 @@ interface AuthState {
   tokens: AuthTokens | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isRehydrating: boolean;
   error: string | null;
 
   // Actions
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, displayName: string, organizationName: string) => Promise<RegisterResponse | null>;
   logout: () => Promise<void>;
-  refreshTokens: () => Promise<boolean>;
   setUser: (user: User) => void;
   setTokens: (tokens: AuthTokens) => void;
   setLoading: (loading: boolean) => void;
@@ -59,10 +65,10 @@ interface AuthState {
 // API HELPERS
 // ============================================================================
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const apiBase = () => getApiBaseUrl();
 
 async function loginApi(email: string, password: string) {
-  const response = await fetch(`${API_BASE}/auth/login`, {
+  const response = await fetch(`${apiBase()}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
@@ -70,28 +76,28 @@ async function loginApi(email: string, password: string) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Login failed' }));
-    throw new Error(error.message || error.title || 'Login failed');
-  }
 
-  return response.json();
-}
+    // Handles:
+    // - ValidationException: { code:"validation_failed", errors:{ Credentials:["Invalid..."] } }
+    // - ASP.NET model validation: { title:"One or more validation errors occurred.", errors:{ Email:["..."] } }
+    const errorsObj = (error as any)?.errors;
+    if (errorsObj && typeof errorsObj === 'object') {
+      const messages = Object.values(errorsObj as Record<string, string[] | string>)
+        .flatMap((v) => (Array.isArray(v) ? v : [String(v)]))
+        .filter(Boolean);
+      if (messages.length > 0) {
+        throw new Error(messages.join('; '));
+      }
+    }
 
-async function refreshApi(refreshToken: string) {
-  const response = await fetch(`${API_BASE}/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-  });
-
-  if (!response.ok) {
-    throw new Error('Token refresh failed');
+    throw new Error((error as any).message || (error as any).title || 'Login failed');
   }
 
   return response.json();
 }
 
 async function registerApi(email: string, password: string, displayName: string, organizationName: string): Promise<RegisterResponse> {
-  const response = await fetch(`${API_BASE}/auth/register`, {
+  const response = await fetch(`${apiBase()}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, displayName, organizationName }),
@@ -111,7 +117,7 @@ async function registerApi(email: string, password: string, displayName: string,
 
 async function logoutApi(refreshToken?: string) {
   try {
-    await fetch(`${API_BASE}/auth/logout`, {
+    await fetch(`${apiBase()}/auth/logout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
@@ -130,6 +136,42 @@ interface PersistedAuth {
   tokens: AuthTokens | null;
 }
 
+const safeStorage: PersistStorage<PersistedAuth> = {
+  getItem: (name: string): StorageValue<PersistedAuth> | null => {
+    try {
+      if (typeof localStorage === 'undefined') return null;
+      const raw = localStorage.getItem(name);
+      if (!raw) return null;
+      return JSON.parse(raw) as StorageValue<PersistedAuth>;
+    } catch {
+      // If the stored value is corrupted (invalid JSON), clear it so hydration
+      // can't get stuck forever (e.g., desktop WebView showing an infinite spinner).
+      try {
+        localStorage.removeItem(name);
+      } catch {
+        /* ignore */
+      }
+      return null;
+    }
+  },
+  setItem: (name: string, value: StorageValue<PersistedAuth>) => {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.setItem(name, JSON.stringify(value));
+    } catch {
+      /* ignore */
+    }
+  },
+  removeItem: (name: string) => {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.removeItem(name);
+    } catch {
+      /* ignore */
+    }
+  },
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -138,6 +180,7 @@ export const useAuthStore = create<AuthState>()(
       tokens: null,
       isAuthenticated: false,
       isLoading: false,
+      isRehydrating: true, // true until rehydration completes
       error: null,
 
       // Actions
@@ -155,6 +198,8 @@ export const useAuthStore = create<AuthState>()(
             orgId: response.orgId,
             orgName: response.orgName,
             passwordMustChange: response.passwordMustChange ?? false,
+            subscriptionStatus: response.subscriptionStatus ?? 'none',
+            planTier: response.planTier ?? '',
           };
 
           const tokens: AuthTokens = {
@@ -232,40 +277,16 @@ export const useAuthStore = create<AuthState>()(
         const { useTimerStore } = await import('./timerStore');
         useTimerStore.getState().resetForLogout();
 
+        // Reset subscription store to clear feature flags
+        const { useSubscriptionStore } = await import('./subscriptionStore');
+        useSubscriptionStore.getState().clearSubscription();
+
         set({
           user: null,
           tokens: null,
           isAuthenticated: false,
           error: null,
         });
-      },
-
-      refreshTokens: async () => {
-        const { tokens } = get();
-
-        if (!tokens?.refreshToken) {
-          return false;
-        }
-
-        try {
-          const response = await refreshApi(tokens.refreshToken);
-
-          const newTokens: AuthTokens = {
-            accessToken: response.accessToken,
-            refreshToken: response.refreshToken,
-            expiresAt: Date.now() + response.expiresIn * 1000,
-          };
-
-          set({ tokens: newTokens });
-          return true;
-        } catch {
-          set({
-            user: null,
-            tokens: null,
-            isAuthenticated: false,
-          });
-          return false;
-        }
       },
 
       setUser: (user) => set({ user, isAuthenticated: true }),
@@ -276,28 +297,38 @@ export const useAuthStore = create<AuthState>()(
 
       setError: (error) => set({ error }),
 
-      clearAuth: () =>
+      clearAuth: () => {
         set({
           user: null,
           tokens: null,
           isAuthenticated: false,
           error: null,
-        }),
+        });
+      },
     }),
     {
       name: 'timetrack-auth',
+      storage: safeStorage,
       partialize: (state): PersistedAuth => ({
         user: state.user,
         tokens: state.tokens,
       }),
-      onRehydrateStorage: () => (state) => {
-        // Validate tokens on rehydration
-        if (state?.tokens && state.tokens.expiresAt < Date.now()) {
-          // Token expired, clear auth
-          state.clearAuth();
-        } else if (state?.user && state?.tokens) {
-          state.isAuthenticated = true;
-        }
+      // Use synchronous merge to restore session immediately.
+      // This is more reliable than onRehydrateStorage which may not fire
+      // in certain WebView2/Zustand timing scenarios.
+      merge: (persistedState, currentState) => {
+        const persisted =
+          persistedState && typeof persistedState === 'object'
+            ? (persistedState as Partial<PersistedAuth>)
+            : ({} as Partial<PersistedAuth>);
+        const hasSession = !!(persisted.tokens && persisted.user);
+
+        return {
+          ...currentState,
+          ...persisted,
+          isAuthenticated: hasSession,
+          isRehydrating: false,
+        };
       },
     }
   )
@@ -312,3 +343,74 @@ export const selectIsAuthenticated = (state: AuthState) => state.isAuthenticated
 export const selectIsLoading = (state: AuthState) => state.isLoading;
 export const selectError = (state: AuthState) => state.error;
 export const selectAccessToken = (state: AuthState) => state.tokens?.accessToken;
+
+// ============================================================================
+// AGENT TOKEN SYNC
+// ============================================================================
+
+/**
+ * Fetches /auth/me/summary with the given access token and populates the
+ * store's user. Used when the UI has Agent-provided tokens but no user —
+ * typically when restoring a session from the Agent's token store.
+ * Navigates to '/' on success. Returns true if the user was loaded.
+ */
+export async function restoreUserFromAccessToken(accessToken: string): Promise<boolean> {
+  const store = useAuthStore.getState();
+  if (store.user) return true;
+
+  try {
+    const response = await fetch(`${apiBase()}/auth/me/summary`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    store.setUser({
+      id: data.userId ?? data.id,
+      email: data.email ?? '',
+      displayName: data.displayName ?? '',
+      role: data.role ?? 'Colaborador',
+      orgId: data.orgId ?? data.organizationId ?? '',
+      orgName: data.orgName ?? data.organizationName ?? '',
+      passwordMustChange: data.passwordMustChange ?? false,
+      subscriptionStatus: data.subscriptionStatus ?? 'none',
+      planTier: data.planTier ?? '',
+    });
+    console.log('[AuthStore] Session restored from Agent tokens');
+    dispatchNavigate('/', true);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// When the Agent (background service) refreshes tokens, it broadcasts a
+// tokensRefreshed IPC event. Subscribe here so the UI's localStorage always
+// holds the latest valid refresh token — preventing "refresh token expired or
+// revoked" errors on the next app start.
+globalEventDispatcher.subscribe('tokensRefreshed', async (payload) => {
+  const store = useAuthStore.getState();
+
+  store.setTokens({
+    accessToken: payload.accessToken,
+    refreshToken: payload.refreshToken,
+    expiresAt: Date.now() + payload.expiresIn * 1000,
+  });
+
+  if (!store.user) {
+    await restoreUserFromAccessToken(payload.accessToken);
+    return;
+  }
+
+  console.log('[AuthStore] Tokens synced from Agent refresh');
+});
+
+// The Agent only emits sessionRevoked when its backend refresh attempt returned
+// a definitive "this token will never work again" signal (401 user_deactivated,
+// or 400 validation_failed). That's our one reliable signal to actually log
+// the user out — transient network blips are handled silently by both clients.
+globalEventDispatcher.subscribe('sessionRevoked', (payload) => {
+  console.warn('[AuthStore] Session revoked by Agent:', payload?.reason ?? 'unknown');
+  useAuthStore.getState().clearAuth();
+  dispatchNavigate('/login', true);
+});

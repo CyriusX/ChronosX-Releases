@@ -1,7 +1,9 @@
 using MediatR;
 using TimeTrack.Backend.Application.Common.Exceptions;
+using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.ProjectMembers.DTOs;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using TimeTrack.Backend.Domain.ValueObjects;
 
 namespace TimeTrack.Backend.Application.ProjectMembers.Queries;
 
@@ -11,17 +13,34 @@ public sealed class ListProjectMembersQueryHandler : IRequestHandler<ListProject
 {
     private readonly IProjectMemberRepository _members;
     private readonly IProjectRepository _projects;
+    private readonly ICurrentUserContext _currentUser;
 
-    public ListProjectMembersQueryHandler(IProjectMemberRepository members, IProjectRepository projects)
+    public ListProjectMembersQueryHandler(
+        IProjectMemberRepository members,
+        IProjectRepository projects,
+        ICurrentUserContext currentUser)
     {
         _members = members;
         _projects = projects;
+        _currentUser = currentUser;
     }
 
     public async Task<ListProjectMembersResponse> Handle(ListProjectMembersQuery request, CancellationToken ct)
     {
+        if (!_currentUser.UserId.HasValue)
+            throw new UnauthorizedAccessException();
+
         var project = await _projects.GetByIdAsync(request.ProjectId, ct)
             ?? throw new NotFoundException("Project", request.ProjectId);
+
+        var role = _currentUser.Role;
+        var isManager = role == UserRole.Admin || role == UserRole.Gestor;
+        if (!isManager)
+        {
+            var isMember = await _members.IsMemberAsync(project.Id, _currentUser.UserId.Value, ct);
+            if (!isMember)
+                throw new ForbiddenException("You are not a member of this project");
+        }
 
         var members = await _members.ListByProjectAsync(project.Id, ct);
 

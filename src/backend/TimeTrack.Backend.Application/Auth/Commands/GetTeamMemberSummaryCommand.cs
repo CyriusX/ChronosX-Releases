@@ -1,4 +1,5 @@
 using MediatR;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Backend.Application.Auth.DTOs;
 using TimeTrack.Backend.Application.Common.Exceptions;
@@ -150,7 +151,15 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
             var startUtc = TimeZoneInfo.ConvertTimeToUtc(localStart, tz);
             var endUtc = TimeZoneInfo.ConvertTimeToUtc(localEnd, tz);
 
+            var sw = Stopwatch.StartNew();
             var entries = await _taskEntryRepository.ListForUserInRangeAsync(userId, startUtc, endUtc, cancellationToken);
+            sw.Stop();
+            if (sw.ElapsedMilliseconds > 500)
+            {
+                _logger.LogWarning(
+                    "[MemberSummary] Slow task entries query: User={UserId} Date={Date} Took={ElapsedMs}ms Entries={Count}",
+                    userId, localToday.ToString("yyyy-MM-dd"), sw.ElapsedMilliseconds, entries.Count);
+            }
             var now = DateTime.UtcNow;
 
             // Compute clipped duration per entry

@@ -46,6 +46,26 @@ public sealed class IdlePeriodItem
 }
 
 /// <summary>
+/// Request para ingestão de justificativas de períodos de inatividade
+/// </summary>
+public sealed class IdleJustificationIngestRequest
+{
+    public required IEnumerable<IdleJustificationItem> Items { get; init; }
+}
+
+/// <summary>
+/// Item de justificativa de período de inatividade para ingestão
+/// </summary>
+public sealed class IdleJustificationItem
+{
+    public required Guid IdlePeriodId { get; init; }
+    public required string ReasonCode { get; init; }
+    public string? Note { get; init; }
+    public required DateTime SubmittedAtUtc { get; init; }
+    public required string IdempotencyKey { get; init; }
+}
+
+/// <summary>
 /// Resposta padrão para endpoints de ingestão
 /// </summary>
 public sealed class IngestResponse

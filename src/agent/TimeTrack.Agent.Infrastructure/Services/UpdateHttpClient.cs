@@ -40,7 +40,7 @@ public sealed class UpdateHttpClient : IUpdateHttpClient, IDisposable
 
     private void ConfigureHttpClient()
     {
-        // Extract base URL from UpdateUrl (e.g., "https://chronosx-timetrack-api.gpoda0.easypanel.host" from "https://chronosx-timetrack-api.gpoda0.easypanel.host/api/v1/updates")
+        // Extract base URL from UpdateUrl (e.g., "https://chronosx-dev-timetrack-api.gpoda0.easypanel.host" from "https://chronosx-dev-timetrack-api.gpoda0.easypanel.host/api/v1/updates")
         var updateUrl = _settings.UpdateUrl;
         var uri = new Uri(updateUrl);
         var baseUrl = $"{uri.Scheme}://{uri.Host}";

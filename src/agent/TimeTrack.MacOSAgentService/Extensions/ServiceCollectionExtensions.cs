@@ -120,7 +120,7 @@ public static class ServiceCollectionExtensions
         var settings = configuration.GetSection(MacOSAgentSettings.SectionName).Get<MacOSAgentSettings>()
             ?? new MacOSAgentSettings();
         var backendUrl = string.IsNullOrWhiteSpace(settings.Sync?.BackendUrl)
-            ? "https://chronosx-timetrack-api.gpoda0.easypanel.host"
+            ? "https://chronosx-dev-timetrack-api.gpoda0.easypanel.host"
             : settings.Sync!.BackendUrl!;
 
         services.AddHttpClient<IAppCategorySyncService, AppCategorySyncService>(client =>

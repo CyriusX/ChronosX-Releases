@@ -7,6 +7,7 @@ using TimeTrack.AgentService.Ipc.Handlers.Commands.Settings;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Sync;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Tracking;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Update;
+using TimeTrack.AgentService.Ipc.Handlers.Queries.Auth;
 using TimeTrack.AgentService.Ipc.Handlers.Queries.Dashboard;
 using TimeTrack.AgentService.Ipc.Handlers.Queries.Data;
 using TimeTrack.AgentService.Ipc.Handlers.Queries.State;
@@ -26,6 +27,7 @@ public static class IpcHandlerServiceCollectionExtensions
     {
         // Command Handlers
         services.AddSingleton<IIpcCommandHandler, StoreTokensCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, RefreshTokensCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, StartTrackingCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, StopTrackingCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, PauseTrackingCommandHandler>();
@@ -47,6 +49,8 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcCommandHandler, UpdateAppCategoryCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, SetLaunchAtLoginCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, DismissActivityResumePromptCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, SubmitIdleJustificationCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, DismissIdleJustificationCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, TestActivityResumeToastCommandHandler>(); // TODO: Remove after testing
         services.AddSingleton<IIpcCommandHandler, CheckForUpdatesCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, StartUpdateCommandHandler>();
@@ -56,6 +60,7 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcQueryHandler, GetTodaySummaryQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetRecentActivitiesQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetRecentAppsQueryHandler>();
+        services.AddSingleton<IIpcQueryHandler, GetTopFoldersQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetTrackingStateQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetCurrentStatusQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetSyncStateQueryHandler>();
@@ -67,6 +72,7 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcQueryHandler, GetSettingsQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetUpdateProgressQueryHandler>();
         services.AddSingleton<IIpcQueryHandler, GetLaunchAtLoginQueryHandler>();
+        services.AddSingleton<IIpcQueryHandler, GetTokensQueryHandler>();
 
         // Router
         services.AddSingleton<IpcMessageRouter>();

@@ -19,19 +19,22 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
     private readonly IAuditLogService _auditLogService;
+    private readonly ISubscriptionService _subscriptionService;
 
     public LoginCommandHandler(
         IUserRepository userRepository,
         IRefreshTokenRepository refreshTokenRepository,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        ISubscriptionService subscriptionService)
     {
         _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _auditLogService = auditLogService;
+        _subscriptionService = subscriptionService;
     }
 
     public async Task<LoginResponse> Handle(LoginCommand request, CancellationToken cancellationToken)
@@ -54,7 +57,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
         }
 
         // Generate tokens
-        var accessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange);
+        var accessToken = _tokenService.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange, user.IsPlatformAdmin);
         var refreshToken = _tokenService.GenerateRefreshToken();
         var refreshTokenHash = _tokenService.HashRefreshToken(refreshToken);
 
@@ -80,6 +83,8 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
             new { email = user.Email, role = user.Role.ToString() },
             cancellationToken);
 
+        var subscriptionCheck = await _subscriptionService.CheckSubscriptionAccessAsync(user.OrgId, cancellationToken);
+
         return new LoginResponse
         {
             AccessToken = accessToken,
@@ -90,7 +95,9 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
             DisplayName = user.DisplayName,
             Role = user.Role.ToString(),
             OrgName = user.Organization?.Name ?? "",
-            PasswordMustChange = user.PasswordMustChange
+            PasswordMustChange = user.PasswordMustChange,
+            SubscriptionStatus = subscriptionCheck.Status,
+            PlanTier = subscriptionCheck.PlanTier ?? ""
         };
     }
 }

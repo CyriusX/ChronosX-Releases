@@ -27,8 +27,10 @@ import {
 } from 'lucide-react';
 import { getTask, deleteTask, updateTask, type Task, type TaskStatus, type TaskPriority } from '../../services/projectsApi';
 import { SimpleMarkdown } from './SimpleMarkdown';
+import { DescriptionEditor } from './DescriptionEditor';
 import { AssigneeDropdown } from './AssigneeDropdown';
 import { useAuthStore, selectUser } from '../../stores';
+import { emitTaskDeleted, emitTaskUpdated } from '../../lib/appEvents';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -116,12 +118,15 @@ export function TaskDetailDrawer({
   onClose,
   onDeleted,
   onAssigned,
+  onUpdated,
 }: {
   taskId: string | null;
   onClose: () => void;
   onDeleted?: (taskId: string) => void;
   /** Called after assignment changes so the parent can refetch. */
   onAssigned?: () => void;
+  /** Called after editing title/description/priority/deadline. */
+  onUpdated?: (task: Task) => void;
 }) {
   const { t } = useTranslation();
   const currentUser = useAuthStore(selectUser);
@@ -168,6 +173,8 @@ export function TaskDetailDrawer({
         dueDate: editDueDate ? new Date(editDueDate + 'T12:00:00').toISOString() : null,
       });
       setTask(updated);
+      emitTaskUpdated(updated);
+      onUpdated?.(updated);
       setEditing(false);
     } catch (err) {
       console.error('[TaskDetailDrawer] update failed', err);
@@ -219,6 +226,7 @@ export function TaskDetailDrawer({
     try {
       await deleteTask(task.id);
       onDeleted?.(task.id);
+      emitTaskDeleted(task.id);
       onClose();
     } catch (err) {
       console.error('[TaskDetailDrawer] delete failed', err);
@@ -348,7 +356,7 @@ function DrawerBody({
   }
 
   const status = statusMeta(task.status, t);
-  const worked = task.isRunning && task.runningSeconds
+  const worked = (task.isRunning || task.isPaused) && task.runningSeconds
     ? task.totalSecondsWorked + task.runningSeconds
     : task.totalSecondsWorked;
   const tone = deadlineTone(task.dueDate, task.status);
@@ -408,12 +416,11 @@ function DrawerBody({
             </div>
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-[rgba(245,247,251,0.45)] mb-1.5">{t('tasks.descriptionLabel')}</label>
-              <textarea
+              <DescriptionEditor
                 value={editDescription}
-                onChange={(e) => onEditDescription(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Escape') onCancelEdit(); }}
+                onChange={onEditDescription}
+                maxLength={5000}
                 rows={4}
-                className="w-full bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 text-[12px] text-[rgba(245,247,251,0.8)] outline-none focus:border-[rgba(74,159,255,0.5)] transition-colors resize-none"
                 placeholder={t('tasks.descriptionOptional')}
               />
             </div>

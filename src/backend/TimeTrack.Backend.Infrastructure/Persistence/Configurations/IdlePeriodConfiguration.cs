@@ -45,6 +45,17 @@ internal sealed class IdlePeriodConfiguration : IEntityTypeConfiguration<IdlePer
             .HasMaxLength(64)
             .IsRequired();
 
+        builder.Property(i => i.JustificationReasonCode)
+            .HasColumnName("justification_reason_code")
+            .HasMaxLength(64);
+
+        builder.Property(i => i.JustificationNote)
+            .HasColumnName("justification_note")
+            .HasMaxLength(500);
+
+        builder.Property(i => i.JustificationSubmittedAtUtc)
+            .HasColumnName("justification_submitted_at_utc");
+
         builder.HasIndex(i => i.IdempotencyKey)
             .IsUnique();
 

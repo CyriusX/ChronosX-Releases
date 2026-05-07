@@ -12,6 +12,7 @@ interface UsePolicyCardsState {
   isSaving: boolean;
   workHours: WorkHoursState;
   idleThresholdMinutes: number;
+  idleJustificationPromptThresholdMinutes: number | null;
   retentionDays: number;
   focusMode: FocusModePolicy;
 }
@@ -20,6 +21,7 @@ interface UsePolicyCardsReturn extends UsePolicyCardsState {
   setEditingCard: (card: string | null) => void;
   setWorkHours: (value: WorkHoursState | ((prev: WorkHoursState) => WorkHoursState)) => void;
   setIdleThresholdMinutes: (value: number) => void;
+  setIdleJustificationPromptThresholdMinutes: (value: number | null) => void;
   setRetentionDays: (value: number) => void;
   setFocusMode: (value: FocusModePolicy | ((prev: FocusModePolicy) => FocusModePolicy)) => void;
   handleToggleDay: (day: DayOfWeek) => void;
@@ -45,6 +47,11 @@ export function usePolicyCards(policy: OrgPolicyResponse): UsePolicyCardsReturn 
 
   const [idleThresholdMinutes, setIdleThresholdMinutes] = useState(
     Math.floor(policy.idleThresholdSeconds / 60)
+  );
+  const [idleJustificationPromptThresholdMinutes, setIdleJustificationPromptThresholdMinutes] = useState<number | null>(
+    policy.idleJustificationPromptThresholdSeconds == null
+      ? null
+      : Math.floor(policy.idleJustificationPromptThresholdSeconds / 60)
   );
 
   const [retentionDays, setRetentionDays] = useState(policy.retentionDays);
@@ -89,6 +96,13 @@ export function usePolicyCards(policy: OrgPolicyResponse): UsePolicyCardsReturn 
               idleThresholdSeconds: idleThresholdMinutes * 60,
             };
             break;
+          case 'idleJustificationThreshold':
+            request = {
+              idleJustificationPromptThresholdSeconds: idleJustificationPromptThresholdMinutes == null
+                ? null
+                : idleJustificationPromptThresholdMinutes * 60,
+            };
+            break;
           case 'retention':
             request = {
               retentionDays: retentionDays,
@@ -115,7 +129,7 @@ export function usePolicyCards(policy: OrgPolicyResponse): UsePolicyCardsReturn 
         setIsSaving(false);
       }
     },
-    [workHours, idleThresholdMinutes, retentionDays, focusMode]
+    [workHours, idleThresholdMinutes, idleJustificationPromptThresholdMinutes, retentionDays, focusMode]
   );
 
   const handleCancel = useCallback(
@@ -130,6 +144,13 @@ export function usePolicyCards(policy: OrgPolicyResponse): UsePolicyCardsReturn 
           break;
         case 'idleThreshold':
           setIdleThresholdMinutes(Math.floor(policy.idleThresholdSeconds / 60));
+          break;
+        case 'idleJustificationThreshold':
+          setIdleJustificationPromptThresholdMinutes(
+            policy.idleJustificationPromptThresholdSeconds == null
+              ? null
+              : Math.floor(policy.idleJustificationPromptThresholdSeconds / 60)
+          );
           break;
         case 'retention':
           setRetentionDays(policy.retentionDays);
@@ -156,6 +177,11 @@ export function usePolicyCards(policy: OrgPolicyResponse): UsePolicyCardsReturn 
       days: newPolicy.workHours.days,
     });
     setIdleThresholdMinutes(Math.floor(newPolicy.idleThresholdSeconds / 60));
+    setIdleJustificationPromptThresholdMinutes(
+      newPolicy.idleJustificationPromptThresholdSeconds == null
+        ? null
+        : Math.floor(newPolicy.idleJustificationPromptThresholdSeconds / 60)
+    );
     setRetentionDays(newPolicy.retentionDays);
     setFocusMode(
       newPolicy.focusMode || {
@@ -172,11 +198,13 @@ export function usePolicyCards(policy: OrgPolicyResponse): UsePolicyCardsReturn 
     isSaving,
     workHours,
     idleThresholdMinutes,
+    idleJustificationPromptThresholdMinutes,
     retentionDays,
     focusMode,
     setEditingCard,
     setWorkHours,
     setIdleThresholdMinutes,
+    setIdleJustificationPromptThresholdMinutes,
     setRetentionDays,
     setFocusMode,
     handleToggleDay,

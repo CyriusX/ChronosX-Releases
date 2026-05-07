@@ -94,7 +94,7 @@ Write-Host ""
 Write-Host "[3/6] Configurando ambiente..." -ForegroundColor Yellow
 
 $envFile = Join-Path $uiPath ".env.local"
-$apiUrl = "https://chronosx-timetrack-api.gpoda0.easypanel.host/api/v1"
+$apiUrl = "https://chronosx-dev-timetrack-api.gpoda0.easypanel.host/api/v1"
 
 $envContent = "VITE_API_URL=$apiUrl"
 

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Backend.Application.ProjectMembers.Commands;
 using TimeTrack.Backend.Application.ProjectMembers.DTOs;
 using TimeTrack.Backend.Application.ProjectMembers.Queries;
@@ -18,6 +19,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/projects")]
 [Authorize]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class ProjectsController : ControllerBase
 {
@@ -35,10 +37,11 @@ public sealed class ProjectsController : ControllerBase
     [ProducesResponseType(typeof(ListProjectsResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ListProjectsResponse>> ListProjects(
         [FromQuery] bool? activeOnly = null,
+        [FromQuery] bool mineOnly = false,
         [FromQuery] int? page = null,
         [FromQuery] int? pageSize = null)
     {
-        var result = await _mediator.Send(new ListProjectsQuery(activeOnly, page, pageSize));
+        var result = await _mediator.Send(new ListProjectsQuery(activeOnly, mineOnly, page, pageSize));
         return Ok(result);
     }
 

@@ -104,6 +104,20 @@ export interface TopPathItem {
 }
 
 // ============================================================================
+// TOP FOLDERS - Pastas mais acessadas (CX-xxx)
+// ============================================================================
+
+export interface TopFoldersResponse {
+  folders: TopFolderItem[];
+}
+
+export interface TopFolderItem {
+  folderPath: string;
+  totalSeconds: number;
+  visitCount: number;
+}
+
+// ============================================================================
 // DISTRACTION STATS - Estatísticas de distração (CX-155)
 // ============================================================================
 
@@ -144,6 +158,21 @@ export interface SubcategoryItem {
   name: string;
   totalSeconds: number;
   percentage: number;
+}
+
+// ============================================================================
+// REPORTS BUNDLE - Single-call composite response
+// ============================================================================
+
+export interface ReportsBundleResponse {
+  dailySummaryRange: DailySummaryRangeResponse;
+  productivityTrend: ProductivityTrendResponse;
+  topApps: TopAppsResponse;
+  topPaths: TopPathsResponse;
+  topFolders?: TopFoldersResponse;
+  distractionStats: DistractionStatsResponse;
+  categoryDistribution: CategoryDistributionResponse;
+  errors?: Array<{ section: string; code: string }>;
 }
 
 // ============================================================================

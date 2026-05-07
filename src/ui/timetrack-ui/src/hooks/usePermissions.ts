@@ -66,7 +66,7 @@ export function usePermissions() {
   /**
    * Verifica se pode editar políticas da organização (apenas Admin)
    */
-  const canEditOrgPolicies = (): boolean => isAdmin();
+  const canEditOrgPolicies = (): boolean => isAdmin() || isManager();
 
   return {
     role,

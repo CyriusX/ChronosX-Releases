@@ -58,4 +58,12 @@ public sealed record ActiveWindowInfo
     /// Ex: "https://github.com/my-repo/issues"
     /// </summary>
     public string? BrowserUrl { get; init; }
+
+    /// <summary>
+    /// Indicates that macOS requires Automation permission for the given app
+    /// in order to extract browser tab details (title/URL) via AppleScript.
+    /// DesktopHost can use this to guide the user to System Settings.
+    /// Example: "Safari"
+    /// </summary>
+    public string? BrowserAutomationPermissionRequiredForApp { get; init; }
 }

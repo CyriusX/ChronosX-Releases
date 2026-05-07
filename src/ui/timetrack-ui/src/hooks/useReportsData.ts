@@ -15,6 +15,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
+  getReportsBundle,
   getDailySummaryRange,
   getProductivityTrend,
   getTopApps,
@@ -28,6 +29,7 @@ import type {
   ProductivityTrendResponse,
   TopAppsResponse,
   TopPathsResponse,
+  TopFoldersResponse,
   DistractionStatsResponse,
   CategoryDistributionResponse,
   DateRange,
@@ -37,9 +39,6 @@ import type {
 } from '../types/reports';
 import { PERIOD_PRESETS as periodPresets, toLocalDateStr } from '../types/reports';
 import type { TodaySummaryResponse } from '../types/ipc';
-
-// Polling interval for automatic refresh (60 seconds)
-const POLLING_INTERVAL_MS = 60000;
 
 // ============================================================================
 // TYPES
@@ -54,6 +53,8 @@ export interface ReportsDataState {
   topApps: TopAppsResponse | null;
   /** Top paths data */
   topPaths: TopPathsResponse | null;
+  /** Top folders data */
+  topFolders: TopFoldersResponse | null;
   /** Distraction stats data */
   distractionStats: DistractionStatsResponse | null;
   /** Category distribution data */
@@ -67,6 +68,7 @@ export interface ReportsFilters {
   groupBy: GroupByOption;
   topAppsLimit: number;
   topPathsLimit: number;
+  topFoldersLimit: number;
 }
 
 export interface UseReportsDataOptions {
@@ -101,6 +103,8 @@ export interface UseReportsDataReturn {
   setTopAppsLimit: (limit: number) => void;
   /** Set top paths limit */
   setTopPathsLimit: (limit: number) => void;
+  /** Set top folders limit */
+  setTopFoldersLimit: (limit: number) => void;
   /** Refresh all data */
   refresh: () => Promise<void>;
   /** Refresh specific data */
@@ -108,6 +112,7 @@ export interface UseReportsDataReturn {
   refreshProductivityTrend: () => Promise<void>;
   refreshTopApps: () => Promise<void>;
   refreshTopPaths: () => Promise<void>;
+  refreshTopFolders: () => Promise<void>;
   refreshDistractionStats: () => Promise<void>;
   refreshCategoryDistribution: () => Promise<void>;
 }
@@ -130,6 +135,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     productivityTrend: null,
     topApps: null,
     topPaths: null,
+    topFolders: null,
     distractionStats: null,
     categoryDistribution: null,
   });
@@ -146,11 +152,13 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     groupBy: 'day' as GroupByOption,
     topAppsLimit: 20,
     topPathsLimit: 20,
+    topFoldersLimit: 20,
   }));
 
-  // Polling refs
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Fetch coordination refs
   const isFetchingRef = useRef(false);
+  const pendingRefreshRef = useRef(false);
+  const refreshImplRef = useRef<() => Promise<void>>(async () => {});
 
   // ============================================================================
   // FILTER SETTERS
@@ -187,6 +195,10 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
 
   const setTopPathsLimit = useCallback((limit: number) => {
     setFilters(prev => ({ ...prev, topPathsLimit: Math.max(1, Math.min(100, limit)) }));
+  }, []);
+
+  const setTopFoldersLimit = useCallback((limit: number) => {
+    setFilters(prev => ({ ...prev, topFoldersLimit: Math.max(1, Math.min(100, limit)) }));
   }, []);
 
   // ============================================================================
@@ -378,7 +390,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
   // REFRESH ALL
   // ============================================================================
 
-  const refresh = useCallback(async () => {
+  const refreshImpl = useCallback(async () => {
     console.log('[useReportsData] Refresh called', {
       startDate: filters.dateRange.startDate,
       endDate: filters.dateRange.endDate,
@@ -390,25 +402,75 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
       return;
     }
 
-    // Prevent concurrent fetches
+    // Prevent concurrent fetches (queue a refresh instead of dropping it).
     if (isFetchingRef.current) {
-      console.log('[useReportsData] Skipping refresh - fetch already in progress');
+      pendingRefreshRef.current = true;
+      console.log('[useReportsData] Queued refresh - fetch already in progress');
       return;
     }
 
     isFetchingRef.current = true;
+    pendingRefreshRef.current = false;
     setIsLoading(true);
     setError(null);
 
     try {
-      await Promise.all([
-        refreshDailySummaryRange(),
-        refreshProductivityTrend(),
-        refreshTopApps(),
-        refreshTopPaths(),
-        refreshDistractionStats(),
-        refreshCategoryDistribution(),
-      ]);
+      // Single-call composite endpoint to avoid client fan-out (429 rate limiting).
+      const bundle = await getReportsBundle(
+        filters.dateRange.startDate,
+        filters.dateRange.endDate,
+        filters.groupBy,
+        {
+          topApps: filters.topAppsLimit,
+          topPaths: filters.topPathsLimit,
+          topFolders: filters.topFoldersLimit,
+        },
+        filters.userId
+      );
+
+      // Hybrid override for today (own data only): replace today's heatmap day with local IPC data.
+      const isViewingOwnData = !filters.userId;
+      const today = toLocalDateStr(new Date());
+      const includesToday = isViewingOwnData &&
+        filters.dateRange.startDate <= today &&
+        filters.dateRange.endDate >= today;
+
+      if (includesToday && isConnected) {
+        try {
+          const todayResponse = await sendQuery('getTodaySummary', { date: today });
+          if (todayResponse.success && todayResponse.data) {
+            const localTodayItem = convertTodaySummaryToDayItem(todayResponse.data, today);
+            const mergedDays = bundle.dailySummaryRange.days.map(day =>
+              day.date === today ? localTodayItem : day
+            );
+            if (!bundle.dailySummaryRange.days.some(d => d.date === today)) {
+              mergedDays.push(localTodayItem);
+              mergedDays.sort((a, b) => a.date.localeCompare(b.date));
+            }
+            bundle.dailySummaryRange.days = mergedDays;
+          }
+        } catch (ipcError) {
+          console.warn('[useReportsData] Failed to fetch today from IPC for bundle override:', ipcError);
+        }
+      }
+
+      const failedSections = (bundle.errors ?? [])
+        .map(e => e.section)
+        .filter(Boolean);
+      if (failedSections.length > 0) {
+        console.warn('[useReportsData] Bundle returned partial data:', bundle.errors);
+        setError(`Some report sections failed to load: ${failedSections.join(', ')}`);
+      }
+
+      setData({
+        dailySummaryRange: bundle.dailySummaryRange,
+        productivityTrend: bundle.productivityTrend,
+        topApps: bundle.topApps,
+        topPaths: bundle.topPaths,
+        topFolders: bundle.topFolders ?? null,
+        distractionStats: bundle.distractionStats,
+        categoryDistribution: bundle.categoryDistribution,
+      });
       console.log('[useReportsData] All data refreshed successfully');
     } catch (err) {
       console.error('[useReportsData] Error refreshing data:', err);
@@ -416,84 +478,94 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     } finally {
       setIsLoading(false);
       isFetchingRef.current = false;
+
+      // If a refresh was requested while we were fetching (e.g. syncCompleted / IPC overlay ready),
+      // run it once more with the latest filters.
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        queueMicrotask(() => {
+          void refreshImplRef.current();
+        });
+      }
     }
   }, [
     filters.dateRange.startDate,
-    refreshDailySummaryRange,
-    refreshProductivityTrend,
-    refreshTopApps,
-    refreshTopPaths,
-    refreshDistractionStats,
-    refreshCategoryDistribution,
+    filters.dateRange.endDate,
+    filters.userId,
+    filters.groupBy,
+    filters.topAppsLimit,
+    filters.topPathsLimit,
+    filters.topFoldersLimit,
+    isConnected,
+    sendQuery,
+    convertTodaySummaryToDayItem,
   ]);
+
+  useEffect(() => {
+    refreshImplRef.current = refreshImpl;
+  }, [refreshImpl]);
+
+  const refresh = useCallback(async () => refreshImplRef.current(), []);
+
+  const refreshTopFolders = useCallback(async () => {
+    // Single-call bundle refresh; we keep this method for API compatibility with the hook shape.
+    await refresh();
+  }, [refresh]);
 
   // ============================================================================
   // AUTO-FETCH ON MOUNT AND FILTER CHANGES
   // ============================================================================
 
   // Track if we've already done initial fetch with connected IPC
-  const hasConnectedFetchRef = useRef(false);
-  // Track which filters were used for the last fetch to detect changes
-  const lastFetchFiltersRef = useRef<string>('');
+  const lastFetchKeyRef = useRef<string | null>(null);
+  const lastFetchHadIpcOverlayRef = useRef(false);
 
   useEffect(() => {
-    if (!autoFetch || !filters.dateRange.startDate) return;
+    if (!autoFetch) return;
+    if (!filters.dateRange.startDate) return;
 
     const today = toLocalDateStr(new Date());
     const includesToday = !filters.userId &&
       filters.dateRange.startDate <= today &&
       filters.dateRange.endDate >= today;
+    const hasIpcOverlayNow = includesToday && isConnected;
 
-    // If period includes today AND viewing own data, wait for IPC to connect
-    if (includesToday && !isConnected) {
-      console.log('[useReportsData] Waiting for IPC connection before fetching (period includes today)');
-      return;
-    }
+    // Include all inputs that affect the bundle response.
+    const key = [
+      filters.dateRange.startDate,
+      filters.dateRange.endDate,
+      filters.userId ?? '',
+      filters.groupBy,
+      String(filters.topAppsLimit),
+      String(filters.topPathsLimit),
+      String(filters.topFoldersLimit),
+    ].join('|');
 
-    // Build a fingerprint of the current filters to detect changes
-    const filterKey = `${filters.dateRange.startDate}|${filters.dateRange.endDate}|${filters.userId ?? ''}|${filters.groupBy}`;
+    const isNewKey = lastFetchKeyRef.current !== key;
+    const needsOverlayRefetch = !isNewKey && hasIpcOverlayNow && !lastFetchHadIpcOverlayRef.current;
 
-    // Reset the flag if filters changed (userId, dates, groupBy)
-    if (lastFetchFiltersRef.current !== filterKey) {
-      hasConnectedFetchRef.current = false;
-    }
-
-    // Fetch data if we haven't fetched with these filters yet
-    if (!hasConnectedFetchRef.current) {
-      hasConnectedFetchRef.current = true;
-      lastFetchFiltersRef.current = filterKey;
+    if (isNewKey || needsOverlayRefetch) {
+      lastFetchKeyRef.current = key;
+      lastFetchHadIpcOverlayRef.current = hasIpcOverlayNow;
       refresh();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoFetch, filters.dateRange, filters.userId, filters.groupBy, isConnected]);
+  }, [
+    autoFetch,
+    filters.dateRange.startDate,
+    filters.dateRange.endDate,
+    filters.userId,
+    filters.groupBy,
+    filters.topAppsLimit,
+    filters.topPathsLimit,
+    filters.topFoldersLimit,
+    isConnected,
+    refresh,
+  ]);
 
-  // ============================================================================
-  // POLLING - Automatic refresh every 60 seconds
-  // ============================================================================
-
-  useEffect(() => {
-    if (!autoFetch || !filters.dateRange.startDate) {
-      return;
-    }
-
-    pollingIntervalRef.current = setInterval(() => {
-      // Prevent concurrent fetches
-      if (isFetchingRef.current) {
-        console.log('[useReportsData] Skipping polling refresh - fetch already in progress');
-        return;
-      }
-
-      console.log('[useReportsData] Polling refresh triggered');
-      refresh();
-    }, POLLING_INTERVAL_MS);
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, [autoFetch, filters.dateRange.startDate, refresh]);
+  // Auto-refresh on polling interval, syncCompleted IPC events, and window
+  // visibility was intentionally removed. The Reports page now fetches once on
+  // mount (and whenever filters change) and leaves updates to the user via the
+  // header's manual refresh button.
 
   // ============================================================================
   // RETURN
@@ -510,11 +582,13 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     setGroupBy,
     setTopAppsLimit,
     setTopPathsLimit,
+    setTopFoldersLimit,
     refresh,
     refreshDailySummaryRange,
     refreshProductivityTrend,
     refreshTopApps,
     refreshTopPaths,
+    refreshTopFolders,
     refreshDistractionStats,
     refreshCategoryDistribution,
   };

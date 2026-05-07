@@ -9,16 +9,19 @@ interface ProtectedRouteProps {
 /**
  * ProtectedRoute - Guards routes that require authentication
  *
- * Redirects to /login if user is not authenticated
+ * Shows a loading spinner during rehydration (silent token refresh on startup)
+ * or during an explicit loading operation (e.g. login).
+ * Redirects to /login only when rehydration finishes and user is not authenticated.
  */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { t } = useTranslation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isLoading = useAuthStore((state) => state.isLoading);
+  const isRehydrating = useAuthStore((state) => state.isRehydrating);
   const location = useLocation();
 
-  // Show loading state while checking auth
-  if (isLoading) {
+  // Show loading state while rehydrating (silent token refresh) or checking auth
+  if (isRehydrating || isLoading) {
     return (
       <div className="min-h-screen bg-[#0b0d14] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

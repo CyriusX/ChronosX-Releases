@@ -89,6 +89,7 @@ class IpcClient: ObservableObject {
     }
 
     func connect() async throws {
+        AgentLauncher.shared.ensureRunning()
         let sock = try Socket(path: socketPath)
         self.socket = sock
         self.isConnected = true
@@ -184,6 +185,7 @@ class IpcClient: ObservableObject {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 guard !Task.isCancelled else { return }
                 do {
+                    AgentLauncher.shared.ensureRunning()
                     try await self.connect()
                     return
                 } catch {
@@ -200,7 +202,10 @@ class IpcClient: ObservableObject {
     }
 
     private func processIncomingMessage(_ line: String) {
-        guard let data = line.data(using: .utf8),
+        // Some IPC servers may prefix the first message with a UTF-8 BOM. Strip it for robust parsing.
+        let sanitized = line.hasPrefix("\u{FEFF}") ? String(line.dropFirst()) : line
+
+        guard let data = sanitized.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return
         }

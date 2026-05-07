@@ -1,9 +1,12 @@
+using System.Collections.Generic;
 using System.Text;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Logging;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Backend.Application.Common.Exceptions;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.Common.Security;
@@ -21,6 +24,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/reports")]
 [Authorize]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Reports)]
 public sealed class ReportsController : ControllerBase
 {
@@ -29,19 +33,22 @@ public sealed class ReportsController : ControllerBase
     private readonly ICurrentUserContext _currentUser;
     private readonly IAuditLogService _auditLogService;
     private readonly IUserRepository _userRepository;
+    private readonly ILogger<ReportsController> _logger;
 
     public ReportsController(
         ISender mediator,
         IUserAuthorizationService authorizationService,
         ICurrentUserContext currentUser,
         IAuditLogService auditLogService,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        ILogger<ReportsController> logger)
     {
         _mediator = mediator;
         _authorizationService = authorizationService;
         _currentUser = currentUser;
         _auditLogService = auditLogService;
         _userRepository = userRepository;
+        _logger = logger;
     }
 
     /// <summary>
@@ -60,6 +67,12 @@ public sealed class ReportsController : ControllerBase
         if (orgId == null || orgId == Guid.Empty) return null;
         var orgMembers = await _userRepository.GetByOrgIdAsync(orgId.Value, cancellationToken);
         return orgMembers.Select(m => m.Id).ToList();
+    }
+
+    private bool TryGetCurrentUserId(out Guid userId)
+    {
+        userId = _currentUser.UserId ?? Guid.Empty;
+        return userId != Guid.Empty;
     }
 
     /// <summary>
@@ -95,9 +108,14 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         // Determine target userId
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         // Validate authorization - if requesting another user's data
         if (isAccessingOtherUserData)
@@ -185,9 +203,14 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         // Determine target userId
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         // Validate authorization - if requesting another user's data
         if (isAccessingOtherUserData)
@@ -254,8 +277,13 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] string? timezone = null,
         CancellationToken cancellationToken = default)
     {
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData)
         {
@@ -328,12 +356,17 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         // Resolve team user IDs if allTeam is requested
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
         // Determine target userId
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         // Validate authorization - if requesting another user's data
         if (isAccessingOtherUserData && teamUserIds == null)
@@ -389,6 +422,208 @@ public sealed class ReportsController : ControllerBase
     // ========================================================================
 
     /// <summary>
+    /// Composite endpoint for the Reports page.
+    /// Avoids client fan-out (multiple parallel calls) which can trigger rate limiting.
+    /// </summary>
+    [HttpGet("bundle")]
+    [ProducesResponseType(typeof(ReportsBundleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetReportsBundle(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        [FromQuery] string groupBy = "day",
+        [FromQuery] int topAppsLimit = 20,
+        [FromQuery] int topPathsLimit = 20,
+        [FromQuery] int topFoldersLimit = 20,
+        [FromQuery] string? timezone = null,
+        [FromQuery] bool allTeam = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+        {
+            return BadRequest(new { error = "Start date must be before or equal to end date" });
+        }
+
+        var validGroupBy = new[] { "day", "week", "month" };
+        if (!validGroupBy.Contains(groupBy.ToLowerInvariant()))
+        {
+            return BadRequest(new { error = "groupBy must be one of: day, week, month" });
+        }
+
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
+        var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
+
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
+
+        if (isAccessingOtherUserData && teamUserIds == null)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new
+                {
+                    reportType = "bundle",
+                    startDate = startDate.ToString("yyyy-MM-dd"),
+                    endDate = endDate.ToString("yyyy-MM-dd"),
+                    groupBy
+                },
+                cancellationToken);
+        }
+
+        Response.Headers["X-Trace-Id"] = HttpContext.TraceIdentifier;
+
+        try
+        {
+            // IMPORTANT: do NOT run these queries concurrently.
+            // Each query ultimately uses the same scoped DbContext via repositories,
+            // and EF Core DbContext is not thread-safe (concurrent operations throw).
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var lastMs = 0L;
+            var errors = new List<ReportsBundleError>();
+
+            async Task<TResponse> SendSafe<TResponse>(string section, IRequest<TResponse> request)
+                where TResponse : new()
+            {
+                try
+                {
+                    return await _mediator.Send(request, cancellationToken);
+                }
+                catch (ForbiddenException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ReportsBundle: {Section} failed", section);
+                    errors.Add(new ReportsBundleError { Section = section, Code = "internal_error" });
+                    return new TResponse();
+                }
+            }
+
+            var dailySummaryRange = await SendSafe("dailySummaryRange", new DailySummaryRangeQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ));
+            var nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: DailySummaryRange in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
+
+            var productivityTrend = await SendSafe("productivityTrend", new ProductivityTrendQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                GroupBy: groupBy.ToLowerInvariant(),
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: ProductivityTrend in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
+
+            var topApps = await SendSafe("topApps", new TopAppsQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Limit: Math.Clamp(topAppsLimit, 1, 100),
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: TopApps in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
+
+            var topPaths = await SendSafe("topPaths", new TopPathsQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Limit: Math.Clamp(topPathsLimit, 1, 100),
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: TopPaths in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
+
+            var distractionStats = await SendSafe("distractionStats", new DistractionStatsQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: DistractionStats in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
+
+            var categoryDistribution = await SendSafe("categoryDistribution", new CategoryDistributionQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: CategoryDistribution in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
+
+            var topFolders = await SendSafe("topFolders", new TopFoldersQuery(
+                UserId: targetUserId,
+                StartDate: startDate,
+                EndDate: endDate,
+                Limit: Math.Clamp(topFoldersLimit, 1, 100),
+                Timezone: timezone,
+                UserIds: teamUserIds
+            ));
+            nowMs = sw.ElapsedMilliseconds;
+            _logger.LogInformation("ReportsBundle: TopFolders in {Ms}ms", nowMs - lastMs);
+            lastMs = nowMs;
+
+            var bundle = new ReportsBundleResponse
+            {
+                DailySummaryRange = dailySummaryRange,
+                ProductivityTrend = productivityTrend,
+                TopApps = topApps,
+                TopPaths = topPaths,
+                DistractionStats = distractionStats,
+                CategoryDistribution = categoryDistribution,
+                TopFolders = topFolders,
+                Errors = errors
+            };
+
+            var etag = ETagGenerator.Generate(bundle);
+            Response.Headers.ETag = $"\"{etag}\"";
+            if (ETagGenerator.Matches(Request.Headers.IfNoneMatch, etag))
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+
+            return Ok(bundle);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
     /// Obtém resumo diário de um período para heatmap estilo GitHub
     /// </summary>
     /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
@@ -414,10 +649,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {
@@ -488,10 +728,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "groupBy must be one of: day, week, month" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {
@@ -557,10 +802,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {
@@ -579,6 +829,80 @@ public sealed class ReportsController : ControllerBase
         }
 
         var query = new TopPathsQuery(
+            UserId: targetUserId,
+            StartDate: startDate,
+            EndDate: endDate,
+            Limit: Math.Clamp(limit, 1, 100),
+            Timezone: timezone,
+            UserIds: teamUserIds
+        );
+
+        try
+        {
+            var response = await _mediator.Send(query, cancellationToken);
+            return Ok(response);
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
+    /// Obtém top pastas acessadas (derivadas de ActivitySessions.FilePath)
+    /// </summary>
+    /// <param name="userId">ID do usuário (opcional, padrão é o usuário atual)</param>
+    /// <param name="startDate">Data inicial do período</param>
+    /// <param name="endDate">Data final do período</param>
+    /// <param name="limit">Número máximo de pastas (padrão: 20)</param>
+    /// <param name="cancellationToken">Token de cancelamento</param>
+    /// <returns>Lista de pastas mais acessadas</returns>
+    [HttpGet("top-folders")]
+    [ProducesResponseType(typeof(TopFoldersResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetTopFolders(
+        [FromQuery] Guid? userId,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        [FromQuery] int limit = 20,
+        [FromQuery] string? timezone = null,
+        [FromQuery] bool allTeam = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (startDate > endDate)
+        {
+            return BadRequest(new { error = "Start date must be before or equal to end date" });
+        }
+
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
+        var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
+
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
+
+        if (isAccessingOtherUserData && teamUserIds == null)
+        {
+            var userRole = _currentUser.Role;
+            if (userRole != UserRole.Admin && userRole != UserRole.Gestor)
+            {
+                return Forbid();
+            }
+
+            _auditLogService.LogAsync(
+                AuditActions.ReportAccessed,
+                "user",
+                targetUserId,
+                new { reportType = "top-folders", startDate = startDate.ToString("yyyy-MM-dd"), endDate = endDate.ToString("yyyy-MM-dd"), limit },
+                cancellationToken);
+        }
+
+        var query = new TopFoldersQuery(
             UserId: targetUserId,
             StartDate: startDate,
             EndDate: endDate,
@@ -624,10 +948,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {
@@ -690,10 +1019,15 @@ public sealed class ReportsController : ControllerBase
             return BadRequest(new { error = "Start date must be before or equal to end date" });
         }
 
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized();
+        }
+
         var teamUserIds = await ResolveTeamUserIdsAsync(allTeam, cancellationToken);
 
-        var targetUserId = userId ?? _currentUser.UserId!.Value;
-        var isAccessingOtherUserData = targetUserId != _currentUser.UserId!.Value;
+        var targetUserId = userId ?? currentUserId;
+        var isAccessingOtherUserData = targetUserId != currentUserId;
 
         if (isAccessingOtherUserData && teamUserIds == null)
         {

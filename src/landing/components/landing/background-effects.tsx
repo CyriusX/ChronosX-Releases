@@ -3,32 +3,16 @@
 export function BackgroundEffects() {
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      {/* Grid pattern */}
-      <div className="bg-grid-pattern absolute inset-0" />
-
-      {/* Gradient orbs */}
+      {/* Atmospheric background aligned to product */}
       <div
-        className="absolute -top-40 right-1/4 h-[600px] w-[600px] rounded-full opacity-15"
+        className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(circle, rgba(46, 99, 255, 0.4) 0%, transparent 70%)",
-          filter: "blur(80px)",
-        }}
-      />
-      <div
-        className="absolute top-1/3 -left-40 h-[500px] w-[500px] rounded-full opacity-12"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(124, 92, 255, 0.35) 0%, transparent 70%)",
-          filter: "blur(100px)",
-        }}
-      />
-      <div
-        className="absolute bottom-1/4 right-0 h-[400px] w-[400px] rounded-full opacity-10"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(34, 211, 238, 0.3) 0%, transparent 70%)",
-          filter: "blur(90px)",
+            "radial-gradient(ellipse 80% 60% at 15% 20%, rgba(139, 92, 246, 0.08), transparent 60%)," +
+            "radial-gradient(ellipse 60% 50% at 85% 75%, rgba(59, 130, 246, 0.06), transparent 55%)," +
+            "radial-gradient(ellipse 45% 35% at 50% 10%, rgba(245, 158, 11, 0.03), transparent 50%)," +
+            "radial-gradient(ellipse 50% 40% at 70% 40%, rgba(236, 72, 153, 0.025), transparent 45%)," +
+            "radial-gradient(ellipse 100% 100% at 50% 50%, rgba(10, 12, 18, 1), rgba(8, 10, 16, 1))",
         }}
       />
 

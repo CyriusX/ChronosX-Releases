@@ -3,25 +3,36 @@ import { useTranslation } from 'react-i18next';
 import { Switch } from '../ui/switch';
 import type { LocalSettings, UpdateLocalSettingsRequest } from '../../types/settings';
 
-const IDLE_OPTIONS = [
-  { value: 60, label: '1 min' },
-  { value: 120, label: '2 min' },
-  { value: 180, label: '3 min' },
-  { value: 300, label: '5 min' },
-  { value: 600, label: '10 min' },
-  { value: 900, label: '15 min' },
-  { value: 1800, label: '30 min' },
-  { value: 3600, label: '60 min' },
-];
-
 interface NotificationsSectionProps {
   settings: LocalSettings;
   onUpdate: (updates: UpdateLocalSettingsRequest) => void;
+  /** Organization idle threshold (authoritative). When null/undefined, we show a fallback. */
+  orgIdleThresholdSeconds?: number | null;
+  /** Whether the current user can edit org policies (Admin/Gestor) */
+  canEditOrgPolicies?: boolean;
+  /** Navigate user to Organization policies section */
+  onEditOrgPolicies?: () => void;
 }
 
-export function NotificationsSection({ settings, onUpdate }: NotificationsSectionProps) {
+export function NotificationsSection({
+  settings,
+  onUpdate,
+  orgIdleThresholdSeconds,
+  canEditOrgPolicies = false,
+  onEditOrgPolicies,
+}: NotificationsSectionProps) {
   const { t } = useTranslation();
-  const currentIdle = settings.idleThresholdSeconds ?? 300;
+
+  const formatIdle = (sec: number | null | undefined) => {
+    if (!sec || sec <= 0) return '—';
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+    const h = Math.floor(m / 60);
+    const rm = m % 60;
+    return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
+  };
 
   return (
     <div className="space-y-6">
@@ -103,20 +114,25 @@ export function NotificationsSection({ settings, onUpdate }: NotificationsSectio
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2 mt-2">
-            {IDLE_OPTIONS.map((opt) => (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-[rgba(0,0,0,0.22)] border border-[rgba(255,255,255,0.06)] px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wider text-[rgba(245,247,251,0.35)]">{t('settings.organization.title')}</p>
+              <p className="text-[13px] text-[rgba(245,247,251,0.85)] mt-0.5 truncate">
+                {formatIdle(orgIdleThresholdSeconds)}
+              </p>
+              <p className="text-[10px] text-[rgba(245,247,251,0.35)] mt-0.5">
+                {t('policies.idleThreshold.subtitle')}
+              </p>
+            </div>
+
+            {canEditOrgPolicies && onEditOrgPolicies && (
               <button
-                key={opt.value}
-                onClick={() => onUpdate({ idleThresholdSeconds: opt.value })}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
-                  currentIdle === opt.value
-                    ? 'bg-[rgba(139,92,246,0.2)] border border-[rgba(139,92,246,0.5)] text-[#8B5CF6]'
-                    : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)]'
-                }`}
+                onClick={onEditOrgPolicies}
+                className="shrink-0 px-3 py-2 rounded-lg text-[11px] font-semibold bg-[rgba(139,92,246,0.15)] border border-[rgba(139,92,246,0.25)] text-[#c4b5fd] hover:bg-[rgba(139,92,246,0.22)] transition-colors"
               >
-                {opt.label}
+                {t('common.edit')}
               </button>
-            ))}
+            )}
           </div>
         </div>
       </div>

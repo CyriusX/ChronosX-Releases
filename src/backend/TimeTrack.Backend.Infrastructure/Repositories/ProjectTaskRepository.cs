@@ -62,6 +62,17 @@ public sealed class ProjectTaskRepository : IProjectTaskRepository
         await _context.SaveChangesAsync(ct);
     }
 
+    public async Task SoftDeleteByProjectAsync(Guid projectId, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        await _context.ProjectTasks
+            .IgnoreQueryFilters()
+            .Where(t => t.ProjectId == projectId && t.DeletedAt == null)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(t => t.DeletedAt, now)
+                .SetProperty(t => t.UpdatedAt, now), ct);
+    }
+
     public async Task<IReadOnlyList<ProjectTask>> ListAssignedTasksDueOnAsync(DateTime utcDate, CancellationToken ct = default)
     {
         // Normalize to the start/end of the given calendar day in UTC.

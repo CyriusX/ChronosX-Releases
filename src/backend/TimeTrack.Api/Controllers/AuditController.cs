@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TimeTrack.Api.Extensions;
+using TimeTrack.Api.Middleware;
 using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Audit.DTOs;
 using TimeTrack.Backend.Application.Audit.Queries;
@@ -16,6 +17,7 @@ namespace TimeTrack.Api.Controllers;
 [ApiController]
 [Route("api/v1/orgs/{orgId:guid}/audit")]
 [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+[RequireSubscription]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class AuditController : ControllerBase
 {

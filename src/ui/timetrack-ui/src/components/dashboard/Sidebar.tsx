@@ -12,6 +12,7 @@ import { useAgentStatus } from '../../hooks/useAgentStatus';
 import { usePermissions } from '../../hooks/usePermissions';
 import { SPRING } from '../../lib/animation';
 import logoImg from '../../assets/logo-64.png';
+import { useNotifications } from '../../stores/uiStore';
 
 export function Sidebar() {
   const { t } = useTranslation();
@@ -24,6 +25,7 @@ export function Sidebar() {
   const todaySummary = useTrackingStore(s => s.todaySummary);
   const { sendCommand } = useIpc();
   const { status: agentStatus } = useAgentStatus();
+  const { notify } = useNotifications();
   const [isBusy, setIsBusy] = useState(false);
 
   const isActive = isTracking && !isPaused;
@@ -43,9 +45,11 @@ export function Sidebar() {
       if (isActive) {
         const res = await sendCommand('pauseTracking', { reason: 'Tracking Stopped' });
         if (res.success) { setTracking(false); setPaused(true); }
+        else notify.error('Failed to pause tracking', res.error);
       } else {
         const res = await sendCommand('startTracking');
         if (res.success) { setTracking(true); setPaused(false); }
+        else notify.error('Failed to start tracking', res.error);
       }
     } finally {
       setIsBusy(false);
@@ -54,8 +58,8 @@ export function Sidebar() {
 
   return (
     <aside className="hidden md:flex w-[180px] flex-shrink-0 glass-sidebar flex-col overflow-hidden">
-      {/* Logo + Tracking LED — pt-8 clears macOS traffic light buttons */}
-      <div className="px-4 pt-8 pb-5 flex-shrink-0">
+      {/* pt-8 clears macOS traffic light buttons; pt-4 is enough on Windows */}
+      <div className={`px-4 pb-5 flex-shrink-0 ${navigator.platform?.startsWith('Mac') ? 'pt-8' : 'pt-4'}`}>
         <div className="flex items-center gap-2">
           <motion.img
             src={logoImg}

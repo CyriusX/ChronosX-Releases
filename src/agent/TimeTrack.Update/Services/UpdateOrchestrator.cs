@@ -20,6 +20,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
 
     private readonly string _installPath;
     private readonly string _tempPath;
+    private readonly string _statusFilePath;
 
     public UpdateOrchestrator(
         ILogger<UpdateOrchestrator> logger,
@@ -35,6 +36,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
         // Determine installation path from registry or default
         _installPath = GetInstallationPath();
         _tempPath = Path.Combine(Path.GetTempPath(), "ChronosX-Update");
+        _statusFilePath = Path.Combine(_tempPath, "update-status.json");
     }
 
     public async Task<UpdateResult> InstallUpdateAsync(
@@ -72,6 +74,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
             // Step 1: Get installer (download or use provided path)
             if (string.IsNullOrEmpty(installerPath))
             {
+                WriteStatusFile("downloading", targetVersion);
                 progress?.Report(new UpdateProgress
                 {
                     Stage = UpdateStage.Downloading,
@@ -86,6 +89,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
                 // Verify the provided installer exists
                 if (!File.Exists(installerPath))
                 {
+                    WriteStatusFile("failed", targetVersion, $"Installer not found at: {installerPath}");
                     return new UpdateResult
                     {
                         Success = false,
@@ -97,6 +101,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
             }
 
             // Step 2: Verify checksum
+            WriteStatusFile("verifying", targetVersion);
             progress?.Report(new UpdateProgress
             {
                 Stage = UpdateStage.Verifying,
@@ -107,6 +112,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
             var checksumValid = await _signatureVerifier.VerifyChecksumAsync(installerPath, checksum, cancellationToken);
             if (!checksumValid)
             {
+                WriteStatusFile("failed", targetVersion, "Checksum verification failed - file may be corrupted");
                 return new UpdateResult
                 {
                     Success = false,
@@ -117,6 +123,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
             // Step 3: Verify signature (optional)
             if (verifySignature)
             {
+                WriteStatusFile("verifying", targetVersion, "Verifying digital signature");
                 progress?.Report(new UpdateProgress
                 {
                     Stage = UpdateStage.Verifying,
@@ -127,6 +134,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
                 var sigResult = _signatureVerifier.VerifySignature(installerPath);
                 if (!sigResult.IsValid)
                 {
+                    WriteStatusFile("failed", targetVersion, $"Signature verification failed: {sigResult.ErrorMessage}");
                     return new UpdateResult
                     {
                         Success = false,
@@ -137,6 +145,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
             }
 
             // Step 4: Create backup
+            WriteStatusFile("backingup", targetVersion);
             progress?.Report(new UpdateProgress
             {
                 Stage = UpdateStage.BackingUp,
@@ -148,6 +157,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
             _logger.LogInformation("Backup created at: {Path}", backupPath);
 
             // Step 5: Stop services
+            WriteStatusFile("stoppingservices", targetVersion);
             progress?.Report(new UpdateProgress
             {
                 Stage = UpdateStage.StoppingServices,
@@ -158,6 +168,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
             await StopAllServicesAsync(cancellationToken);
 
             // Step 6: Install
+            WriteStatusFile("installing", targetVersion);
             progress?.Report(new UpdateProgress
             {
                 Stage = UpdateStage.Installing,
@@ -172,6 +183,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
             }
 
             // Step 7: Start services
+            WriteStatusFile("startingservices", targetVersion);
             progress?.Report(new UpdateProgress
             {
                 Stage = UpdateStage.StartingServices,
@@ -185,6 +197,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
             CleanupTempFiles(installerPath);
             await _backupManager.CleanupOldBackupsAsync(7, cancellationToken);
 
+            WriteStatusFile("completed", targetVersion);
             progress?.Report(new UpdateProgress
             {
                 Stage = UpdateStage.Completed,
@@ -202,6 +215,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
         catch (OperationCanceledException)
         {
             _logger.LogWarning("Update was cancelled");
+            WriteStatusFile("failed", targetVersion, "Update was cancelled");
 
             // Attempt to restore services
             if (!string.IsNullOrEmpty(backupPath) && Directory.Exists(backupPath))
@@ -228,6 +242,7 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
         catch (Exception ex)
         {
             _logger.LogError(ex, "Update failed");
+            WriteStatusFile("failed", targetVersion, ex.Message);
 
             return new UpdateResult
             {
@@ -671,6 +686,31 @@ public sealed class UpdateOrchestrator : IUpdateOrchestrator
         var dirName = Path.GetFileName(backupPath.TrimEnd(Path.DirectorySeparatorChar));
         var parts = dirName?.Split('_');
         return parts?.FirstOrDefault() ?? "unknown";
+    }
+
+    /// <summary>
+    /// Writes a JSON status file so that processes restarting after being killed
+    /// by the installer can determine the update outcome.
+    /// </summary>
+    private void WriteStatusFile(string stage, string version, string? error = null)
+    {
+        try
+        {
+            Directory.CreateDirectory(_tempPath);
+            var status = new
+            {
+                stage,
+                version,
+                error,
+                timestamp = DateTime.UtcNow.ToString("O")
+            };
+            var json = System.Text.Json.JsonSerializer.Serialize(status);
+            File.WriteAllText(_statusFilePath, json);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to write update status file");
+        }
     }
 
     private static string FormatBytes(long bytes)
