@@ -70,6 +70,10 @@ public sealed class DatabaseInitializer : IHostedService
             await ApplyAllMissingTablesAndMarkMigrationsApplied(dbContext, cancellationToken);
         }
 
+        // Manual migrations (no .Designer.cs) are invisible to EF Core reflection discovery and
+        // never applied by MigrateAsync. Run their SQL idempotently on every startup.
+        await ApplyManualMigrationsAsync(dbContext, cancellationToken);
+
         _logger.LogInformation("Running seed data...");
         await AppCategoryGlobalSeed.SeedAsync(dbContext, cancellationToken);
         var plansOptions = scope.ServiceProvider.GetRequiredService<IOptions<PlansOptions>>();
@@ -85,6 +89,38 @@ public sealed class DatabaseInitializer : IHostedService
     {
         return ex.InnerException?.Message?.Contains("already exists") == true ||
                ex.Message?.Contains("already exists") == true;
+    }
+
+    private async Task ApplyManualMigrationsAsync(TimeTrackDbContext dbContext, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Ensuring manual migration schema is current...");
+
+        await dbContext.Database.ExecuteSqlRawAsync(@"
+            CREATE TABLE IF NOT EXISTS org_invite_links (
+                id uuid NOT NULL DEFAULT gen_random_uuid(),
+                org_id uuid NOT NULL REFERENCES orgs(id) ON DELETE RESTRICT,
+                token_hash character varying(500) NOT NULL,
+                role character varying(20) NOT NULL DEFAULT 'Colaborador',
+                created_by_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                expires_at timestamp with time zone,
+                max_uses integer,
+                use_count integer NOT NULL DEFAULT 0,
+                is_active boolean NOT NULL DEFAULT true,
+                created_at timestamp with time zone NOT NULL DEFAULT now(),
+                CONSTRAINT PK_org_invite_links PRIMARY KEY (id)
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS ix_org_invite_links_token_hash ON org_invite_links(token_hash);
+            CREATE INDEX IF NOT EXISTS ix_org_invite_links_org_id ON org_invite_links(org_id);
+
+            ALTER TABLE orgs ADD COLUMN IF NOT EXISTS onboarding_completed_at timestamp with time zone;
+
+            INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+            VALUES ('20260507000000_AddOrgInviteLinksAndOnboarding', '8.0.0')
+            ON CONFLICT DO NOTHING;
+        ", cancellationToken);
+
+        _logger.LogInformation("Manual migration schema up to date");
     }
 
     private async Task ApplyAllMissingTablesAndMarkMigrationsApplied(
