@@ -1337,6 +1337,70 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.ToTable("org_usage_records", (string)null);
                 });
 
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.OrgInviteLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<int?>("MaxUses")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_uses");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("role");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("token_hash");
+
+                    b.Property<int>("UseCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("use_count");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrgId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("org_invite_links", (string)null);
+                });
+
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.Organization", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1374,6 +1438,10 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
+
+                    b.Property<DateTime?>("OnboardingCompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("onboarding_completed_at");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -2476,6 +2544,23 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
                     b.Navigation("Organization");
 
                     b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.OrgInviteLink", b =>
+                {
+                    b.HasOne("TimeTrack.Backend.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrgId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TimeTrack.Backend.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("TimeTrack.Backend.Domain.Entities.PasswordResetToken", b =>

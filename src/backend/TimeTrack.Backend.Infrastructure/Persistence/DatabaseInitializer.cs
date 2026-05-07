@@ -40,6 +40,7 @@ public sealed class DatabaseInitializer : IHostedService
         "20260420211819_AddTrialSubscriptionBackfill",
         "20260420224132_AddIsPlatformAdminToUsers",
         "20260425130000_AddIdleJustificationSupport",
+        "20260507000000_AddOrgInviteLinksAndOnboarding",
     ];
 
     public DatabaseInitializer(
@@ -213,6 +214,25 @@ public sealed class DatabaseInitializer : IHostedService
             CREATE INDEX IF NOT EXISTS IX_org_usage_records_org_id ON org_usage_records(org_id);
             CREATE INDEX IF NOT EXISTS IX_billing_invoices_org_id ON billing_invoices(org_id);
             CREATE INDEX IF NOT EXISTS IX_billing_invoices_stripe_invoice_id ON billing_invoices(stripe_invoice_id);
+
+            CREATE TABLE IF NOT EXISTS org_invite_links (
+                id uuid NOT NULL DEFAULT gen_random_uuid(),
+                org_id uuid NOT NULL REFERENCES orgs(id) ON DELETE RESTRICT,
+                token_hash character varying(500) NOT NULL,
+                role character varying(20) NOT NULL DEFAULT 'Colaborador',
+                created_by_user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+                expires_at timestamp with time zone,
+                max_uses integer,
+                use_count integer NOT NULL DEFAULT 0,
+                is_active boolean NOT NULL DEFAULT true,
+                created_at timestamp with time zone NOT NULL DEFAULT now(),
+                CONSTRAINT PK_org_invite_links PRIMARY KEY (id)
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS ix_org_invite_links_token_hash ON org_invite_links(token_hash);
+            CREATE INDEX IF NOT EXISTS ix_org_invite_links_org_id ON org_invite_links(org_id);
+
+            ALTER TABLE orgs ADD COLUMN IF NOT EXISTS onboarding_completed_at timestamp with time zone;
         ", cancellationToken);
 
         _logger.LogInformation("Missing tables created idempotently");
