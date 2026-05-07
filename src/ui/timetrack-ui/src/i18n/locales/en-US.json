@@ -1167,6 +1167,7 @@
     "inviteRoleLabel": "Role",
     "inviteButton": "Invite",
     "inviting": "Inviting...",
+    "inviteAlreadyMember": "This email is already a member of the organization.",
     "copyLink": "Copy link",
     "copied": "Copied!",
     "allSet": "All set! Your organization is configured."

@@ -20,7 +20,7 @@ export default function Onboarding() {
   // Step 2 — invite by email
   const [inviteEmail, setInviteEmail] = useState('');
   const [isInviting, setIsInviting] = useState(false);
-  const [inviteStatus, setInviteStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'success' | 'error' | 'conflict'>('idle');
   const [invitedEmails, setInvitedEmails] = useState<string[]>([]);
 
   // Step 3 — invite link
@@ -46,8 +46,13 @@ export default function Onboarding() {
       setInvitedEmails((prev) => [...prev, inviteEmail]);
       setInviteStatus('success');
       setInviteEmail('');
-    } catch {
-      setInviteStatus('error');
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code === 'EMAIL_EXISTS_IN_ORG' || code === 'EMAIL_EXISTS' || code === 'duplicate_key') {
+        setInviteStatus('conflict');
+      } else {
+        setInviteStatus('error');
+      }
     } finally {
       setIsInviting(false);
     }
@@ -179,6 +184,9 @@ export default function Onboarding() {
                       placeholder="colaborador@empresa.com"
                     />
                   </div>
+                  {inviteStatus === 'conflict' && (
+                    <p className="text-yellow-400 text-sm mb-3">{t('onboarding.inviteAlreadyMember')}</p>
+                  )}
                   {inviteStatus === 'error' && (
                     <p className="text-red-400 text-sm mb-3">{t('common.error')}</p>
                   )}

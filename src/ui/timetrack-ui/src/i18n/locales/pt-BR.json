@@ -1174,6 +1174,7 @@
     "inviteButton": "Convidar",
     "inviting": "Convidando...",
     "inviteSent": "Convite enviado!",
+    "inviteAlreadyMember": "Este email já é membro da organização.",
     "copyLink": "Copiar link",
     "copied": "Copiado!",
     "generateLink": "Gerar link",
