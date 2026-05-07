@@ -24,7 +24,7 @@ public sealed class PasswordResetTokenRepository : IPasswordResetTokenRepository
     public async Task<PasswordResetToken?> GetValidTokenByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _context.PasswordResetTokens
-            .Where(prt => prt.UserId == userId && !prt.IsExpired && !prt.IsUsed)
+            .Where(prt => prt.UserId == userId && prt.ExpiresAt > DateTime.UtcNow && prt.UsedAt == null)
             .OrderByDescending(prt => prt.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -44,7 +44,7 @@ public sealed class PasswordResetTokenRepository : IPasswordResetTokenRepository
     public async Task InvalidateAllByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var tokens = await _context.PasswordResetTokens
-            .Where(prt => prt.UserId == userId && !prt.IsUsed)
+            .Where(prt => prt.UserId == userId && prt.UsedAt == null)
             .ToListAsync(cancellationToken);
 
         foreach (var token in tokens)
