@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using TimeTrack.Backend.Application.Auth.DTOs;
 using TimeTrack.Backend.Application.Common.Exceptions;
 using TimeTrack.Backend.Application.Common.Interfaces;
@@ -24,19 +25,28 @@ public sealed class InviteUserCommandHandler : IRequestHandler<InviteUserCommand
     private readonly IPasswordHasher _passwordHasher;
     private readonly IPasswordGenerator _passwordGenerator;
     private readonly IEmailService _emailService;
+    private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
+    private readonly ITokenService _tokenService;
+    private readonly string _frontendBaseUrl;
 
     public InviteUserCommandHandler(
         IUserRepository userRepository,
         IOrganizationRepository organizationRepository,
         IPasswordHasher passwordHasher,
         IPasswordGenerator passwordGenerator,
-        IEmailService emailService)
+        IEmailService emailService,
+        IPasswordResetTokenRepository passwordResetTokenRepository,
+        ITokenService tokenService,
+        IConfiguration configuration)
     {
         _userRepository = userRepository;
         _organizationRepository = organizationRepository;
         _passwordHasher = passwordHasher;
         _passwordGenerator = passwordGenerator;
         _emailService = emailService;
+        _passwordResetTokenRepository = passwordResetTokenRepository;
+        _tokenService = tokenService;
+        _frontendBaseUrl = configuration["Frontend:BaseUrl"] ?? "https://app.timetrack.com";
     }
 
     public async Task<InviteUserResponse> Handle(InviteUserCommand request, CancellationToken cancellationToken)
@@ -83,12 +93,23 @@ public sealed class InviteUserCommandHandler : IRequestHandler<InviteUserCommand
 
         await _userRepository.AddAsync(user, cancellationToken);
 
+        // Generate accept-invite token (24h expiry)
+        await _passwordResetTokenRepository.InvalidateAllByUserIdAsync(user.Id, cancellationToken);
+        var rawToken = _tokenService.GenerateRefreshToken();
+        var tokenHash = _tokenService.HashRefreshToken(rawToken);
+        var resetToken = PasswordResetToken.Create(user.Id, tokenHash, TimeSpan.FromHours(24));
+        await _passwordResetTokenRepository.AddAsync(resetToken, cancellationToken);
+
+        var encodedEmail = Uri.EscapeDataString(user.Email);
+        var acceptInviteUrl = $"{_frontendBaseUrl}/accept-invite?token={rawToken}&email={encodedEmail}";
+
         // Send invitation email
         await _emailService.SendInvitationEmailAsync(
             request.Email,
             "An administrator",
             organization.Name,
             temporaryPassword,
+            acceptInviteUrl,
             cancellationToken);
 
         return new InviteUserResponse

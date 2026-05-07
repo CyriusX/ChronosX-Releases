@@ -14,6 +14,7 @@ public sealed class Organization
     public OrgStatus Status { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
+    public DateTime? OnboardingCompletedAt { get; private set; }
 
     // Navigation properties
     private readonly List<User> _users = new();
@@ -61,6 +62,12 @@ public sealed class Organization
     public void Reactivate()
     {
         Status = OrgStatus.Active;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void CompleteOnboarding()
+    {
+        OnboardingCompletedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
 }

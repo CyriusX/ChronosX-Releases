@@ -23,6 +23,7 @@ export interface User {
   orgId: string;
   orgName: string;
   passwordMustChange: boolean;
+  onboardingCompleted?: boolean;
 }
 
 interface AuthTokens {
@@ -39,12 +40,14 @@ interface AuthState {
   error: string | null;
 
   login: (email: string, password: string) => Promise<boolean>;
+  register: (email: string, password: string, displayName: string, orgName: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshTokens: () => Promise<boolean>;
   setUser: (user: User) => void;
   setTokens: (tokens: AuthTokens) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setOnboardingComplete: (complete: boolean) => void;
   clearAuth: () => void;
 }
 
@@ -95,6 +98,34 @@ async function refreshApi(refreshToken: string) {
   }
 
   return response.json();
+}
+
+async function registerApi(email: string, password: string, displayName: string, orgName: string) {
+  const response = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, displayName, organizationName: orgName }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Registration failed' }));
+    throw new Error(error.message || error.title || 'Registration failed');
+  }
+
+  return response.json();
+}
+
+async function getOnboardingStatusApi(accessToken: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE}/onboarding/status`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    return data.isComplete ?? false;
+  } catch {
+    return false;
+  }
 }
 
 async function logoutApi(refreshToken?: string) {
@@ -161,6 +192,9 @@ export const useAuthStore = create<AuthState>()(
             expiresAt: Date.now() + response.expiresIn * 1000,
           };
 
+          const onboardingCompleted = await getOnboardingStatusApi(tokens.accessToken);
+          user.onboardingCompleted = onboardingCompleted;
+
           set({
             user,
             tokens,
@@ -226,10 +260,45 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      register: async (email: string, password: string, displayName: string, orgName: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          await registerApi(email, password, displayName, orgName);
+          // Auto-login after registration
+          const loginResponse = await loginApi(email, password);
+          const user: User = {
+            id: loginResponse.userId,
+            email: loginResponse.email ?? email,
+            displayName: loginResponse.displayName,
+            role: loginResponse.role ?? 'Colaborador',
+            orgId: loginResponse.orgId,
+            orgName: loginResponse.orgName,
+            passwordMustChange: loginResponse.passwordMustChange ?? false,
+          };
+          const tokens: AuthTokens = {
+            accessToken: loginResponse.accessToken,
+            refreshToken: loginResponse.refreshToken,
+            expiresAt: Date.now() + loginResponse.expiresIn * 1000,
+          };
+          const onboardingCompleted = await getOnboardingStatusApi(tokens.accessToken);
+          user.onboardingCompleted = onboardingCompleted;
+          set({ user, tokens, isAuthenticated: true, isLoading: false, error: null });
+          return true;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Registration failed';
+          set({ isLoading: false, error: message });
+          return false;
+        }
+      },
+
       setUser: (user) => set({ user, isAuthenticated: true }),
       setTokens: (tokens) => set({ tokens }),
       setLoading: (isLoading) => set({ isLoading }),
       setError: (error) => set({ error }),
+      setOnboardingComplete: (complete: boolean) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, onboardingCompleted: complete } : null,
+        })),
 
       clearAuth: () =>
         set({

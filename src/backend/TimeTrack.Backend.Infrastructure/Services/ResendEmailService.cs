@@ -34,10 +34,10 @@ public sealed class ResendEmailService : IEmailService
         string inviterName,
         string organizationName,
         string temporaryPassword,
+        string acceptInviteUrl,
         CancellationToken cancellationToken = default)
     {
         var subject = $"Você foi convidado para {organizationName}";
-        var loginUrl = $"{_frontendBaseUrl}/login";
         var htmlBody = $@"
 <!DOCTYPE html>
 <html>
@@ -45,13 +45,15 @@ public sealed class ResendEmailService : IEmailService
 <body style=""font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;"">
     <h2>Bem-vindo ao TimeTrack!</h2>
     <p><strong>{inviterName}</strong> convidou você para participar da organização <strong>{organizationName}</strong>.</p>
-    <div style=""background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;"">
-        <p style=""margin: 0;""><strong>Sua senha temporária:</strong></p>
-        <p style=""font-size: 18px; font-weight: bold; margin: 10px 0; color: #2563eb;"">{temporaryPassword}</p>
-    </div>
-    <p>Acesse <a href=""{loginUrl}"">{loginUrl}</a> para fazer login.</p>
-    <p>Você será solicitado a trocar a senha no primeiro acesso.</p>
-    <p style=""color: #666; font-size: 12px; margin-top: 30px;"">Se você não criou esta conta, pode ignorar este email.</p>
+    <p style=""margin: 24px 0;"">
+        <a href=""{acceptInviteUrl}"" style=""display: inline-block; background-color: #2563eb; color: white; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold;"">
+            Aceitar Convite
+        </a>
+    </p>
+    <p style=""color: #666; font-size: 13px;"">O link expira em 24 horas.</p>
+    <hr style=""border: none; border-top: 1px solid #eee; margin: 20px 0;"">
+    <p style=""color: #888; font-size: 12px;"">Ou acesse com a senha temporária: <strong>{temporaryPassword}</strong></p>
+    <p style=""color: #666; font-size: 12px; margin-top: 20px;"">Se você não esperava este convite, pode ignorar este email.</p>
 </body>
 </html>";
 

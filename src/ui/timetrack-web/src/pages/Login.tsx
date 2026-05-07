@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../stores/authStore';
@@ -9,9 +9,13 @@ import logoImg from '@desktop/assets/logo-128.png';
 export default function Login() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
   const { login, isLoading, error, setError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  const invited = searchParams.get('invited') === 'true';
+  const reset = searchParams.get('reset') === 'true';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +57,23 @@ export default function Login() {
             {t('auth.webLoginSubtitle')}
           </motion.p>
         </div>
+
+        {/* Success banners for invite accepted / password reset */}
+        <AnimatePresence>
+          {(invited || reset) && (
+            <motion.div
+              className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: TIMING.normal }}
+            >
+              <p className="text-green-400 text-sm">
+                {invited ? t('auth.inviteAccepted') : t('auth.passwordResetSuccess')}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Login Form */}
         <motion.form
@@ -145,10 +166,19 @@ export default function Login() {
           <div className="mt-4 text-center">
             <button
               type="button"
+              onClick={() => navigate('/forgot-password')}
               className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
             >
               {t('auth.forgotPassword')}
             </button>
+          </div>
+
+          {/* Create account link */}
+          <div className="mt-2 text-center">
+            <span className="text-sm text-zinc-500">{t('auth.noAccount')}</span>{' '}
+            <Link to="/register" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
+              {t('auth.createAccount')}
+            </Link>
           </div>
         </motion.form>
 
