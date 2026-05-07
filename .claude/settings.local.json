@@ -541,7 +541,12 @@
       "PowerShell(powershell -Command \"Start-Process powershell -ArgumentList '-Command', 'Stop-Process -Name TimeTrack.AgentService -Force -ErrorAction SilentlyContinue; Stop-Process -Name TimeTrack.DesktopHost -Force -ErrorAction SilentlyContinue' -Verb RunAs -Wait\" 2>&1)",
       "Bash(DOTNET_ENVIRONMENT=Development ./TimeTrack.AgentService.exe)",
       "PowerShell(Get-ScheduledTask *)",
-      "PowerShell(powershell -Command \"Start-Process powershell -ArgumentList '-Command', 'Copy-Item -Path ''C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\runtimeconfig-fix.json'' -Destination ''C:\\\\Program Files\\\\ChronosX\\\\service\\\\TimeTrack.AgentService.runtimeconfig.json'' -Force' -Verb RunAs -Wait\" 2>&1)"
+      "PowerShell(powershell -Command \"Start-Process powershell -ArgumentList '-Command', 'Copy-Item -Path ''C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\runtimeconfig-fix.json'' -Destination ''C:\\\\Program Files\\\\ChronosX\\\\service\\\\TimeTrack.AgentService.runtimeconfig.json'' -Force' -Verb RunAs -Wait\" 2>&1)",
+      "Bash(python3 *)",
+      "Bash(/Users/juniorcarvalho/Repo/Cyriusx/TimeTracking/src/ui/timetrack-web/node_modules/.bin/tsc -b)",
+      "Bash(/Users/juniorcarvalho/Repo/Cyriusx/TimeTracking/src/ui/timetrack-web/node_modules/.bin/vite build *)",
+      "Bash(ln -s /Users/juniorcarvalho/Repo/Cyriusx/TimeTracking/src/ui/timetrack-web/node_modules /Users/juniorcarvalho/Repo/_worktrees/TimeTracking/cx-228-manager-signup/src/ui/timetrack-web/node_modules)",
+      "Bash(ln -s /Users/juniorcarvalho/Repo/Cyriusx/TimeTracking/src/ui/timetrack-ui/node_modules /Users/juniorcarvalho/Repo/_worktrees/TimeTracking/cx-228-manager-signup/src/ui/timetrack-ui/node_modules)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",

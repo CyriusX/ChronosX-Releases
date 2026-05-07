@@ -32,6 +32,7 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<OrgPolicy> OrgPolicies => Set<OrgPolicy>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<OrgInviteLink> OrgInviteLinks => Set<OrgInviteLink>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
     public DbSet<ProjectTask> ProjectTasks => Set<ProjectTask>();
@@ -200,6 +201,10 @@ public sealed class TimeTrackDbContext : DbContext
         // Billing Invoices (tenant-scoped)
         modelBuilder.Entity<BillingInvoice>()
             .HasQueryFilter(i => !_currentUser.IsAuthenticated || i.OrgId == _currentUser.OrgId);
+
+        // Org Invite Links (tenant-scoped; GetByTokenHashAsync bypasses via IgnoreQueryFilters)
+        modelBuilder.Entity<OrgInviteLink>()
+            .HasQueryFilter(l => !_currentUser.IsAuthenticated || l.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()

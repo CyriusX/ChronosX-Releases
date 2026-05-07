@@ -47,5 +47,8 @@ internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organ
 
         builder.Property(o => o.UpdatedAt)
             .HasColumnName("updated_at");
+
+        builder.Property(o => o.OnboardingCompletedAt)
+            .HasColumnName("onboarding_completed_at");
     }
 }

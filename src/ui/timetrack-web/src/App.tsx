@@ -6,6 +6,12 @@ import { SessionExpiredNotifier } from '@desktop/components/SessionExpiredNotifi
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PaywallOverlay } from '@desktop/components/PaywallOverlay';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import Onboarding from './pages/Onboarding';
+import AcceptInvite from './pages/AcceptInvite';
+import JoinViaLink from './pages/JoinViaLink';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Activities from './pages/Activities';
 import Reports from './pages/Reports';
@@ -37,8 +43,14 @@ function AnimatedRoutes() {
           <Routes location={location}>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/accept-invite" element={<AcceptInvite />} />
+            <Route path="/join/:token" element={<JoinViaLink />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Protected routes */}
+            <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/activities" element={<ProtectedRoute><Activities /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
