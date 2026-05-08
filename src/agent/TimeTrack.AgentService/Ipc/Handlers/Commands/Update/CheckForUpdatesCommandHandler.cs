@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Application.Services;
+using TimeTrack.AgentService.Events;
 using TimeTrack.AgentService.Ipc.Handlers;
 
 namespace TimeTrack.AgentService.Ipc.Handlers.Commands.Update;
@@ -12,13 +13,16 @@ public sealed class CheckForUpdatesCommandHandler : IpcHandlerBase, IIpcCommandH
     public string CommandName => "CheckForUpdates";
 
     private readonly IUpdateService _updateService;
+    private readonly UpdateEventBroadcaster _eventBroadcaster;
     private readonly ILogger<CheckForUpdatesCommandHandler> _logger;
 
     public CheckForUpdatesCommandHandler(
         IUpdateService updateService,
+        UpdateEventBroadcaster eventBroadcaster,
         ILogger<CheckForUpdatesCommandHandler> logger)
     {
         _updateService = updateService;
+        _eventBroadcaster = eventBroadcaster;
         _logger = logger;
     }
 
@@ -56,6 +60,11 @@ public sealed class CheckForUpdatesCommandHandler : IpcHandlerBase, IIpcCommandH
                 "Update check completed: HasUpdate={HasUpdate}, Version={Version}",
                 result.HasUpdate,
                 result.LatestVersion);
+
+            if (result.HasUpdate == true)
+            {
+                await _eventBroadcaster.BroadcastUpdateAvailableAsync(result, ct);
+            }
 
             return SuccessResponse(request.RequestId, new
             {
