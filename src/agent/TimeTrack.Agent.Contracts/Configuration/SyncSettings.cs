@@ -8,7 +8,7 @@ public sealed class SyncSettings
     /// <summary>
     /// URL base do backend
     /// </summary>
-    public string BackendUrl { get; set; } = "https://chronosx-dev-timetrack-api.gpoda0.easypanel.host";
+    public string BackendUrl { get; set; } = "https://chronosx-timetrack-api.gpoda0.easypanel.host";
 
     /// <summary>
     /// Token JWT para autenticação
