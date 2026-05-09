@@ -18,6 +18,14 @@ public sealed class SyncResult
     public IReadOnlyList<Guid> ProcessedIds { get; init; } = Array.Empty<Guid>();
 
     /// <summary>
+    /// Pares (outboxId, errorMessage) de itens que o backend rejeitou no nível
+    /// individual (HTTP 200 com erros[]) — devem permanecer no outbox para retry
+    /// com backoff em vez de serem silenciosamente marcados como enviados.
+    /// </summary>
+    public IReadOnlyList<(Guid OutboxId, string Error)> FailedItems { get; init; }
+        = Array.Empty<(Guid, string)>();
+
+    /// <summary>
     /// Mensagem de erro (se houver)
     /// </summary>
     public string? ErrorMessage { get; init; }
@@ -45,6 +53,23 @@ public sealed class SyncResult
             ProcessedCount = processedCount,
             DuplicatesCount = duplicatesCount,
             ProcessedIds = processedIds,
+            StatusCode = 200
+        };
+    }
+
+    public static SyncResult PartialSuccess(
+        int processedCount,
+        int duplicatesCount,
+        IReadOnlyList<Guid> processedIds,
+        IReadOnlyList<(Guid OutboxId, string Error)> failedItems)
+    {
+        return new SyncResult
+        {
+            IsSuccess = true,
+            ProcessedCount = processedCount,
+            DuplicatesCount = duplicatesCount,
+            ProcessedIds = processedIds,
+            FailedItems = failedItems,
             StatusCode = 200
         };
     }
