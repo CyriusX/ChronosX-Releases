@@ -123,7 +123,12 @@ export function useActivitiesData(): ActivitiesData {
   const [summary, setSummary] = useState<TodaySummaryResponse | null>(null);
   const [activities, setActivities] = useState<ActivityBlock[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const isFetchingRef = useRef(false);
+  // Request-id pattern: every fetchData run gets an id; only the latest run's
+  // results are applied. Replaces an in-flight bail-out that was silently
+  // dropping the dep-change re-fire (e.g. when `userId` was set after auth
+  // rehydration or when web's auto-select fires post-mount), leaving the page
+  // stuck on the first request's result.
+  const fetchIdRef = useRef(0);
 
   const isToday = isSameDay(selectedDate, new Date());
   const datePayload = formatDatePayload(selectedDate);
@@ -154,8 +159,8 @@ export function useActivitiesData(): ActivitiesData {
   // PAST DAYS: use backend API (Postgres, authoritative)
   // When userId is present, always use backend API (viewing other user's data)
   const fetchData = useCallback(async () => {
-    if (isFetchingRef.current) return;
-    isFetchingRef.current = true;
+    const myFetchId = ++fetchIdRef.current;
+    const isLatest = () => fetchIdRef.current === myFetchId;
     setIsLoading(true);
 
     try {
@@ -175,6 +180,8 @@ export function useActivitiesData(): ActivitiesData {
           ipcActivitiesPromise,
         ]);
 
+        if (!isLatest()) return;
+
         // Set summary from IPC (local, real-time) immediately
         if (ipcSummaryRes.success && ipcSummaryRes.data) {
           setSummary(ipcSummaryRes.data as TodaySummaryResponse);
@@ -191,6 +198,7 @@ export function useActivitiesData(): ActivitiesData {
         const calStart = formatDatePayload(addDays(selectedDate, -15));
         const calEnd = formatDatePayload(new Date());
         getDailySummaryRange(calStart, calEnd, userId).catch(() => null).then(calResult => {
+          if (!isLatest()) return;
           if (calResult?.days?.length && ipcSummaryRes.success && ipcSummaryRes.data) {
             const summary = { ...(ipcSummaryRes.data as TodaySummaryResponse) };
             const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -220,6 +228,8 @@ export function useActivitiesData(): ActivitiesData {
         const rangeResult = await getDailySummaryRange(calStart, calEnd, userId).catch(() => null);
         const topAppsResult = await getTopApps(datePayload, datePayload, 20, userId).catch(() => null);
         const activitiesResult = await getDailyActivities(datePayload, userId).catch(() => null);
+
+        if (!isLatest()) return;
 
         if (rangeResult) {
           // Find the specific day in the range
@@ -294,8 +304,7 @@ export function useActivitiesData(): ActivitiesData {
     } catch {
       /* ignore */
     } finally {
-      isFetchingRef.current = false;
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
   }, [sendQuery, desktopRuntime, isConnected, datePayload, isToday, userId, currentUser?.id]);
 

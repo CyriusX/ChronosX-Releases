@@ -97,7 +97,11 @@ export function useActivitiesData(): ActivitiesData {
   const [summary, setSummary] = useState<TodaySummaryResponse | null>(null);
   const [activities, setActivities] = useState<ActivityBlock[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const isFetchingRef = useRef(false);
+  // Request-id pattern: every fetchData run gets an id; only the latest run's
+  // results are applied. Replaces an in-flight bail-out that was silently
+  // dropping the dep-change re-fire when Activities.tsx auto-selected the first
+  // member after mount, leaving the page stuck on the userId=undefined result.
+  const fetchIdRef = useRef(0);
 
   const isToday = isSameDay(selectedDate, new Date());
   const datePayload = formatDatePayload(selectedDate);
@@ -115,8 +119,8 @@ export function useActivitiesData(): ActivitiesData {
 
   // Always fetch from backend API (no IPC in web portal)
   const fetchData = useCallback(async () => {
-    if (isFetchingRef.current) return;
-    isFetchingRef.current = true;
+    const myFetchId = ++fetchIdRef.current;
+    const isLatest = () => fetchIdRef.current === myFetchId;
     setIsLoading(true);
 
     try {
@@ -128,6 +132,8 @@ export function useActivitiesData(): ActivitiesData {
         getTopApps(datePayload, datePayload, 20, selectedUserId).catch((): TopAppsResponse | null => null),
         getDailyActivities(datePayload, selectedUserId).catch((): DailyActivitiesResponse | null => null),
       ]);
+
+      if (!isLatest()) return;
 
       if (rangeResult) {
         const allDays = rangeResult.days ?? [];
@@ -196,8 +202,7 @@ export function useActivitiesData(): ActivitiesData {
     } catch {
       /* ignore */
     } finally {
-      isFetchingRef.current = false;
-      setIsLoading(false);
+      if (isLatest()) setIsLoading(false);
     }
   }, [datePayload, selectedUserId, selectedDate]);
 
