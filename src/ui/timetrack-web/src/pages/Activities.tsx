@@ -12,7 +12,7 @@ import { AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { WebSidebar } from '../components/WebSidebar';
 import { useActivitiesData } from '../hooks/useActivitiesData';
-import { listMembers } from '../services/memberApi';
+import { useTeamStatus } from '../hooks/useTeamStatus';
 import { formatDuration } from '@desktop/lib/utils';
 import { fadeUp, staggerContainer, STAGGER } from '@desktop/lib/animation';
 import { Card, CardContent, CardHeader, CardTitle } from '@desktop/components/ui/card';
@@ -20,33 +20,33 @@ import { DateNavigator, DayInsights, ProductivityHeatmap, MiniCalendar, SessionL
 import { ActivitySection } from '@desktop/components/dashboard/ActivitySection';
 import { AppIcon } from '@desktop/components/dashboard/shared';
 import { cardBase } from '@desktop/components/dashboard/shared/styles';
-import type { Member } from '@desktop/types/member';
 
 export default function Activities() {
   const { t } = useTranslation();
   const data = useActivitiesData();
   const { summary, activities, isLoading } = data;
 
-  // Member selector
-  const [members, setMembers] = useState<Member[]>([]);
+  // Member selector — useTeamStatus carries the live `isTracking` flag (heartbeat-based)
+  // so the page can drive the "Ao vivo" badge from real status, not a stale today-flag.
+  const { members, loadTeamStatus } = useTeamStatus();
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
 
   useEffect(() => {
-    loadMembers();
-  }, []);
+    loadTeamStatus();
+  }, [loadTeamStatus]);
 
-  const loadMembers = async () => {
-    try {
-      const result = await listMembers();
-      setMembers(result.members);
-      // Auto-select first member if none selected
-      if (!data.selectedUserId && result.members.length > 0) {
-        data.setSelectedUserId(result.members[0].userId);
-      }
-    } catch (err) {
-      console.error('[Activities] Error loading members:', err);
+  // Auto-select first member once the list is loaded.
+  useEffect(() => {
+    if (!data.selectedUserId && members.length > 0) {
+      data.setSelectedUserId(members[0].userId);
     }
-  };
+  }, [members, data]);
+
+  const isLive = (() => {
+    if (!data.isToday || !data.selectedUserId) return false;
+    const m = members.find(mm => mm.userId === data.selectedUserId);
+    return m?.isTracking ?? false;
+  })();
 
   const getSelectedUserName = () => {
     if (!data.selectedUserId) return 'Selecione um membro';
@@ -144,6 +144,7 @@ export default function Activities() {
                   comparisonText={data.comparisonText}
                   productivityComparison={data.productivityComparison}
                   isToday={data.isToday}
+                  isLive={isLive}
                 />
 
                 <ActivitiesTopCards summary={summary} />
