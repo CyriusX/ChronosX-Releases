@@ -29,6 +29,8 @@ import { AnimatedPage } from "./components/ui/AnimatedPage";
 import { SessionExpiredNotifier } from "./components/SessionExpiredNotifier";
 import { MobileBottomNav } from "./components/navigation/MobileBottomNav";
 import { UpdateNotificationModal } from "./components/update/UpdateNotificationModal";
+import { UpdateAvailableBanner } from "./components/update/UpdateAvailableBanner";
+import { UpdateAvailableToast } from "./components/update/UpdateAvailableToast";
 
 function App() {
   const { isConnected, isReady, sendQuery, subscribeToEvent } = useIpc();
@@ -406,26 +408,34 @@ function App() {
 
   return desktop ? (
     <MemoryRouter initialEntries={desktopInitialEntriesRef.current ?? ['/login']}>
-      <div className="h-screen overflow-hidden bg-[rgb(10,12,18)] text-[#f5f7fb]">
-        <NavigationEventBridge />
-        <AnimatedRoutes />
-        <Toaster />
-        <TrackingStoppedOverlay />
-        <SessionExpiredNotifier />
-        <UpdateNotificationOverlay />
-        <MobileBottomNav />
+      <div className="h-screen overflow-hidden bg-[rgb(10,12,18)] text-[#f5f7fb] flex flex-col">
+        <UpdateAvailableBanner />
+        <div className="flex-1 min-h-0 relative">
+          <NavigationEventBridge />
+          <AnimatedRoutes />
+          <Toaster />
+          <UpdateAvailableToast />
+          <TrackingStoppedOverlay />
+          <SessionExpiredNotifier />
+          <UpdateNotificationOverlay />
+          <MobileBottomNav />
+        </div>
       </div>
     </MemoryRouter>
   ) : (
     <HashRouter>
-      <div className="h-screen overflow-hidden bg-[rgb(10,12,18)] text-[#f5f7fb]">
-        <NavigationEventBridge />
-        <AnimatedRoutes />
-        <Toaster />
-        <TrackingStoppedOverlay />
-        <SessionExpiredNotifier />
-        <UpdateNotificationOverlay />
-        <MobileBottomNav />
+      <div className="h-screen overflow-hidden bg-[rgb(10,12,18)] text-[#f5f7fb] flex flex-col">
+        <UpdateAvailableBanner />
+        <div className="flex-1 min-h-0 relative">
+          <NavigationEventBridge />
+          <AnimatedRoutes />
+          <Toaster />
+          <UpdateAvailableToast />
+          <TrackingStoppedOverlay />
+          <SessionExpiredNotifier />
+          <UpdateNotificationOverlay />
+          <MobileBottomNav />
+        </div>
       </div>
     </HashRouter>
   );
@@ -564,11 +574,17 @@ function TrackingStoppedOverlay() {
 }
 
 /**
- * Global update notification modal — appears when the agent detects a new version.
- * Subscribes to IPC events independently so it works on any page.
+ * Global update notification modal — shows install progress when the user starts
+ * an update (or when the app rebooted into an in-progress install). Discovery
+ * happens via the top stripe + bottom-right toast.
+ *
+ * Also fires a single startup check once IPC is connected: the agent's UpdateWorker
+ * checks on its own startup, but its updateAvailable broadcast can race the React
+ * mount and be missed — re-asking here is cheap and closes that window.
  */
 function UpdateNotificationOverlay() {
   const { isAuthenticated } = useAuthStore();
+  const { isConnected } = useIpc();
   const {
     updateInfo,
     progress,
@@ -579,6 +595,14 @@ function UpdateNotificationOverlay() {
     checkForUpdates,
     startUpdate,
   } = useUpdate();
+
+  const startupCheckFiredRef = useRef(false);
+  useEffect(() => {
+    if (startupCheckFiredRef.current) return;
+    if (!isAuthenticated || !isConnected || !isDesktopRuntime()) return;
+    startupCheckFiredRef.current = true;
+    checkForUpdates();
+  }, [isAuthenticated, isConnected, checkForUpdates]);
 
   if (!isAuthenticated || !shouldShowModal) return null;
 

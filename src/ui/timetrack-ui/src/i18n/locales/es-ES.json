@@ -1063,6 +1063,19 @@
     "categorySystemLabel": "Sistema",
     "loadMetricsError": "Error al cargar métricas"
   },
+  "update": {
+    "banner": {
+      "title": "Nueva versión {{version}} disponible",
+      "cta": "Actualizar ahora",
+      "dismiss": "Cerrar aviso"
+    },
+    "toast": {
+      "title": "Nueva versión {{version}}",
+      "description": "Actualiza para recibir las últimas mejoras. La app se reiniciará al final.",
+      "cta": "Actualizar",
+      "later": "Más tarde"
+    }
+  },
   "session": {
     "expired": "Sesión expirada",
     "expiredMessage": "Tu sesión ha expirado. Inicia sesión de nuevo."

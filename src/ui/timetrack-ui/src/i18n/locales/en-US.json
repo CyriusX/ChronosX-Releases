@@ -1085,6 +1085,19 @@
     "categorySystemLabel": "System",
     "loadMetricsError": "Error loading metrics"
   },
+  "update": {
+    "banner": {
+      "title": "Version {{version}} is available",
+      "cta": "Update now",
+      "dismiss": "Dismiss"
+    },
+    "toast": {
+      "title": "Version {{version}} is available",
+      "description": "Install to get the latest improvements. The app will restart when done.",
+      "cta": "Update",
+      "later": "Later"
+    }
+  },
   "session": {
     "expired": "Session expired",
     "expiredMessage": "Your session has expired. Please log in again."
