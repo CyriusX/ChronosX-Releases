@@ -759,7 +759,8 @@ function ActivityTooltip({ block, anchorRect, blockEvidence }: { block: Activity
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.6)]">
               {block.domain}
             </span>
-
+          </div>
+        )}
         {(block.reasonCode || block.note) && (
           <div className="border-t border-[rgba(255,255,255,0.08)] pt-1.5 mb-2 space-y-1">
             {block.reasonCode && (
