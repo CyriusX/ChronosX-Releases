@@ -15,6 +15,14 @@ if (!createdNew)
     return;
 }
 
+// Default to Production when running from Task Scheduler (no DOTNET_ENVIRONMENT set).
+// This ensures appsettings.Production.json is loaded with real BackendUrl and UpdateUrl.
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"))
+    && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")))
+{
+    Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", "Production");
+}
+
 // Configura prioridade do processo o mais cedo possível
 var priority = Environment.GetEnvironmentVariable("TIMETRACK_PROCESS_PRIORITY") ?? "BelowNormal";
 ServiceCollectionExtensions.ConfigureProcessPriority(priority);
