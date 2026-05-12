@@ -808,7 +808,6 @@ public sealed class SyncWorker : BackgroundService
         "trial_required" => true,
         "past_due" => true,
         "none" => true,
-        "trial_required" => true,
         _ => false
     };
 }
