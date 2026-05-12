@@ -9,6 +9,7 @@ using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.Policies.Commands;
 using TimeTrack.Backend.Application.Policies.DTOs;
 using TimeTrack.Backend.Application.Policies.Queries;
+using UpdateEvidencePolicyCommand = TimeTrack.Backend.Application.Policies.Commands.UpdateEvidencePolicyCommand;
 
 namespace TimeTrack.Api.Controllers;
 
@@ -83,6 +84,47 @@ public sealed class OrgPoliciesController : ControllerBase
         }
 
         var command = new UpdateOrgPolicyCommand(orgId, request);
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Gets the organization's evidence policy
+    /// </summary>
+    [HttpGet("evidence")]
+    [ProducesResponseType(typeof(EvidencePolicyResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<EvidencePolicyResponse>> GetEvidencePolicy(
+        [FromRoute] Guid orgId,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.OrgId != orgId)
+            return Forbid();
+
+        var query = new GetEvidencePolicyQuery(orgId);
+        var result = await _mediator.Send(query, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Updates the organization's evidence policy (Admin/Gestor)
+    /// </summary>
+    [HttpPut("evidence")]
+    [Authorize(Policy = AuthorizationPolicies.ManagerOrAdmin)]
+    [ProducesResponseType(typeof(EvidencePolicyResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<EvidencePolicyResponse>> UpdateEvidencePolicy(
+        [FromRoute] Guid orgId,
+        [FromBody] UpdateEvidencePolicyRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_currentUser.OrgId != orgId)
+            return Forbid();
+
+        var command = new UpdateEvidencePolicyCommand(orgId, request);
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
     }

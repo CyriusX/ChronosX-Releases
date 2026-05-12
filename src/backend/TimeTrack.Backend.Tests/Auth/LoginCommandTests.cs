@@ -63,7 +63,7 @@ public class LoginCommandTests
             .Returns(true);
 
         _tokenServiceMock
-            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange))
+            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange, false))
             .Returns("access-token");
 
         _tokenServiceMock
@@ -113,7 +113,7 @@ public class LoginCommandTests
             .Returns(true);
 
         _tokenServiceMock
-            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange))
+            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange, false))
             .Returns("access-token");
 
         _tokenServiceMock
@@ -135,7 +135,7 @@ public class LoginCommandTests
         // Act
         await _handler.Handle(command, CancellationToken.None);
 
-        // Assert - Verify audit log was called
+        // Assert
         _auditLogServiceMock.Verify(
             s => s.LogAsync(
                 AuditActions.UserLogin,
@@ -217,7 +217,7 @@ public class LoginCommandTests
             .Returns(true);
 
         _tokenServiceMock
-            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), true))
+            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), true, false))
             .Returns("access-token");
 
         _tokenServiceMock

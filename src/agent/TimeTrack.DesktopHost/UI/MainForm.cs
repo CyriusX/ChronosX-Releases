@@ -61,7 +61,12 @@ public sealed class MainForm : Form
         _ipcClient = ipcClient;
         _bridge = bridge;
         _logger = logger;
-        _backendBaseUrl = (configuration["Agent:Sync:BackendUrl"] ?? "https://chronosx-timetrack-api.gpoda0.easypanel.host").TrimEnd('/');
+        _backendBaseUrl = (configuration["Agent:Sync:BackendUrl"] ?? "http://localhost:5000").TrimEnd('/');
+#if DEBUG
+        // In Debug builds, always force localhost to avoid Production config override
+        _backendBaseUrl = "http://localhost:5000";
+#endif
+        _logger.LogWarning("DesktopHost BackendUrl resolved to: {Url}", _backendBaseUrl);
         _proxyHttpClient = new HttpClient(new HttpClientHandler
         {
             AutomaticDecompression = DecompressionMethods.All

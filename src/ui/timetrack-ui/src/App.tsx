@@ -20,6 +20,7 @@ import Projects from "./pages/Projects";
 import ProjectBoard from "./pages/ProjectBoard";
 import Reports from "./pages/Reports";
 import TimerPage from "./pages/Timer";
+import Insights from "./pages/Insights";
 import Activities from "./pages/Activities";
 import Teams from "./pages/Teams";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -540,6 +541,14 @@ function AnimatedRoutes() {
               element={
                 <ProtectedRoute>
                   <Reports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/insights"
+              element={
+                <ProtectedRoute>
+                  <Insights />
                 </ProtectedRoute>
               }
             />

@@ -7,6 +7,7 @@ using TimeTrack.Api.Middleware;
 using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Audit.DTOs;
 using TimeTrack.Backend.Application.Audit.Queries;
+using TimeTrack.Backend.Application.Audit.DTOs;
 using TimeTrack.Backend.Application.Common.Interfaces;
 
 namespace TimeTrack.Api.Controllers;
@@ -66,6 +67,41 @@ public sealed class AuditController : ControllerBase
             Limit: limit,
             Action: action,
             UserId: userId);
+
+        var result = await _mediator.Send(query, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Lista audit logs de acesso a evidências (apenas Admin)
+    /// </summary>
+    [HttpGet("evidence-access")]
+    [ProducesResponseType(typeof(EvidenceAccessLogResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<EvidenceAccessLogResponse>> GetEvidenceAccessLogs(
+        [FromRoute] Guid orgId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] Guid? actorUserId = null,
+        [FromQuery] Guid? targetUserId = null,
+        [FromQuery] string? action = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (_currentUser.OrgId != orgId)
+            return Forbid();
+
+        var query = new GetEvidenceAccessLogsQuery(
+            OrgId: orgId,
+            Page: page,
+            PageSize: pageSize,
+            StartDate: startDate,
+            EndDate: endDate,
+            ActorUserId: actorUserId,
+            TargetUserId: targetUserId,
+            Action: action);
 
         var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);

@@ -797,6 +797,7 @@ public sealed class SyncWorker : BackgroundService
 
     /// <summary>
     /// "none" = legacy org (never subscribed) → allow sync.
+    /// "trial_required" = new org without subscription row → allow sync, UI prompts plan selection.
     /// Active, Trialing, PastDue (grace period) → allow sync.
     /// Unpaid, Canceled, Incomplete → block sync, data stays in local SQLite.
     /// </summary>
@@ -807,6 +808,7 @@ public sealed class SyncWorker : BackgroundService
         "trial_required" => true,
         "past_due" => true,
         "none" => true,
+        "trial_required" => true,
         _ => false
     };
 }

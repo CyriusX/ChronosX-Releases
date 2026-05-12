@@ -173,6 +173,29 @@ export interface OrgPolicyResponse {
 }
 
 /**
+ * Evidence policy response from backend
+ */
+export interface EvidencePolicyResponse {
+  screenshotsEnabled: boolean;
+  screenshotIntervalMinutes: number;
+  screenshotExcludedApps: string[];
+  evidenceRetentionDays: number;
+  websiteTrackingEnabled: boolean;
+  version: number;
+}
+
+/**
+ * Request to update evidence policy
+ */
+export interface UpdateEvidencePolicyRequest {
+  screenshotsEnabled?: boolean;
+  screenshotIntervalMinutes?: number;
+  screenshotExcludedApps?: string[];
+  evidenceRetentionDays?: number;
+  websiteTrackingEnabled?: boolean;
+}
+
+/**
  * Request to update organization policy
  */
 export interface UpdateOrgPolicyRequest {

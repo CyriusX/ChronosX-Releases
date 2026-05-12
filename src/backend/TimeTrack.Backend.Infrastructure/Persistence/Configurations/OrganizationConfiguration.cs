@@ -48,6 +48,15 @@ internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organ
         builder.Property(o => o.UpdatedAt)
             .HasColumnName("updated_at");
 
+        builder.Property(o => o.StorageQuotaGb)
+            .HasColumnName("storage_quota_gb")
+            .HasPrecision(10, 2)
+            .HasDefaultValue(10m);
+
+        builder.Property(o => o.StorageUsedBytes)
+            .HasColumnName("storage_used_bytes")
+            .HasDefaultValue(0L);
+
         builder.Property(o => o.OnboardingCompletedAt)
             .HasColumnName("onboarding_completed_at");
     }

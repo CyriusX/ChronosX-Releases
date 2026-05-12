@@ -12,6 +12,8 @@ public sealed class Organization
     public string Slug { get; private set; } = string.Empty;
     public OrgType OrgType { get; private set; }
     public OrgStatus Status { get; private set; }
+    public decimal StorageQuotaGb { get; private set; } = 10m;
+    public long StorageUsedBytes { get; private set; } = 0;
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
     public DateTime? OnboardingCompletedAt { get; private set; }
@@ -63,6 +65,40 @@ public sealed class Organization
     {
         Status = OrgStatus.Active;
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetStorageQuota(decimal quotaGb)
+    {
+        if (quotaGb < 1m || quotaGb > 100m)
+            throw new ArgumentOutOfRangeException(nameof(quotaGb), "Quota must be between 1 and 100 GB");
+        StorageQuotaGb = quotaGb;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void IncrementStorageUsage(long bytes)
+    {
+        if (bytes < 0) throw new ArgumentOutOfRangeException(nameof(bytes));
+        StorageUsedBytes += bytes;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void DecrementStorageUsage(long bytes)
+    {
+        if (bytes < 0) throw new ArgumentOutOfRangeException(nameof(bytes));
+        StorageUsedBytes = Math.Max(0, StorageUsedBytes - bytes);
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public bool IsStorageQuotaExceeded()
+    {
+        var quotaBytes = (long)(StorageQuotaGb * 1024m * 1024m * 1024m);
+        return StorageUsedBytes >= quotaBytes;
+    }
+
+    public double GetStorageUsagePercentage()
+    {
+        var quotaBytes = (long)(StorageQuotaGb * 1024m * 1024m * 1024m);
+        return quotaBytes > 0 ? (double)StorageUsedBytes / quotaBytes * 100 : 0;
     }
 
     public void CompleteOnboarding()

@@ -41,7 +41,7 @@ export default function Activities() {
   const { summary, activities, isLoading } = data;
   const { sendQuery, isConnected } = useIpc();
   const desktopRuntime = isDesktopRuntime();
-  const { canManageTeam } = usePermissions();
+  const { canManageTeam, isColaborador } = usePermissions();
   const userId = data.userId;
   const [workGoalSeconds, setWorkGoalSeconds] = useState(28800);
 
@@ -202,6 +202,7 @@ export default function Activities() {
                 activities={activities}
                 selectedDate={data.selectedDate}
                 userId={userId}
+                hideEvidence={isColaborador}
               />
             )}
 

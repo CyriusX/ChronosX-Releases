@@ -10,14 +10,18 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical, Camera } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { useIpc } from '../../hooks/useIpc';
 import { useTrackingStore } from '../../stores/trackingStore';
 import { getDailyActivities } from '../../services/reportApi';
+import { getEvidenceByPeriod } from '../../services/evidenceApi';
 import { closeMyOpenTaskTimer, getMyTaskEntries, getUserTaskEntries, type TaskEntryDto } from '../../services/projectsApi';
 import { useHiddenAppsStore } from '../../stores/hiddenAppsStore';
 import { cardBase } from './shared/styles';
+import { EvidenceModal } from '../evidence/EvidenceModal';
+import { ScreenshotStrip } from '../evidence/ScreenshotStrip';
+import type { EvidenceItem } from '../../types/evidence';
 
 interface TabDetail {
   title: string;
@@ -36,6 +40,8 @@ interface ActivityBlock {
   productivity: string;
   subcategory: string;
   color: string;
+  domain?: string;
+
   reasonCode?: string;
   note?: string;
   submittedAtUtc?: string;
@@ -72,14 +78,16 @@ function fmtDuration(sec: number) {
 let _persistedGap: { start: number; end: number | null } | null = null;
 
 type DateRange = 'today' | 'yesterday' | '7days';
+type EvidenceFilter = 'all' | 'withEvidence' | 'byDomain';
 
 interface ActivitySectionProps {
   activities?: ActivityBlock[];
   selectedDate?: Date;
   userId?: string;
+  hideEvidence?: boolean;
 }
 
-export function ActivitySection({ activities: controlledActivities, selectedDate: externalSelectedDate, userId }: ActivitySectionProps = {}) {
+export function ActivitySection({ activities: controlledActivities, selectedDate: externalSelectedDate, userId, hideEvidence }: ActivitySectionProps = {}) {
   const { t } = useTranslation();
   const [dateRange, setDateRange] = useState<DateRange>('today');
 
@@ -99,6 +107,9 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
   const isActive = isTracking && !isPaused;
 
   const [internalActivities, setInternalActivities] = useState<ActivityBlock[]>([]);
+  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([]);
+  const [evidenceFilter, setEvidenceFilter] = useState<EvidenceFilter>('all');
+  const [evidenceModalIndex, setEvidenceModalIndex] = useState<number | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [hovered, setHovered] = useState<{ block: ActivityBlock; rect: DOMRect } | null>(null);
 
@@ -307,6 +318,23 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isControlled]);
 
+  // ── Evidence fetch (parallel to activities) ────────────────────────────────
+  // When viewing today, re-fetch every 30s so new screenshots appear automatically.
+  // Skipped entirely when hideEvidence=true (Colaborador role).
+  const evidenceTick = (isViewingToday && !hideEvidence) ? Math.floor(now / 30000) : 0;
+  useEffect(() => {
+    if (hideEvidence) { setEvidenceItems([]); return; }
+    const d = selectedDate ?? new Date();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const nextDay = new Date(d);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const nextDayStr = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}`;
+
+    getEvidenceByPeriod(dateStr, nextDayStr, 1, 200, userId)
+      .then(res => setEvidenceItems(res.items ?? []))
+      .catch(() => setEvidenceItems([]));
+  }, [selectedDate, userId, evidenceTick, hideEvidence]);
+
   // ── Real-time path: IPC poll (once connected) ────────────────────────────────
   // The agent reads from local SQLite (most up-to-date, includes in-flight session).
   // Replaces REST data as soon as the named pipe is ready.
@@ -400,6 +428,44 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     return processed;
   }, [activities, dayStart, dayMs, isViewingToday, now, localGap]);
 
+  // Map evidence items to blocks they fall within (capturedAt within block's start-end range)
+  const blockEvidenceMap = useMemo(() => {
+    const map = new Map<string, EvidenceItem[]>();
+    for (const ev of evidenceItems) {
+      const evTime = new Date(ev.capturedAt).getTime();
+      for (const block of blocks) {
+        const bs = new Date(block.startUtc).getTime();
+        const be = new Date(block.endUtc).getTime();
+        if (evTime >= bs && evTime <= be) {
+          const existing = map.get(block.id) ?? [];
+          existing.push(ev);
+          map.set(block.id, existing);
+          break;
+        }
+      }
+    }
+    return map;
+  }, [evidenceItems, blocks]);
+
+  // Apply evidence/domain filter
+  const filteredBlocks = useMemo(() => {
+    if (evidenceFilter === 'all') return blocks;
+    return blocks.filter(block => {
+      if (block.name === TRACKING_STOPPED_NAME) return true;
+      if (evidenceFilter === 'withEvidence') {
+        return (blockEvidenceMap.get(block.id)?.length ?? 0) > 0;
+      }
+      if (evidenceFilter === 'byDomain') {
+        return !!block.domain;
+      }
+      return true;
+    });
+  }, [blocks, evidenceFilter, blockEvidenceMap]);
+
+  const evidenceCount = useMemo(() => {
+    return evidenceItems.length;
+  }, [evidenceItems]);
+
   const hourLabels = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
   // "Now" pin — recalculated on every tick
@@ -415,7 +481,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
   const handleMouseLeave = useCallback(() => setHovered(null), []);
 
   // Show the timeline even when only a "Tracking Stopped" live block exists
-  const hasBlocks = blocks.length > 0;
+  const hasBlocks = filteredBlocks.length > 0;
 
   return (
     <>
@@ -473,8 +539,14 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                 {/* Metric badges */}
                 <div className="flex items-center gap-1.5">
                   <span className="text-[9px] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.4)] font-mono">
-                    {blocks.filter(b => b.name !== TRACKING_STOPPED_NAME).length}
+                    {filteredBlocks.filter(b => b.name !== TRACKING_STOPPED_NAME).length}
                   </span>
+                  {!hideEvidence && evidenceCount > 0 && (
+                    <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded bg-[rgba(139,92,246,0.08)] border border-[rgba(139,92,246,0.15)] text-[#a78bfa] font-mono">
+                      <Camera className="w-2.5 h-2.5" />
+                      {evidenceCount}
+                    </span>
+                  )}
                 </div>
 
                 <MoreVertical className="w-3.5 h-3.5 text-[rgba(245,247,251,0.3)]" />
@@ -508,28 +580,76 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                     {hourLabels.slice(1, -1).map((h) => (
                       <div key={h} className="absolute top-0 bottom-0 w-px bg-[rgba(255,255,255,0.03)]" style={{ left: `${(h / TOTAL_HOURS) * 100}%` }} />
                     ))}
-                    {blocks.map((block, i) => (
-                      <div
-                        key={block.id || i}
-                        style={{
-                          left: `${block.left}%`,
-                          width: `${block.width}%`,
-                          backgroundColor: block.color,
-                          minWidth: '1px',
-                        }}
-                        className={`absolute top-[2px] bottom-[2px] rounded-[3px] cursor-pointer hover:brightness-125 ${
-                          block.name === TRACKING_STOPPED_NAME ? 'opacity-60' : ''
-                        }`}
-                        onMouseEnter={(e) => handleMouseEnter(block, e)}
-                        onMouseLeave={handleMouseLeave}
-                      />
-                    ))}
+                    {filteredBlocks.map((block, i) => {
+                      const blockEvidence = blockEvidenceMap.get(block.id);
+                      const hasEvidence = (blockEvidence?.length ?? 0) > 0;
+                      return (
+                        <div
+                          key={block.id || i}
+                          style={{
+                            left: `${block.left}%`,
+                            width: `${block.width}%`,
+                            backgroundColor: block.color,
+                            minWidth: '1px',
+                          }}
+                          className={`absolute top-[2px] bottom-[2px] rounded-[3px] cursor-pointer hover:brightness-125 ${
+                            block.name === TRACKING_STOPPED_NAME ? 'opacity-60' : ''
+                          }`}
+                          onMouseEnter={(e) => handleMouseEnter(block, e)}
+                          onMouseLeave={handleMouseLeave}
+                          onClick={() => {
+                            if (!hideEvidence && hasEvidence && blockEvidence) {
+                              setEvidenceModalIndex(0);
+                            }
+                          }}
+                        >
+                          {!hideEvidence && hasEvidence && (
+                            <Camera className="absolute top-0 right-0 w-2.5 h-2.5 text-white opacity-80 pointer-events-none" />
+                          )}
+                        </div>
+                      );
+                    })}
                     {nowPct >= 0 && (
                       <div className="absolute top-0 bottom-0 w-px bg-[rgba(245,247,251,0.4)]" style={{ left: `${nowPct}%` }}>
                         <div className="absolute -top-[3px] left-1/2 -translate-x-1/2 w-[5px] h-[5px] rounded-full bg-[rgba(245,247,251,0.6)]" />
                       </div>
                     )}
                   </div>
+
+                  {/* Evidence filter tabs */}
+                  {!hideEvidence && evidenceItems.length > 0 && (
+                    <div className="flex items-center gap-1 mt-2">
+                      {(['all', 'withEvidence', 'byDomain'] as EvidenceFilter[]).map((filter) => {
+                        const labels: Record<EvidenceFilter, string> = {
+                          all: t('evidence.filterAll'),
+                          withEvidence: t('evidence.filterWithEvidence'),
+                          byDomain: t('evidence.filterByDomain'),
+                        };
+                        const isActive = evidenceFilter === filter;
+                        return (
+                          <button
+                            key={filter}
+                            onClick={() => setEvidenceFilter(filter)}
+                            className={`px-2 py-0.5 rounded-md text-[9px] font-medium transition-all ${
+                              isActive
+                                ? 'bg-[rgba(139,92,246,0.12)] text-[#8B5CF6]'
+                                : 'text-[rgba(245,247,251,0.35)] hover:text-[rgba(245,247,251,0.6)] bg-[rgba(255,255,255,0.02)]'
+                            }`}
+                          >
+                            {labels[filter]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Screenshot thumbnail strip — hidden for Colaborador role */}
+                  {!hideEvidence && (
+                    <ScreenshotStrip
+                      evidenceItems={evidenceItems}
+                      onThumbnailClick={(idx) => setEvidenceModalIndex(idx)}
+                    />
+                  )}
 
                   {/* Task timeline — thin row showing task work periods */}
                   {(taskBlocks.length > 0 || canStopTaskTimer) && (
@@ -577,14 +697,23 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
 
       {/* Tooltip rendered via portal */}
       {hovered && createPortal(
-        <ActivityTooltip block={hovered.block} anchorRect={hovered.rect} />,
+        <ActivityTooltip block={hovered.block} anchorRect={hovered.rect} blockEvidence={blockEvidenceMap.get(hovered.block.id)} />,
         document.body
+      )}
+
+      {/* Evidence modal */}
+      {!hideEvidence && evidenceModalIndex !== null && evidenceItems.length > 0 && (
+        <EvidenceModal
+          items={evidenceItems}
+          initialIndex={Math.min(evidenceModalIndex, evidenceItems.length - 1)}
+          onClose={() => setEvidenceModalIndex(null)}
+        />
       )}
     </>
   );
 }
 
-function ActivityTooltip({ block, anchorRect }: { block: ActivityBlock; anchorRect: DOMRect }) {
+function ActivityTooltip({ block, anchorRect, blockEvidence }: { block: ActivityBlock; anchorRect: DOMRect; blockEvidence?: EvidenceItem[] }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
@@ -619,6 +748,18 @@ function ActivityTooltip({ block, anchorRect }: { block: ActivityBlock; anchorRe
           {fmtTime(block.startUtc)} – {fmtTime(block.endUtc)}
           <span className="text-[rgba(245,247,251,0.7)] font-medium ml-1.5">{fmtDuration(block.duration)}</span>
         </p>
+        {(blockEvidence && blockEvidence.length > 0) && (
+          <div className="flex items-center gap-1 mb-1.5">
+            <Camera className="w-2.5 h-2.5 text-[#a78bfa]" />
+            <span className="text-[9px] text-[#a78bfa]">{blockEvidence.length} {blockEvidence.length === 1 ? t('evidence.screenshot') : t('evidence.screenshots')}</span>
+          </div>
+        )}
+        {block.domain && (
+          <div className="mb-1.5">
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.06)] text-[rgba(245,247,251,0.6)]">
+              {block.domain}
+            </span>
+
         {(block.reasonCode || block.note) && (
           <div className="border-t border-[rgba(255,255,255,0.08)] pt-1.5 mb-2 space-y-1">
             {block.reasonCode && (

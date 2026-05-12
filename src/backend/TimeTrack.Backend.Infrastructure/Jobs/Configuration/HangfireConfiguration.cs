@@ -67,6 +67,37 @@ public static class HangfireConfiguration
         services.AddScoped<IUsageCounterRefreshJob, UsageCounterRefreshJob>();
         services.AddScoped<ITaskTimerStalePauseJob, TaskTimerStalePauseJob>();
         services.AddScoped<IDevToolsAutoRevokeJob, DevToolsAutoRevokeJob>();
+        services.AddScoped<IEvidenceRetentionJob, EvidenceRetentionJob>();
+        services.AddScoped<IStorageQuotaCheckJob, StorageQuotaCheckJob>();
+        services.AddScoped<IOrphanCleanupJob, OrphanCleanupJob>();
+
+        // Feature Aggregation Jobs (Fase 4)
+        services.AddScoped<IWeeklyFeatureAggregationJob, WeeklyFeatureAggregationJob>();
+        services.AddScoped<IMonthlyFeatureAggregationJob, MonthlyFeatureAggregationJob>();
+
+        // AI Classification Job (Fase 4)
+        services.AddScoped<IAppClassificationJob, AppClassificationJob>();
+
+        // AI Usage Suggestion Job — per-org real usage analysis
+        services.AddScoped<IAppUsageSuggestionJob, AppUsageSuggestionJob>();
+
+        // Pattern & Anomaly Detection Jobs (Fase 4)
+        services.AddScoped<PatternDetectionJob>();
+        services.AddScoped<AnomalyDetectionJob>();
+        services.AddScoped<WeeklyNarrativeJob>();
+
+        // Smart Alerts & Threshold Jobs (Fase 4)
+        services.AddScoped<AlertGenerationJob>();
+        services.AddScoped<ThresholdUpdateJob>();
+
+        // Live AI Insight Job
+        services.AddScoped<LiveInsightJob>();
+
+        // Weekly Email Report Job
+        services.AddScoped<WeeklyEmailReportJob>();
+
+        // Weekly Report Data Collector
+        services.AddScoped<WeeklyReportDataCollector>();
 
         return services;
     }
@@ -200,6 +231,149 @@ public static class HangfireConfiguration
             "devtools-auto-revoke",
             job => job.ExecuteAsync(),
             "*/10 * * * *", // Every 10 minutes
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Evidence retention job - runs daily at 03:00 UTC
+        // Soft-deletes expired evidence items per org policy, hard-deletes after 7 days
+        RecurringJob.AddOrUpdate<IEvidenceRetentionJob>(
+            "evidence-retention",
+            job => job.ExecuteAsync(),
+            "30 3 * * *", // Daily at 03:30 UTC (offset from retention-job)
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Storage quota check - runs daily at 04:30 UTC
+        // Warns when org storage exceeds 80% of quota
+        RecurringJob.AddOrUpdate<IStorageQuotaCheckJob>(
+            "storage-quota-check",
+            job => job.ExecuteAsync(),
+            "30 4 * * *", // Daily at 04:30 UTC (offset from cleanup-job)
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Orphan cleanup job - runs weekly on Sunday at 02:00 UTC
+        // Hard-deletes soft-deleted evidence items older than 7 days
+        RecurringJob.AddOrUpdate<IOrphanCleanupJob>(
+            "orphan-cleanup",
+            job => job.ExecuteAsync(),
+            "0 2 * * 0", // Sunday at 02:00 UTC
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Weekly Feature Aggregation - runs every Monday at 03:00 UTC
+        RecurringJob.AddOrUpdate<IWeeklyFeatureAggregationJob>(
+            "weekly-feature-aggregation",
+            job => job.ExecuteAsync(),
+            "0 3 * * 1",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Monthly Feature Aggregation - runs on the 1st of each month at 03:00 UTC
+        RecurringJob.AddOrUpdate<IMonthlyFeatureAggregationJob>(
+            "monthly-feature-aggregation",
+            job => job.ExecuteAsync(),
+            "0 3 1 * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // AI App Classification - runs weekly on Sunday at 22:00 UTC
+        RecurringJob.AddOrUpdate<IAppClassificationJob>(
+            "app-classification",
+            job => job.ExecuteAsync(),
+            "0 22 * * 0",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // AI Usage Suggestion - runs daily at 06:00 UTC on weekdays
+        RecurringJob.AddOrUpdate<IAppUsageSuggestionJob>(
+            "app-usage-suggestion",
+            job => job.ExecuteAsync(),
+            "0 6 * * 1-5",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Pattern Detection - runs daily at 01:00 UTC
+        RecurringJob.AddOrUpdate<PatternDetectionJob>(
+            "pattern-detection",
+            job => job.ExecuteAsync(),
+            "0 1 * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Anomaly Detection - runs daily at 01:30 UTC
+        RecurringJob.AddOrUpdate<AnomalyDetectionJob>(
+            "anomaly-detection",
+            job => job.ExecuteAsync(),
+            "30 1 * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Weekly Narrative - runs weekly on Sunday at 23:00 UTC
+        RecurringJob.AddOrUpdate<WeeklyNarrativeJob>(
+            "weekly-narrative",
+            job => job.ExecuteAsync(),
+            "0 23 * * 0",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Alert Generation - runs daily at 02:00 UTC
+        RecurringJob.AddOrUpdate<AlertGenerationJob>(
+            "alert-generation",
+            job => job.ExecuteAsync(),
+            "0 2 * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Threshold Update - runs weekly on Monday at 04:00 UTC
+        RecurringJob.AddOrUpdate<ThresholdUpdateJob>(
+            "threshold-update",
+            job => job.ExecuteAsync(),
+            "0 4 * * 1",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Live AI Insight - runs every 10 minutes
+        RecurringJob.AddOrUpdate<LiveInsightJob>(
+            "live-insight",
+            job => job.ExecuteAsync(),
+            "*/10 * * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Weekly Email Report - runs hourly to check for scheduled reports
+        RecurringJob.AddOrUpdate<WeeklyEmailReportJob>(
+            "weekly-email-report",
+            job => job.ExecuteAsync(CancellationToken.None),
+            "7 * * * *",
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc

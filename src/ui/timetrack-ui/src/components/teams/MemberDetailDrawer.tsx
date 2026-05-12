@@ -23,6 +23,7 @@ import {
 } from '../../services/projectsApi';
 import type { TeamMemberStatus, MemberSummaryResponse } from '../../types/member';
 import { getMemberGradient } from '../dashboard/shared/styles';
+import { PerformanceImprovements } from './PerformanceImprovements';
 
 interface MemberDetailDrawerProps {
   member: TeamMemberStatus;
@@ -280,6 +281,9 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                   <div className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase tracking-wide mt-0.5">{t('teams.focus')}</div>
                 </div>
               </div>
+
+              {/* Performance Improvements */}
+              {summary && <PerformanceImprovements summary={summary} />}
 
               {/* Projects */}
               {projects.length > 0 && (

@@ -25,4 +25,15 @@ public interface IAuditLogRepository : IRepository<AuditLog>
         Guid userId,
         int limit = 100,
         CancellationToken cancellationToken = default);
+
+    Task<(IEnumerable<AuditLog> Items, int TotalCount)> GetEvidenceAccessLogsAsync(
+        Guid orgId,
+        int page,
+        int pageSize,
+        string[] actions,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        Guid? actorUserId = null,
+        string? targetUserIdSubstring = null,
+        CancellationToken cancellationToken = default);
 }

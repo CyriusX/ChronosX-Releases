@@ -36,6 +36,22 @@ public sealed class DailyFocusScore
     // Score calculado (0-100)
     public short FocusScore { get; private set; }
 
+    // Feature aggregation fields (CX-208)
+    public int ProductiveSeconds { get; private set; }
+    public int DistractionSeconds { get; private set; }
+    public int NeutralSeconds { get; private set; }
+    public int ContextSwitchesCount { get; private set; }
+    public int InterruptionCount { get; private set; }
+    public string? TopAppExe { get; private set; }
+    public int TopAppSeconds { get; private set; }
+    public int DistinctAppsCount { get; private set; }
+    public int BrowserSeconds { get; private set; }
+    public double ProductivityRatio { get; private set; }
+    public int FocusSessionsCount { get; private set; }
+    public int FocusSessionsCompleted { get; private set; }
+    public int LongestFocusSeconds { get; private set; }
+    public int AvgFocusSeconds { get; private set; }
+
     // Timestamps
     public DateTimeOffset CalculatedAt { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
@@ -123,6 +139,44 @@ public sealed class DailyFocusScore
         IdleCount = Math.Max(0, idleCount);
         LongFocusBlockCount = Math.Max(0, longFocusBlockCount);
         FocusScore = focusScore;
+        CalculatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    /// Atualiza os campos de feature aggregation (CX-208)
+    /// Chamado após o FocusScoreJob calcular as métricas básicas
+    /// </summary>
+    public void UpdateFeatures(
+        int productiveSeconds,
+        int distractionSeconds,
+        int neutralSeconds,
+        int contextSwitchesCount,
+        int interruptionCount,
+        string? topAppExe,
+        int topAppSeconds,
+        int distinctAppsCount,
+        int browserSeconds,
+        int focusSessionsCount,
+        int focusSessionsCompleted,
+        int longestFocusSeconds,
+        int avgFocusSeconds)
+    {
+        ProductiveSeconds = Math.Max(0, productiveSeconds);
+        DistractionSeconds = Math.Max(0, distractionSeconds);
+        NeutralSeconds = Math.Max(0, neutralSeconds);
+        ContextSwitchesCount = Math.Max(0, contextSwitchesCount);
+        InterruptionCount = Math.Max(0, interruptionCount);
+        TopAppExe = topAppExe;
+        TopAppSeconds = Math.Max(0, topAppSeconds);
+        DistinctAppsCount = Math.Max(0, distinctAppsCount);
+        BrowserSeconds = Math.Max(0, browserSeconds);
+        FocusSessionsCount = Math.Max(0, focusSessionsCount);
+        FocusSessionsCompleted = Math.Max(0, focusSessionsCompleted);
+        LongestFocusSeconds = Math.Max(0, longestFocusSeconds);
+        AvgFocusSeconds = Math.Max(0, avgFocusSeconds);
+        ProductivityRatio = productiveSeconds + distractionSeconds + neutralSeconds > 0
+            ? (double)productiveSeconds / (productiveSeconds + distractionSeconds + neutralSeconds)
+            : 0;
         CalculatedAt = DateTimeOffset.UtcNow;
     }
 

@@ -93,4 +93,42 @@ public sealed class AuditLogRepository : IAuditLogRepository
             .AsNoTracking()
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<(IEnumerable<AuditLog> Items, int TotalCount)> GetEvidenceAccessLogsAsync(
+        Guid orgId,
+        int page,
+        int pageSize,
+        string[] actions,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        Guid? actorUserId = null,
+        string? targetUserIdSubstring = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.AuditLogs
+            .Where(a => a.OrgId == orgId && actions.Contains(a.Action))
+            .AsNoTracking();
+
+        if (startDate.HasValue)
+            query = query.Where(a => a.CreatedAt >= startDate.Value);
+
+        if (endDate.HasValue)
+            query = query.Where(a => a.CreatedAt <= endDate.Value);
+
+        if (actorUserId.HasValue)
+            query = query.Where(a => a.UserId == actorUserId.Value);
+
+        if (!string.IsNullOrEmpty(targetUserIdSubstring))
+            query = query.Where(a => a.NewValues != null && a.NewValues.Contains(targetUserIdSubstring));
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(a => a.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
 }
