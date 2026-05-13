@@ -359,6 +359,10 @@ public sealed class SyncWorker : BackgroundService
                     // Mark this type's items immediately — don't wait for other types
                     await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
                     totalSentIds.AddRange(result.ProcessedIds);
+                    if (await ApplyBackendItemErrorsAsync(result, cancellationToken))
+                    {
+                        hasFailures = true;
+                    }
                 }
                 else
                 {
@@ -381,6 +385,10 @@ public sealed class SyncWorker : BackgroundService
                 {
                     await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
                     totalSentIds.AddRange(result.ProcessedIds);
+                    if (await ApplyBackendItemErrorsAsync(result, cancellationToken))
+                    {
+                        hasFailures = true;
+                    }
                 }
                 else
                 {
@@ -402,6 +410,10 @@ public sealed class SyncWorker : BackgroundService
                 {
                     await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
                     totalSentIds.AddRange(result.ProcessedIds);
+                    if (await ApplyBackendItemErrorsAsync(result, cancellationToken))
+                    {
+                        hasFailures = true;
+                    }
                 }
                 else
                 {
@@ -424,6 +436,10 @@ public sealed class SyncWorker : BackgroundService
                 {
                     await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
                     totalSentIds.AddRange(result.ProcessedIds);
+                    if (await ApplyBackendItemErrorsAsync(result, cancellationToken))
+                    {
+                        hasFailures = true;
+                    }
                 }
                 else
                 {
@@ -446,6 +462,10 @@ public sealed class SyncWorker : BackgroundService
                 {
                     await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
                     totalSentIds.AddRange(result.ProcessedIds);
+                    if (await ApplyBackendItemErrorsAsync(result, cancellationToken))
+                    {
+                        hasFailures = true;
+                    }
                 }
                 else
                 {
@@ -468,6 +488,10 @@ public sealed class SyncWorker : BackgroundService
                 {
                     await _outboxRepository.MarkAsSentAsync(result.ProcessedIds, cancellationToken);
                     totalSentIds.AddRange(result.ProcessedIds);
+                    if (await ApplyBackendItemErrorsAsync(result, cancellationToken))
+                    {
+                        hasFailures = true;
+                    }
                 }
                 else
                 {
@@ -537,6 +561,26 @@ public sealed class SyncWorker : BackgroundService
                 $"SyncWorker exception: {ex.Message}",
                 new { worker = "SyncWorker", error = ex.Message }, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Marks per-item rejections from a successful HTTP batch as failed in the outbox so
+    /// they retry with backoff instead of being silently lost. Returns true when at least
+    /// one item was marked failed.
+    /// </summary>
+    private async Task<bool> ApplyBackendItemErrorsAsync(SyncResult result, CancellationToken cancellationToken)
+    {
+        if (result.FailedItems.Count == 0) return false;
+
+        foreach (var (outboxId, error) in result.FailedItems)
+        {
+            await _outboxRepository.MarkAsFailedAsync(outboxId, error, cancellationToken);
+        }
+
+        _logger.LogWarning(
+            "{Count} items rejected by backend; will retry with backoff",
+            result.FailedItems.Count);
+        return true;
     }
 
     /// <summary>
@@ -753,6 +797,7 @@ public sealed class SyncWorker : BackgroundService
 
     /// <summary>
     /// "none" = legacy org (never subscribed) → allow sync.
+    /// "trial_required" = new org without subscription row → allow sync, UI prompts plan selection.
     /// Active, Trialing, PastDue (grace period) → allow sync.
     /// Unpaid, Canceled, Incomplete → block sync, data stays in local SQLite.
     /// </summary>

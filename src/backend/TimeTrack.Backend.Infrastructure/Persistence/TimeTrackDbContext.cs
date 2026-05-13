@@ -32,6 +32,7 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<OrgPolicy> OrgPolicies => Set<OrgPolicy>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<OrgInviteLink> OrgInviteLinks => Set<OrgInviteLink>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
     public DbSet<ProjectTask> ProjectTasks => Set<ProjectTask>();
@@ -63,6 +64,21 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<StripeEventLog> StripeEventLogs => Set<StripeEventLog>();
     public DbSet<OrgUsageRecord> OrgUsageRecords => Set<OrgUsageRecord>();
     public DbSet<BillingInvoice> BillingInvoices => Set<BillingInvoice>();
+
+    // Evidence Storage
+    public DbSet<EvidenceItem> EvidenceItems => Set<EvidenceItem>();
+    public DbSet<StorageKey> StorageKeys => Set<StorageKey>();
+
+    // AI Module (Fase 4)
+    public DbSet<AiDecisionLog> AiDecisionLogs => Set<AiDecisionLog>();
+    public DbSet<FeatureWeekly> FeatureWeeklies => Set<FeatureWeekly>();
+    public DbSet<FeatureMonthly> FeatureMonthlies => Set<FeatureMonthly>();
+    public DbSet<UserPattern> UserPatterns => Set<UserPattern>();
+    public DbSet<BehavioralAnomaly> BehavioralAnomalies => Set<BehavioralAnomaly>();
+    public DbSet<SmartAlert> SmartAlerts => Set<SmartAlert>();
+
+    // Weekly Report Schedules
+    public DbSet<WeeklyReportSchedule> WeeklyReportSchedules => Set<WeeklyReportSchedule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -200,6 +216,41 @@ public sealed class TimeTrackDbContext : DbContext
         // Billing Invoices (tenant-scoped)
         modelBuilder.Entity<BillingInvoice>()
             .HasQueryFilter(i => !_currentUser.IsAuthenticated || i.OrgId == _currentUser.OrgId);
+
+        // Evidence Items (tenant-scoped)
+        modelBuilder.Entity<EvidenceItem>()
+            .HasQueryFilter(e => !_currentUser.IsAuthenticated || e.OrgId == _currentUser.OrgId);
+
+        // Storage Keys (tenant-scoped)
+        modelBuilder.Entity<StorageKey>()
+            .HasQueryFilter(s => !_currentUser.IsAuthenticated || s.OrgId == _currentUser.OrgId);
+
+        // AI Module (Fase 4)
+        modelBuilder.Entity<AiDecisionLog>()
+            .HasQueryFilter(a => !_currentUser.IsAuthenticated || a.OrgId == _currentUser.OrgId);
+
+        modelBuilder.Entity<FeatureWeekly>()
+            .HasQueryFilter(f => !_currentUser.IsAuthenticated || f.OrgId == _currentUser.OrgId);
+
+        modelBuilder.Entity<FeatureMonthly>()
+            .HasQueryFilter(f => !_currentUser.IsAuthenticated || f.OrgId == _currentUser.OrgId);
+
+        modelBuilder.Entity<UserPattern>()
+            .HasQueryFilter(p => !_currentUser.IsAuthenticated || p.OrgId == _currentUser.OrgId);
+
+        modelBuilder.Entity<BehavioralAnomaly>()
+            .HasQueryFilter(a => !_currentUser.IsAuthenticated || a.OrgId == _currentUser.OrgId);
+
+        modelBuilder.Entity<SmartAlert>()
+            .HasQueryFilter(a => !_currentUser.IsAuthenticated || a.OrgId == _currentUser.OrgId);
+
+        // Weekly Report Schedules
+        modelBuilder.Entity<WeeklyReportSchedule>()
+            .HasQueryFilter(s => !_currentUser.IsAuthenticated || s.OrgId == _currentUser.OrgId);
+
+        // Org Invite Links (tenant-scoped; GetByTokenHashAsync bypasses via IgnoreQueryFilters)
+        modelBuilder.Entity<OrgInviteLink>()
+            .HasQueryFilter(l => !_currentUser.IsAuthenticated || l.OrgId == _currentUser.OrgId);
     }
 
     public override int SaveChanges()

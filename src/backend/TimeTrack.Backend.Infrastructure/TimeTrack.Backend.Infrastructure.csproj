@@ -35,6 +35,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TimeTrack.Backend.Domain\TimeTrack.Backend.Domain.csproj" />
     <ProjectReference Include="..\TimeTrack.Backend.Application\TimeTrack.Backend.Application.csproj" />
+    <ProjectReference Include="..\TimeTrack.Backend.AI\TimeTrack.Backend.AI.csproj" />
   </ItemGroup>
 
 </Project>

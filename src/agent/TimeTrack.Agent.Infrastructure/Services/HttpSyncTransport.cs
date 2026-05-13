@@ -775,14 +775,48 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
 
                 if (result != null)
                 {
-                    _logger.LogInformation(
-                        "Batch processed: {Processed} items, {Duplicates} duplicates",
-                        result.Processed, result.Duplicates);
+                    // Per-item errors mean the request reached the backend but specific
+                    // items couldn't be applied (e.g. an idle justification arriving
+                    // before the corresponding idle period exists in the cloud — common
+                    // when batches are processed out of order or the period batch failed
+                    // earlier). Without this split the agent would silently mark the
+                    // whole batch as sent and the failed rows would be lost forever.
+                    var erroredEntityIds = (result.Errors ?? new List<IngestErrorDto>())
+                        .Where(e => e.ItemId.HasValue)
+                        .Select(e => (EntityId: e.ItemId!.Value, Message: e.Message ?? e.Code ?? "unknown"))
+                        .ToList();
 
-                    return SyncResult.Success(
+                    if (erroredEntityIds.Count == 0)
+                    {
+                        _logger.LogInformation(
+                            "Batch processed: {Processed} items, {Duplicates} duplicates",
+                            result.Processed, result.Duplicates);
+
+                        return SyncResult.Success(
+                            result.Processed,
+                            result.Duplicates,
+                            items.Select(i => i.Id).ToList());
+                    }
+
+                    var erroredEntityIdSet = erroredEntityIds.Select(e => e.EntityId).ToHashSet();
+                    var processedItems = items.Where(i => !erroredEntityIdSet.Contains(i.EntityId))
+                        .Select(i => i.Id).ToList();
+                    var failedItems = items
+                        .Where(i => erroredEntityIdSet.Contains(i.EntityId))
+                        .Select(i => (
+                            OutboxId: i.Id,
+                            Error: erroredEntityIds.First(e => e.EntityId == i.EntityId).Message))
+                        .ToList();
+
+                    _logger.LogWarning(
+                        "Batch partially failed: {Processed} processed, {Failed} failed (will retry)",
+                        processedItems.Count, failedItems.Count);
+
+                    return SyncResult.PartialSuccess(
                         result.Processed,
                         result.Duplicates,
-                        items.Select(i => i.Id).ToList());
+                        processedItems,
+                        failedItems);
                 }
             }
             catch (JsonException ex)
@@ -884,6 +918,14 @@ public sealed class HttpSyncTransport : ISyncTransport, IDisposable
     {
         public int Processed { get; set; }
         public int Duplicates { get; set; }
+        public List<IngestErrorDto>? Errors { get; set; }
+    }
+
+    private sealed class IngestErrorDto
+    {
+        public Guid? ItemId { get; set; }
+        public string? Code { get; set; }
+        public string? Message { get; set; }
     }
 
     #endregion

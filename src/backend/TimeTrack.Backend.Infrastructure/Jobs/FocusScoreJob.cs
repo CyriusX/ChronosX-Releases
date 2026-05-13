@@ -207,7 +207,7 @@ public sealed class FocusScoreJob : IFocusScoreJob
         var focusScore = FocusScoreCalculator.Calculate(input);
 
         // Upsert to database
-        await _focusScoreRepository.UpsertAsync(
+        var score = await _focusScoreRepository.UpsertAsync(
             orgId,
             userId,
             date,
@@ -217,9 +217,29 @@ public sealed class FocusScoreJob : IFocusScoreJob
             metrics.DistractionCount,
             metrics.PauseCount,
             metrics.IdleCount,
+            metrics.LongFocusBlockCount,
             focusScore,
             deviceId: sessions.FirstOrDefault()?.DeviceId,
             cancellationToken: cancellationToken);
+
+        // Populate feature aggregation fields (CX-208)
+        var features = CalculateFeatureFields(sessions, metrics);
+        score.UpdateFeatures(
+            productiveSeconds: features.ProductiveSeconds,
+            distractionSeconds: features.DistractionSeconds,
+            neutralSeconds: features.NeutralSeconds,
+            contextSwitchesCount: features.ContextSwitchesCount,
+            interruptionCount: features.InterruptionCount,
+            topAppExe: features.TopAppExe,
+            topAppSeconds: features.TopAppSeconds,
+            distinctAppsCount: features.DistinctAppsCount,
+            browserSeconds: features.BrowserSeconds,
+            focusSessionsCount: features.FocusSessionsCount,
+            focusSessionsCompleted: features.FocusSessionsCompleted,
+            longestFocusSeconds: features.LongestFocusSeconds,
+            avgFocusSeconds: features.AvgFocusSeconds);
+
+        await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
             "Calculated focus score for user {UserId} on {Date}: Score={Score}, FocusTime={FocusTime}ms, Distraction={Distraction}ms",
@@ -242,10 +262,8 @@ public sealed class FocusScoreJob : IFocusScoreJob
             var durationMs = (long)(session.EndedAt - session.StartedAt).TotalMilliseconds;
             totalTrackedMs += durationMs;
 
-            // Classify the app
-            var category = _classifier.ClassifyWithContext(
-                session.ProcessName,
-                session.WindowTitle);
+            // Use pre-classified category from AgentService (includes org overrides)
+            var category = MapAppCategory(session.AppCategory);
 
             // Accumulate time by category
             switch (category)
@@ -319,5 +337,86 @@ public sealed class FocusScoreJob : IFocusScoreJob
         public int PauseCount { get; init; }
         public int IdleCount { get; init; }
         public int LongFocusBlockCount { get; init; }
+    }
+
+    private static AppProductivityCategory MapAppCategory(string? appCategory) =>
+        appCategory?.ToLowerInvariant() switch
+        {
+            "productive" => AppProductivityCategory.Productive,
+            "distraction" => AppProductivityCategory.Distraction,
+            _ => AppProductivityCategory.Neutral,
+        };
+
+    private sealed record FeatureFields
+    {
+        public int ProductiveSeconds { get; init; }
+        public int DistractionSeconds { get; init; }
+        public int NeutralSeconds { get; init; }
+        public int ContextSwitchesCount { get; init; }
+        public int InterruptionCount { get; init; }
+        public string? TopAppExe { get; init; }
+        public int TopAppSeconds { get; init; }
+        public int DistinctAppsCount { get; init; }
+        public int BrowserSeconds { get; init; }
+        public int FocusSessionsCount { get; init; }
+        public int FocusSessionsCompleted { get; init; }
+        public int LongestFocusSeconds { get; init; }
+        public int AvgFocusSeconds { get; init; }
+    }
+
+    private FeatureFields CalculateFeatureFields(List<Domain.Entities.ActivitySession> sessions, FocusMetrics metrics)
+    {
+        var productiveSeconds = (int)(metrics.FocusTimeMs / 1000);
+        var distractionSeconds = (int)(metrics.DistractionMs / 1000);
+        var neutralSeconds = (int)((metrics.TotalTrackedMs - metrics.FocusTimeMs - metrics.DistractionMs) / 1000);
+
+        // Context switches: transitions between different apps within short time
+        var contextSwitchesCount = 0;
+        var previousProcess = string.Empty;
+        foreach (var session in sessions)
+        {
+            if (session.ProcessName != previousProcess && !string.IsNullOrEmpty(previousProcess))
+                contextSwitchesCount++;
+            previousProcess = session.ProcessName;
+        }
+
+        // Interruptions: productive → distraction transitions (already counted in DistractionCount)
+        var interruptionCount = metrics.DistractionCount;
+
+        // Top app by duration
+        var appDurations = sessions
+            .GroupBy(s => s.ProcessName)
+            .Select(g => new { Process = g.Key, TotalSeconds = g.Sum(s => s.DurationSeconds) })
+            .OrderByDescending(a => a.TotalSeconds)
+            .ToList();
+
+        var topApp = appDurations.FirstOrDefault();
+        var distinctAppsCount = appDurations.Count;
+
+        // Browser detection (common browser process names)
+        var browserNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "safari", "arc"
+        };
+        var browserSeconds = appDurations
+            .Where(a => browserNames.Contains(a.Process.Replace(".exe", "", StringComparison.OrdinalIgnoreCase)))
+            .Sum(a => a.TotalSeconds);
+
+        return new FeatureFields
+        {
+            ProductiveSeconds = Math.Max(0, productiveSeconds),
+            DistractionSeconds = Math.Max(0, distractionSeconds),
+            NeutralSeconds = Math.Max(0, neutralSeconds),
+            ContextSwitchesCount = contextSwitchesCount,
+            InterruptionCount = interruptionCount,
+            TopAppExe = topApp?.Process,
+            TopAppSeconds = topApp?.TotalSeconds ?? 0,
+            DistinctAppsCount = distinctAppsCount,
+            BrowserSeconds = browserSeconds,
+            FocusSessionsCount = 0,       // populated from FocusSession table if available
+            FocusSessionsCompleted = 0,
+            LongestFocusSeconds = 0,
+            AvgFocusSeconds = 0
+        };
     }
 }

@@ -39,6 +39,7 @@ import type {
 } from '../types/reports';
 import { PERIOD_PRESETS as periodPresets, toLocalDateStr } from '../types/reports';
 import type { TodaySummaryResponse } from '../types/ipc';
+import { getReportsInsights, type ReportsInsightsResponse } from '../services/insightsApi';
 
 // ============================================================================
 // TYPES
@@ -59,6 +60,8 @@ export interface ReportsDataState {
   distractionStats: DistractionStatsResponse | null;
   /** Category distribution data */
   categoryDistribution: CategoryDistributionResponse | null;
+  /** AI insights data */
+  aiInsights: ReportsInsightsResponse | null;
 }
 
 export interface ReportsFilters {
@@ -138,6 +141,7 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
     topFolders: null,
     distractionStats: null,
     categoryDistribution: null,
+    aiInsights: null,
   });
 
   // Loading state
@@ -470,8 +474,21 @@ export function useReportsData(options: UseReportsDataOptions = {}): UseReportsD
         topFolders: bundle.topFolders ?? null,
         distractionStats: bundle.distractionStats,
         categoryDistribution: bundle.categoryDistribution,
+        aiInsights: null,
       });
       console.log('[useReportsData] All data refreshed successfully');
+
+      // Fetch AI insights independently (non-blocking)
+      try {
+        const aiResult = await getReportsInsights(
+          filters.dateRange.startDate,
+          filters.dateRange.endDate,
+          filters.userId
+        );
+        setData(prev => ({ ...prev, aiInsights: aiResult }));
+      } catch (aiErr) {
+        console.warn('[useReportsData] AI insights fetch failed (non-critical):', aiErr);
+      }
     } catch (err) {
       console.error('[useReportsData] Error refreshing data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load reports');

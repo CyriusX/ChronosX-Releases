@@ -10,6 +10,7 @@ public sealed class SqliteContext : IAsyncDisposable
 {
     private readonly ILogger<SqliteContext> _logger;
     private readonly string _connectionString;
+    private readonly SemaphoreSlim _lock = new(1, 1);
     private SqliteConnection? _connection;
     private bool _initialized;
 
@@ -24,17 +25,63 @@ public sealed class SqliteContext : IAsyncDisposable
     }
 
     /// <summary>
-    /// Obtém a conexão SQLite (cria se necessário)
+    /// Obtém a conexão SQLite (cria ou recria se necessário)
     /// </summary>
     public async Task<SqliteConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
     {
-        if (_connection == null)
+        await _lock.WaitAsync(cancellationToken);
+        try
         {
-            _connection = new SqliteConnection(_connectionString);
-            await _connection.OpenAsync(cancellationToken);
-        }
+            if (IsConnectionBroken())
+            {
+                _logger.LogWarning("SQLite connection was broken, reconnecting");
+                await DisposeConnectionCoreAsync();
 
-        return _connection;
+                _connection = new SqliteConnection(_connectionString);
+                await _connection.OpenAsync(cancellationToken);
+                _initialized = false;
+                await InitializeSchemaAsync(cancellationToken);
+            }
+            else if (_connection == null)
+            {
+                _connection = new SqliteConnection(_connectionString);
+                await _connection.OpenAsync(cancellationToken);
+            }
+
+            return _connection;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private bool IsConnectionBroken()
+    {
+        if (_connection == null) return false;
+
+        try
+        {
+            return _connection.State != System.Data.ConnectionState.Open;
+        }
+        catch (ObjectDisposedException)
+        {
+            return true;
+        }
+    }
+
+    private async Task DisposeConnectionCoreAsync()
+    {
+        if (_connection != null)
+        {
+            try
+            {
+                await _connection.CloseAsync();
+                await _connection.DisposeAsync();
+            }
+            catch (ObjectDisposedException) { }
+            _connection = null;
+        }
     }
 
     /// <summary>
@@ -140,7 +187,12 @@ public sealed class SqliteContext : IAsyncDisposable
                 idle_threshold_seconds INTEGER NOT NULL,
                 idle_justification_prompt_threshold_seconds INTEGER,
                 version INTEGER NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                screenshots_enabled INTEGER NOT NULL DEFAULT 0,
+                screenshot_interval_minutes INTEGER NOT NULL DEFAULT 5,
+                screenshot_excluded_apps_json TEXT NOT NULL DEFAULT '[]',
+                evidence_retention_days INTEGER NOT NULL DEFAULT 30,
+                website_tracking_enabled INTEGER NOT NULL DEFAULT 1
             );
 
             -- Tabela de ciclos de foco (Pomodoro/Ultradian)
@@ -182,6 +234,22 @@ public sealed class SqliteContext : IAsyncDisposable
                 version INTEGER NOT NULL,
                 cached_at TEXT NOT NULL,
                 note TEXT
+            );
+
+            -- F2-E2: Fila de upload de evidências (screenshots)
+            CREATE TABLE IF NOT EXISTS evidence_upload_queue (
+                id TEXT PRIMARY KEY,
+                local_path TEXT NOT NULL,
+                evidence_type TEXT NOT NULL DEFAULT 'screenshot',
+                captured_at TEXT NOT NULL,
+                app_name TEXT NOT NULL,
+                window_title_hash TEXT,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                next_attempt_utc TEXT NOT NULL,
+                uploaded_at TEXT,
+                file_size_bytes INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
             -- CX-143: Tabela de metadados de cache
@@ -338,6 +406,26 @@ public sealed class SqliteContext : IAsyncDisposable
             _logger.LogInformation("Adding devtools_enabled_until_utc column to local_settings");
             await connection.ExecuteAsync("ALTER TABLE local_settings ADD COLUMN devtools_enabled_until_utc TEXT");
         }
+
+        // Add evidence policy columns to org_policies_cache
+        await AddColumnIfNotExistsAsync(connection, "org_policies_cache", "screenshots_enabled", "INTEGER NOT NULL DEFAULT 0");
+        await AddColumnIfNotExistsAsync(connection, "org_policies_cache", "screenshot_interval_minutes", "INTEGER NOT NULL DEFAULT 5");
+        await AddColumnIfNotExistsAsync(connection, "org_policies_cache", "screenshot_excluded_apps_json", "TEXT NOT NULL DEFAULT '[]'");
+        await AddColumnIfNotExistsAsync(connection, "org_policies_cache", "evidence_retention_days", "INTEGER NOT NULL DEFAULT 30");
+        await AddColumnIfNotExistsAsync(connection, "org_policies_cache", "website_tracking_enabled", "INTEGER NOT NULL DEFAULT 1");
+    }
+
+    private async Task AddColumnIfNotExistsAsync(SqliteConnection connection, string table, string column, string definition)
+    {
+        var exists = await connection.QueryFirstOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pragma_table_info(@Table) WHERE name = @Column",
+            new { Table = table, Column = column });
+
+        if (exists == 0)
+        {
+            _logger.LogInformation("Adding {Column} column to {Table}", column, table);
+            await connection.ExecuteAsync($"ALTER TABLE {table} ADD COLUMN {column} {definition}");
+        }
     }
 
     /// <summary>
@@ -366,6 +454,9 @@ public sealed class SqliteContext : IAsyncDisposable
             -- CX-143: App category cache indexes
             CREATE INDEX IF NOT EXISTS ix_app_category_cache_identifier ON app_category_cache(identifier);
             CREATE INDEX IF NOT EXISTS ix_app_category_cache_productivity ON app_category_cache(productivity);
+
+            -- F2-E2: Evidence upload queue indexes
+            CREATE INDEX IF NOT EXISTS ix_evidence_queue_status_next_attempt ON evidence_upload_queue(status, next_attempt_utc);
         ";
 
         await connection.ExecuteAsync(createIndexesSql);
@@ -429,11 +520,14 @@ public sealed class SqliteContext : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_connection != null)
+        await _lock.WaitAsync();
+        try
         {
-            await _connection.CloseAsync();
-            await _connection.DisposeAsync();
-            _connection = null;
+            await DisposeConnectionCoreAsync();
+        }
+        finally
+        {
+            _lock.Release();
         }
     }
 }

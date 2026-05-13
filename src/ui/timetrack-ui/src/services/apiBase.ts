@@ -1,6 +1,6 @@
 import { isDesktopRuntime } from '../lib/runtime';
 
-const PROD_API_BASE = 'https://chronosx-dev-timetrack-api.gpoda0.easypanel.host/api/v1';
+const PROD_API_BASE = 'https://chronosx-timetrack-api.gpoda0.easypanel.host/api/v1';
 const LOCAL_API_BASE = 'http://localhost:5000/api/v1';
 
 export function getApiBaseUrl(): string {

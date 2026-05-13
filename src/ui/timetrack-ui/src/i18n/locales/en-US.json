@@ -1,5 +1,6 @@
 {
   "common": {
+    "hello": "Hello, {{name}}!",
     "save": "Save",
     "saving": "Saving...",
     "saved": "Saved!",
@@ -196,7 +197,28 @@
     "hasAccount": "Already have an account?",
     "goToLogin": "Log in",
     "restrictedAccess": "Access restricted to managers and administrators",
-    "webLoginSubtitle": "Admin Portal"
+    "webLoginSubtitle": "Admin Portal",
+    "acceptInviteTitle": "Accept Invite",
+    "acceptInviteSubtitle": "Set your password to access the platform",
+    "setPassword": "Set Password",
+    "settingPassword": "Saving...",
+    "inviteExpired": "This invite link has expired. Ask your admin for a new invite.",
+    "forgotPasswordTitle": "Forgot your password?",
+    "forgotPasswordSubtitle": "Enter your email and we will send a reset link",
+    "sendResetLink": "Send link",
+    "sendingResetLink": "Sending...",
+    "resetEmailSent": "If the email exists, you will receive a link shortly",
+    "resetPasswordTitle": "Reset password",
+    "resetPasswordSubtitle": "Enter your new password below",
+    "resetPassword": "Reset password",
+    "resettingPassword": "Saving...",
+    "passwordResetSuccess": "Password reset successfully!",
+    "inviteAccepted": "Invite accepted! Log in to continue.",
+    "joinOrgTitle": "Join organization",
+    "joiningOrg": "Joining...",
+    "backToLogin": "Back to login",
+    "newPassword": "New password",
+    "registerSuccess": "Account created successfully"
   },
   "dashboard": {
     "myDay": "My day",
@@ -260,6 +282,19 @@
     "noFolders": "No folder activity yet",
     "visits_one": "{{count}} visit",
     "visits_other": "{{count}} visits"
+  },
+  "alerts": {
+    "tabs": {
+      "inbox": "Inbox",
+      "alerts": "Alerts",
+      "team": "Team"
+    },
+    "actions": {
+      "startPomodoro": "Start Focus",
+      "viewReport": "View Report",
+      "markRead": "Mark read",
+      "dismiss": "Dismiss"
+    }
   },
   "activities": {
     "title": "Activities",
@@ -516,7 +551,46 @@
       "billing": "Billing",
       "agentStatus": "Agent Status",
       "about": "About",
-      "maintenance": "Maintenance"
+      "maintenance": "Maintenance",
+      "aiClassifications": "AI Classifications",
+      "weeklyReport": "Email Reports"
+    },
+    "aiClassifications": {
+      "title": "AI Classifications",
+      "subtitle": "Review and manage AI-generated app classification suggestions",
+      "empty": "No pending classifications"
+    },
+    "weeklyReport": {
+      "title": "Personalized Reports",
+      "subtitle": "Configure a weekly email report with AI-powered insights about your productivity",
+      "enableTitle": "Weekly Email Report",
+      "enableDescription": "Get a personalized AI-generated summary every week",
+      "scheduleTitle": "Schedule",
+      "dayLabel": "Day of week",
+      "timeLabel": "Time",
+      "preferencesTitle": "What to include in the report",
+      "prefTeamComparison": "Team comparison",
+      "prefDifficulties": "Difficulty and distraction analysis",
+      "prefWeekOverWeek": "Performance vs. previous week",
+      "prefUnproductiveDays": "Least productive days",
+      "saveButton": "Save",
+      "previewButton": "Preview Sample",
+      "disableButton": "Disable report",
+      "saveSuccess": "Report saved successfully",
+      "saveFailed": "Failed to save report",
+      "disabledSuccess": "Report disabled",
+      "loadFailed": "Failed to load settings",
+      "previewFailed": "Failed to generate preview",
+      "previewTitle": "Report Preview"
+    },
+    "insights": {
+      "title": "Insights",
+      "subtitle": "Your productivity patterns and trends",
+      "patterns": "Your Active Patterns",
+      "focusTrend": "Focus Trend",
+      "benchmark": "Team Benchmark",
+      "narrativeHistory": "Weekly Summaries History",
+      "noData": "Not enough data yet. Insights will appear after 2 weeks of tracking."
     },
     "policyLoadFailed": "Could not load organization policies",
     "saveFailed": "Error saving settings",
@@ -909,7 +983,26 @@
     "toDo": "to do",
     "done": "Done",
     "inProgress": "In progress",
-    "toDoStatus": "To do"
+    "toDoStatus": "To do",
+    "aiInsights": "AI Insights",
+    "aiNoInsights": "No AI insights available for this period",
+    "aiSuggestion": "Suggestion",
+    "aiAttentionPoints": "Attention Points",
+    "aiActivePatterns": "Active Patterns",
+    "aiBenchmark": "vs Team Average",
+    "aiFocusTrend": "Focus Trend",
+    "aiImproving": "improving",
+    "aiDeclining": "declining",
+    "aiStable": "stable",
+    "aiTeamAvgFocus": "Team Avg Focus",
+    "aiYourFocus": "Your Focus",
+    "aiTeamSummary": "Team AI Summary",
+    "aiTeamMembersAnalyzed": "members analyzed",
+    "aiTeamAlerts": "active alerts",
+    "aiNoPatterns": "No active patterns detected",
+    "aiNoAlerts": "No attention points for this period",
+    "aiAboveAvg": "above team avg",
+    "aiBelowAvg": "below team avg"
   },
   "teams": {
     "title": "Team",
@@ -959,7 +1052,27 @@
       "admin": "Admin",
       "gestor": "Manager",
       "member": "Member"
-    }
+    },
+    "improvements": "Improvement Areas",
+    "improvements.allGood": "Performance is on track. Keep it up!",
+    "improvements.focusCritical": "Focus needs attention",
+    "improvements.focusCriticalDesc": "Focus score is below 40. Consider using Pomodoro sessions or deep focus blocks to improve concentration.",
+    "improvements.focusWarning": "Focus could improve",
+    "improvements.focusWarningDesc": "Focus score is below 60. Try uninterrupted focused work sessions.",
+    "improvements.productivityCritical": "Low productivity detected",
+    "improvements.productivityCriticalDesc": "Only {{percentage}}% of time was productive. Review distraction sources.",
+    "improvements.productivityWarning": "Productivity below target",
+    "improvements.productivityWarningDesc": "{{percentage}}% productivity can be improved. Identify and reduce non-productive activities.",
+    "improvements.idleCritical": "High idle time",
+    "improvements.idleCriticalDesc": "{{percentage}}% of total time was idle. Consider shorter breaks and quicker task resumption.",
+    "improvements.idleWarning": "Idle time above ideal",
+    "improvements.idleWarningDesc": "{{percentage}}% idle time detected. Monitor long gaps without activity.",
+    "improvements.distractionApps": "Top distraction sources",
+    "improvements.distractionAppsDesc": "Apps classified as distractions are consuming significant time.",
+    "improvements.distractionCategories": "Distraction-heavy categories",
+    "improvements.distractionCategoriesDesc": "Categories dominated by distraction activity.",
+    "improvements.lowSessions": "Consider more focus sessions",
+    "improvements.lowSessionsDesc": "Only {{count}} sessions recorded with {{hours}}h of work. Break the day into focus blocks."
   },
   "maintenance": {
     "title": "Maintenance",
@@ -1063,6 +1176,19 @@
     "categorySystemLabel": "System",
     "loadMetricsError": "Error loading metrics"
   },
+  "update": {
+    "banner": {
+      "title": "Version {{version}} is available",
+      "cta": "Update now",
+      "dismiss": "Dismiss"
+    },
+    "toast": {
+      "title": "Version {{version}} is available",
+      "description": "Install to get the latest improvements. The app will restart when done.",
+      "cta": "Update",
+      "later": "Later"
+    }
+  },
   "session": {
     "expired": "Session expired",
     "expiredMessage": "Your session has expired. Please log in again."
@@ -1131,5 +1257,81 @@
     "reportEnd": "END OF REPORT",
     "generatedBy": "Report automatically generated by XChronus.",
     "filename": "productivity-report"
+  },
+  "evidence": {
+    "screenshot": "Screenshot",
+    "screenshots": "Screenshots",
+    "prev": "Previous",
+    "next": "Next",
+    "of": "of",
+    "loading": "Loading...",
+    "unavailable": "Evidence unavailable",
+    "app": "App",
+    "capturedAt": "Captured at",
+    "download": "Download",
+    "filterAll": "All",
+    "filterWithEvidence": "With evidence",
+    "filterByDomain": "By domain",
+    "policyTitle": "Evidence Policy",
+    "screenshotsEnabled": "Screenshot Capture",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "interval": "Capture interval",
+    "minutes": "minutes",
+    "excludedApps": "Excluded apps from capture",
+    "retention": "Evidence retention",
+    "days": "days",
+    "retentionWarning": "Short periods may limit auditing",
+    "websiteTracking": "Website Tracking",
+    "auditTitle": "Evidence Audit",
+    "auditSearchPlaceholder": "Search by user...",
+    "auditToday": "Today",
+    "audit7Days": "7 days",
+    "audit30Days": "30 days",
+    "auditAllActions": "All",
+    "auditView": "Viewed",
+    "auditDownload": "Downloaded",
+    "auditDelete": "Deleted",
+    "auditExport": "Export",
+    "auditWho": "Who accessed",
+    "auditTarget": "Whose",
+    "auditWhen": "When",
+    "auditAction": "Action",
+    "auditEmpty": "No evidence access records",
+    "auditRecords": "records",
+    "storageTitle": "Storage",
+    "storageOf": "used of",
+    "storageWarning": "80% reached — Consider increasing the quota or reducing retention."
+  },
+  "onboarding": {
+    "title": "Welcome to TimeTrack",
+    "step1Title": "Your organization",
+    "step2Title": "Invite team",
+    "step3Title": "Invite link",
+    "step4Title": "All done!",
+    "skip": "Skip for now",
+    "next": "Next",
+    "finish": "Go to dashboard",
+    "inviteEmailPlaceholder": "Collaborator email",
+    "inviteRoleLabel": "Role",
+    "inviteButton": "Invite",
+    "inviting": "Inviting...",
+    "inviteAlreadyMember": "This email is already a member of the organization.",
+    "copyLink": "Copy link",
+    "copied": "Copied!",
+    "allSet": "All set! Your organization is configured."
+  },
+  "inviteLink": {
+    "title": "Invite link",
+    "description": "Share this link so collaborators can join your organization",
+    "generate": "Generate link",
+    "generating": "Generating...",
+    "revoke": "Revoke",
+    "revoking": "Revoking...",
+    "copyLink": "Copy",
+    "copied": "Copied!",
+    "role": "Role: Collaborator",
+    "noLink": "No active link",
+    "usesCount": "{{count}} uses"
   }
 }

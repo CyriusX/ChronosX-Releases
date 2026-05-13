@@ -9,6 +9,7 @@ using TimeTrack.Backend.Application.FocusScore;
 using TimeTrack.Backend.Application.Integrations;
 using TimeTrack.Backend.Application.Integrations.Linear;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using TimeTrack.Backend.Domain.Interfaces.Services;
 using TimeTrack.Backend.Infrastructure.Integrations;
 using TimeTrack.Backend.Infrastructure.Integrations.Linear;
 using TimeTrack.Backend.Infrastructure.Integrations.Stripe;
@@ -48,6 +49,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IIdlePeriodRepository, IdlePeriodRepository>();
         services.AddScoped<IIdempotencyKeyRepository, IdempotencyKeyRepository>();
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
+        services.AddScoped<IInviteLinkRepository, InviteLinkRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IProjectMemberRepository, ProjectMemberRepository>();
         services.AddScoped<IProjectTaskRepository, ProjectTaskRepository>();
@@ -98,6 +100,16 @@ public static class InfrastructureServiceCollectionExtensions
         // Focus Score Services
         services.AddSingleton<AppProductivityClassifier>();
 
+        // Evidence Storage (Media Service integration)
+        services.AddScoped<IEvidenceItemRepository, EvidenceItemRepository>();
+        services.AddSingleton<IMediaServiceConfiguration, MediaServiceConfiguration>();
+        services.AddHttpClient<IMediaServiceClient, MediaServiceClient>();
+
+        // AI Module (Fase 4)
+        services.AddScoped<IAiDecisionLogRepository, AiDecisionLogRepository>();
+        services.AddScoped<IFeatureWeeklyRepository, FeatureWeeklyRepository>();
+        services.AddScoped<IFeatureMonthlyRepository, FeatureMonthlyRepository>();
+
         // Hangfire Background Jobs
         services.AddHangfireJobs(configuration);
 
@@ -118,7 +130,7 @@ public static class InfrastructureServiceCollectionExtensions
                 ?? configuration["RESEND_API_KEY"]
                 ?? throw new InvalidOperationException("Resend API key not found. Set Resend:ApiKey or RESEND_API_KEY");
         });
-        services.AddTransient<IResend, ResendClient>();
+        services.AddTransient<IResend>(sp => sp.GetRequiredService<ResendClient>());
         services.AddScoped<IEmailService, ResendEmailService>();
 
         // HttpContextAccessor for CurrentUserContext

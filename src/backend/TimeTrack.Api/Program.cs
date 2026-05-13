@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
+using FluentValidation;
 using Serilog;
 using TimeTrack.Api.Extensions;
 using TimeTrack.Api.Middleware;
@@ -14,6 +15,7 @@ using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Common.Security;
 using TimeTrack.Backend.Application.Extensions;
 using TimeTrack.Backend.Infrastructure.Extensions;
+using TimeTrack.Backend.AI.Extensions;
 using TimeTrack.Backend.Infrastructure.Jobs.Configuration;
 using TimeTrack.Backend.Infrastructure.Jobs.Dashboard;
 using TimeTrack.Backend.Infrastructure.Persistence;
@@ -151,10 +153,24 @@ try
 
     // Application Layer (MediatR, FluentValidation)
     builder.Services.AddApplication();
+
+    // Register MediatR handlers from the API assembly (Insights queries that
+    // depend on Infrastructure/AI and therefore cannot live in Application).
+    builder.Services.AddMediatR(cfg =>
+    {
+        cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
+    });
+
+    // Register FluentValidation validators from the API assembly
+    builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+
     builder.Services.AddMemoryCache();
 
     // Infrastructure Layer (Database, Health Checks, Services)
     builder.Services.AddInfrastructure(builder.Configuration);
+
+    // AI Module (z.ai integration)
+    builder.Services.AddAiModule(builder.Configuration);
 
     var app = builder.Build();
 

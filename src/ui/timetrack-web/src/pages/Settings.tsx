@@ -21,6 +21,7 @@ import { useLanguage } from '../hooks/useLanguage';
 import { getOrgPolicy, updateOrgPolicy } from '../services/policyApi';
 import { clearAllEvents } from '../services/maintenanceApi';
 import { MembersSection } from '@desktop/components/settings/MembersSection';
+import { InviteLinkSection } from '../components/settings/InviteLinkSection';
 import { OrganizationSection } from '@desktop/components/settings/OrganizationSection';
 import { SkeletonShimmer } from '@desktop/components/ui/SkeletonShimmer';
 import { SPRING } from '@desktop/lib/animation';
@@ -108,7 +109,12 @@ export default function Settings() {
   const renderSection = () => {
     switch (activeSection) {
       case 'team':
-        return <MembersSection />;
+        return (
+          <>
+            <MembersSection />
+            <InviteLinkSection />
+          </>
+        );
       case 'maintenance':
         return <MaintenanceSection />;
       case 'preferences':

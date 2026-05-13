@@ -231,10 +231,19 @@ export function useUpdate() {
     if (updateInfo) setDismissedVersion(updateInfo.latestVersion);
   }, [updateInfo]);
 
+  // Discovery surfaces (banner + bottom-right toast) own the "an update is available"
+  // moment. The modal is now reserved for the install lifecycle so we don't shove a
+  // full-screen dialog into the user's face just to tell them a version exists.
+  const hasPendingUpdate = !!(
+    updateInfo?.hasUpdate
+    && updateInfo.latestVersion !== dismissedVersion
+    && progress.stage === 'idle'
+  );
+
   const shouldShowModal = !!(
     updateInfo?.hasUpdate
     && updateInfo.latestVersion !== dismissedVersion
-    && (progress.stage === 'idle' || progress.stage === 'downloading' || progress.stage === 'installing' || progress.stage === 'updateInProgress' || progress.stage === 'complete' || progress.stage === 'failed')
+    && (progress.stage === 'downloading' || progress.stage === 'installing' || progress.stage === 'updateInProgress' || progress.stage === 'complete' || progress.stage === 'failed')
   );
 
   return {
@@ -243,6 +252,7 @@ export function useUpdate() {
     error,
     isChecking: progress.stage === 'checking',
     isUpdating: progress.stage === 'downloading' || progress.stage === 'installing' || progress.stage === 'updateInProgress',
+    hasPendingUpdate,
     shouldShowModal,
     dismissUpdate,
     checkForUpdates,
