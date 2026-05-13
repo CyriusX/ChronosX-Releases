@@ -1,4 +1,4 @@
-import { Building2, Clock, Brain, Database, AppWindow } from 'lucide-react';
+import { Building2, Clock, Brain, Database, AppWindow, Camera, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OrgPolicyResponse, UpdateOrgPolicyRequest } from '../../types/settings';
 import { usePolicyCards } from './usePolicyCards';
@@ -9,6 +9,10 @@ import { AppExclusionsCard } from './AppExclusionsCard';
 import { RetentionCard } from './RetentionCard';
 import { FocusModeCard } from './FocusModeCard';
 import { AppCategoriesSection } from './AppCategoriesSection';
+import { EvidencePolicyCard } from './EvidencePolicyCard';
+import { EvidenceAuditPanel } from './EvidenceAuditPanel';
+import { StorageUsageCard } from './StorageUsageCard';
+import { useAuthStore } from '../../stores/authStore';
 
 interface OrganizationSectionProps {
   policy: OrgPolicyResponse;
@@ -19,6 +23,8 @@ interface OrganizationSectionProps {
 
 export function OrganizationSection({ policy, onUpdate, canEdit, orgId }: OrganizationSectionProps) {
   const { t } = useTranslation();
+  const role = useAuthStore(s => s.user?.role);
+  const isAdmin = role === 'Admin';
   const {
     editingCard,
     isSaving,
@@ -140,6 +146,23 @@ export function OrganizationSection({ policy, onUpdate, canEdit, orgId }: Organi
           <AppExclusionsCard exclusionsCount={policy.appExclusions.length} />
         </div>
       </div>
+
+      {/* Evidence Policy Sub-section */}
+      <div className="space-y-4">
+        <SubSectionHeader icon={Camera} label={t('evidence.policyTitle')} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <EvidencePolicyCard />
+          <StorageUsageCard />
+        </div>
+      </div>
+
+      {/* Evidence Audit Sub-section (Admin only) */}
+      {isAdmin && (
+        <div className="space-y-4">
+          <SubSectionHeader icon={Shield} label={t('evidence.auditTitle')} />
+          <EvidenceAuditPanel />
+        </div>
+      )}
     </div>
   );
 }

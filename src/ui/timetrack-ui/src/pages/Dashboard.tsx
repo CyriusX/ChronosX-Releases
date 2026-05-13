@@ -11,6 +11,8 @@ import {
   ActivitySection,
   BottomCards,
   RightPanel,
+  WeeklyNarrativeCard,
+  AiInsightCard,
 } from '../components/dashboard';
 
 export default function Dashboard() {
@@ -86,7 +88,9 @@ export default function Dashboard() {
               weeklyHistory={weeklyHistory}
               workGoalSeconds={workGoalSeconds}
             />
-            <ActivitySection />
+            <AiInsightCard />
+            <WeeklyNarrativeCard />
+            <ActivitySection hideEvidence />
             <BottomCards summary={todaySummary} />
 
             {/* Right panel content — shown inline on mobile/tablet (< lg) */}

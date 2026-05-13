@@ -17,8 +17,9 @@ import { useIpc } from '../hooks/useIpc';
 import { isDesktopRuntime } from '../lib/runtime';
 import { useActivitiesData } from '../hooks/useActivitiesData';
 import { usePermissions } from '../hooks/usePermissions';
-import { listMembers } from '../services/memberApi';
-import type { Member } from '../types/member';
+import { useTeamStatus } from '../hooks/useTeamStatus';
+import { useTrackingStore } from '../stores/trackingStore';
+import { useAuthStore } from '../stores/authStore';
 import {
   DateNavigator,
   DayInsights,
@@ -40,19 +41,38 @@ export default function Activities() {
   const { summary, activities, isLoading } = data;
   const { sendQuery, isConnected } = useIpc();
   const desktopRuntime = isDesktopRuntime();
-  const { canManageTeam } = usePermissions();
+  const { canManageTeam, isColaborador } = usePermissions();
   const userId = data.userId;
   const [workGoalSeconds, setWorkGoalSeconds] = useState(28800);
 
-  // Team member selector (Activities should drive ?userId= so task timeline uses /users/{id}/task-entries)
-  const [members, setMembers] = useState<Member[]>([]);
+  // Team member selector (Activities should drive ?userId= so task timeline uses /users/{id}/task-entries).
+  // useTeamStatus carries each member's live `isTracking` flag (heartbeat-based) so the page can
+  // honestly drive the "Ao vivo" badge for the user being viewed.
+  const { members, loadTeamStatus } = useTeamStatus();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!canManageTeam) return;
-    listMembers().then(r => setMembers(r.members ?? [])).catch(() => {});
-  }, [canManageTeam]);
+    loadTeamStatus(false);
+  }, [loadTeamStatus]);
+
+  // Local tracking state for the "viewing self" case — heartbeat status doesn't have to make
+  // a round-trip when we already know what the local agent is doing.
+  const localIsTracking = useTrackingStore(s => s.isTracking);
+  const localIsPaused = useTrackingStore(s => s.isPaused);
+  const currentUser = useAuthStore(s => s.user);
+
+  const isLive = (() => {
+    if (!data.isToday) return false;
+    const viewingSelf = !userId || userId === currentUser?.id;
+    if (viewingSelf) {
+      // On desktop we have first-hand state; on web (no IPC) we don't auto-claim "live"
+      // for self — fall through to whatever team status reports for our row.
+      if (desktopRuntime) return localIsTracking && !localIsPaused;
+    }
+    const m = members.find(mm => mm.userId === (userId ?? currentUser?.id));
+    return m?.isTracking ?? false;
+  })();
 
   useEffect(() => {
     if (!showUserDropdown) return;
@@ -163,6 +183,7 @@ export default function Activities() {
               comparisonText={data.comparisonText}
               productivityComparison={data.productivityComparison}
               isToday={data.isToday}
+              isLive={isLive}
             />
 
             {/* Top Cards: Tempo Rastreado + Produtividade + Resumo */}
@@ -181,6 +202,7 @@ export default function Activities() {
                 activities={activities}
                 selectedDate={data.selectedDate}
                 userId={userId}
+                hideEvidence={isColaborador}
               />
             )}
 

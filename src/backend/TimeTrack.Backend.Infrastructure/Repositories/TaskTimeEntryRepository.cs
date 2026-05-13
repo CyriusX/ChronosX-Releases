@@ -70,7 +70,18 @@ public sealed class TaskTimeEntryRepository : ITaskTimeEntryRepository
 
     public async Task UpdateAsync(TaskTimeEntry entry, CancellationToken ct = default)
     {
-        _context.TaskTimeEntries.Update(entry);
+        var tracked = _context.ChangeTracker.Entries<TaskTimeEntry>()
+            .FirstOrDefault(e => e.Entity.Id == entry.Id);
+
+        if (tracked != null)
+        {
+            _context.Entry(tracked.Entity).CurrentValues.SetValues(entry);
+        }
+        else
+        {
+            _context.TaskTimeEntries.Update(entry);
+        }
+
         await _context.SaveChangesAsync(ct);
     }
 }

@@ -10,5 +10,11 @@ export { NotificationsBell } from './NotificationsBell';
 // Timer Focus Card (CX-139)
 export * from './TimerFocusCard';
 
+// Weekly Narrative Card (CX-217)
+export { WeeklyNarrativeCard } from './WeeklyNarrativeCard';
+
+// AI Live Insight Card
+export { AiInsightCard } from './AiInsightCard';
+
 // Re-export shared components
 export * from './shared';

@@ -9,6 +9,8 @@ export type SettingsSection =
   | 'integrations'
   | 'team'
   | 'organization'
+  | 'weekly-report'
+  | 'ai-classifications'
   | 'billing'
   | 'maintenance'
   | 'agent-status'

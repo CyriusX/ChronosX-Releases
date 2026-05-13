@@ -71,4 +71,7 @@ public static class AuditActions
     public const string DeviceRegistered = "device.registered";
     public const string DeviceReactivated = "device.reactivated";
     public const string MemberRoleChanged = "member.role_changed";
+    public const string EvidenceView = "evidence.view";
+    public const string EvidenceDownload = "evidence.download";
+    public const string EvidenceDelete = "evidence.delete";
 }
