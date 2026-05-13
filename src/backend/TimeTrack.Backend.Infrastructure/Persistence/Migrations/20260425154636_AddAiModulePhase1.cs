@@ -11,103 +11,20 @@ namespace TimeTrack.Backend.Infrastructure.Persistence.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // CX-208: Extend daily_focus_scores with feature aggregation fields
-            migrationBuilder.AddColumn<int>(
-                name: "productive_seconds",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<int>(
-                name: "distraction_seconds",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<int>(
-                name: "neutral_seconds",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<int>(
-                name: "context_switches_count",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<int>(
-                name: "interruption_count",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<string>(
-                name: "top_app_exe",
-                table: "daily_focus_scores",
-                type: "character varying(512)",
-                maxLength: 512,
-                nullable: true);
-
-            migrationBuilder.AddColumn<int>(
-                name: "top_app_seconds",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<int>(
-                name: "distinct_apps_count",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<int>(
-                name: "browser_seconds",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<double>(
-                name: "productivity_ratio",
-                table: "daily_focus_scores",
-                type: "double precision",
-                nullable: false,
-                defaultValue: 0.0);
-
-            migrationBuilder.AddColumn<int>(
-                name: "focus_sessions_count",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<int>(
-                name: "focus_sessions_completed",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<int>(
-                name: "longest_focus_seconds",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<int>(
-                name: "avg_focus_seconds",
-                table: "daily_focus_scores",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS productive_seconds integer NOT NULL DEFAULT 0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS distraction_seconds integer NOT NULL DEFAULT 0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS neutral_seconds integer NOT NULL DEFAULT 0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS context_switches_count integer NOT NULL DEFAULT 0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS interruption_count integer NOT NULL DEFAULT 0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS top_app_exe character varying(512)");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS top_app_seconds integer NOT NULL DEFAULT 0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS distinct_apps_count integer NOT NULL DEFAULT 0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS browser_seconds integer NOT NULL DEFAULT 0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS productivity_ratio double precision NOT NULL DEFAULT 0.0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS focus_sessions_count integer NOT NULL DEFAULT 0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS focus_sessions_completed integer NOT NULL DEFAULT 0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS longest_focus_seconds integer NOT NULL DEFAULT 0");
+            migrationBuilder.Sql(@"ALTER TABLE daily_focus_scores ADD COLUMN IF NOT EXISTS avg_focus_seconds integer NOT NULL DEFAULT 0");
 
             // CX-209: feature_weekly table
             migrationBuilder.CreateTable(
