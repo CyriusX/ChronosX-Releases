@@ -5,6 +5,7 @@ export interface User {
   email: string;
   displayName: string;
   role: 'Colaborador' | 'Gestor' | 'Admin';
+  isPlatformAdmin: boolean;
   orgId: string;
   orgName: string;
   passwordMustChange: boolean;
@@ -38,6 +39,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     email: 'demo@chronosx.app',
     displayName: 'Demo Manager',
     role: 'Gestor',
+    isPlatformAdmin: false,
     orgId: 'org-demo',
     orgName: 'ChronosX Demo Org',
     passwordMustChange: false,
@@ -59,4 +61,3 @@ export const useAuthStore = create<AuthState>((set) => ({
   setError: (error) => set({ error }),
   clearAuth: () => set({ user: null, tokens: null, isAuthenticated: false }),
 }));
-

@@ -1,5 +1,5 @@
 /**
- * Maintenance — Admin-only page for monitoring agent machine metrics.
+ * Maintenance — SysAdmin-only page for monitoring agent machine metrics.
  *
  * Displays CPU, Memory, and Disk usage for selected devices.
  * Polls every 10s when a device is selected.

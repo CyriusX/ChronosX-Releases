@@ -20,6 +20,7 @@ export interface User {
   email: string;
   displayName: string;
   role: 'Colaborador' | 'Gestor' | 'Admin';
+  isPlatformAdmin: boolean;
   orgId: string;
   orgName: string;
   passwordMustChange: boolean;
@@ -70,6 +71,26 @@ const getApiBaseUrl = (): string => {
 };
 
 const API_BASE = getApiBaseUrl();
+
+function tryDecodePlatformAdminClaim(accessToken: string): boolean | null {
+  try {
+    const parts = accessToken.split('.');
+    if (parts.length < 2) return null;
+
+    const payloadB64Url = parts[1];
+    const pad = '='.repeat((4 - (payloadB64Url.length % 4)) % 4);
+    const payloadB64 = (payloadB64Url + pad).replace(/-/g, '+').replace(/_/g, '/');
+    const payloadJson = atob(payloadB64);
+    const payload = JSON.parse(payloadJson) as Record<string, unknown>;
+    const raw = payload['is_platform_admin'];
+
+    if (typeof raw === 'boolean') return raw;
+    if (typeof raw === 'string') return raw.toLowerCase() === 'true';
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 async function loginApi(email: string, password: string) {
   const response = await fetch(`${API_BASE}/auth/login`, {
@@ -169,6 +190,7 @@ export const useAuthStore = create<AuthState>()(
             email: response.email ?? email,
             displayName: response.displayName,
             role: response.role ?? 'Colaborador',
+            isPlatformAdmin: response.isPlatformAdmin ?? tryDecodePlatformAdminClaim(response.accessToken) ?? false,
             orgId: response.orgId,
             orgName: response.orgName,
             passwordMustChange: response.passwordMustChange ?? false,
@@ -248,7 +270,18 @@ export const useAuthStore = create<AuthState>()(
             expiresAt: Date.now() + response.expiresIn * 1000,
           };
 
-          set({ tokens: newTokens });
+          set((state) => ({
+            tokens: newTokens,
+            user: state.user
+              ? {
+                ...state.user,
+                isPlatformAdmin: response.isPlatformAdmin
+                  ?? tryDecodePlatformAdminClaim(newTokens.accessToken)
+                  ?? state.user.isPlatformAdmin
+                  ?? false,
+              }
+              : state.user,
+          }));
           return true;
         } catch {
           set({
@@ -271,6 +304,7 @@ export const useAuthStore = create<AuthState>()(
             email: loginResponse.email ?? email,
             displayName: loginResponse.displayName,
             role: loginResponse.role ?? 'Colaborador',
+            isPlatformAdmin: loginResponse.isPlatformAdmin ?? tryDecodePlatformAdminClaim(loginResponse.accessToken) ?? false,
             orgId: loginResponse.orgId,
             orgName: loginResponse.orgName,
             passwordMustChange: loginResponse.passwordMustChange ?? false,

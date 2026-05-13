@@ -12,11 +12,11 @@ using TimeTrack.Backend.Application.Maintenance.Queries;
 namespace TimeTrack.Api.Controllers;
 
 /// <summary>
-/// Controller para manutenção e monitoramento de dispositivos (Admin only)
+/// Controller para manutenção e monitoramento de dispositivos (SysAdmin only)
 /// </summary>
 [ApiController]
 [Route("api/v1/orgs/{orgId:guid}/maintenance")]
-[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+[Authorize(Policy = AuthorizationPolicies.PlatformAdminOnly)]
 [EnableRateLimiting(RateLimitingExtensions.PolicyNames.Default)]
 public sealed class MaintenanceController : ControllerBase
 {
@@ -31,6 +31,9 @@ public sealed class MaintenanceController : ControllerBase
         _currentUser = currentUser;
     }
 
+    private bool HasOrgAccess(Guid orgId)
+        => _currentUser.IsPlatformAdmin || _currentUser.OrgId == orgId;
+
     /// <summary>
     /// Get health summary for all devices in the org (counts + alerts)
     /// </summary>
@@ -41,7 +44,7 @@ public sealed class MaintenanceController : ControllerBase
         Guid orgId,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != orgId) return Forbid();
+        if (!HasOrgAccess(orgId)) return Forbid();
 
         var result = await _mediator.Send(new GetHealthSummaryQuery(orgId), cancellationToken);
         return Ok(result);
@@ -60,7 +63,7 @@ public sealed class MaintenanceController : ControllerBase
         Guid deviceId,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != orgId)
+        if (!HasOrgAccess(orgId))
         {
             return Forbid();
         }
@@ -93,7 +96,7 @@ public sealed class MaintenanceController : ControllerBase
         [FromQuery] int limit = 100,
         CancellationToken cancellationToken = default)
     {
-        if (_currentUser.OrgId != orgId)
+        if (!HasOrgAccess(orgId))
         {
             return Forbid();
         }
@@ -121,7 +124,7 @@ public sealed class MaintenanceController : ControllerBase
         Guid deviceId,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != orgId) return Forbid();
+        if (!HasOrgAccess(orgId)) return Forbid();
 
         var result = await _mediator.Send(
             new GetDeviceInfoQuery(orgId, deviceId), cancellationToken);
@@ -141,7 +144,7 @@ public sealed class MaintenanceController : ControllerBase
         [FromBody] CreateRemoteCommandRequest request,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != orgId) return Forbid();
+        if (!HasOrgAccess(orgId)) return Forbid();
 
         var result = await _mediator.Send(
             new CreateRemoteCommandCommand(orgId, deviceId, request.CommandType, request.Payload),
@@ -162,7 +165,7 @@ public sealed class MaintenanceController : ControllerBase
         [FromBody] SetDevToolsAccessRequest request,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != orgId) return Forbid();
+        if (!HasOrgAccess(orgId)) return Forbid();
 
         var result = await _mediator.Send(
             new SetDeviceDevToolsAccessCommand(orgId, deviceId, request.Enabled),
@@ -183,7 +186,7 @@ public sealed class MaintenanceController : ControllerBase
         Guid deviceId,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != orgId) return Forbid();
+        if (!HasOrgAccess(orgId)) return Forbid();
 
         var deleted = await _mediator.Send(
             new ClearDeviceEventsCommand(orgId, deviceId), cancellationToken);
@@ -201,7 +204,7 @@ public sealed class MaintenanceController : ControllerBase
         Guid orgId,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != orgId) return Forbid();
+        if (!HasOrgAccess(orgId)) return Forbid();
 
         var deleted = await _mediator.Send(
             new ClearDeviceEventsCommand(orgId, null), cancellationToken);
@@ -219,7 +222,7 @@ public sealed class MaintenanceController : ControllerBase
         Guid deviceId,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != orgId) return Forbid();
+        if (!HasOrgAccess(orgId)) return Forbid();
 
         var result = await _mediator.Send(
             new GetDeviceCommandsQuery(orgId, deviceId), cancellationToken);
@@ -240,7 +243,7 @@ public sealed class MaintenanceController : ControllerBase
         Guid deviceId,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != orgId) return Forbid();
+        if (!HasOrgAccess(orgId)) return Forbid();
 
         await _mediator.Send(new DeleteDeviceCommand(orgId, deviceId), cancellationToken);
         return NoContent();

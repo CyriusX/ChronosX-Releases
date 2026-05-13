@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using TimeTrack.Backend.Application.Auth.Commands;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Domain.Entities;
@@ -45,12 +46,29 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
         db.TaskTimeEntries.Add(open);
         await db.SaveChangesAsync(CancellationToken.None);
 
+        var subscriptionService = new Mock<ISubscriptionService>();
+        subscriptionService
+            .Setup(s => s.CheckSubscriptionAccessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SubscriptionCheckResult { HasAccess = true, Status = "none" });
+
         var handler = new HeartbeatCommandHandler(
             new DeviceRepository(db),
             new RemoteCommandRepository(db),
+            subscriptionService.Object,
             new TaskTimeEntryRepository(db));
 
-        await handler.Handle(new HeartbeatCommand(deviceId, AgentVersion: "1.0.1", TrackingState: "paused"), CancellationToken.None);
+        await handler.Handle(new HeartbeatCommand(
+            DeviceId: deviceId,
+            AgentVersion: "1.0.1",
+            OsVersion: null,
+            IpAddress: null,
+            UptimeSeconds: null,
+            TrackingState: "paused",
+            HealthStatus: null,
+            BackendReachable: null,
+            ConsecutiveSyncFailures: null,
+            LastSuccessfulSyncAt: null,
+            IpcConnected: null), CancellationToken.None);
 
         var entryAfter = await db.TaskTimeEntries.FirstAsync(e => e.Id == open.Id, CancellationToken.None);
         entryAfter.IsPaused.Should().BeTrue();
@@ -118,7 +136,7 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
         public Guid? DeviceId => null;
         public UserRole? Role { get; }
         public bool IsAuthenticated => false; // bypass multi-tenant filters in unit tests
+        public bool IsPlatformAdmin => false;
         public bool IsInRole(UserRole role) => Role == role;
     }
 }
-

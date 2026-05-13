@@ -96,6 +96,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginRes
             Role = user.Role.ToString(),
             OrgName = user.Organization?.Name ?? "",
             PasswordMustChange = user.PasswordMustChange,
+            IsPlatformAdmin = user.IsPlatformAdmin,
             SubscriptionStatus = subscriptionCheck.Status,
             PlanTier = subscriptionCheck.PlanTier ?? ""
         };
