@@ -20,6 +20,7 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
     private readonly ICurrentUserContext _userContext;
     private readonly IIpcServer _ipcServer;
     private readonly IAgentEventLogger _eventLogger;
+    private readonly IExceptionReporter _exceptionReporter;
     private readonly ILogger<StartTrackingCommandHandler> _logger;
 
     public StartTrackingCommandHandler(
@@ -28,6 +29,7 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         ICurrentUserContext userContext,
         IIpcServer ipcServer,
         IAgentEventLogger eventLogger,
+        IExceptionReporter exceptionReporter,
         ILogger<StartTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
@@ -35,6 +37,7 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         _userContext = userContext;
         _ipcServer = ipcServer;
         _eventLogger = eventLogger;
+        _exceptionReporter = exceptionReporter;
         _logger = logger;
     }
 
@@ -42,46 +45,38 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
     {
         _logger.LogInformation("StartTrackingCommandHandler: HandleAsync started");
 
-        try
+        _logger.LogInformation("StartTrackingCommandHandler: IsAuthenticated = {IsAuthenticated}, UserId = {UserId}",
+            _userContext.IsAuthenticated, _userContext.UserId);
+
+        if (!_userContext.IsAuthenticated)
         {
-            _logger.LogInformation("StartTrackingCommandHandler: IsAuthenticated = {IsAuthenticated}, UserId = {UserId}",
-                _userContext.IsAuthenticated, _userContext.UserId);
-
-            if (!_userContext.IsAuthenticated)
-            {
-                _logger.LogWarning("StartTrackingCommandHandler: User not authenticated, returning error");
-                return ErrorResponse(request.RequestId, "User not authenticated");
-            }
-
-            // Extend the "Tracking Stopped" session to cover the full gap BEFORE starting,
-            // so the gap is filled up to this exact moment.
-            await ExtendTrackingStoppedSessionAsync(ct);
-
-            _logger.LogInformation("StartTrackingCommandHandler: Calling TrackingControlUseCase.StartAsync");
-            var result = await _trackingControl.StartAsync(new StartTrackingRequest
-            {
-                StartedBy = "DesktopHost"
-            }, ct);
-
-            _logger.LogInformation("StartTrackingCommandHandler: StartAsync completed, Status = {Status}", result.Status);
-
-            // Broadcast state change so DesktopHost tray icon updates
-            await _ipcServer.SendEventAsync(new IpcEvent
-            {
-                EventType = "trackingStateChanged",
-                Payload = new { isTracking = true, isPaused = false }
-            }, ct);
-
-            await _eventLogger.LogAsync("tracking.started", AgentEventCategory.UserAction, AgentEventSeverity.Info,
-                "Monitoramento iniciado pelo usuário", cancellationToken: ct);
-
-            return SuccessResponse(request.RequestId, result);
+            _logger.LogWarning("StartTrackingCommandHandler: User not authenticated, returning error");
+            return ErrorResponse(request.RequestId, "User not authenticated");
         }
-        catch (Exception ex)
+
+        // Extend the "Tracking Stopped" session to cover the full gap BEFORE starting,
+        // so the gap is filled up to this exact moment.
+        await ExtendTrackingStoppedSessionAsync(ct);
+
+        _logger.LogInformation("StartTrackingCommandHandler: Calling TrackingControlUseCase.StartAsync");
+        var result = await _trackingControl.StartAsync(new StartTrackingRequest
         {
-            _logger.LogError(ex, "Error starting tracking");
-            return UnknownErrorResponse(request.RequestId, ex);
-        }
+            StartedBy = "DesktopHost"
+        }, ct);
+
+        _logger.LogInformation("StartTrackingCommandHandler: StartAsync completed, Status = {Status}", result.Status);
+
+        // Broadcast state change so DesktopHost tray icon updates
+        await _ipcServer.SendEventAsync(new IpcEvent
+        {
+            EventType = "trackingStateChanged",
+            Payload = new { isTracking = true, isPaused = false }
+        }, ct);
+
+        await _eventLogger.LogAsync("tracking.started", AgentEventCategory.UserAction, AgentEventSeverity.Info,
+            "Monitoramento iniciado pelo usuário", cancellationToken: ct);
+
+        return SuccessResponse(request.RequestId, result);
     }
 
     /// <summary>
@@ -125,6 +120,14 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         {
             // Don't prevent tracking from starting if extend fails
             _logger.LogWarning(ex, "Failed to extend 'Tracking Stopped' session");
+            if (!ExceptionReport.IsCancellation(ex))
+            {
+                var report = ExceptionReport.FromException(
+                    ex,
+                    component: "AgentService",
+                    operation: "ipc.command.StartTracking.extendTrackingStoppedSession");
+                await _exceptionReporter.ReportAsync(report, CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 }

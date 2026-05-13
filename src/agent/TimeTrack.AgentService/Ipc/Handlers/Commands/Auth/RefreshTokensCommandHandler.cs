@@ -26,36 +26,28 @@ public sealed class RefreshTokensCommandHandler : IpcHandlerBase, IIpcCommandHan
 
     public async Task<IpcResponse> HandleAsync(IpcRequest request, CancellationToken ct)
     {
-        try
+        var refreshed = await _tokenStore.RefreshAsync(ct);
+        if (!refreshed)
         {
-            var refreshed = await _tokenStore.RefreshAsync(ct);
-            if (!refreshed)
-            {
-                return ErrorResponse(request.RequestId, "refresh_failed");
-            }
-
-            var jwt = await _tokenStore.GetJwtAsync(ct);
-            var refreshToken = await _tokenStore.GetRefreshTokenAsync(ct);
-
-            if (string.IsNullOrEmpty(jwt))
-            {
-                return ErrorResponse(request.RequestId, "no_tokens_after_refresh");
-            }
-
-            var expiresIn = GetExpiresInSeconds(jwt);
-
-            return SuccessResponse(request.RequestId, new
-            {
-                accessToken = jwt,
-                refreshToken = refreshToken ?? string.Empty,
-                expiresIn
-            });
+            return ErrorResponse(request.RequestId, "refresh_failed");
         }
-        catch (Exception ex)
+
+        var jwt = await _tokenStore.GetJwtAsync(ct);
+        var refreshToken = await _tokenStore.GetRefreshTokenAsync(ct);
+
+        if (string.IsNullOrEmpty(jwt))
         {
-            _logger.LogError(ex, "Error refreshing tokens via IPC");
-            return UnknownErrorResponse(request.RequestId, ex);
+            return ErrorResponse(request.RequestId, "no_tokens_after_refresh");
         }
+
+        var expiresIn = GetExpiresInSeconds(jwt);
+
+        return SuccessResponse(request.RequestId, new
+        {
+            accessToken = jwt,
+            refreshToken = refreshToken ?? string.Empty,
+            expiresIn
+        });
     }
 
     private static long GetExpiresInSeconds(string jwt)

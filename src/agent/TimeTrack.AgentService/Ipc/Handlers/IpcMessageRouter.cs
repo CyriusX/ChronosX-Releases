@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.AgentService.Ipc.Handlers;
 
 namespace TimeTrack.AgentService.Ipc;
@@ -14,11 +15,13 @@ public sealed class IpcMessageRouter
 {
     private readonly IReadOnlyDictionary<string, IIpcCommandHandler> _commands;
     private readonly IReadOnlyDictionary<string, IIpcQueryHandler> _queries;
+    private readonly IExceptionReporter _exceptionReporter;
     private readonly ILogger<IpcMessageRouter> _logger;
 
     public IpcMessageRouter(
         IEnumerable<IIpcCommandHandler> commands,
         IEnumerable<IIpcQueryHandler> queries,
+        IExceptionReporter exceptionReporter,
         ILogger<IpcMessageRouter> logger)
     {
         _commands = commands.ToDictionary(
@@ -29,6 +32,7 @@ public sealed class IpcMessageRouter
             q => q.QueryName.ToLowerInvariant(),
             StringComparer.OrdinalIgnoreCase);
 
+        _exceptionReporter = exceptionReporter;
         _logger = logger;
     }
 
@@ -41,9 +45,50 @@ public sealed class IpcMessageRouter
         if (_commands.TryGetValue(normalizedName, out var handler))
         {
             _logger.LogInformation("Found handler for command: {Name}", request.Name);
-            var response = await handler.HandleAsync(request, ct);
-            _logger.LogInformation("Command {Name} completed: Success={Success}", request.Name, response.Success);
-            return response;
+            try
+            {
+                var response = await handler.HandleAsync(request, ct).ConfigureAwait(false);
+                _logger.LogInformation("Command {Name} completed: Success={Success}", request.Name, response.Success);
+                return response;
+            }
+            catch (Exception ex) when (ExceptionReport.IsCancellation(ex))
+            {
+                _logger.LogDebug(ex, "Command {Name} canceled", request.Name);
+                return new IpcResponse
+                {
+                    RequestId = request.RequestId,
+                    Success = false,
+                    Error = "Request canceled"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unhandled exception in command handler: {Name}", request.Name);
+                try
+                {
+                    var report = ExceptionReport.FromException(
+                        ex,
+                        component: "AgentService",
+                        operation: $"ipc.command.{request.Name}",
+                        context: new Dictionary<string, string?>
+                        {
+                            ["requestId"] = request.RequestId.ToString(),
+                            ["name"] = request.Name
+                        });
+                    await _exceptionReporter.ReportAsync(report, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // never throw from router
+                }
+
+                return new IpcResponse
+                {
+                    RequestId = request.RequestId,
+                    Success = false,
+                    Error = ex.Message
+                };
+            }
         }
 
         _logger.LogWarning("Unknown command: {Name}", request.Name);
@@ -64,7 +109,48 @@ public sealed class IpcMessageRouter
 
         if (_queries.TryGetValue(normalizedName, out var handler))
         {
-            return await handler.HandleAsync(request, ct);
+            try
+            {
+                return await handler.HandleAsync(request, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ExceptionReport.IsCancellation(ex))
+            {
+                _logger.LogDebug(ex, "Query {Name} canceled", request.Name);
+                return new IpcResponse
+                {
+                    RequestId = request.RequestId,
+                    Success = false,
+                    Error = "Request canceled"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unhandled exception in query handler: {Name}", request.Name);
+                try
+                {
+                    var report = ExceptionReport.FromException(
+                        ex,
+                        component: "AgentService",
+                        operation: $"ipc.query.{request.Name}",
+                        context: new Dictionary<string, string?>
+                        {
+                            ["requestId"] = request.RequestId.ToString(),
+                            ["name"] = request.Name
+                        });
+                    await _exceptionReporter.ReportAsync(report, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // never throw from router
+                }
+
+                return new IpcResponse
+                {
+                    RequestId = request.RequestId,
+                    Success = false,
+                    Error = ex.Message
+                };
+            }
         }
 
         _logger.LogWarning("Unknown query: {Name}", request.Name);

@@ -22,26 +22,18 @@ public sealed class GetProjectsQueryHandler : IpcHandlerBase, IIpcQueryHandler
 
     public async Task<IpcResponse> HandleAsync(IpcRequest request, CancellationToken ct)
     {
-        try
-        {
-            var activeOnly = true;
-            if (request.Payload.HasValue && request.Payload.Value.TryGetProperty("activeOnly", out var prop))
-                activeOnly = prop.GetBoolean();
+        var activeOnly = true;
+        if (request.Payload.HasValue && request.Payload.Value.TryGetProperty("activeOnly", out var prop))
+            activeOnly = prop.GetBoolean();
 
-            var result = await _backendTasks.ListProjectsAsync(activeOnly, ct);
-            var projects = (result?.Projects ?? []).Select(p => new
-            {
-                id = p.Id.ToString(),
-                name = p.Name,
-                color = p.Color,
-                status = p.Status
-            }).ToArray();
-            return SuccessResponse(request.RequestId, projects);
-        }
-        catch (Exception ex)
+        var result = await _backendTasks.ListProjectsAsync(activeOnly, ct);
+        var projects = (result?.Projects ?? []).Select(p => new
         {
-            _logger.LogError(ex, "[GetProjects] failed");
-            return UnknownErrorResponse(request.RequestId, ex);
-        }
+            id = p.Id.ToString(),
+            name = p.Name,
+            color = p.Color,
+            status = p.Status
+        }).ToArray();
+        return SuccessResponse(request.RequestId, projects);
     }
 }

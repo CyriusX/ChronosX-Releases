@@ -23,6 +23,7 @@
     <ProjectReference Include="..\TimeTrack.Agent.Application\TimeTrack.Agent.Application.csproj" />
     <ProjectReference Include="..\TimeTrack.Agent.Infrastructure\TimeTrack.Agent.Infrastructure.csproj" />
     <ProjectReference Include="..\TimeTrack.Agent.Contracts\TimeTrack.Agent.Contracts.csproj" />
+    <ProjectReference Include="..\TimeTrack.AgentService\TimeTrack.AgentService.csproj" />
   </ItemGroup>
 
 </Project>
