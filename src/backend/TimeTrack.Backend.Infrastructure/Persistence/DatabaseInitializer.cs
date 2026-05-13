@@ -124,6 +124,23 @@ public sealed class DatabaseInitializer : IHostedService
             INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
             VALUES ('20260507000000_AddOrgInviteLinksAndOnboarding', '8.0.0')
             ON CONFLICT DO NOTHING;
+
+            CREATE TABLE IF NOT EXISTS platform_api_keys (
+                id uuid NOT NULL DEFAULT gen_random_uuid(),
+                label character varying(200) NOT NULL,
+                key_hash character varying(128) NOT NULL,
+                created_at_utc timestamp with time zone NOT NULL DEFAULT now(),
+                revoked_at_utc timestamp with time zone,
+                last_used_at_utc timestamp with time zone,
+                CONSTRAINT PK_platform_api_keys PRIMARY KEY (id)
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_platform_api_keys_key_hash ON platform_api_keys(key_hash);
+            CREATE INDEX IF NOT EXISTS ix_platform_api_keys_created_at_utc ON platform_api_keys(created_at_utc);
+
+            INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+            VALUES ('20260513170000_AddPlatformApiKeys', '8.0.0')
+            ON CONFLICT DO NOTHING;
         ", cancellationToken);
 
         _logger.LogInformation("Manual migration schema up to date");
@@ -275,6 +292,7 @@ public sealed class DatabaseInitializer : IHostedService
             CREATE INDEX IF NOT EXISTS ix_org_invite_links_org_id ON org_invite_links(org_id);
 
             ALTER TABLE orgs ADD COLUMN IF NOT EXISTS onboarding_completed_at timestamp with time zone;
+
         ", cancellationToken);
 
         _logger.LogInformation("Missing tables created idempotently");
