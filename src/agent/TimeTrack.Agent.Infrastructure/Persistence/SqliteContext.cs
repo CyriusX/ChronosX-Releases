@@ -10,6 +10,7 @@ public sealed class SqliteContext : IAsyncDisposable
 {
     private readonly ILogger<SqliteContext> _logger;
     private readonly string _connectionString;
+    private readonly SemaphoreSlim _lock = new(1, 1);
     private SqliteConnection? _connection;
     private bool _initialized;
 
@@ -24,17 +25,63 @@ public sealed class SqliteContext : IAsyncDisposable
     }
 
     /// <summary>
-    /// Obtém a conexão SQLite (cria se necessário)
+    /// Obtém a conexão SQLite (cria ou recria se necessário)
     /// </summary>
     public async Task<SqliteConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
     {
-        if (_connection == null)
+        await _lock.WaitAsync(cancellationToken);
+        try
         {
-            _connection = new SqliteConnection(_connectionString);
-            await _connection.OpenAsync(cancellationToken);
-        }
+            if (IsConnectionBroken())
+            {
+                _logger.LogWarning("SQLite connection was broken, reconnecting");
+                await DisposeConnectionCoreAsync();
 
-        return _connection;
+                _connection = new SqliteConnection(_connectionString);
+                await _connection.OpenAsync(cancellationToken);
+                _initialized = false;
+                await InitializeSchemaAsync(cancellationToken);
+            }
+            else if (_connection == null)
+            {
+                _connection = new SqliteConnection(_connectionString);
+                await _connection.OpenAsync(cancellationToken);
+            }
+
+            return _connection;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private bool IsConnectionBroken()
+    {
+        if (_connection == null) return false;
+
+        try
+        {
+            return _connection.State != System.Data.ConnectionState.Open;
+        }
+        catch (ObjectDisposedException)
+        {
+            return true;
+        }
+    }
+
+    private async Task DisposeConnectionCoreAsync()
+    {
+        if (_connection != null)
+        {
+            try
+            {
+                await _connection.CloseAsync();
+                await _connection.DisposeAsync();
+            }
+            catch (ObjectDisposedException) { }
+            _connection = null;
+        }
     }
 
     /// <summary>
@@ -473,11 +520,14 @@ public sealed class SqliteContext : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_connection != null)
+        await _lock.WaitAsync();
+        try
         {
-            await _connection.CloseAsync();
-            await _connection.DisposeAsync();
-            _connection = null;
+            await DisposeConnectionCoreAsync();
+        }
+        finally
+        {
+            _lock.Release();
         }
     }
 }
