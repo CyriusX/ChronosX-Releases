@@ -33,6 +33,9 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
 
         await using var db = new TimeTrackDbContext(options, ctx);
 
+        var user = User.Create(orgId, "test@example.com", "hash", "Test User", UserRole.Admin);
+        db.Users.Add(user);
+
         var device = Device.Create(
             deviceId,
             orgId,
