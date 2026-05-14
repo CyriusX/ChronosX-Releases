@@ -9,9 +9,13 @@ namespace TimeTrack.Agent.Tests.Domain;
 public class IdlePeriodTests
 {
     private readonly Guid _testUserId = Guid.NewGuid();
-    private readonly TimeRange _testPeriod = new(
-        DateTime.UtcNow,
-        DateTime.UtcNow.AddMinutes(5));
+    private readonly TimeRange _testPeriod;
+    private static readonly DateTime _baseTime = DateTime.UtcNow;
+
+    public IdlePeriodTests()
+    {
+        _testPeriod = new TimeRange(_baseTime, _baseTime.AddMinutes(5));
+    }
 
     [Fact]
     public void Create_WithValidData_ShouldCreateIdlePeriod()
