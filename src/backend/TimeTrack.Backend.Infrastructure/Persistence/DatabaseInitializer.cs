@@ -95,6 +95,7 @@ public sealed class DatabaseInitializer : IHostedService
     {
         _logger.LogInformation("Ensuring manual migration schema is current...");
 
+        // Main SQL (without UUID braces that EF Core tries to interpret)
         await dbContext.Database.ExecuteSqlRawAsync(@"
             CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (
                 ""MigrationId"" character varying(150) NOT NULL,
@@ -178,15 +179,19 @@ public sealed class DatabaseInitializer : IHostedService
                 updated_at_utc timestamp with time zone NOT NULL DEFAULT now(),
                 CONSTRAINT PK_platform_health_state PRIMARY KEY (id)
             );
-
-            INSERT INTO platform_health_state (id)
-            VALUES ('00000000-0000-0000-0000-000000000001'::uuid)
-            ON CONFLICT DO NOTHING;
-
-            INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
-            VALUES ('20260513233000_AddOpsMonitoringTables', '8.0.0')
-            ON CONFLICT DO NOTHING;
         ", cancellationToken);
+
+        // Separate INSERT for platform_health_state with UUID (EF Core interprets braces as format placeholders)
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "INSERT INTO platform_health_state (id) VALUES ($1::uuid) ON CONFLICT (id) DO NOTHING",
+            cancellationToken,
+            "00000000-0000-0000-0000-000000000001"
+        );
+
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"") VALUES ('20260513233000_AddOpsMonitoringTables', '8.0.0') ON CONFLICT DO NOTHING",
+            cancellationToken
+        );
 
         _logger.LogInformation("Manual migration schema up to date");
     }
