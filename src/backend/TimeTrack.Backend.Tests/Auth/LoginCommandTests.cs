@@ -63,7 +63,7 @@ public class LoginCommandTests
             .Returns(true);
 
         _tokenServiceMock
-            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange, false))
+            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange, It.IsAny<bool>()))
             .Returns("access-token");
 
         _tokenServiceMock
@@ -92,9 +92,54 @@ public class LoginCommandTests
         result.UserId.Should().Be(user.Id);
         result.OrgId.Should().Be(user.OrgId);
         result.PasswordMustChange.Should().BeFalse();
+        result.IsPlatformAdmin.Should().BeFalse();
 
         _userRepositoryMock.Verify(r => r.UpdateAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()), Times.Once);
         _refreshTokenRepositoryMock.Verify(r => r.AddAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WithPlatformAdminUser_ReturnsIsPlatformAdminTrue()
+    {
+        // Arrange
+        var user = CreateUser();
+        user.SetPlatformAdmin(true);
+
+        var command = new LoginCommand("test@example.com", "password123");
+
+        _userRepositoryMock
+            .Setup(r => r.GetByEmailWithOrgAsync(command.Email, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+
+        _passwordHasherMock
+            .Setup(h => h.Verify(command.Password, user.PasswordHash))
+            .Returns(true);
+
+        _tokenServiceMock
+            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange, It.IsAny<bool>()))
+            .Returns("access-token");
+
+        _tokenServiceMock
+            .Setup(t => t.GenerateRefreshToken())
+            .Returns("refresh-token");
+
+        _tokenServiceMock
+            .Setup(t => t.HashRefreshToken("refresh-token"))
+            .Returns("hashed-token");
+
+        _tokenServiceMock
+            .Setup(t => t.GetRefreshTokenExpiration())
+            .Returns(TimeSpan.FromDays(90));
+
+        _tokenServiceMock
+            .Setup(t => t.GetAccessTokenExpiration())
+            .Returns(TimeSpan.FromMinutes(60));
+
+        // Act
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.IsPlatformAdmin.Should().BeTrue();
     }
 
     [Fact]
@@ -113,7 +158,7 @@ public class LoginCommandTests
             .Returns(true);
 
         _tokenServiceMock
-            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange, false))
+            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), user.PasswordMustChange, It.IsAny<bool>()))
             .Returns("access-token");
 
         _tokenServiceMock
@@ -135,7 +180,7 @@ public class LoginCommandTests
         // Act
         await _handler.Handle(command, CancellationToken.None);
 
-        // Assert
+        // Assert - Verify audit log was called
         _auditLogServiceMock.Verify(
             s => s.LogAsync(
                 AuditActions.UserLogin,
@@ -217,7 +262,7 @@ public class LoginCommandTests
             .Returns(true);
 
         _tokenServiceMock
-            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), true, false))
+            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, user.Role.ToString(), true, It.IsAny<bool>()))
             .Returns("access-token");
 
         _tokenServiceMock

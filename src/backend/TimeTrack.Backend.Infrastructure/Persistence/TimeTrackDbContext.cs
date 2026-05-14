@@ -47,6 +47,9 @@ public sealed class TimeTrackDbContext : DbContext
     // Agent Event Logs
     public DbSet<AgentEventLog> AgentEventLogs => Set<AgentEventLog>();
 
+    // Platform API keys (SysAdmin-only integrations)
+    public DbSet<PlatformApiKey> PlatformApiKeys => Set<PlatformApiKey>();
+
     // Remote Commands
     public DbSet<RemoteCommand> RemoteCommands => Set<RemoteCommand>();
 

@@ -11,6 +11,7 @@ using FluentValidation;
 using Serilog;
 using TimeTrack.Api.Extensions;
 using TimeTrack.Api.Middleware;
+using TimeTrack.Api.OpsMcp;
 using TimeTrack.Api.Security;
 using TimeTrack.Backend.Application.Common.Security;
 using TimeTrack.Backend.Application.Extensions;
@@ -110,6 +111,19 @@ try
             }
         });
     });
+
+    // MCP (Ops / Maintenance read-only) - SysAdmin API key auth via middleware
+    builder.Services.AddScoped<McpPlatformRequestContext>();
+    builder.Services.AddSingleton<McpPerKeyRateLimiter>();
+    builder.Services.AddSingleton<IOpsMcpAuditLogger, OpsMcpAuditLogger>();
+    builder.Services.AddMcpServer()
+        .WithHttpTransport(options =>
+        {
+            // Support GET + POST on the MCP endpoint (Streamable HTTP).
+            options.Stateless = false;
+        })
+        .WithTools<OpsMcpTools>()
+        .WithResources<OpsMcpResources>();
 
     // JWT Authentication
     var jwtSecret = builder.Configuration["Jwt:Secret"]
@@ -235,6 +249,9 @@ try
     // Rate limiting disabled (see above)
     // app.UseRateLimiter();
 
+    // MCP platform API key auth (only applies to /mcp)
+    app.UseMiddleware<McpPlatformApiKeyMiddleware>();
+
     app.UseAuthentication();
     app.UseAuthorization();
     app.UseMiddleware<SubscriptionCheckMiddleware>();
@@ -314,6 +331,9 @@ try
 
     // Configure recurring jobs after application starts
     HangfireConfiguration.ConfigureRecurringJobs();
+
+    // MCP endpoint (Streamable HTTP)
+    app.MapMcp("/mcp");
 
     app.MapControllers();
 

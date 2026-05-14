@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using TimeTrack.Backend.Application.Auth.Commands;
-using TimeTrack.Backend.Application.Auth.DTOs;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Domain.Entities;
 using TimeTrack.Backend.Domain.ValueObjects;
@@ -49,13 +48,29 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
         db.TaskTimeEntries.Add(open);
         await db.SaveChangesAsync(CancellationToken.None);
 
+        var subscriptionService = new Mock<ISubscriptionService>();
+        subscriptionService
+            .Setup(s => s.CheckSubscriptionAccessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SubscriptionCheckResult { HasAccess = true, Status = "none" });
+
         var handler = new HeartbeatCommandHandler(
             new DeviceRepository(db),
             new RemoteCommandRepository(db),
-            CreateSubscriptionMock().Object,
+            subscriptionService.Object,
             new TaskTimeEntryRepository(db));
 
-        await handler.Handle(new HeartbeatCommand(deviceId, "1.0.1", null, null, null, "paused", null, null, null, null, null), CancellationToken.None);
+        await handler.Handle(new HeartbeatCommand(
+            DeviceId: deviceId,
+            AgentVersion: "1.0.1",
+            OsVersion: null,
+            IpAddress: null,
+            UptimeSeconds: null,
+            TrackingState: "paused",
+            HealthStatus: null,
+            BackendReachable: null,
+            ConsecutiveSyncFailures: null,
+            LastSuccessfulSyncAt: null,
+            IpcConnected: null), CancellationToken.None);
 
         var entryAfter = await db.TaskTimeEntries.FirstAsync(e => e.Id == open.Id, CancellationToken.None);
         entryAfter.IsPaused.Should().BeTrue();
@@ -109,14 +124,6 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
         prop!.SetValue(instance, value);
     }
 
-    private static Mock<ISubscriptionService> CreateSubscriptionMock()
-    {
-        var mock = new Mock<ISubscriptionService>();
-        mock.Setup(s => s.CheckSubscriptionAccessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new SubscriptionCheckResult { HasAccess = true, Status = "none" });
-        return mock;
-    }
-
     private sealed class TestCurrentUserContext : ICurrentUserContext
     {
         public TestCurrentUserContext(Guid userId, Guid orgId, UserRole role)
@@ -135,4 +142,3 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
         public bool IsInRole(UserRole role) => Role == role;
     }
 }
-

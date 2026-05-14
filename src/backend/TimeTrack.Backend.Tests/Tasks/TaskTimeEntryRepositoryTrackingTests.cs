@@ -64,4 +64,3 @@ public sealed class TaskTimeEntryRepositoryTrackingTests
         public bool IsInRole(TimeTrack.Backend.Domain.ValueObjects.UserRole role) => false;
     }
 }
-

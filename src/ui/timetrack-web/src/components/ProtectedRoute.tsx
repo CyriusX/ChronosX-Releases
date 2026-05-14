@@ -1,10 +1,33 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../stores/authStore';
+import { useNotifications } from '@desktop/stores/uiStore';
 
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  requirePlatformAdmin?: boolean;
+}
+
+function DeniedRedirect({
+  to,
+  title,
+  message,
+}: {
+  to: string;
+  title: string;
+  message?: string;
+}) {
+  const navigate = useNavigate();
+  const { notify } = useNotifications();
+
+  useEffect(() => {
+    notify.error(title, message);
+    navigate(to, { replace: true });
+  }, [message, navigate, notify, title, to]);
+
+  return null;
 }
 
 /**
@@ -14,7 +37,7 @@ interface ProtectedRouteProps {
  * - User is not authenticated
  * - User is a Colaborador (web portal is admin-only)
  */
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requirePlatformAdmin = false }: ProtectedRouteProps) {
   const { t } = useTranslation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isLoading = useAuthStore((state) => state.isLoading);
@@ -37,6 +60,16 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!isAuthenticated || !user || user.role === 'Colaborador') {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (requirePlatformAdmin && user.isPlatformAdmin !== true) {
+    return (
+      <DeniedRedirect
+        to="/"
+        title="Acesso negado"
+        message="Você não tem permissão para acessar essa página."
+      />
+    );
   }
 
   // Redirect to onboarding if not complete (and not already there)

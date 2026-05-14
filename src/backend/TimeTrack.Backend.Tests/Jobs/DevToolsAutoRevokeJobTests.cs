@@ -72,4 +72,3 @@ public sealed class DevToolsAutoRevokeJobTests
         public bool IsInRole(UserRole role) => Role == role;
     }
 }
-

@@ -56,7 +56,7 @@ public class RefreshTokenCommandTests
             .ReturnsAsync(storedToken);
 
         _tokenServiceMock
-            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, storedToken.DeviceId, user.Role.ToString(), false, false))
+            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, storedToken.DeviceId, user.Role.ToString(), false, It.IsAny<bool>()))
             .Returns("new-access-token");
 
         _tokenServiceMock
@@ -83,6 +83,7 @@ public class RefreshTokenCommandTests
         result.AccessToken.Should().Be("new-access-token");
         result.RefreshToken.Should().Be("new-refresh-token");
         result.ExpiresIn.Should().Be(3600);
+        result.IsPlatformAdmin.Should().BeFalse();
 
         // Verify old token was revoked
         storedToken.IsRevoked.Should().BeTrue();
@@ -170,6 +171,51 @@ public class RefreshTokenCommandTests
         // Act & Assert
         await Assert.ThrowsAsync<UserDeactivatedException>(
             () => _handler.Handle(command, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Handle_WithPlatformAdminUser_ReturnsIsPlatformAdminTrue()
+    {
+        // Arrange
+        var user = CreateUser();
+        user.SetPlatformAdmin(true);
+
+        var storedToken = CreateRefreshToken(user);
+        var command = new RefreshTokenCommand("valid-refresh-token");
+
+        _tokenServiceMock
+            .Setup(t => t.HashRefreshToken(command.RefreshToken))
+            .Returns("hashed-token");
+
+        _refreshTokenRepositoryMock
+            .Setup(r => r.GetByTokenHashWithUserAsync("hashed-token", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storedToken);
+
+        _tokenServiceMock
+            .Setup(t => t.GenerateAccessToken(user.Id, user.OrgId, storedToken.DeviceId, user.Role.ToString(), false, It.IsAny<bool>()))
+            .Returns("new-access-token");
+
+        _tokenServiceMock
+            .Setup(t => t.GenerateRefreshToken())
+            .Returns("new-refresh-token");
+
+        _tokenServiceMock
+            .Setup(t => t.HashRefreshToken("new-refresh-token"))
+            .Returns("new-hashed-token");
+
+        _tokenServiceMock
+            .Setup(t => t.GetRefreshTokenExpiration())
+            .Returns(TimeSpan.FromDays(90));
+
+        _tokenServiceMock
+            .Setup(t => t.GetAccessTokenExpiration())
+            .Returns(TimeSpan.FromMinutes(60));
+
+        // Act
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.IsPlatformAdmin.Should().BeTrue();
     }
 
     private static User CreateUser()

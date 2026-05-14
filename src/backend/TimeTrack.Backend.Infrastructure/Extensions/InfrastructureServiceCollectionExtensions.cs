@@ -72,6 +72,9 @@ public static class InfrastructureServiceCollectionExtensions
         // Agent Event Logs
         services.AddScoped<IAgentEventLogRepository, AgentEventLogRepository>();
 
+        // Platform API keys (SysAdmin-only integrations)
+        services.AddScoped<IPlatformApiKeyRepository, PlatformApiKeyRepository>();
+
         // Remote Commands
         services.AddScoped<IRemoteCommandRepository, RemoteCommandRepository>();
 
@@ -120,6 +123,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPasswordGenerator, PasswordGenerator>();
         services.AddScoped<IPasswordValidator, PasswordValidator>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddSingleton<IPlatformApiKeyHasher, PlatformApiKeyHasher>();
 
         // Email Service (Resend SDK oficial)
         services.AddOptions();
