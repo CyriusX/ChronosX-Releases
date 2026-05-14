@@ -72,7 +72,6 @@ public sealed class TaskTimeEntryRepository : ITaskTimeEntryRepository
     {
         var tracked = _context.ChangeTracker.Entries<TaskTimeEntry>()
             .FirstOrDefault(e => e.Entity.Id == entry.Id);
-
         if (tracked != null)
         {
             _context.Entry(tracked.Entity).CurrentValues.SetValues(entry);
@@ -81,7 +80,6 @@ public sealed class TaskTimeEntryRepository : ITaskTimeEntryRepository
         {
             _context.TaskTimeEntries.Update(entry);
         }
-
         await _context.SaveChangesAsync(ct);
     }
 }

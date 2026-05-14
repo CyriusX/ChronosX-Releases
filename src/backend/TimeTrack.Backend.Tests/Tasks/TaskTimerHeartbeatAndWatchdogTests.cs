@@ -27,50 +27,54 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
             .Options;
 
         var orgId = Guid.NewGuid();
-        var user = User.Create(orgId, "test@example.com", "hash", "Test User", UserRole.Admin);
+        var userId = Guid.NewGuid();
         var deviceId = Guid.NewGuid();
-        var ctx = new TestCurrentUserContext(user.Id, orgId, UserRole.Admin);
+        var ctx = new TestCurrentUserContext(userId, orgId, UserRole.Admin);
 
         await using var db = new TimeTrackDbContext(options, ctx);
+
+        var user = User.Create(
+            orgId,
+            "test@example.com",
+            "password-hash",
+            "Test User",
+            UserRole.Admin);
+
+        // Use reflection to set the Id to match the deviceId's userId
+        var idProperty = typeof(User).GetProperty("Id");
+        idProperty?.SetValue(user, userId);
 
         db.Users.Add(user);
 
         var device = Device.Create(
             deviceId,
             orgId,
-            user.Id,
+            userId,
             hostname: "test-host",
             agentVersion: "1.0.0",
             displayMode: DisplayMode.Background);
         db.Devices.Add(device);
 
-        var open = TaskTimeEntry.Open(orgId, Guid.NewGuid(), user.Id);
+        var open = TaskTimeEntry.Open(orgId, Guid.NewGuid(), userId);
         db.TaskTimeEntries.Add(open);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var subscriptionService = new Mock<ISubscriptionService>();
-        subscriptionService
+        var subscriptionServiceMock = new Mock<ISubscriptionService>();
+        subscriptionServiceMock
             .Setup(s => s.CheckSubscriptionAccessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new SubscriptionCheckResult { HasAccess = true, Status = "none" });
+            .ReturnsAsync(new SubscriptionCheckResult
+            {
+                HasAccess = true,
+                Status = "active"
+            });
 
         var handler = new HeartbeatCommandHandler(
             new DeviceRepository(db),
             new RemoteCommandRepository(db),
-            subscriptionService.Object,
+            subscriptionServiceMock.Object,
             new TaskTimeEntryRepository(db));
 
-        await handler.Handle(new HeartbeatCommand(
-            DeviceId: deviceId,
-            AgentVersion: "1.0.1",
-            OsVersion: null,
-            IpAddress: null,
-            UptimeSeconds: null,
-            TrackingState: "paused",
-            HealthStatus: null,
-            BackendReachable: null,
-            ConsecutiveSyncFailures: null,
-            LastSuccessfulSyncAt: null,
-            IpcConnected: null), CancellationToken.None);
+        await handler.Handle(new HeartbeatCommand(deviceId, "1.0.1", null, null, null, "paused", null, null, null, null, null), CancellationToken.None);
 
         var entryAfter = await db.TaskTimeEntries.FirstAsync(e => e.Id == open.Id, CancellationToken.None);
         entryAfter.IsPaused.Should().BeTrue();
@@ -142,3 +146,4 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
         public bool IsInRole(UserRole role) => Role == role;
     }
 }
+
