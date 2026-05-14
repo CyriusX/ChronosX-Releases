@@ -50,6 +50,13 @@ public sealed class TimeTrackDbContext : DbContext
     // Platform API keys (SysAdmin-only integrations)
     public DbSet<PlatformApiKey> PlatformApiKeys => Set<PlatformApiKey>();
 
+    // Ops device issue transitions (SysAdmin monitoring)
+    public DbSet<OpsDeviceIssueState> OpsDeviceIssueStates => Set<OpsDeviceIssueState>();
+
+    // Platform-level events and health state (SysAdmin monitoring)
+    public DbSet<PlatformEventLog> PlatformEventLogs => Set<PlatformEventLog>();
+    public DbSet<PlatformHealthState> PlatformHealthState => Set<PlatformHealthState>();
+
     // Remote Commands
     public DbSet<RemoteCommand> RemoteCommands => Set<RemoteCommand>();
 

@@ -206,5 +206,126 @@ public sealed class OpsMcpResources
 
         return JsonSerializer.Serialize(payload, JsonOptions);
     }
-}
 
+    [McpServerResource(
+        Name = "ops_critical",
+        Title = "Ops Critical Snapshot",
+        MimeType = "application/json",
+        UriTemplate = "ops://critical")]
+    [Description("Combined critical view: latest critical agent events + current critical device alerts + platform health snapshot.")]
+    public async Task<string> CriticalAsync(CancellationToken cancellationToken = default)
+    {
+        var platformApiKeyId = _requestContext.PlatformApiKeyId ?? Guid.Empty;
+        _audit.LogToolCall(platformApiKeyId, "resource:ops://critical", null);
+
+        var now = DateTime.UtcNow;
+
+        var criticalEvents = await _db.AgentEventLogs
+            .AsNoTracking()
+            .Where(e => e.Severity == "critical")
+            .OrderByDescending(e => e.TimestampUtc)
+            .Take(50)
+            .ToListAsync(cancellationToken);
+
+        var devices = await _db.Devices
+            .AsNoTracking()
+            .Include(d => d.User)
+            .Where(d => d.Status == DeviceStatus.Active)
+            .ToListAsync(cancellationToken);
+
+        var alerts = new List<object>();
+        foreach (var d in devices)
+        {
+            var lastSeen = d.LastHeartbeatAt ?? d.ActivatedAt;
+            var isOffline = (now - lastSeen).TotalMinutes > 10;
+
+            if (isOffline)
+            {
+                alerts.Add(new
+                {
+                    d.OrgId,
+                    deviceId = d.Id,
+                    d.Hostname,
+                    userDisplayName = d.User?.DisplayName,
+                    issue = "offline",
+                    lastSeenAtUtc = d.LastHeartbeatAt,
+                    healthStatus = "offline"
+                });
+                continue;
+            }
+
+            var health = d.HealthStatus;
+            if (health is "unhealthy" or "degraded")
+            {
+                alerts.Add(new
+                {
+                    d.OrgId,
+                    deviceId = d.Id,
+                    d.Hostname,
+                    userDisplayName = d.User?.DisplayName,
+                    issue = health,
+                    lastSeenAtUtc = d.LastHeartbeatAt,
+                    healthStatus = health
+                });
+            }
+        }
+
+        var platformHealth = await _db.PlatformHealthState
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var payload = new
+        {
+            generatedAtUtc = now,
+            platformHealth = platformHealth is null ? null : new
+            {
+                platformHealth.Status,
+                platformHealth.ChecksJson,
+                platformHealth.LastChangedAtUtc,
+                platformHealth.UpdatedAtUtc
+            },
+            criticalAlerts = alerts,
+            criticalEvents = criticalEvents.Select(e => new
+            {
+                e.Id,
+                e.OrgId,
+                e.DeviceId,
+                e.EventType,
+                e.Category,
+                e.Severity,
+                e.Message,
+                metadata = OpsMcpMetadataRedactor.Redact(e.MetadataJson),
+                e.TimestampUtc
+            })
+        };
+
+        return JsonSerializer.Serialize(payload, JsonOptions);
+    }
+
+    [McpServerResource(
+        Name = "ops_platform_health",
+        Title = "Ops Platform Health",
+        MimeType = "application/json",
+        UriTemplate = "ops://platform-health")]
+    [Description("Platform health snapshot derived from in-app self monitoring.")]
+    public async Task<string> PlatformHealthAsync(CancellationToken cancellationToken = default)
+    {
+        var platformApiKeyId = _requestContext.PlatformApiKeyId ?? Guid.Empty;
+        _audit.LogToolCall(platformApiKeyId, "resource:ops://platform-health", null);
+
+        var state = await _db.PlatformHealthState
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var payload = new
+        {
+            generatedAtUtc = DateTime.UtcNow,
+            status = state?.Status ?? "unknown",
+            checksJson = state?.ChecksJson ?? "{}",
+            lastChangedAtUtc = state?.LastChangedAtUtc,
+            updatedAtUtc = state?.UpdatedAtUtc
+        };
+
+        return JsonSerializer.Serialize(payload, JsonOptions);
+    }
+}

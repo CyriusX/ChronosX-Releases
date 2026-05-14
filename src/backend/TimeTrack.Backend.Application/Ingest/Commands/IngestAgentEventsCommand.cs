@@ -17,6 +17,7 @@ public sealed class IngestAgentEventsCommandHandler : IRequestHandler<IngestAgen
     private readonly IAgentEventLogRepository _eventLogRepository;
     private readonly IIdempotencyKeyRepository _idempotencyKeyRepository;
     private readonly ICurrentUserContext _currentUser;
+    private readonly IOpsMcpPushNotifier _pushNotifier;
     private readonly ILogger<IngestAgentEventsCommandHandler> _logger;
 
     private const string EntityType = "AgentEvent";
@@ -25,11 +26,13 @@ public sealed class IngestAgentEventsCommandHandler : IRequestHandler<IngestAgen
         IAgentEventLogRepository eventLogRepository,
         IIdempotencyKeyRepository idempotencyKeyRepository,
         ICurrentUserContext currentUser,
+        IOpsMcpPushNotifier pushNotifier,
         ILogger<IngestAgentEventsCommandHandler> logger)
     {
         _eventLogRepository = eventLogRepository;
         _idempotencyKeyRepository = idempotencyKeyRepository;
         _currentUser = currentUser;
+        _pushNotifier = pushNotifier;
         _logger = logger;
     }
 
@@ -41,6 +44,7 @@ public sealed class IngestAgentEventsCommandHandler : IRequestHandler<IngestAgen
         var processed = 0;
         var duplicates = 0;
         var errors = new List<IngestError>();
+        var newCriticalCount = 0;
 
         if (!_currentUser.OrgId.HasValue || !_currentUser.UserId.HasValue)
             throw new UnauthorizedAccessException("User context not available");
@@ -84,6 +88,11 @@ public sealed class IngestAgentEventsCommandHandler : IRequestHandler<IngestAgen
 
                 existingKeys.Add(item.IdempotencyKey);
                 processed++;
+
+                if (string.Equals(item.Severity, "critical", StringComparison.OrdinalIgnoreCase))
+                {
+                    newCriticalCount++;
+                }
             }
             catch (Exception ex)
             {
@@ -100,6 +109,18 @@ public sealed class IngestAgentEventsCommandHandler : IRequestHandler<IngestAgen
         _logger.LogInformation(
             "Ingested agent events: {Processed} processed, {Duplicates} duplicates, {Errors} errors",
             processed, duplicates, errors.Count);
+
+        if (newCriticalCount > 0)
+        {
+            try
+            {
+                await _pushNotifier.NotifyResourceUpdatedAsync("ops://critical", cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed pushing MCP notification for ops://critical");
+            }
+        }
 
         return new IngestResponse
         {
