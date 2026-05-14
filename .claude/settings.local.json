@@ -546,7 +546,8 @@
       "Bash(/Users/juniorcarvalho/Repo/Cyriusx/TimeTracking/src/ui/timetrack-web/node_modules/.bin/tsc -b)",
       "Bash(/Users/juniorcarvalho/Repo/Cyriusx/TimeTracking/src/ui/timetrack-web/node_modules/.bin/vite build *)",
       "Bash(ln -s /Users/juniorcarvalho/Repo/Cyriusx/TimeTracking/src/ui/timetrack-web/node_modules /Users/juniorcarvalho/Repo/_worktrees/TimeTracking/cx-228-manager-signup/src/ui/timetrack-web/node_modules)",
-      "Bash(ln -s /Users/juniorcarvalho/Repo/Cyriusx/TimeTracking/src/ui/timetrack-ui/node_modules /Users/juniorcarvalho/Repo/_worktrees/TimeTracking/cx-228-manager-signup/src/ui/timetrack-ui/node_modules)"
+      "Bash(ln -s /Users/juniorcarvalho/Repo/Cyriusx/TimeTracking/src/ui/timetrack-ui/node_modules /Users/juniorcarvalho/Repo/_worktrees/TimeTracking/cx-228-manager-signup/src/ui/timetrack-ui/node_modules)",
+      "Bash(xargs -I {} grep -l \"TrackingState\\\\|Heartbeat\\\\|Watchdog\" \"{}\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
