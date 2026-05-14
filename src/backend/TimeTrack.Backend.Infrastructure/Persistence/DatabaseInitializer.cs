@@ -141,6 +141,51 @@ public sealed class DatabaseInitializer : IHostedService
             INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
             VALUES ('20260513170000_AddPlatformApiKeys', '8.0.0')
             ON CONFLICT DO NOTHING;
+
+            CREATE TABLE IF NOT EXISTS ops_device_issue_states (
+                device_id uuid NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+                org_id uuid NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+                issue character varying(20) NOT NULL DEFAULT 'none',
+                is_active boolean NOT NULL DEFAULT false,
+                last_transition_at_utc timestamp with time zone NOT NULL DEFAULT now(),
+                last_notified_at_utc timestamp with time zone,
+                CONSTRAINT PK_ops_device_issue_states PRIMARY KEY (device_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_ops_device_issue_states_org_id ON ops_device_issue_states(org_id);
+
+            CREATE TABLE IF NOT EXISTS platform_event_logs (
+                id uuid NOT NULL DEFAULT gen_random_uuid(),
+                event_type character varying(100) NOT NULL,
+                severity character varying(20) NOT NULL,
+                message character varying(1000) NOT NULL,
+                metadata_json character varying(4000),
+                timestamp_utc timestamp with time zone NOT NULL,
+                idempotency_key character varying(128) NOT NULL,
+                created_at_utc timestamp with time zone NOT NULL DEFAULT now(),
+                CONSTRAINT PK_platform_event_logs PRIMARY KEY (id)
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_platform_event_logs_timestamp ON platform_event_logs(timestamp_utc);
+            CREATE INDEX IF NOT EXISTS ix_platform_event_logs_severity ON platform_event_logs(severity);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_platform_event_logs_idempotency_key ON platform_event_logs(idempotency_key);
+
+            CREATE TABLE IF NOT EXISTS platform_health_state (
+                id uuid NOT NULL,
+                status character varying(20) NOT NULL DEFAULT 'healthy',
+                checks_json character varying(4000) NOT NULL DEFAULT '{}',
+                last_changed_at_utc timestamp with time zone NOT NULL DEFAULT now(),
+                updated_at_utc timestamp with time zone NOT NULL DEFAULT now(),
+                CONSTRAINT PK_platform_health_state PRIMARY KEY (id)
+            );
+
+            INSERT INTO platform_health_state (id)
+            VALUES ('00000000-0000-0000-0000-000000000001'::uuid)
+            ON CONFLICT DO NOTHING;
+
+            INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+            VALUES ('20260513233000_AddOpsMonitoringTables', '8.0.0')
+            ON CONFLICT DO NOTHING;
         ", cancellationToken);
 
         _logger.LogInformation("Manual migration schema up to date");

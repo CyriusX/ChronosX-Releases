@@ -34,6 +34,7 @@ import {
   type HealthSummaryResponse,
   type HealthAlertItem,
 } from '../services/maintenanceApi';
+import { getPlatformHealth, listPlatformEvents, type PlatformEventLogDto, type PlatformHealthDto } from '../services/platformEventsApi';
 import { getMaintenanceLogPrefs } from './Settings';
 import { LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
@@ -426,6 +427,10 @@ export default function Maintenance() {
   const [confirmForceUpdate, setConfirmForceUpdate] = useState(false);
   const [deletingDeviceId, setDeletingDeviceId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [platformHealth, setPlatformHealth] = useState<PlatformHealthDto | null>(null);
+  const [platformEvents, setPlatformEvents] = useState<PlatformEventLogDto[]>([]);
+  const [platformLoading, setPlatformLoading] = useState(false);
+  const [showPlatformModal, setShowPlatformModal] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Admin guard
@@ -482,15 +487,33 @@ export default function Maintenance() {
     }
   }, [user?.orgId, setGlobalAlerts]);
 
+  const fetchPlatform = useCallback(async () => {
+    setPlatformLoading(true);
+    try {
+      const [health, events] = await Promise.all([
+        getPlatformHealth().catch(() => null),
+        listPlatformEvents({ limit: 50 }).catch(() => []),
+      ]);
+
+      if (health) setPlatformHealth(health);
+      setPlatformEvents(events);
+    } catch (err) {
+      console.error('[Maintenance] Error fetching platform alerts:', err);
+    } finally {
+      setPlatformLoading(false);
+    }
+  }, []);
+
   // Initial load + poll device list every 30s
   const devicePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     fetchDevices();
+    fetchPlatform();
     devicePollRef.current = setInterval(fetchDevices, 30_000);
     return () => {
       if (devicePollRef.current) { clearInterval(devicePollRef.current); devicePollRef.current = null; }
     };
-  }, [fetchDevices]);
+  }, [fetchDevices, fetchPlatform]);
 
   // Prune dismissed IDs when devices recover — ensures the banner re-appears
   // if a previously-dismissed device breaks again after recovering.
@@ -674,13 +697,33 @@ export default function Maintenance() {
                 Monitoramento de maquinas · {user?.orgName}
               </p>
             </div>
-            <motion.button
-              onClick={() => { fetchDevices(); setDismissedAlertIds(new Set()); if (selectedDeviceId) fetchMetrics(selectedDeviceId, true); }}
-              whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-              className="w-9 h-9 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 text-[rgba(245,247,251,0.6)] ${metricsLoading ? 'animate-spin' : ''}`} />
-            </motion.button>
+            <div className="flex items-center gap-2">
+              <motion.button
+                onClick={() => setShowPlatformModal(true)}
+                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                className="h-9 px-3 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center gap-2 hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+              >
+                <Globe className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
+                <span className="text-[11px] text-[rgba(245,247,251,0.7)] font-medium">Platform</span>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                    platformHealth?.status === 'healthy'
+                      ? 'text-[#05df72] border-[rgba(5,223,114,0.3)] bg-[rgba(5,223,114,0.08)]'
+                      : 'text-[#f87171] border-[rgba(248,113,113,0.3)] bg-[rgba(248,113,113,0.08)]'
+                  }`}
+                >
+                  {platformHealth?.status ?? 'unknown'}
+                </span>
+              </motion.button>
+
+              <motion.button
+                onClick={() => { fetchDevices(); fetchPlatform(); setDismissedAlertIds(new Set()); if (selectedDeviceId) fetchMetrics(selectedDeviceId, true); }}
+                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                className="w-9 h-9 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 text-[rgba(245,247,251,0.6)] ${(metricsLoading || platformLoading) ? 'animate-spin' : ''}`} />
+              </motion.button>
+            </div>
           </header>
         </div>
 
@@ -1308,6 +1351,102 @@ export default function Maintenance() {
           )}
           </div>{/* end right detail panel */}
         </div>{/* end two-column body */}
+
+        {/* Platform Alerts Modal */}
+        <AnimatePresence>
+          {showPlatformModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-[rgba(0,0,0,0.6)] z-50 flex items-center justify-center p-4"
+              onClick={() => setShowPlatformModal(false)}
+            >
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 20, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                className="w-full max-w-2xl bg-gradient-to-br from-[rgba(26,29,46,0.98)] to-[rgba(17,19,28,0.98)] border border-[rgba(255,255,255,0.08)] rounded-2xl shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(255,255,255,0.06)]">
+                  <div>
+                    <h3 className="text-[14px] font-semibold text-[#f5f7fb]">Platform Alerts</h3>
+                    <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
+                      API-level health + critical transitions
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowPlatformModal(false)}
+                    className="text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.8)] transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="p-5 space-y-4 max-h-[70vh] overflow-auto">
+                  <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[12px] text-[rgba(245,247,251,0.7)] font-medium">Platform health</div>
+                      <button
+                        onClick={fetchPlatform}
+                        disabled={platformLoading}
+                        className="text-[12px] text-[#8B5CF6] hover:underline disabled:opacity-50"
+                      >
+                        {platformLoading ? 'Loading…' : 'Refresh'}
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-[13px] text-[rgba(245,247,251,0.85)]">Status:</span>
+                      <span className={`text-[13px] font-semibold ${
+                        platformHealth?.status === 'healthy' ? 'text-[#05df72]' : 'text-[#f87171]'
+                      }`}>
+                        {platformHealth?.status ?? 'unknown'}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-[11px] text-[rgba(245,247,251,0.45)]">
+                      Last changed: {platformHealth?.lastChangedAtUtc ? new Date(platformHealth.lastChangedAtUtc).toLocaleString() : '—'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-[12px] text-[rgba(245,247,251,0.7)] font-medium">Recent platform events</div>
+                    {platformEvents.length === 0 ? (
+                      <div className="text-[12px] text-[rgba(245,247,251,0.4)]">No events.</div>
+                    ) : (
+                      platformEvents.map((e) => (
+                        <div
+                          key={e.id}
+                          className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-[12px] text-[rgba(245,247,251,0.85)] font-semibold truncate">
+                                {e.eventType} · {e.severity}
+                              </div>
+                              <div className="text-[12px] text-[rgba(245,247,251,0.65)] mt-1">
+                                {e.message}
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-[rgba(245,247,251,0.35)] flex-shrink-0">
+                              {new Date(e.timestampUtc).toLocaleString()}
+                            </div>
+                          </div>
+                          {e.metadataJson && (
+                            <pre className="mt-3 text-[11px] text-[rgba(245,247,251,0.55)] bg-[rgba(0,0,0,0.25)] border border-[rgba(255,255,255,0.06)] rounded-lg p-3 overflow-auto">
+{e.metadataJson}
+                            </pre>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );

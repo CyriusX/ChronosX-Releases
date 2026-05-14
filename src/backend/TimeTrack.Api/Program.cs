@@ -12,6 +12,7 @@ using TimeTrack.Api.Extensions;
 using TimeTrack.Api.Middleware;
 using TimeTrack.Api.OpsMcp;
 using TimeTrack.Api.Security;
+using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.Common.Security;
 using TimeTrack.Backend.Application.Extensions;
 using TimeTrack.Backend.Infrastructure.Extensions;
@@ -114,12 +115,16 @@ try
     builder.Services.AddScoped<McpPlatformRequestContext>();
     builder.Services.AddSingleton<McpPerKeyRateLimiter>();
     builder.Services.AddSingleton<IOpsMcpAuditLogger, OpsMcpAuditLogger>();
+    builder.Services.AddSingleton<OpsMcpSubscriptionRegistry>();
+    builder.Services.AddSingleton<IOpsMcpPushNotifier, OpsMcpPushNotifier>();
     builder.Services.AddMcpServer()
         .WithHttpTransport(options =>
         {
             // Support GET + POST on the MCP endpoint (Streamable HTTP).
             options.Stateless = false;
         })
+        .WithSubscribeToResourcesHandler(OpsMcpSubscriptions.SubscribeAsync)
+        .WithUnsubscribeFromResourcesHandler(OpsMcpSubscriptions.UnsubscribeAsync)
         .WithTools<OpsMcpTools>()
         .WithResources<OpsMcpResources>();
 

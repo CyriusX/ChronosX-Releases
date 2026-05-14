@@ -74,6 +74,11 @@ public static class InfrastructureServiceCollectionExtensions
         // Platform API keys (SysAdmin-only integrations)
         services.AddScoped<IPlatformApiKeyRepository, PlatformApiKeyRepository>();
 
+        // Ops / Platform monitoring
+        services.AddScoped<IPlatformEventLogRepository, PlatformEventLogRepository>();
+        services.AddScoped<IPlatformHealthStateRepository, PlatformHealthStateRepository>();
+        services.AddScoped<IOpsDeviceIssueStateRepository, OpsDeviceIssueStateRepository>();
+
         // Remote Commands
         services.AddScoped<IRemoteCommandRepository, RemoteCommandRepository>();
 
