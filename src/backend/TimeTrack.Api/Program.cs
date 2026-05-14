@@ -202,7 +202,17 @@ try
             using var scope = app.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<TimeTrackDbContext>();
 
+            // Debug: log all migrations for troubleshooting
+            var all = (await db.Database.GetAppliedMigrationsAsync()).ToList();
             var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+            Log.Information("DEBUG: Build timestamp check - {Time}", DateTime.UtcNow.ToString("o"));
+            Log.Information("DEBUG: Applied migrations: {Applied}", all.Count);
+            Log.Information("DEBUG: Pending migrations: {Pending}", pending.Count);
+            if (pending.Count > 0)
+            {
+                Log.Information("DEBUG: Pending migrations list: {Migrations}", string.Join(", ", pending));
+            }
+
             if (pending.Count > 0)
             {
                 Log.Information("Applying {Count} pending EF migrations", pending.Count);
