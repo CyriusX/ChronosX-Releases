@@ -20,6 +20,7 @@ export interface User {
   email: string;
   displayName: string;
   role: 'Colaborador' | 'Gestor' | 'Admin';
+  isPlatformAdmin: boolean;
   orgId: string;
   orgName: string;
   passwordMustChange: boolean;
@@ -195,6 +196,7 @@ export const useAuthStore = create<AuthState>()(
             email: response.email ?? email,
             displayName: response.displayName,
             role: response.role ?? 'Colaborador',
+            isPlatformAdmin: response.isPlatformAdmin ?? false,
             orgId: response.orgId,
             orgName: response.orgName,
             passwordMustChange: response.passwordMustChange ?? false,
@@ -370,6 +372,7 @@ export async function restoreUserFromAccessToken(accessToken: string): Promise<b
       email: data.email ?? '',
       displayName: data.displayName ?? '',
       role: data.role ?? 'Colaborador',
+      isPlatformAdmin: data.isPlatformAdmin ?? false,
       orgId: data.orgId ?? data.organizationId ?? '',
       orgName: data.orgName ?? data.organizationName ?? '',
       passwordMustChange: data.passwordMustChange ?? false,

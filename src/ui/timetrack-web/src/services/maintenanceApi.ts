@@ -211,3 +211,23 @@ export async function deleteDevice(orgId: string, deviceId: string): Promise<voi
     `/orgs/${encodeURIComponent(orgId)}/maintenance/devices/${encodeURIComponent(deviceId)}`
   );
 }
+
+export interface OrganizationListItem {
+  id: string;
+  name: string;
+  slug: string;
+  orgType: string;
+  status: string;
+  userCount: number;
+  deviceCount: number;
+  createdAt: string;
+}
+
+export interface ListOrganizationsResponse {
+  organizations: OrganizationListItem[];
+  totalCount: number;
+}
+
+export async function listAllOrganizations(): Promise<ListOrganizationsResponse> {
+  return api.get<ListOrganizationsResponse>('/platform/organizations');
+}
