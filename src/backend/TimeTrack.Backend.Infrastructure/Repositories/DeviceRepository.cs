@@ -63,7 +63,18 @@ public sealed class DeviceRepository : IDeviceRepository
 
     public async Task UpdateAsync(Device device, CancellationToken cancellationToken = default)
     {
-        _context.Devices.Update(device);
+        var tracked = _context.ChangeTracker.Entries<Device>()
+            .FirstOrDefault(e => e.Entity.Id == device.Id);
+
+        if (tracked != null)
+        {
+            _context.Entry(tracked.Entity).CurrentValues.SetValues(device);
+        }
+        else
+        {
+            _context.Devices.Update(device);
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
     }
 
