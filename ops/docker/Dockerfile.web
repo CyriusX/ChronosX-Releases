@@ -7,28 +7,31 @@ WORKDIR /app
 # (via lightningcss) relies on optional native binaries. Force them on.
 ENV npm_config_optional=true
 
-# Create directory structure first
-RUN mkdir -p timetrack-ui
-
 # Copy package files for both projects
-COPY src/ui/timetrack-ui/package*.json ./timetrack-ui/
-COPY src/ui/timetrack-web/package*.json ./
+COPY src/ui/timetrack-ui/package*.json ./src/ui/timetrack-ui/
+COPY src/ui/timetrack-web/package*.json ./src/ui/timetrack-web/
 
 # Install dependencies for timetrack-ui first (shared components)
-RUN cd timetrack-ui && npm ci --include=optional
-
-# Install dependencies for web
+WORKDIR /app/src/ui/timetrack-ui
 RUN npm ci --include=optional
 
+# Install dependencies for web
+WORKDIR /app/src/ui/timetrack-web
+RUN npm ci --include=optional
+
+# Go back to root for consistency
+WORKDIR /app
+
 # Copy source code
-COPY src/ui/timetrack-ui/ ./timetrack-ui/
-COPY src/ui/timetrack-web/ ./
+COPY src/ui/timetrack-ui/ ./src/ui/timetrack-ui/
+COPY src/ui/timetrack-web/ ./src/ui/timetrack-web/
 
 # Build argument for API URL
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
-# Build the application
+# Build the application from the web directory
+WORKDIR /app/src/ui/timetrack-web
 RUN npm run build
 
 # Stage 2: Serve with Nginx
