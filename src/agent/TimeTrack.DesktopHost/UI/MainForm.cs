@@ -15,6 +15,7 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using TimeTrack.DesktopHost.Configuration;
 using TimeTrack.DesktopHost.Ipc;
+using TimeTrack.DesktopHost.Reporting;
 
 namespace TimeTrack.DesktopHost.UI;
 
@@ -34,6 +35,7 @@ public sealed class MainForm : Form
     private readonly DesktopHostSettings _settings;
     private readonly IIpcClient _ipcClient;
     private readonly WebViewBridge _bridge;
+    private readonly DesktopHostExceptionReporter _exceptionReporter;
     private readonly ILogger<MainForm> _logger;
     private readonly string _backendBaseUrl;
     private readonly HttpClient _proxyHttpClient;
@@ -54,12 +56,14 @@ public sealed class MainForm : Form
         DesktopHostSettings settings,
         IIpcClient ipcClient,
         WebViewBridge bridge,
+        DesktopHostExceptionReporter exceptionReporter,
         ILogger<MainForm> logger,
         IConfiguration configuration)
     {
         _settings = settings;
         _ipcClient = ipcClient;
         _bridge = bridge;
+        _exceptionReporter = exceptionReporter;
         _logger = logger;
         _backendBaseUrl = (configuration["Agent:Sync:BackendUrl"] ?? "http://localhost:5000").TrimEnd('/');
 #if DEBUG
@@ -122,6 +126,7 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to load window icon");
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.loadWindowIcon");
         }
     }
 
@@ -143,9 +148,10 @@ public sealed class MainForm : Form
             int borderColor = 30 | (33 << 8) | (46 << 16); // rgba(30,33,46) ≈ card border
             DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref borderColor, sizeof(int));
         }
-        catch
+        catch (Exception ex)
         {
-            // DWM APIs may not be available on older Windows versions — ignore
+            // DWM APIs may not be available on older Windows versions — report anyway for diagnostics.
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.applyDarkTitleBar");
         }
     }
 
@@ -216,6 +222,7 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize WebView2");
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.webview.initialize");
             MessageBox.Show(
                 $"Failed to initialize WebView2: {ex.Message}\n\nPlease ensure WebView2 Runtime is installed.",
                 "Error",
@@ -369,6 +376,7 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to configure API proxy");
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.apiProxy.configure");
         }
     }
 
@@ -438,6 +446,10 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogError(ex, "API proxy failed for {Uri}", e.Request.Uri);
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.apiProxy.request", new Dictionary<string, string?>
+            {
+                ["uri"] = e.Request.Uri
+            });
 
             var body = Encoding.UTF8.GetBytes("{\"message\":\"DesktopHost API proxy error\",\"status\":502,\"code\":\"bad_gateway\"}");
             var stream = new MemoryStream(body);
@@ -492,6 +504,7 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Failed to focus WebView2 content");
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.webview.focus");
         }
     }
 
@@ -585,7 +598,15 @@ public sealed class MainForm : Form
                 BeginInvoke(new Action(async () =>
                 {
                     try { await coreWebView.ExecuteScriptAsync(script); }
-                    catch (Exception ex) { _logger.LogError(ex, "Error sending IPC response to JS"); }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error sending IPC response to JS");
+                        await _exceptionReporter.ReportAsync(ex, "desktophost.webview.executeScriptAsync.sendIpcResponse", new Dictionary<string, string?>
+                        {
+                            ["requestId"] = requestId.ToString(),
+                            ["name"] = name
+                        }).ConfigureAwait(false);
+                    }
                 }));
             }
             else
@@ -596,6 +617,10 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error handling IPC postMessage");
+            await _exceptionReporter.ReportAsync(ex, "desktophost.ipc.postMessage", new Dictionary<string, string?>
+            {
+                ["jsonLength"] = json?.Length.ToString()
+            }).ConfigureAwait(false);
         }
     }
 
@@ -643,6 +668,10 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error forwarding IPC event to JavaScript");
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.ipc.forwardEventToJs", new Dictionary<string, string?>
+            {
+                ["eventType"] = e.EventType
+            });
         }
     }
 
@@ -694,6 +723,10 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error notifying connection state change");
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.ipc.connectionStateChanged", new Dictionary<string, string?>
+            {
+                ["isConnected"] = isConnected.ToString()
+            });
         }
 
         if (isConnected)
@@ -774,6 +807,7 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Failed to sync DevTools access from AgentService");
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.devTools.sync");
         }
     }
 
@@ -923,10 +957,17 @@ public sealed class MainForm : Form
                         if (store) {{ store.getState().{action}(); return 'ok'; }}
                         return 'no-store';
                     }} catch(e) {{ return e.message; }}
-                }})()";
+            }})()";
             await _webView.CoreWebView2.ExecuteScriptAsync(js);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to execute timer action via WebView2: {Action}", action);
+            await _exceptionReporter.ReportAsync(ex, "desktophost.timer.executeAction", new Dictionary<string, string?>
+            {
+                ["action"] = action
+            }).ConfigureAwait(false);
+        }
     }
 
     private void NotifyAppVisible()
@@ -940,6 +981,7 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to dispatch app-visible event to WebView2");
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.webview.dispatchAppVisible");
         }
     }
 
@@ -1011,7 +1053,16 @@ public sealed class MainForm : Form
                 BeginInvoke(new Action(async () =>
                 {
                     try { await _webView.CoreWebView2.ExecuteScriptAsync(script); }
-                    catch (Exception ex) { _logger.LogError(ex, "Error sending update progress to WebView"); }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error sending update progress to WebView");
+                        await _exceptionReporter.ReportAsync(ex, "desktophost.webview.updateProgress.send", new Dictionary<string, string?>
+                        {
+                            ["stage"] = stage,
+                            ["percentage"] = percentage.ToString(),
+                            ["targetVersion"] = targetVersion
+                        }).ConfigureAwait(false);
+                    }
                 }));
             }
             else
@@ -1024,6 +1075,7 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error showing update progress");
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.webview.updateProgress");
         }
     }
 

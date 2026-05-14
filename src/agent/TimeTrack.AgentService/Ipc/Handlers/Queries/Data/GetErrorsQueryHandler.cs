@@ -24,38 +24,30 @@ public sealed class GetErrorsQueryHandler : IpcHandlerBase, IIpcQueryHandler
 
     public async Task<IpcResponse> HandleAsync(IpcRequest request, CancellationToken ct)
     {
-        try
+        // Get errors from the last 24 hours
+        var from = DateTime.UtcNow.AddHours(-24);
+        var to = DateTime.UtcNow;
+
+        var errors = await _syncErrorRepository.GetByDateRangeAsync(from, to, ct);
+
+        var errorItems = errors.Select(e => new
         {
-            // Get errors from the last 24 hours
-            var from = DateTime.UtcNow.AddHours(-24);
-            var to = DateTime.UtcNow;
+            id = e.Id.ToString(),
+            timestamp = e.TimestampUtc.ToString("O"),
+            type = "sync_error",
+            message = e.ErrorMessage,
+            details = $"Endpoint: {e.Endpoint}, StatusCode: {e.StatusCode}, Attempts: {e.AttemptCount}",
+            resolved = false
+        }).ToList();
 
-            var errors = await _syncErrorRepository.GetByDateRangeAsync(from, to, ct);
+        _logger.LogDebug(
+            "Retrieved {Count} errors from the last 24 hours",
+            errorItems.Count);
 
-            var errorItems = errors.Select(e => new
-            {
-                id = e.Id.ToString(),
-                timestamp = e.TimestampUtc.ToString("O"),
-                type = "sync_error",
-                message = e.ErrorMessage,
-                details = $"Endpoint: {e.Endpoint}, StatusCode: {e.StatusCode}, Attempts: {e.AttemptCount}",
-                resolved = false
-            }).ToList();
-
-            _logger.LogDebug(
-                "Retrieved {Count} errors from the last 24 hours",
-                errorItems.Count);
-
-            return SuccessResponse(request.RequestId, new
-            {
-                errors = errorItems,
-                total = errorItems.Count
-            });
-        }
-        catch (Exception ex)
+        return SuccessResponse(request.RequestId, new
         {
-            _logger.LogError(ex, "Error getting errors");
-            return UnknownErrorResponse(request.RequestId, ex);
-        }
+            errors = errorItems,
+            total = errorItems.Count
+        });
     }
 }

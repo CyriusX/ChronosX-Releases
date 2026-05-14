@@ -11,9 +11,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Services;
+using TimeTrack.Agent.Infrastructure.Services;
 using TimeTrack.DesktopHost.Configuration;
 using TimeTrack.DesktopHost.Ipc;
 using TimeTrack.DesktopHost.Notifications;
+using TimeTrack.DesktopHost.Reporting;
 using TimeTrack.DesktopHost.UI;
 
 namespace TimeTrack.DesktopHost;
@@ -99,6 +101,17 @@ static class Program
         }
         catch (Exception ex)
         {
+            try
+            {
+                var fileSink = new ExceptionFileSink();
+                var report = ExceptionReport.FromException(ex, "DesktopHost", "desktophost.startup");
+                fileSink.WriteAsync(report, CancellationToken.None).GetAwaiter().GetResult();
+            }
+            catch
+            {
+                // ignore
+            }
+
             _logger?.LogCritical(ex, "Fatal error starting DesktopHost");
             MessageBox.Show(
                 $"Fatal error: {ex.Message}",
@@ -188,6 +201,10 @@ static class Program
                 services.AddSingleton<MainForm>();
                 services.AddSingleton<TrayIconManager>();
                 services.AddSingleton<FloatingStatusBarManager>();
+
+                // Exception reporting (CX-250)
+                services.AddSingleton<ExceptionFileSink>();
+                services.AddSingleton<DesktopHostExceptionReporter>();
             });
 }
 

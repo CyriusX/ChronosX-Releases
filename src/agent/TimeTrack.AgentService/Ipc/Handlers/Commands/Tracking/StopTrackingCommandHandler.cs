@@ -23,6 +23,7 @@ public sealed class StopTrackingCommandHandler : IpcHandlerBase, IIpcCommandHand
     private readonly ICurrentUserContext _userContext;
     private readonly IIpcServer _ipcServer;
     private readonly IAgentEventLogger _eventLogger;
+    private readonly IExceptionReporter _exceptionReporter;
     private readonly ILogger<StopTrackingCommandHandler> _logger;
 
     public StopTrackingCommandHandler(
@@ -31,6 +32,7 @@ public sealed class StopTrackingCommandHandler : IpcHandlerBase, IIpcCommandHand
         ICurrentUserContext userContext,
         IIpcServer ipcServer,
         IAgentEventLogger eventLogger,
+        IExceptionReporter exceptionReporter,
         ILogger<StopTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
@@ -38,46 +40,39 @@ public sealed class StopTrackingCommandHandler : IpcHandlerBase, IIpcCommandHand
         _userContext = userContext;
         _ipcServer = ipcServer;
         _eventLogger = eventLogger;
+        _exceptionReporter = exceptionReporter;
         _logger = logger;
     }
 
     public async Task<IpcResponse> HandleAsync(IpcRequest request, CancellationToken ct)
     {
-        try
+        string? reason = null;
+        if (request.Payload.HasValue && request.Payload.Value.ValueKind == JsonValueKind.Object)
         {
-            string? reason = null;
-            if (request.Payload.HasValue && request.Payload.Value.ValueKind == JsonValueKind.Object)
-            {
-                if (request.Payload.Value.TryGetProperty("reason", out var reasonEl))
-                    reason = reasonEl.GetString();
-            }
-
-            // Record a "Tracking Stopped" placeholder BEFORE stopping.
-            await RecordTrackingStoppedSessionAsync(reason, ct);
-
-            var result = await _trackingControl.StopAsync(new StopTrackingRequest
-            {
-                StoppedBy = "DesktopHost",
-                Reason = reason
-            }, ct);
-
-            // Broadcast state change so DesktopHost tray icon updates
-            await _ipcServer.SendEventAsync(new IpcEvent
-            {
-                EventType = "trackingStateChanged",
-                Payload = new { isTracking = false, isPaused = false }
-            }, ct);
-
-            await _eventLogger.LogAsync("tracking.stopped", AgentEventCategory.UserAction, AgentEventSeverity.Info,
-                "Monitoramento parado pelo usuário", new { reason }, ct);
-
-            return SuccessResponse(request.RequestId, result);
+            if (request.Payload.Value.TryGetProperty("reason", out var reasonEl))
+                reason = reasonEl.GetString();
         }
-        catch (Exception ex)
+
+        // Record a "Tracking Stopped" placeholder BEFORE stopping.
+        await RecordTrackingStoppedSessionAsync(reason, ct);
+
+        var result = await _trackingControl.StopAsync(new StopTrackingRequest
         {
-            _logger.LogError(ex, "Error stopping tracking");
-            return UnknownErrorResponse(request.RequestId, ex);
-        }
+            StoppedBy = "DesktopHost",
+            Reason = reason
+        }, ct);
+
+        // Broadcast state change so DesktopHost tray icon updates
+        await _ipcServer.SendEventAsync(new IpcEvent
+        {
+            EventType = "trackingStateChanged",
+            Payload = new { isTracking = false, isPaused = false }
+        }, ct);
+
+        await _eventLogger.LogAsync("tracking.stopped", AgentEventCategory.UserAction, AgentEventSeverity.Info,
+            "Monitoramento parado pelo usuário", new { reason }, ct);
+
+        return SuccessResponse(request.RequestId, result);
     }
 
     private async Task RecordTrackingStoppedSessionAsync(string? reason, CancellationToken ct)
@@ -116,6 +111,14 @@ public sealed class StopTrackingCommandHandler : IpcHandlerBase, IIpcCommandHand
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to record 'Tracking Stopped' session");
+            if (!ExceptionReport.IsCancellation(ex))
+            {
+                var report = ExceptionReport.FromException(
+                    ex,
+                    component: "AgentService",
+                    operation: "ipc.command.StopTracking.recordTrackingStoppedSession");
+                await _exceptionReporter.ReportAsync(report, CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 }

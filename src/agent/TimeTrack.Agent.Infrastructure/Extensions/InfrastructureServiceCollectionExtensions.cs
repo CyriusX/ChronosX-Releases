@@ -56,6 +56,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IAppCategoryCacheRepository, AppCategoryCacheRepository>();
         services.AddSingleton<IAgentEventLogRepository, AgentEventLogRepository>();
         services.AddSingleton<IAgentEventLogger, AgentEventLogger>();
+        services.AddSingleton<ExceptionFileSink>();
+        services.AddSingleton<MaintenanceEventSink>();
+        services.AddSingleton<IExceptionReporter, ExceptionReporter>();
         services.AddSingleton<IOrgPolicyProvider, OrgPolicyProvider>();
 
         return services;
