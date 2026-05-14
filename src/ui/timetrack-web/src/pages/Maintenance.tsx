@@ -398,7 +398,7 @@ function MetricCard({
 
 export default function Maintenance() {
   const user = useAuthStore((state) => state.user);
-  const { isAdmin } = usePermissions();
+  const { isAdmin, isPlatformAdmin } = usePermissions();
   const [searchParams] = useSearchParams();
   const setGlobalAlerts = useHealthAlertStore((state) => state.setAlerts);
 
@@ -433,8 +433,8 @@ export default function Maintenance() {
   const [showPlatformModal, setShowPlatformModal] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Admin guard
-  if (!isAdmin) {
+  // Platform Admin guard - only sysAdmin can access maintenance page
+  if (!isPlatformAdmin) {
     return <Navigate to="/" replace />;
   }
 
