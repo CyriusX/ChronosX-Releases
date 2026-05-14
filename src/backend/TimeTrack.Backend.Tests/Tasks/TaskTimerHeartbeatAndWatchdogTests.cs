@@ -27,22 +27,24 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
             .Options;
 
         var orgId = Guid.NewGuid();
-        var userId = Guid.NewGuid();
+        var user = User.Create(orgId, "test@example.com", "hash", "Test User", UserRole.Admin);
         var deviceId = Guid.NewGuid();
-        var ctx = new TestCurrentUserContext(userId, orgId, UserRole.Admin);
+        var ctx = new TestCurrentUserContext(user.Id, orgId, UserRole.Admin);
 
         await using var db = new TimeTrackDbContext(options, ctx);
+
+        db.Users.Add(user);
 
         var device = Device.Create(
             deviceId,
             orgId,
-            userId,
+            user.Id,
             hostname: "test-host",
             agentVersion: "1.0.0",
             displayMode: DisplayMode.Background);
         db.Devices.Add(device);
 
-        var open = TaskTimeEntry.Open(orgId, Guid.NewGuid(), userId);
+        var open = TaskTimeEntry.Open(orgId, Guid.NewGuid(), user.Id);
         db.TaskTimeEntries.Add(open);
         await db.SaveChangesAsync(CancellationToken.None);
 
