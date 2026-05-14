@@ -185,11 +185,11 @@ public sealed class DatabaseInitializer : IHostedService
         await dbContext.Database.ExecuteSqlRawAsync(
             "INSERT INTO platform_health_state (id) VALUES ($1::uuid) ON CONFLICT (id) DO NOTHING",
             cancellationToken,
-            "00000000-0000-0000-0000-000000000001"
+            new object[] { "00000000-0000-0000-0000-000000000001" }
         );
 
         await dbContext.Database.ExecuteSqlRawAsync(
-            "INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"") VALUES ('20260513233000_AddOpsMonitoringTables', '8.0.0') ON CONFLICT DO NOTHING",
+            "INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('20260513233000_AddOpsMonitoringTables', '8.0.0') ON CONFLICT DO NOTHING",
             cancellationToken
         );
 
