@@ -31,7 +31,8 @@ public sealed class ClearDeviceEventsCommandHandler
 
     public async Task<int> Handle(ClearDeviceEventsCommand request, CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != request.OrgId)
+        // Platform admins can access any organization
+        if (!_currentUser.IsPlatformAdmin && _currentUser.OrgId != request.OrgId)
             throw new ForbiddenException("Access denied");
 
         if (request.DeviceId.HasValue)

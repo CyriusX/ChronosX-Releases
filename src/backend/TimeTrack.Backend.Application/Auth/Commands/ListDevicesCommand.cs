@@ -26,8 +26,9 @@ public sealed class ListDevicesCommandHandler : IRequestHandler<ListDevicesComma
 
     public async Task<ListDevicesResponse> Handle(ListDevicesCommand request, CancellationToken cancellationToken)
     {
-        // Verify user belongs to the org
-        if (_currentUser.OrgId != request.OrgId)
+        // Platform admins can access any organization
+        // Regular users can only access their own organization
+        if (!_currentUser.IsPlatformAdmin && _currentUser.OrgId != request.OrgId)
         {
             throw new ForbiddenException("Access denied to this organization");
         }
