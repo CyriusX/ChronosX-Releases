@@ -350,6 +350,14 @@ try
     // MCP endpoint (Streamable HTTP)
     app.MapMcp("/mcp");
 
+    // Debug endpoint to verify code version
+    app.MapGet("/debug/version", () => new
+    {
+        timestamp = DateTime.UtcNow.ToString("o"),
+        migrations_count = 34, // Should match total migrations in code
+        debug_marker = "dev-build-2026-05-14-v2"
+    });
+
     app.MapControllers();
 
     Log.Information("Starting TimeTrack API...");
