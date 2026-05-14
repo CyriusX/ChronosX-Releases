@@ -16,9 +16,23 @@ public sealed class DeviceRepository : IDeviceRepository
 
     public async Task<Device?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await _context.Devices
-            .Include(d => d.User)
+        var device = await _context.Devices
             .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+
+        if (device != null && device.User == null)
+        {
+            // Explicitly load User if not already loaded (for InMemoryDatabase tests)
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == device.UserId, cancellationToken);
+            if (user != null)
+            {
+                // Use reflection to set the User navigation property
+                var userProperty = typeof(Device).GetProperty("User");
+                userProperty?.SetValue(device, user);
+            }
+        }
+
+        return device;
     }
 
     public async Task<Device?> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
