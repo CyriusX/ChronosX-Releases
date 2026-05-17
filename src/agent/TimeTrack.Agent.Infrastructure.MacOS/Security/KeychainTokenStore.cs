@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using System.Runtime.Versioning;
 using System.Security;
 using System.Text.Json;
@@ -14,15 +15,22 @@ namespace TimeTrack.Agent.Infrastructure.MacOS.Security;
 [SupportedOSPlatform("macos")]
 public sealed class KeychainTokenStore : ITokenStore
 {
-    private const string ServiceName = "com.cyriusx.timetrack";
-    private const string TokenAccount = "jwt_tokens";
+    private const string DefaultServiceName = "com.cyriusx.timetrack";
+    private const string DefaultTokenAccount = "jwt_tokens";
 
     private readonly ILogger<KeychainTokenStore> _logger;
     private readonly HttpClient _httpClient;
     private readonly string _backendUrl;
+    private readonly string _serviceName;
+    private readonly string _tokenAccount;
 
     private TokenData? _cachedTokens;
     private readonly object _cacheLock = new();
+
+    // Coalesces concurrent RefreshAsync callers so only one HTTP call to /auth/refresh is
+    // in-flight at a time. Without this, two consumers can race, one will get a 400 from
+    // the backend's single-use refresh-token rotation, and we'd clear tokens unnecessarily.
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     private sealed record TokenData(string Jwt, string RefreshToken, DateTime ExpiresAt);
 
@@ -32,11 +40,15 @@ public sealed class KeychainTokenStore : ITokenStore
     public KeychainTokenStore(
         ILogger<KeychainTokenStore> logger,
         HttpClient httpClient,
-        Contracts.Configuration.SyncSettings settings)
+        Contracts.Configuration.SyncSettings settings,
+        string? serviceNameOverride = null,
+        string? tokenAccountOverride = null)
     {
         _logger = logger;
         _httpClient = httpClient;
         _backendUrl = settings.BackendUrl;
+        _serviceName = string.IsNullOrWhiteSpace(serviceNameOverride) ? DefaultServiceName : serviceNameOverride;
+        _tokenAccount = string.IsNullOrWhiteSpace(tokenAccountOverride) ? DefaultTokenAccount : tokenAccountOverride;
     }
 
     public async Task<string?> GetJwtAsync(CancellationToken cancellationToken = default)
@@ -57,7 +69,7 @@ public sealed class KeychainTokenStore : ITokenStore
         var tokens = new TokenData(jwt, refreshToken, expiresAt);
 
         var json = JsonSerializer.Serialize(tokens);
-        var success = KeychainStore(ServiceName, TokenAccount, json);
+        var success = KeychainStore(_serviceName, _tokenAccount, json);
 
         if (!success)
         {
@@ -81,7 +93,7 @@ public sealed class KeychainTokenStore : ITokenStore
 
     public async Task ClearAsync(CancellationToken cancellationToken = default)
     {
-        KeychainDelete(ServiceName, TokenAccount);
+        KeychainDelete(_serviceName, _tokenAccount);
 
         lock (_cacheLock)
         {
@@ -106,16 +118,36 @@ public sealed class KeychainTokenStore : ITokenStore
 
     public async Task<bool> RefreshAsync(CancellationToken cancellationToken = default)
     {
-        var refreshToken = await GetRefreshTokenAsync(cancellationToken);
+        // Snapshot the refresh token the caller saw before they decided to refresh.
+        // Combined with the semaphore below, this lets the second caller short-circuit
+        // when a concurrent refresh has already rotated the token in the store.
+        var refreshTokenAtEntry = await GetRefreshTokenAsync(cancellationToken);
 
-        if (string.IsNullOrEmpty(refreshToken))
+        if (string.IsNullOrEmpty(refreshTokenAtEntry))
         {
             _logger.LogWarning("No refresh token available");
             return false;
         }
 
+        await _refreshGate.WaitAsync(cancellationToken);
         try
         {
+            var refreshToken = await GetRefreshTokenAsync(cancellationToken);
+            if (string.IsNullOrEmpty(refreshToken))
+            {
+                _logger.LogWarning("No refresh token available after acquiring refresh gate");
+                return false;
+            }
+
+            // If another caller rotated the token while we waited on the gate, the
+            // token in the store is already fresh — don't fire a second /auth/refresh
+            // that would 400 against the backend's single-use rotation.
+            if (!string.Equals(refreshToken, refreshTokenAtEntry, StringComparison.Ordinal))
+            {
+                _logger.LogDebug("Token was already refreshed by a concurrent caller — skipping HTTP call");
+                return true;
+            }
+
             var request = new { refreshToken = refreshToken };
             var content = new StringContent(
                 JsonSerializer.Serialize(request),
@@ -129,9 +161,20 @@ public sealed class KeychainTokenStore : ITokenStore
 
             if (!response.IsSuccessStatusCode)
             {
-                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                // Invalidate cache so next attempt reads fresh tokens from the store.
+                lock (_cacheLock)
                 {
-                    _logger.LogError("User deactivated or refresh token invalid");
+                    _cachedTokens = null;
+                }
+
+                // Terminal failures:
+                // - 401: user deactivated / refresh token invalid
+                // - 400: refresh token invalid/expired/revoked (single-use rotation)
+                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.BadRequest)
+                {
+                    _logger.LogError(
+                        "Token refresh failed with terminal status {StatusCode} — clearing stored tokens so user must re-authenticate",
+                        response.StatusCode);
                     await ClearAsync(cancellationToken);
                     return false;
                 }
@@ -152,9 +195,13 @@ public sealed class KeychainTokenStore : ITokenStore
                 return false;
             }
 
+            var refreshTokenToStore = string.IsNullOrWhiteSpace(refreshResponse.RefreshToken)
+                ? refreshToken
+                : refreshResponse.RefreshToken;
+
             await StoreTokensAsync(
                 refreshResponse.AccessToken,
-                refreshResponse.RefreshToken ?? refreshToken,
+                refreshTokenToStore,
                 cancellationToken);
 
             _logger.LogInformation("Token refreshed successfully");
@@ -164,6 +211,10 @@ public sealed class KeychainTokenStore : ITokenStore
         {
             _logger.LogError(ex, "Error during token refresh");
             return false;
+        }
+        finally
+        {
+            _refreshGate.Release();
         }
     }
 
@@ -175,7 +226,7 @@ public sealed class KeychainTokenStore : ITokenStore
                 return _cachedTokens;
         }
 
-        var json = KeychainFind(ServiceName, TokenAccount);
+        var json = KeychainFind(_serviceName, _tokenAccount);
         if (json == null)
             return null;
 

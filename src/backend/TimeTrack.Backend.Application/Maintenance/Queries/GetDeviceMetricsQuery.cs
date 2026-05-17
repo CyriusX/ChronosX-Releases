@@ -30,8 +30,9 @@ public sealed class GetDeviceMetricsQueryHandler : IRequestHandler<GetDeviceMetr
         GetDeviceMetricsQuery request,
         CancellationToken cancellationToken)
     {
-        // Multi-tenancy: ensure org matches
-        if (_currentUser.OrgId != request.OrgId)
+        // Platform admins can access any organization
+        // Multi-tenancy: ensure org matches for regular users
+        if (!_currentUser.IsPlatformAdmin && _currentUser.OrgId != request.OrgId)
             return null;
 
         var latest = await _metricsRepository.GetLatestByDeviceIdAsync(

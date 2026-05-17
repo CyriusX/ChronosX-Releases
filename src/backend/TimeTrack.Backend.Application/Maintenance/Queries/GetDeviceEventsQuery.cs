@@ -30,7 +30,8 @@ public sealed class GetDeviceEventsQueryHandler : IRequestHandler<GetDeviceEvent
         GetDeviceEventsQuery request,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != request.OrgId)
+        // Platform admins can access any organization
+        if (!_currentUser.IsPlatformAdmin && _currentUser.OrgId != request.OrgId)
             return null;
 
         var events = await _eventLogRepository.GetByDeviceIdAsync(
