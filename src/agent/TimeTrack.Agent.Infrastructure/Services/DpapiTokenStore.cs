@@ -190,10 +190,6 @@ public sealed class DpapiTokenStore : ITokenStore
             _logger.LogError(ex, "Error during token refresh");
             return false;
         }
-        finally
-        {
-            _refreshGate.Release();
-        }
     }
 
     private async Task<TokenData?> LoadTokensAsync(CancellationToken cancellationToken)
