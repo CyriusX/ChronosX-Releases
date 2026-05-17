@@ -32,7 +32,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             CancellationToken cancellationToken = default)
         {
             var connection = await _context.GetConnectionAsync(cancellationToken);
-            var transaction = await _context.BeginTransactionAsync(cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
             try
             {
@@ -104,7 +104,14 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
+                try
+                {
+                    await transaction.RollbackAsync();
+                }
+                catch (Exception rollbackEx)
+                {
+                    _logger.LogWarning(rollbackEx, "Failed to rollback activity session transaction");
+                }
                 _logger.LogError(ex, "Failed to save activity session with outbox items");
                 throw;
             }
@@ -201,7 +208,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             if (session == null) throw new ArgumentNullException(nameof(session));
 
             var connection = await _context.GetConnectionAsync(cancellationToken);
-            var transaction = await _context.BeginTransactionAsync(cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
             try
             {
@@ -286,7 +293,14 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
+                try
+                {
+                    await transaction.RollbackAsync();
+                }
+                catch (Exception rollbackEx)
+                {
+                    _logger.LogWarning(rollbackEx, "Failed to rollback activity session update transaction");
+                }
                 _logger.LogError(ex, "Failed to update activity session {SessionId}", session.Id);
                 throw;
             }

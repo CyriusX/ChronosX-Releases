@@ -145,7 +145,7 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         CancellationToken cancellationToken)
     {
         var connection = await _context.GetConnectionAsync(cancellationToken);
-        var transaction = await _context.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         try
         {
@@ -200,7 +200,14 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
+            try
+            {
+                await transaction.RollbackAsync();
+            }
+            catch (Exception rollbackEx)
+            {
+                _logger.LogWarning(rollbackEx, "Failed to rollback idle period transaction");
+            }
             _logger.LogError(ex, "Failed to save idle period with outbox items");
             throw;
         }
