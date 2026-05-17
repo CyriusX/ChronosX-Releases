@@ -1,3 +1,4 @@
+using System.Net;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
@@ -30,17 +31,31 @@ public sealed class DpapiTokenStore : ITokenStore
     public DpapiTokenStore(
         ILogger<DpapiTokenStore> logger,
         HttpClient httpClient,
-        Contracts.Configuration.SyncSettings settings)
+        Contracts.Configuration.SyncSettings settings,
+        string? tokenFilePathOverride = null)
     {
         _logger = logger;
         _httpClient = httpClient;
         _backendUrl = settings.BackendUrl;
 
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var timeTrackPath = Path.Combine(appDataPath, "TimeTrack");
+        if (!string.IsNullOrWhiteSpace(tokenFilePathOverride))
+        {
+            var dir = Path.GetDirectoryName(tokenFilePathOverride);
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
 
-        Directory.CreateDirectory(timeTrackPath);
-        _tokenFilePath = Path.Combine(timeTrackPath, "tokens.dat");
+            _tokenFilePath = tokenFilePathOverride;
+        }
+        else
+        {
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var timeTrackPath = Path.Combine(appDataPath, "TimeTrack");
+
+            Directory.CreateDirectory(timeTrackPath);
+            _tokenFilePath = Path.Combine(timeTrackPath, "tokens.dat");
+        }
     }
 
     public async Task<string?> GetJwtAsync(CancellationToken cancellationToken = default)
@@ -132,15 +147,16 @@ public sealed class DpapiTokenStore : ITokenStore
                     _cachedTokens = null;
                 }
 
-                // Don't clear tokens on refresh failure — the JWT may still be valid
-                // and DesktopHost can send fresh tokens via IPC at any time.
-                // Multiple workers may race to refresh the same token (rotation),
-                // causing 400 "already used" which is NOT terminal for the JWT itself.
-                var status = (int)response.StatusCode;
-                if (status >= 400 && status < 500)
+                // Terminal failures:
+                // - 401: user deactivated / refresh token invalid
+                // - 400: refresh token invalid/expired/revoked (single-use rotation)
+                //
+                // In these cases we must clear stored tokens so the UI re-authenticates,
+                // instead of keeping a stale session that will loop on 401 forever.
+                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.BadRequest)
                 {
-                    _logger.LogWarning(
-                        "Token refresh returned {StatusCode} — NOT clearing stored tokens (JWT may still be valid)",
+                    _logger.LogError(
+                        "Token refresh failed with terminal status {StatusCode} — clearing stored tokens so user must re-authenticate",
                         response.StatusCode);
                     return false;
                 }
@@ -173,6 +189,10 @@ public sealed class DpapiTokenStore : ITokenStore
         {
             _logger.LogError(ex, "Error during token refresh");
             return false;
+        }
+        finally
+        {
+            _refreshGate.Release();
         }
     }
 
