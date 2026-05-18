@@ -28,6 +28,7 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
     private readonly IAgentEventLogger _eventLogger;
     private readonly IHeartbeatService _heartbeatService;
     private readonly AgentStatusEventBroadcaster _statusBroadcaster;
+    private readonly IExceptionReporter _exceptionReporter;
     private readonly ILogger<PauseTrackingCommandHandler> _logger;
 
     /// <summary>
@@ -46,6 +47,7 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         IAgentEventLogger eventLogger,
         IHeartbeatService heartbeatService,
         AgentStatusEventBroadcaster statusBroadcaster,
+        IExceptionReporter exceptionReporter,
         ILogger<PauseTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
@@ -55,49 +57,42 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         _eventLogger = eventLogger;
         _heartbeatService = heartbeatService;
         _statusBroadcaster = statusBroadcaster;
+        _exceptionReporter = exceptionReporter;
         _logger = logger;
     }
 
     public async Task<IpcResponse> HandleAsync(IpcRequest request, CancellationToken ct)
     {
-        try
+        string? reason = null;
+        if (request.Payload.HasValue && request.Payload.Value.ValueKind == JsonValueKind.Object)
         {
-            string? reason = null;
-            if (request.Payload.HasValue && request.Payload.Value.ValueKind == JsonValueKind.Object)
-            {
-                if (request.Payload.Value.TryGetProperty("reason", out var reasonEl))
-                    reason = reasonEl.GetString();
-            }
-
-            // Record a "Tracking Stopped" placeholder BEFORE pausing.
-            // Saved locally only — the session will be extended to cover the full gap
-            // and synced via outbox when the user resumes tracking.
-            await RecordTrackingStoppedSessionAsync(reason, ct);
-
-            var result = await _trackingControl.PauseAsync(new PauseTrackingRequest
-            {
-                Reason = reason ?? "User requested",
-                PausedBy = "DesktopHost"
-            }, ct);
-
-            // Broadcast state change so DesktopHost tray icon updates
-            await _ipcServer.SendEventAsync(new IpcEvent
-            {
-                EventType = "trackingStateChanged",
-                Payload = new { isTracking = true, isPaused = true }
-            }, ct);
-
-            await _eventLogger.LogAsync("tracking.paused", AgentEventCategory.UserAction, AgentEventSeverity.Info,
-                "Monitoramento pausado pelo usuário", new { reason = reason ?? "User requested" }, ct);
-
-            TriggerImmediateHeartbeat();
-            return SuccessResponse(request.RequestId, result);
+            if (request.Payload.Value.TryGetProperty("reason", out var reasonEl))
+                reason = reasonEl.GetString();
         }
-        catch (Exception ex)
+
+        // Record a "Tracking Stopped" placeholder BEFORE pausing.
+        // Saved locally only — the session will be extended to cover the full gap
+        // and synced via outbox when the user resumes tracking.
+        await RecordTrackingStoppedSessionAsync(reason, ct);
+
+        var result = await _trackingControl.PauseAsync(new PauseTrackingRequest
         {
-            _logger.LogError(ex, "Error pausing tracking");
-            return UnknownErrorResponse(request.RequestId, ex);
-        }
+            Reason = reason ?? "User requested",
+            PausedBy = "DesktopHost"
+        }, ct);
+
+        // Broadcast state change so DesktopHost tray icon updates
+        await _ipcServer.SendEventAsync(new IpcEvent
+        {
+            EventType = "trackingStateChanged",
+            Payload = new { isTracking = true, isPaused = true }
+        }, ct);
+
+        await _eventLogger.LogAsync("tracking.paused", AgentEventCategory.UserAction, AgentEventSeverity.Info,
+            "Monitoramento pausado pelo usuário", new { reason = reason ?? "User requested" }, ct);
+
+        TriggerImmediateHeartbeat();
+        return SuccessResponse(request.RequestId, result);
     }
 
     /// <summary>
@@ -143,6 +138,14 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to record 'Tracking Stopped' session");
+            if (!ExceptionReport.IsCancellation(ex))
+            {
+                var report = ExceptionReport.FromException(
+                    ex,
+                    component: "AgentService",
+                    operation: "ipc.command.PauseTracking.recordTrackingStoppedSession");
+                await _exceptionReporter.ReportAsync(report, CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 

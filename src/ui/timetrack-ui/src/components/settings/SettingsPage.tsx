@@ -17,6 +17,8 @@ import { AgentStatusSection } from './AgentStatusSection';
 import { TimelineSection } from './TimelineSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { MaintenanceSection } from './MaintenanceSection';
+import { AiClassificationsSection } from './AiClassificationsSection';
+import { WeeklyReportSection } from './WeeklyReportSection';
 import { useIpc } from '../../hooks/useIpc';
 import { useNotifications } from '../../stores/uiStore';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -203,6 +205,10 @@ export function SettingsPage() {
         return <AgentStatusSection />;
       case 'billing':
         return <BillingSection />;
+      case 'ai-classifications':
+        return canManageTeam ? <AiClassificationsSection /> : null;
+      case 'weekly-report':
+        return canViewOrgPolicies ? <WeeklyReportSection /> : null;
       default:
         return null;
     }

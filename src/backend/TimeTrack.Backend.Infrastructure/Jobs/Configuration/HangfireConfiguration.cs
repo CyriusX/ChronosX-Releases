@@ -67,6 +67,8 @@ public static class HangfireConfiguration
         services.AddScoped<IUsageCounterRefreshJob, UsageCounterRefreshJob>();
         services.AddScoped<ITaskTimerStalePauseJob, TaskTimerStalePauseJob>();
         services.AddScoped<IDevToolsAutoRevokeJob, DevToolsAutoRevokeJob>();
+        services.AddScoped<IOpsDeviceIssueStateMonitorJob, OpsDeviceIssueStateMonitorJob>();
+        services.AddScoped<IPlatformSelfHealthMonitorJob, PlatformSelfHealthMonitorJob>();
 
         return services;
     }
@@ -134,6 +136,26 @@ public static class HangfireConfiguration
             "activity-session-consolidation",
             job => job.ExecuteConsolidationAsync(), // No optional parameters - Hangfire compatible
             "0 */6 * * *", // Every 6 hours
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Ops device issue monitor - runs every minute
+        RecurringJob.AddOrUpdate<IOpsDeviceIssueStateMonitorJob>(
+            "ops-device-issue-monitor",
+            job => job.ExecuteAsync(),
+            "* * * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Platform self health monitor - runs every minute
+        RecurringJob.AddOrUpdate<IPlatformSelfHealthMonitorJob>(
+            "platform-self-health-monitor",
+            job => job.ExecuteAsync(),
+            "* * * * *",
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc

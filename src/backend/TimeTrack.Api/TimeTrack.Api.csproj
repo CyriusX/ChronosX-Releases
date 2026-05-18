@@ -20,11 +20,13 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="1.2.3" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.3.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TimeTrack.Backend.Application\TimeTrack.Backend.Application.csproj" />
     <ProjectReference Include="..\TimeTrack.Backend.Infrastructure\TimeTrack.Backend.Infrastructure.csproj" />
+    <ProjectReference Include="..\TimeTrack.Backend.AI\TimeTrack.Backend.AI.csproj" />
   </ItemGroup>
 
   <ItemGroup>

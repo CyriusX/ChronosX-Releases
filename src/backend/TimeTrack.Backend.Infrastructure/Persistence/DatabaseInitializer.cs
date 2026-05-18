@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using TimeTrack.Backend.Infrastructure.Integrations.Stripe;
 using TimeTrack.Backend.Infrastructure.Persistence.Seeds;
 
@@ -12,6 +14,7 @@ public sealed class DatabaseInitializer : IHostedService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DatabaseInitializer> _logger;
+    private readonly string _connectionString;
 
     private static readonly string[] AllMigrationIds =
     [
@@ -45,10 +48,12 @@ public sealed class DatabaseInitializer : IHostedService
 
     public DatabaseInitializer(
         IServiceProvider serviceProvider,
-        ILogger<DatabaseInitializer> logger)
+        ILogger<DatabaseInitializer> logger,
+        IConfiguration configuration)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _connectionString = GetConnectionString(configuration);
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -71,8 +76,9 @@ public sealed class DatabaseInitializer : IHostedService
         }
 
         // Manual migrations (no .Designer.cs) are invisible to EF Core reflection discovery and
-        // never applied by MigrateAsync. Run their SQL idempotently on every startup.
-        await ApplyManualMigrationsAsync(dbContext, cancellationToken);
+        // never applied by MigrateAsync. Run their SQL idempotently on every startup using raw
+        // NpgsqlConnection to avoid EF Core's String.Format placeholder interpretation.
+        await ApplyManualMigrationsAsync(cancellationToken);
 
         _logger.LogInformation("Running seed data...");
         await AppCategoryGlobalSeed.SeedAsync(dbContext, cancellationToken);
@@ -91,11 +97,14 @@ public sealed class DatabaseInitializer : IHostedService
                ex.Message?.Contains("already exists") == true;
     }
 
-    private async Task ApplyManualMigrationsAsync(TimeTrackDbContext dbContext, CancellationToken cancellationToken)
+    private async Task ApplyManualMigrationsAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Ensuring manual migration schema is current...");
 
-        await dbContext.Database.ExecuteSqlRawAsync(@"
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        var sql = @"
             CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (
                 ""MigrationId"" character varying(150) NOT NULL,
                 ""ProductVersion"" character varying(32) NOT NULL,
@@ -124,7 +133,72 @@ public sealed class DatabaseInitializer : IHostedService
             INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
             VALUES ('20260507000000_AddOrgInviteLinksAndOnboarding', '8.0.0')
             ON CONFLICT DO NOTHING;
-        ", cancellationToken);
+
+            CREATE TABLE IF NOT EXISTS platform_api_keys (
+                id uuid NOT NULL DEFAULT gen_random_uuid(),
+                label character varying(200) NOT NULL,
+                key_hash character varying(128) NOT NULL,
+                created_at_utc timestamp with time zone NOT NULL DEFAULT now(),
+                revoked_at_utc timestamp with time zone,
+                last_used_at_utc timestamp with time zone,
+                CONSTRAINT PK_platform_api_keys PRIMARY KEY (id)
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_platform_api_keys_key_hash ON platform_api_keys(key_hash);
+            CREATE INDEX IF NOT EXISTS ix_platform_api_keys_created_at_utc ON platform_api_keys(created_at_utc);
+
+            INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+            VALUES ('20260513170000_AddPlatformApiKeys', '8.0.0')
+            ON CONFLICT DO NOTHING;
+
+            CREATE TABLE IF NOT EXISTS ops_device_issue_states (
+                device_id uuid NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+                org_id uuid NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+                issue character varying(20) NOT NULL DEFAULT 'none',
+                is_active boolean NOT NULL DEFAULT false,
+                last_transition_at_utc timestamp with time zone NOT NULL DEFAULT now(),
+                last_notified_at_utc timestamp with time zone,
+                CONSTRAINT PK_ops_device_issue_states PRIMARY KEY (device_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_ops_device_issue_states_org_id ON ops_device_issue_states(org_id);
+
+            CREATE TABLE IF NOT EXISTS platform_event_logs (
+                id uuid NOT NULL DEFAULT gen_random_uuid(),
+                event_type character varying(100) NOT NULL,
+                severity character varying(20) NOT NULL,
+                message character varying(1000) NOT NULL,
+                metadata_json character varying(4000),
+                timestamp_utc timestamp with time zone NOT NULL,
+                idempotency_key character varying(128) NOT NULL,
+                created_at_utc timestamp with time zone NOT NULL DEFAULT now(),
+                CONSTRAINT PK_platform_event_logs PRIMARY KEY (id)
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_platform_event_logs_timestamp ON platform_event_logs(timestamp_utc);
+            CREATE INDEX IF NOT EXISTS ix_platform_event_logs_severity ON platform_event_logs(severity);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_platform_event_logs_idempotency_key ON platform_event_logs(idempotency_key);
+
+            CREATE TABLE IF NOT EXISTS platform_health_state (
+                id uuid NOT NULL,
+                status character varying(20) NOT NULL DEFAULT 'healthy',
+                checks_json character varying(4000) NOT NULL DEFAULT '{}',
+                last_changed_at_utc timestamp with time zone NOT NULL DEFAULT now(),
+                updated_at_utc timestamp with time zone NOT NULL DEFAULT now(),
+                CONSTRAINT PK_platform_health_state PRIMARY KEY (id)
+            );
+
+            INSERT INTO platform_health_state (id)
+            VALUES ('00000000-0000-0000-0000-000000000001'::uuid)
+            ON CONFLICT (id) DO NOTHING;
+
+            INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+            VALUES ('20260513233000_AddOpsMonitoringTables', '8.0.0')
+            ON CONFLICT DO NOTHING;
+        ";
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken);
 
         _logger.LogInformation("Manual migration schema up to date");
     }
@@ -275,6 +349,7 @@ public sealed class DatabaseInitializer : IHostedService
             CREATE INDEX IF NOT EXISTS ix_org_invite_links_org_id ON org_invite_links(org_id);
 
             ALTER TABLE orgs ADD COLUMN IF NOT EXISTS onboarding_completed_at timestamp with time zone;
+
         ", cancellationToken);
 
         _logger.LogInformation("Missing tables created idempotently");
@@ -296,6 +371,70 @@ public sealed class DatabaseInitializer : IHostedService
         }
 
         _logger.LogInformation("Idempotent fallback completed");
+    }
+
+    private static string GetConnectionString(IConfiguration configuration)
+    {
+        // First check for explicit connection string (takes priority)
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (!string.IsNullOrEmpty(connectionString))
+            return NormalizeConnectionString(connectionString);
+
+        // Support DATABASE_URL format (URI style)
+        var databaseUrl = configuration["DATABASE_URL"];
+        if (!string.IsNullOrEmpty(databaseUrl))
+            return NormalizeConnectionString(databaseUrl);
+
+        throw new InvalidOperationException(
+            "Database connection string not found. Set DATABASE_URL or ConnectionStrings:DefaultConnection");
+    }
+
+    internal static string NormalizeConnectionString(string value)
+    {
+        if (value.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConvertUriToConnectionString(value);
+        }
+        return value;
+    }
+
+    private static string ConvertUriToConnectionString(string databaseUrl)
+    {
+        // Parse URI format: postgres://user:password@host:port/database?sslmode=disable
+        var uri = new Uri(databaseUrl);
+        var userInfo = uri.UserInfo.Split(':');
+
+        // Parse sslmode query param
+        var query = uri.Query.TrimStart('?');
+        var sslMode = Npgsql.SslMode.Prefer;
+        foreach (var part in query.Split('&'))
+        {
+            if (part.StartsWith("sslmode=", StringComparison.OrdinalIgnoreCase))
+            {
+                var val = part.Substring("sslmode=".Length);
+                sslMode = val.ToLowerInvariant() switch
+                {
+                    "disable" => Npgsql.SslMode.Disable,
+                    "require" => Npgsql.SslMode.Require,
+                    "verify-ca" => Npgsql.SslMode.VerifyCA,
+                    "verify-full" => Npgsql.SslMode.VerifyFull,
+                    _ => Npgsql.SslMode.Prefer
+                };
+            }
+        }
+
+        var builder = new Npgsql.NpgsqlConnectionStringBuilder
+        {
+            Host = uri.Host,
+            Port = uri.Port > 0 ? uri.Port : 5432,
+            Username = userInfo[0],
+            Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty,
+            Database = uri.AbsolutePath.TrimStart('/'),
+            SslMode = sslMode
+        };
+
+        return builder.ToString();
     }
 }
 

@@ -7,5 +7,6 @@ public enum AgentNotificationKind
     TaskUnassigned = 3,
     TaskUpdated = 4,
     ProjectMembershipChanged = 5,
-    DeadlineToday = 6
+    DeadlineToday = 6,
+    AiInsight = 7,
 }

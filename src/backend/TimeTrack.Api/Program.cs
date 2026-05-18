@@ -7,13 +7,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
+using FluentValidation;
 using Serilog;
 using TimeTrack.Api.Extensions;
 using TimeTrack.Api.Middleware;
+using TimeTrack.Api.OpsMcp;
 using TimeTrack.Api.Security;
+using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Application.Common.Security;
 using TimeTrack.Backend.Application.Extensions;
 using TimeTrack.Backend.Infrastructure.Extensions;
+using TimeTrack.Backend.AI.Extensions;
 using TimeTrack.Backend.Infrastructure.Jobs.Configuration;
 using TimeTrack.Backend.Infrastructure.Jobs.Dashboard;
 using TimeTrack.Backend.Infrastructure.Persistence;
@@ -109,6 +113,23 @@ try
         });
     });
 
+    // MCP (Ops / Maintenance read-only) - SysAdmin API key auth via middleware
+    builder.Services.AddScoped<McpPlatformRequestContext>();
+    builder.Services.AddSingleton<McpPerKeyRateLimiter>();
+    builder.Services.AddSingleton<IOpsMcpAuditLogger, OpsMcpAuditLogger>();
+    builder.Services.AddSingleton<OpsMcpSubscriptionRegistry>();
+    builder.Services.AddSingleton<IOpsMcpPushNotifier, OpsMcpPushNotifier>();
+    builder.Services.AddMcpServer()
+        .WithHttpTransport(options =>
+        {
+            // Support GET + POST on the MCP endpoint (Streamable HTTP).
+            options.Stateless = false;
+        })
+        .WithSubscribeToResourcesHandler(OpsMcpSubscriptions.SubscribeAsync)
+        .WithUnsubscribeFromResourcesHandler(OpsMcpSubscriptions.UnsubscribeAsync)
+        .WithTools<OpsMcpTools>()
+        .WithResources<OpsMcpResources>();
+
     // JWT Authentication
     var jwtSecret = builder.Configuration["Jwt:Secret"]
         ?? throw new InvalidOperationException("JWT Secret not configured");
@@ -151,10 +172,24 @@ try
 
     // Application Layer (MediatR, FluentValidation)
     builder.Services.AddApplication();
+
+    // Register MediatR handlers from the API assembly (Insights queries that
+    // depend on Infrastructure/AI and therefore cannot live in Application).
+    builder.Services.AddMediatR(cfg =>
+    {
+        cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
+    });
+
+    // Register FluentValidation validators from the API assembly
+    builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+
     builder.Services.AddMemoryCache();
 
     // Infrastructure Layer (Database, Health Checks, Services)
     builder.Services.AddInfrastructure(builder.Configuration);
+
+    // AI Module (z.ai integration)
+    builder.Services.AddAiModule(builder.Configuration);
 
     var app = builder.Build();
 
@@ -167,7 +202,17 @@ try
             using var scope = app.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<TimeTrackDbContext>();
 
+            // Debug: log all migrations for troubleshooting
+            var all = (await db.Database.GetAppliedMigrationsAsync()).ToList();
             var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+            Log.Information("DEBUG: Build timestamp check - {Time}", DateTime.UtcNow.ToString("o"));
+            Log.Information("DEBUG: Applied migrations: {Applied}", all.Count);
+            Log.Information("DEBUG: Pending migrations: {Pending}", pending.Count);
+            if (pending.Count > 0)
+            {
+                Log.Information("DEBUG: Pending migrations list: {Migrations}", string.Join(", ", pending));
+            }
+
             if (pending.Count > 0)
             {
                 Log.Information("Applying {Count} pending EF migrations", pending.Count);
@@ -218,6 +263,9 @@ try
 
     // Rate limiting disabled (see above)
     // app.UseRateLimiter();
+
+    // MCP platform API key auth (only applies to /mcp)
+    app.UseMiddleware<McpPlatformApiKeyMiddleware>();
 
     app.UseAuthentication();
     app.UseAuthorization();
@@ -298,6 +346,17 @@ try
 
     // Configure recurring jobs after application starts
     HangfireConfiguration.ConfigureRecurringJobs();
+
+    // MCP endpoint (Streamable HTTP)
+    app.MapMcp("/mcp");
+
+    // Debug endpoint to verify code version
+    app.MapGet("/debug/version", () => new
+    {
+        timestamp = DateTime.UtcNow.ToString("o"),
+        migrations_count = 34, // Should match total migrations in code
+        debug_marker = "dev-build-2026-05-14-v2"
+    });
 
     app.MapControllers();
 

@@ -28,7 +28,7 @@ public sealed class UpdateSettings
     /// <summary>
     /// Base URL for update API
     /// </summary>
-    public string UpdateUrl { get; set; } = "https://chronosx-dev-timetrack-api.gpoda0.easypanel.host/api/v1/updates";
+    public string UpdateUrl { get; set; } = "http://localhost:5000/api/v1/updates";
 
     /// <summary>
     /// Timeout for downloading updates (in minutes)

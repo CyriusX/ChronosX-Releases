@@ -47,6 +47,16 @@ public sealed class TimeTrackDbContext : DbContext
     // Agent Event Logs
     public DbSet<AgentEventLog> AgentEventLogs => Set<AgentEventLog>();
 
+    // Platform API keys (SysAdmin-only integrations)
+    public DbSet<PlatformApiKey> PlatformApiKeys => Set<PlatformApiKey>();
+
+    // Ops device issue transitions (SysAdmin monitoring)
+    public DbSet<OpsDeviceIssueState> OpsDeviceIssueStates => Set<OpsDeviceIssueState>();
+
+    // Platform-level events and health state (SysAdmin monitoring)
+    public DbSet<PlatformEventLog> PlatformEventLogs => Set<PlatformEventLog>();
+    public DbSet<PlatformHealthState> PlatformHealthState => Set<PlatformHealthState>();
+
     // Remote Commands
     public DbSet<RemoteCommand> RemoteCommands => Set<RemoteCommand>();
 
@@ -64,6 +74,21 @@ public sealed class TimeTrackDbContext : DbContext
     public DbSet<StripeEventLog> StripeEventLogs => Set<StripeEventLog>();
     public DbSet<OrgUsageRecord> OrgUsageRecords => Set<OrgUsageRecord>();
     public DbSet<BillingInvoice> BillingInvoices => Set<BillingInvoice>();
+
+    // Evidence Storage
+    public DbSet<EvidenceItem> EvidenceItems => Set<EvidenceItem>();
+    public DbSet<StorageKey> StorageKeys => Set<StorageKey>();
+
+    // AI Module (Fase 4)
+    public DbSet<AiDecisionLog> AiDecisionLogs => Set<AiDecisionLog>();
+    public DbSet<FeatureWeekly> FeatureWeeklies => Set<FeatureWeekly>();
+    public DbSet<FeatureMonthly> FeatureMonthlies => Set<FeatureMonthly>();
+    public DbSet<UserPattern> UserPatterns => Set<UserPattern>();
+    public DbSet<BehavioralAnomaly> BehavioralAnomalies => Set<BehavioralAnomaly>();
+    public DbSet<SmartAlert> SmartAlerts => Set<SmartAlert>();
+
+    // Weekly Report Schedules
+    public DbSet<WeeklyReportSchedule> WeeklyReportSchedules => Set<WeeklyReportSchedule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -201,6 +226,37 @@ public sealed class TimeTrackDbContext : DbContext
         // Billing Invoices (tenant-scoped)
         modelBuilder.Entity<BillingInvoice>()
             .HasQueryFilter(i => !_currentUser.IsAuthenticated || i.OrgId == _currentUser.OrgId);
+
+        // Evidence Items (tenant-scoped)
+        modelBuilder.Entity<EvidenceItem>()
+            .HasQueryFilter(e => !_currentUser.IsAuthenticated || e.OrgId == _currentUser.OrgId);
+
+        // Storage Keys (tenant-scoped)
+        modelBuilder.Entity<StorageKey>()
+            .HasQueryFilter(s => !_currentUser.IsAuthenticated || s.OrgId == _currentUser.OrgId);
+
+        // AI Module (Fase 4)
+        modelBuilder.Entity<AiDecisionLog>()
+            .HasQueryFilter(a => !_currentUser.IsAuthenticated || a.OrgId == _currentUser.OrgId);
+
+        modelBuilder.Entity<FeatureWeekly>()
+            .HasQueryFilter(f => !_currentUser.IsAuthenticated || f.OrgId == _currentUser.OrgId);
+
+        modelBuilder.Entity<FeatureMonthly>()
+            .HasQueryFilter(f => !_currentUser.IsAuthenticated || f.OrgId == _currentUser.OrgId);
+
+        modelBuilder.Entity<UserPattern>()
+            .HasQueryFilter(p => !_currentUser.IsAuthenticated || p.OrgId == _currentUser.OrgId);
+
+        modelBuilder.Entity<BehavioralAnomaly>()
+            .HasQueryFilter(a => !_currentUser.IsAuthenticated || a.OrgId == _currentUser.OrgId);
+
+        modelBuilder.Entity<SmartAlert>()
+            .HasQueryFilter(a => !_currentUser.IsAuthenticated || a.OrgId == _currentUser.OrgId);
+
+        // Weekly Report Schedules
+        modelBuilder.Entity<WeeklyReportSchedule>()
+            .HasQueryFilter(s => !_currentUser.IsAuthenticated || s.OrgId == _currentUser.OrgId);
 
         // Org Invite Links (tenant-scoped; GetByTokenHashAsync bypasses via IgnoreQueryFilters)
         modelBuilder.Entity<OrgInviteLink>()

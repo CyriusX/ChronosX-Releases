@@ -70,7 +70,8 @@ public sealed class AppProductivityClassifier
     {
         // Browsers (context-dependent)
         "chrome", "firefox", "edge", "safari", "opera", "brave",
-        "chromium", "vivaldi", "arc",
+        "chromium", "vivaldi", "arc", "brave browser", "google chrome",
+        "microsoft edge", "mozillafirefox",
 
         // File Managers
         "explorer", "finder", "total commander", "doublecmd",

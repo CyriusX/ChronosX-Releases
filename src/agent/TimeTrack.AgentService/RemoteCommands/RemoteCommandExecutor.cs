@@ -67,6 +67,7 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
             "task_unassigned" => await ExecuteKanbanNotificationAsync("task_unassigned", payloadJson, ct),
             "task_updated" => await ExecuteKanbanNotificationAsync("task_updated", payloadJson, ct),
             "project_membership_changed" => await ExecuteKanbanNotificationAsync("project_membership_changed", payloadJson, ct),
+            "ai_insight" => await ExecuteAiInsightNotificationAsync(payloadJson, ct),
             _ => CommandResult.Failed($"Unknown command type: {commandType}")
         };
     }
@@ -340,6 +341,53 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
         }
     }
 
+    private async Task<CommandResult> ExecuteAiInsightNotificationAsync(string? payloadJson, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(payloadJson))
+            return CommandResult.Failed("ai_insight payload is required");
+
+        try
+        {
+            using var doc = JsonDocument.Parse(payloadJson);
+            var root = doc.RootElement;
+            var inner = root.TryGetProperty("payload", out var p) ? p : root;
+
+            var alertType = inner.TryGetProperty("alertType", out var at) ? at.GetString() : "info";
+            var message = inner.TryGetProperty("message", out var m) ? m.GetString() : "AI Insight";
+
+            var title = "Alerta";
+
+            if (_ipcServer.IsClientConnected)
+            {
+                await _ipcServer.SendEventAsync(new IpcEvent
+                {
+                    EventType = "showNotification",
+                    Payload = new
+                    {
+                        title,
+                        body = message,
+                        kind = "ai_insight",
+                        tag = $"ai-{alertType}-{Guid.NewGuid():N}",
+                    }
+                }, ct);
+
+                await _ipcServer.SendEventAsync(new IpcEvent
+                {
+                    EventType = "notificationReceived",
+                    Payload = new { kind = "ai_insight", alertType }
+                }, ct);
+            }
+
+            _logger.LogInformation("AI insight notification dispatched: {AlertType}", alertType);
+            return CommandResult.Ok("ai_insight processed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to process ai_insight payload");
+            return CommandResult.Failed($"Failed to process ai_insight: {ex.Message}");
+        }
+    }
+
     private async Task<CommandResult> ExecuteForceUpdateAsync(CancellationToken ct)
     {
         if (_updateService.IsUpdating)
@@ -382,8 +430,9 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
     {
         try
         {
+            await using var gate = await _sqliteContext.AcquireDbLockAsync(ct);
             var connection = await _sqliteContext.GetConnectionAsync(ct);
-            using var tx = connection.BeginTransaction();
+            await using var tx = await connection.BeginTransactionAsync(ct);
 
             // Keep identity/config tables intact (tokens, settings, caches, tracking state).
             // Only delete local tracking history + pending sync so wiped backend data won't be re-uploaded.
@@ -397,7 +446,7 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
             ";
 
             await connection.ExecuteAsync(sql, transaction: tx);
-            tx.Commit();
+            await tx.CommitAsync(ct);
 
             if (_ipcServer.IsClientConnected)
             {

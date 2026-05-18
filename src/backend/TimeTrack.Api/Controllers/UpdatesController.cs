@@ -33,10 +33,6 @@ public sealed class UpdatesController : ControllerBase
     /// <summary>
     /// Check for available updates
     /// </summary>
-    /// <param name="currentVersion">Current application version</param>
-    /// <param name="channel">Update channel (stable, beta, alpha)</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Update information if an update is available</returns>
     [HttpGet("check")]
     [ProducesResponseType(typeof(UpdateCheckResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -64,7 +60,8 @@ public sealed class UpdatesController : ControllerBase
     }
 
     /// <summary>
-    /// Download the latest installer
+    /// Download the latest installer from local file storage.
+    /// For public repo releases, the DownloadUrl in the check response points directly to GitHub.
     /// </summary>
     [HttpGet("download")]
     [AllowAnonymous]
@@ -85,7 +82,6 @@ public sealed class UpdatesController : ControllerBase
 
         _logger.LogInformation("Serving installer: {File} ({Size:N0} bytes)", fileName, fileSize);
 
-        // Stream the file to avoid loading 90MB into memory
         var stream = new FileStream(installerPath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true);
 
         Response.Headers.Append("Accept-Ranges", "bytes");

@@ -18,6 +18,7 @@ public sealed class AgentEventLogRepository : IAgentEventLogRepository
 
     public async Task AddAsync(AgentEventLog eventLog, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = """
@@ -41,6 +42,7 @@ public sealed class AgentEventLogRepository : IAgentEventLogRepository
         int limit = 50,
         CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = """
@@ -58,6 +60,7 @@ public sealed class AgentEventLogRepository : IAgentEventLogRepository
 
     public async Task<int> DeleteOlderThanAsync(DateTime cutoff, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = """

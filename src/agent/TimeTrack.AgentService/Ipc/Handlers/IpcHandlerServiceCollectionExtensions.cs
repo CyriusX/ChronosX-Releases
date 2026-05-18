@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TimeTrack.AgentService.Ipc.Handlers;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Auth;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Assignment;
+using TimeTrack.AgentService.Ipc.Handlers.Commands.Diagnostics;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.FocusMode;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Settings;
 using TimeTrack.AgentService.Ipc.Handlers.Commands.Sync;
@@ -54,6 +55,7 @@ public static class IpcHandlerServiceCollectionExtensions
         services.AddSingleton<IIpcCommandHandler, TestActivityResumeToastCommandHandler>(); // TODO: Remove after testing
         services.AddSingleton<IIpcCommandHandler, CheckForUpdatesCommandHandler>();
         services.AddSingleton<IIpcCommandHandler, StartUpdateCommandHandler>();
+        services.AddSingleton<IIpcCommandHandler, ReportExceptionCommandHandler>();
 
         // Query Handlers
         services.AddSingleton<IIpcQueryHandler, GetCurrentSessionQueryHandler>();

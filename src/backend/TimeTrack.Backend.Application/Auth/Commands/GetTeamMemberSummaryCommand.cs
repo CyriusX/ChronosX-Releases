@@ -121,13 +121,20 @@ public sealed class GetTeamMemberSummaryCommandHandler : IRequestHandler<GetTeam
         // Top projects + tasks for the day, computed from TaskTimeEntry rows
         var (topProjects, topTasks) = await BuildTaskBreakdownAsync(request.TargetUserId, today, request.Timezone, totalSeconds, cancellationToken);
 
+        // Focus = time in productive apps; score = productive ratio (0-100).
+        // Mirrors the agent's base formula; pause/distraction-count modifiers
+        // aren't available server-side, so we use the simple ratio here.
+        var focusScore = totalSeconds > 0
+            ? (int)Math.Round((double)productiveSeconds / totalSeconds * 100)
+            : 0;
+
         return new TeamMemberSummaryResponse
         {
             TotalDuration = totalSeconds,
             ProductiveTime = productiveSeconds,
             IdleTime = totalIdleSeconds,
-            FocusTime = 0,
-            FocusScore = 0,
+            FocusTime = productiveSeconds,
+            FocusScore = focusScore,
             SessionsCount = sessionsCount,
             TopProjects = topProjects,
             TopTasks = topTasks,

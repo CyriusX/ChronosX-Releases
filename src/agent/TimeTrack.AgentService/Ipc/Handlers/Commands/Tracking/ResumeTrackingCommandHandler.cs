@@ -22,6 +22,7 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
     private readonly IAgentEventLogger _eventLogger;
     private readonly IHeartbeatService _heartbeatService;
     private readonly AgentStatusEventBroadcaster _statusBroadcaster;
+    private readonly IExceptionReporter _exceptionReporter;
     private readonly ILogger<ResumeTrackingCommandHandler> _logger;
 
     public ResumeTrackingCommandHandler(
@@ -32,6 +33,7 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
         IAgentEventLogger eventLogger,
         IHeartbeatService heartbeatService,
         AgentStatusEventBroadcaster statusBroadcaster,
+        IExceptionReporter exceptionReporter,
         ILogger<ResumeTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
@@ -41,39 +43,32 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
         _eventLogger = eventLogger;
         _heartbeatService = heartbeatService;
         _statusBroadcaster = statusBroadcaster;
+        _exceptionReporter = exceptionReporter;
         _logger = logger;
     }
 
     public async Task<IpcResponse> HandleAsync(IpcRequest request, CancellationToken ct)
     {
-        try
+        // Extend the "Tracking Stopped" session to cover the full gap
+        await ExtendTrackingStoppedSessionAsync(ct);
+
+        var result = await _trackingControl.ResumeAsync(new ResumeTrackingRequest
         {
-            // Extend the "Tracking Stopped" session to cover the full gap
-            await ExtendTrackingStoppedSessionAsync(ct);
+            ResumedBy = "DesktopHost"
+        }, ct);
 
-            var result = await _trackingControl.ResumeAsync(new ResumeTrackingRequest
-            {
-                ResumedBy = "DesktopHost"
-            }, ct);
-
-            // Broadcast state change so DesktopHost tray icon updates
-            await _ipcServer.SendEventAsync(new IpcEvent
-            {
-                EventType = "trackingStateChanged",
-                Payload = new { isTracking = true, isPaused = false }
-            }, ct);
-
-            await _eventLogger.LogAsync("tracking.resumed", AgentEventCategory.UserAction, AgentEventSeverity.Info,
-                "Monitoramento retomado pelo usuário", cancellationToken: ct);
-
-            TriggerImmediateHeartbeat();
-            return SuccessResponse(request.RequestId, result);
-        }
-        catch (Exception ex)
+        // Broadcast state change so DesktopHost tray icon updates
+        await _ipcServer.SendEventAsync(new IpcEvent
         {
-            _logger.LogError(ex, "Error resuming tracking");
-            return UnknownErrorResponse(request.RequestId, ex);
-        }
+            EventType = "trackingStateChanged",
+            Payload = new { isTracking = true, isPaused = false }
+        }, ct);
+
+        await _eventLogger.LogAsync("tracking.resumed", AgentEventCategory.UserAction, AgentEventSeverity.Info,
+            "Monitoramento retomado pelo usuário", cancellationToken: ct);
+
+        TriggerImmediateHeartbeat();
+        return SuccessResponse(request.RequestId, result);
     }
 
     /// <summary>
@@ -116,6 +111,14 @@ public sealed class ResumeTrackingCommandHandler : IpcHandlerBase, IIpcCommandHa
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to extend 'Tracking Stopped' session");
+            if (!ExceptionReport.IsCancellation(ex))
+            {
+                var report = ExceptionReport.FromException(
+                    ex,
+                    component: "AgentService",
+                    operation: "ipc.command.ResumeTracking.extendTrackingStoppedSession");
+                await _exceptionReporter.ReportAsync(report, CancellationToken.None).ConfigureAwait(false);
+            }
         }
     }
 

@@ -3,5 +3,5 @@
 window.__APP_CONFIG__ = {
   VITE_API_URL: '__VITE_API_URL__' !== '__VITE_API_URL__'
     ? '__VITE_API_URL__'
-    : (window.__ENV__?.VITE_API_URL || 'https://chronosx-dev-timetrack-api.gpoda0.easypanel.host/api/v1')
+    : (window.__ENV__?.VITE_API_URL || 'https://chronosx-timetrack-api.gpoda0.easypanel.host/api/v1')
 };

@@ -37,6 +37,13 @@ public sealed class OrgPolicy
     public int? IdleJustificationPromptThresholdSeconds { get; private set; }
     public int RetentionDays { get; private set; } = 90;
 
+    // Evidence policy fields
+    public bool ScreenshotsEnabled { get; private set; } = false;
+    public int ScreenshotIntervalMinutes { get; private set; } = 5;
+    public string ScreenshotExcludedAppsJson { get; private set; } = "[]";
+    public int EvidenceRetentionDays { get; private set; } = 3;
+    public bool WebsiteTrackingEnabled { get; private set; } = true;
+
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
 
@@ -164,5 +171,54 @@ public sealed class OrgPolicy
             return null;
 
         return JsonSerializer.Deserialize<FocusModeConfig>(FocusModeJson, JsonOptions);
+    }
+
+    /// <summary>
+    /// Gets the screenshot excluded apps list deserialized
+    /// </summary>
+    public List<string> GetScreenshotExcludedApps()
+    {
+        return JsonSerializer.Deserialize<List<string>>(ScreenshotExcludedAppsJson, JsonOptions) ?? [];
+    }
+
+    /// <summary>
+    /// Updates evidence-specific policy fields
+    /// </summary>
+    public void UpdateEvidencePolicy(
+        bool? screenshotsEnabled,
+        int? screenshotIntervalMinutes,
+        List<string>? screenshotExcludedApps,
+        int? evidenceRetentionDays,
+        bool? websiteTrackingEnabled)
+    {
+        if (screenshotsEnabled.HasValue)
+            ScreenshotsEnabled = screenshotsEnabled.Value;
+
+        if (screenshotIntervalMinutes.HasValue)
+        {
+            if (screenshotIntervalMinutes.Value is < 1 or > 60)
+                throw new ArgumentException("Screenshot interval must be between 1 and 60 minutes", nameof(screenshotIntervalMinutes));
+            ScreenshotIntervalMinutes = screenshotIntervalMinutes.Value;
+        }
+
+        if (screenshotExcludedApps != null)
+        {
+            if (screenshotExcludedApps.Count > 50)
+                throw new ArgumentException("Maximum 50 excluded apps allowed", nameof(screenshotExcludedApps));
+            ScreenshotExcludedAppsJson = JsonSerializer.Serialize(screenshotExcludedApps, JsonOptions);
+        }
+
+        if (evidenceRetentionDays.HasValue)
+        {
+            if (evidenceRetentionDays.Value is < 7 or > 90)
+                throw new ArgumentException("Evidence retention must be between 7 and 90 days", nameof(evidenceRetentionDays));
+            EvidenceRetentionDays = evidenceRetentionDays.Value;
+        }
+
+        if (websiteTrackingEnabled.HasValue)
+            WebsiteTrackingEnabled = websiteTrackingEnabled.Value;
+
+        Version++;
+        UpdatedAt = DateTime.UtcNow;
     }
 }

@@ -1,0 +1,11 @@
+{
+  "name": "timetrack-sql-scripts",
+  "version": "1.0.0",
+  "description": "SQL utilities for TimeTrack database operations",
+  "scripts": {
+    "baseline": "node baseline-migrations.js"
+  },
+  "dependencies": {
+    "pg": "^8.20.0"
+  }
+}

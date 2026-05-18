@@ -77,6 +77,7 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
             AccessToken = newAccessToken,
             RefreshToken = newRefreshToken,
             ExpiresIn = (int)_tokenService.GetAccessTokenExpiration().TotalSeconds,
+            IsPlatformAdmin = user.IsPlatformAdmin,
             SubscriptionStatus = subscriptionCheck.Status,
             PlanTier = subscriptionCheck.PlanTier ?? ""
         };

@@ -22,7 +22,8 @@ public sealed class DeleteDeviceCommandHandler : IRequestHandler<DeleteDeviceCom
 
     public async Task<Unit> Handle(DeleteDeviceCommand request, CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != request.OrgId)
+        // Platform admins can access any organization
+        if (!_currentUser.IsPlatformAdmin && _currentUser.OrgId != request.OrgId)
             throw new ForbiddenException("Access denied to this organization");
 
         var device = await _deviceRepository.GetByIdUnfilteredAsync(request.DeviceId, cancellationToken);

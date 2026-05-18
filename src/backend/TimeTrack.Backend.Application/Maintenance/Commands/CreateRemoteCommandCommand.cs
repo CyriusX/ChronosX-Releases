@@ -39,7 +39,8 @@ public sealed class CreateRemoteCommandCommandHandler
         if (!_currentUser.OrgId.HasValue || !_currentUser.UserId.HasValue)
             throw new UnauthorizedAccessException("User context not available");
 
-        if (_currentUser.OrgId != request.OrgId)
+        // Platform admins can access any organization
+        if (!_currentUser.IsPlatformAdmin && _currentUser.OrgId != request.OrgId)
             throw new UnauthorizedAccessException("Access denied to this organization");
 
         if (!ValidCommandTypes.Contains(request.CommandType))

@@ -30,6 +30,7 @@ public sealed class LoginResponse
     public string Role { get; init; } = string.Empty;
     public string OrgName { get; init; } = string.Empty;
     public bool PasswordMustChange { get; init; }
+    public bool IsPlatformAdmin { get; init; }
     public string SubscriptionStatus { get; init; } = "none";
     public string PlanTier { get; init; } = "";
 }
@@ -52,6 +53,7 @@ public sealed class RefreshTokenResponse
     public string RefreshToken { get; init; } = string.Empty;
     public string TokenType { get; init; } = "Bearer";
     public int ExpiresIn { get; init; }
+    public bool IsPlatformAdmin { get; init; }
     public string SubscriptionStatus { get; init; } = "none";
     public string PlanTier { get; init; } = "";
 }

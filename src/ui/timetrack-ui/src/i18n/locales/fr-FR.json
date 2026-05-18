@@ -909,7 +909,26 @@
     "toDo": "à faire",
     "done": "Terminé",
     "inProgress": "En cours",
-    "toDoStatus": "À faire"
+    "toDoStatus": "À faire",
+    "aiInsights": "Insights IA",
+    "aiNoInsights": "Aucun insight IA disponible pour cette période",
+    "aiSuggestion": "Suggestion",
+    "aiAttentionPoints": "Points d'Attention",
+    "aiActivePatterns": "Motifs Actifs",
+    "aiBenchmark": "vs Moyenne Équipe",
+    "aiFocusTrend": "Tendance Focus",
+    "aiImproving": "en amélioration",
+    "aiDeclining": "en baisse",
+    "aiStable": "stable",
+    "aiTeamAvgFocus": "Focus Moyen Équipe",
+    "aiYourFocus": "Votre Focus",
+    "aiTeamSummary": "Résumé IA Équipe",
+    "aiTeamMembersAnalyzed": "membres analysés",
+    "aiTeamAlerts": "alertes actives",
+    "aiNoPatterns": "Aucun motif actif détecté",
+    "aiNoAlerts": "Aucun point d'attention pour cette période",
+    "aiAboveAvg": "au-dessus de la moyenne",
+    "aiBelowAvg": "en dessous de la moyenne"
   },
   "teams": {
     "title": "Équipe",
@@ -1066,6 +1085,19 @@
     "categorySystemLabel": "Système",
     "loadMetricsError": "Erreur lors du chargement des métriques"
   },
+  "update": {
+    "banner": {
+      "title": "Nouvelle version {{version}} disponible",
+      "cta": "Mettre à jour maintenant",
+      "dismiss": "Ignorer"
+    },
+    "toast": {
+      "title": "Nouvelle version {{version}}",
+      "description": "Installez pour obtenir les dernières améliorations. L'app redémarrera à la fin.",
+      "cta": "Mettre à jour",
+      "later": "Plus tard"
+    }
+  },
   "session": {
     "expired": "Session expirée",
     "expiredMessage": "Votre session a expiré. Veuillez vous reconnecter."
@@ -1134,5 +1166,20 @@
     "reportEnd": "FIN DU RAPPORT",
     "generatedBy": "Rapport généré automatiquement par XChronus.",
     "filename": "rapport-productivite"
+  },
+  "evidence": {
+    "screenshot": "Capture d'ecran",
+    "screenshots": "Captures d'ecran",
+    "prev": "Precedent",
+    "next": "Suivant",
+    "of": "de",
+    "loading": "Chargement...",
+    "unavailable": "Preuve indisponible",
+    "app": "App",
+    "capturedAt": "Capturee le",
+    "download": "Telecharger",
+    "filterAll": "Tous",
+    "filterWithEvidence": "Avec preuve",
+    "filterByDomain": "Par domaine"
   }
 }

@@ -23,6 +23,7 @@ import {
 } from '../../services/projectsApi';
 import type { TeamMemberStatus, MemberSummaryResponse } from '../../types/member';
 import { getMemberGradient } from '../dashboard/shared/styles';
+import { PerformanceImprovements } from './PerformanceImprovements';
 
 interface MemberDetailDrawerProps {
   member: TeamMemberStatus;
@@ -192,6 +193,14 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
 
   const gradient = getMemberGradient(member.displayName);
   const prodPct = summary ? (summary.totalDuration > 0 ? Math.round((summary.productiveTime / summary.totalDuration) * 100) : 0) : null;
+  // Backend may return focusScore = 0 on older deploys; fall back to the productive ratio.
+  const focusScoreDisplay = summary
+    ? (summary.focusScore && summary.focusScore > 0
+        ? summary.focusScore
+        : summary.totalDuration > 0
+          ? Math.round((summary.productiveTime / summary.totalDuration) * 100)
+          : 0)
+    : null;
 
   return (
     <>
@@ -268,10 +277,13 @@ export function MemberDetailDrawer({ member, onClose }: MemberDetailDrawerProps)
                 </div>
                 <div className="rounded-[14px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] p-3 text-center">
                   <Zap className="w-4 h-4 text-[#F59E0B] mx-auto mb-1" />
-                  <div className="text-[14px] font-semibold text-[#fbbf24]">{summary?.focusScore ?? '—'}</div>
+                  <div className="text-[14px] font-semibold text-[#fbbf24]">{focusScoreDisplay ?? '—'}</div>
                   <div className="text-[9px] text-[rgba(245,247,251,0.4)] uppercase tracking-wide mt-0.5">{t('teams.focus')}</div>
                 </div>
               </div>
+
+              {/* Performance Improvements */}
+              {summary && <PerformanceImprovements summary={summary} />}
 
               {/* Projects */}
               {projects.length > 0 && (

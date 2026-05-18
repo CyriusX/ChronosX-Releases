@@ -53,6 +53,7 @@ export default function JoinViaLink() {
         email: response.email ?? email,
         displayName: response.displayName,
         role: response.role ?? 'Colaborador',
+        isPlatformAdmin: response.isPlatformAdmin ?? false,
         orgId: response.orgId,
         orgName: response.orgName,
         passwordMustChange: response.passwordMustChange ?? false,

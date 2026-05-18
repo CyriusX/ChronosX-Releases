@@ -14,6 +14,10 @@ public sealed record GetTeamStatusCommand(Guid OrgId, string? Timezone = null) :
 
 public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusCommand, TeamStatusResponse>
 {
+    // Heartbeats fire roughly every 60s; allow a few misses for transient network blips
+    // before considering a device offline.
+    private static readonly TimeSpan LiveHeartbeatWindow = TimeSpan.FromMinutes(3);
+
     private readonly IUserRepository _userRepository;
     private readonly IActivitySessionRepository _sessionRepository;
     private readonly IDeviceRepository _deviceRepository;
@@ -99,13 +103,27 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
                 return (int)ComputeMergedSeconds(intervals);
             });
 
+        // "Currently tracking" must reflect the user's *live* status, not stale session data.
+        // Sessions persist in the cloud after the user goes offline, so a recent EndedAt is
+        // not proof the agent is still running; it just means the agent was running when the
+        // session was last extended. Use device heartbeats instead — the agent sends one
+        // every ~60s with the current TrackingState, and stops sending when offline.
+        var devices = await _deviceRepository.GetActiveByOrgIdAsync(request.OrgId, cancellationToken);
+        var heartbeatCutoff = DateTime.UtcNow - LiveHeartbeatWindow;
+        var currentlyTracking = devices
+            .Where(d => d.LastHeartbeatAt is { } hb
+                && hb >= heartbeatCutoff
+                && string.Equals(d.TrackingState, "running", StringComparison.OrdinalIgnoreCase))
+            .Select(d => d.UserId)
+            .Distinct()
+            .ToHashSet();
+
         // Most recent session EndedAt per user (last time agent synced data)
         var lastSyncByUser = sessions
             .GroupBy(s => s.UserId)
             .ToDictionary(g => g.Key, g => g.Max(s => s.EndedAt));
 
         // Device heartbeat snapshot (for near real-time status)
-        var devices = await _deviceRepository.GetActiveByOrgIdAsync(request.OrgId, cancellationToken);
         var latestDeviceByUser = devices
             .GroupBy(d => d.UserId)
             .ToDictionary(

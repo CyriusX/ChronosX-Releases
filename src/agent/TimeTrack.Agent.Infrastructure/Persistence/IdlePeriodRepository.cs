@@ -43,6 +43,7 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
 
     public async Task<IdlePeriod?> GetByIdAsync(Guid idlePeriodId, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -62,6 +63,7 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         DateTime end,
         CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -80,6 +82,7 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
     {
         if (period == null) throw new ArgumentNullException(nameof(period));
 
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -101,6 +104,7 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
     {
         if (periods == null) throw new ArgumentNullException(nameof(periods));
 
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -144,8 +148,9 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         IEnumerable<OutboxItem> outboxItems,
         CancellationToken cancellationToken)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
-        var transaction = await _context.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         try
         {
@@ -200,7 +205,14 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
+            try
+            {
+                await transaction.RollbackAsync();
+            }
+            catch (Exception rollbackEx)
+            {
+                _logger.LogWarning(rollbackEx, "Failed to rollback idle period transaction");
+            }
             _logger.LogError(ex, "Failed to save idle period with outbox items");
             throw;
         }
@@ -208,6 +220,7 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
 
     public async Task<int> DeleteOlderThanAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         // Use date() function for reliable comparison — SQLite stores dates with space separator

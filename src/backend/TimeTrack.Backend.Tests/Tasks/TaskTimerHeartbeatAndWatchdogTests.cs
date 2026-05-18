@@ -33,6 +33,19 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
 
         await using var db = new TimeTrackDbContext(options, ctx);
 
+        var user = User.Create(
+            orgId,
+            "test@example.com",
+            "password-hash",
+            "Test User",
+            UserRole.Admin);
+
+        // Use reflection to set the Id to match the deviceId's userId
+        var idProperty = typeof(User).GetProperty("Id");
+        idProperty?.SetValue(user, userId);
+
+        db.Users.Add(user);
+
         var device = Device.Create(
             deviceId,
             orgId,
@@ -46,20 +59,22 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
         db.TaskTimeEntries.Add(open);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var subscription = new Mock<ISubscriptionService>();
-        subscription
-            .Setup(s => s.CheckSubscriptionAccessAsync(orgId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new SubscriptionCheckResult { HasAccess = true, Status = "active" });
+        var subscriptionServiceMock = new Mock<ISubscriptionService>();
+        subscriptionServiceMock
+            .Setup(s => s.CheckSubscriptionAccessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SubscriptionCheckResult
+            {
+                HasAccess = true,
+                Status = "active"
+            });
 
         var handler = new HeartbeatCommandHandler(
             new DeviceRepository(db),
             new RemoteCommandRepository(db),
-            subscription.Object,
+            subscriptionServiceMock.Object,
             new TaskTimeEntryRepository(db));
 
-        await handler.Handle(
-            new HeartbeatCommand(deviceId, "1.0.1", null, null, null, "paused", null, null, null, null, null),
-            CancellationToken.None);
+        await handler.Handle(new HeartbeatCommand(deviceId, null, "Windows", null, null, "paused", null, null, null, null, null), CancellationToken.None);
 
         var entryAfter = await db.TaskTimeEntries.FirstAsync(e => e.Id == open.Id, CancellationToken.None);
         entryAfter.IsPaused.Should().BeTrue();

@@ -20,6 +20,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useLanguage } from '../hooks/useLanguage';
 import { getOrgPolicy, updateOrgPolicy } from '../services/policyApi';
 import { clearAllEvents } from '../services/maintenanceApi';
+import { createPlatformApiKey, listPlatformApiKeys, revokePlatformApiKey, type PlatformApiKeyDto } from '../services/platformApiKeysApi';
 import { MembersSection } from '@desktop/components/settings/MembersSection';
 import { InviteLinkSection } from '../components/settings/InviteLinkSection';
 import { OrganizationSection } from '@desktop/components/settings/OrganizationSection';
@@ -288,11 +289,90 @@ function ToggleSwitch({ on, onClick, disabled }: { on: boolean; onClick: () => v
 function MaintenanceSection() {
   const { t } = useTranslation();
   const orgId = useAuthStore(s => s.user?.orgId);
+  const isPlatformAdmin = useAuthStore(s => s.user?.isPlatformAdmin);
   const [prefs, setPrefs] = useState<MaintenanceLogPrefs>(getMaintenanceLogPrefs);
   const [saved, setSaved] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [clearConfirm, setClearConfirm] = useState(false);
   const [clearResult, setClearResult] = useState<'success' | 'error' | null>(null);
+
+  const [apiKeys, setApiKeys] = useState<PlatformApiKeyDto[]>([]);
+  const [keysLoading, setKeysLoading] = useState(false);
+  const [keysError, setKeysError] = useState<string | null>(null);
+  const [newKeyLabel, setNewKeyLabel] = useState('');
+  const [creatingKey, setCreatingKey] = useState(false);
+  const [createdToken, setCreatedToken] = useState<string | null>(null);
+
+  const getMcpEndpoint = () => {
+    // Mirror apiClient.ts resolution
+    let apiUrl: string | undefined;
+    if (typeof window !== 'undefined' && window.__APP_CONFIG__?.VITE_API_URL) {
+      apiUrl = window.__APP_CONFIG__.VITE_API_URL;
+    }
+    if (!apiUrl) {
+      apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+    }
+
+    try {
+      const url = new URL(apiUrl);
+      url.pathname = url.pathname.replace(/\/+$/, '').replace(/\/api\/v\d+$/, '');
+      const originAndPath = `${url.origin}${url.pathname}`.replace(/\/+$/, '');
+      return `${originAndPath}/mcp`;
+    } catch {
+      const trimmed = apiUrl.replace(/\/+$/, '').replace(/\/api\/v\d+$/, '');
+      return `${trimmed}/mcp`;
+    }
+  };
+
+  const loadKeys = async () => {
+    if (!isPlatformAdmin) return;
+    setKeysLoading(true);
+    setKeysError(null);
+    try {
+      const keys = await listPlatformApiKeys();
+      setApiKeys(keys);
+    } catch (e) {
+      console.error('[Settings] Error listing platform api keys:', e);
+      setKeysError('Failed to load keys');
+    } finally {
+      setKeysLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadKeys();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlatformAdmin]);
+
+  const handleCreateKey = async () => {
+    const label = newKeyLabel.trim();
+    if (!label) return;
+    setCreatingKey(true);
+    setKeysError(null);
+    try {
+      const created = await createPlatformApiKey(label);
+      setCreatedToken(created.token);
+      setNewKeyLabel('');
+      await loadKeys();
+    } catch (e) {
+      console.error('[Settings] Error creating platform api key:', e);
+      setKeysError('Failed to create key');
+    } finally {
+      setCreatingKey(false);
+    }
+  };
+
+  const handleRevokeKey = async (keyId: string) => {
+    if (!confirm('Revoke this key? It will stop working immediately.')) return;
+    setKeysError(null);
+    try {
+      await revokePlatformApiKey(keyId);
+      await loadKeys();
+    } catch (e) {
+      console.error('[Settings] Error revoking platform api key:', e);
+      setKeysError('Failed to revoke key');
+    }
+  };
 
   const allCatsSelected = prefs.categories.length === 0;
   const allSevsSelected = prefs.severities.length === 0;
@@ -350,6 +430,128 @@ function MaintenanceSection() {
           {t('maintenance.subtitle')}
         </p>
       </div>
+
+      {/* MCP / Ops integration (SysAdmin only) */}
+      {isPlatformAdmin && (
+        <div className={sectionCard}>
+          <div>
+            <p className="text-[13px] font-semibold text-[rgba(245,247,251,0.9)]">Ops MCP</p>
+            <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
+              Read-only MCP endpoint for Maintenance/Ops integrations.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-[12px] text-[rgba(245,247,251,0.7)]">Endpoint</div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-[12px] text-[rgba(245,247,251,0.85)] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] px-3 py-2 rounded-lg overflow-x-auto">
+                {getMcpEndpoint()}
+              </code>
+              <button
+                onClick={() => navigator.clipboard.writeText(getMcpEndpoint())}
+                className="px-3 py-2 rounded-lg text-[12px] font-medium border border-[rgba(255,255,255,0.1)] text-[rgba(245,247,251,0.7)] hover:text-[rgba(245,247,251,0.9)] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+
+          {createdToken && (
+            <div className="space-y-2">
+              <div className="text-[12px] text-[rgba(245,247,251,0.7)]">New key (copy now — shown once)</div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-[12px] text-[rgba(245,247,251,0.85)] bg-[rgba(139,92,246,0.12)] border border-[rgba(139,92,246,0.25)] px-3 py-2 rounded-lg overflow-x-auto">
+                  {createdToken}
+                </code>
+                <button
+                  onClick={() => navigator.clipboard.writeText(createdToken)}
+                  className="px-3 py-2 rounded-lg text-[12px] font-medium bg-[#8B5CF6] hover:bg-[#7c3aed] text-white transition-colors"
+                >
+                  Copy
+                </button>
+                <button
+                  onClick={() => setCreatedToken(null)}
+                  className="px-3 py-2 rounded-lg text-[12px] font-medium border border-[rgba(255,255,255,0.1)] text-[rgba(245,247,251,0.6)] hover:text-[rgba(245,247,251,0.85)] transition-colors"
+                >
+                  Hide
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <div className="text-[12px] text-[rgba(245,247,251,0.7)]">Create key</div>
+                <input
+                  value={newKeyLabel}
+                  onChange={(e) => setNewKeyLabel(e.target.value)}
+                  placeholder="Label (e.g. 'Ops bot')"
+                  className="mt-1 w-full px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-[rgba(245,247,251,0.85)] placeholder:text-[rgba(245,247,251,0.3)] outline-none focus:border-[rgba(139,92,246,0.5)]"
+                />
+              </div>
+              <button
+                onClick={handleCreateKey}
+                disabled={creatingKey || !newKeyLabel.trim()}
+                className="px-4 py-2 rounded-lg text-[12px] font-semibold bg-[#8B5CF6] hover:bg-[#7c3aed] text-white transition-colors disabled:opacity-50 disabled:hover:bg-[#8B5CF6]"
+              >
+                {creatingKey ? 'Creating…' : 'Create'}
+              </button>
+            </div>
+
+            {keysError && (
+              <div className="text-[12px] text-[#f87171]">{keysError}</div>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-[12px] text-[rgba(245,247,251,0.7)]">Keys</div>
+                <button
+                  onClick={loadKeys}
+                  disabled={keysLoading}
+                  className="text-[12px] text-[#8B5CF6] hover:underline disabled:opacity-50"
+                >
+                  {keysLoading ? 'Loading…' : 'Refresh'}
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {apiKeys.length === 0 && !keysLoading && (
+                  <div className="text-[12px] text-[rgba(245,247,251,0.4)]">No keys yet.</div>
+                )}
+
+                {apiKeys.map((k) => (
+                  <div
+                    key={k.id}
+                    className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[12px] text-[rgba(245,247,251,0.85)] font-medium truncate">
+                        {k.label}
+                      </div>
+                      <div className="text-[11px] text-[rgba(245,247,251,0.4)]">
+                        Created: {new Date(k.createdAtUtc).toLocaleString()} · Last used: {k.lastUsedAtUtc ? new Date(k.lastUsedAtUtc).toLocaleString() : '—'}
+                      </div>
+                      {k.revokedAtUtc && (
+                        <div className="text-[11px] text-[#f87171]">
+                          Revoked: {new Date(k.revokedAtUtc).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleRevokeKey(k.id)}
+                      disabled={!!k.revokedAtUtc}
+                      className="px-3 py-1.5 rounded-lg text-[12px] font-medium border border-[rgba(248,113,113,0.3)] bg-[rgba(248,113,113,0.08)] text-[#f87171] hover:bg-[rgba(248,113,113,0.15)] transition-colors disabled:opacity-40 disabled:hover:bg-[rgba(248,113,113,0.08)]"
+                    >
+                      Revoke
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Categories */}
       <div className={sectionCard}>

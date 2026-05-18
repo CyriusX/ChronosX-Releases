@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using TimeTrack.DesktopHost.Reporting;
 using TimeTrack.DesktopHost.Ipc;
 
 namespace TimeTrack.DesktopHost.UI;
@@ -19,11 +20,16 @@ public sealed class WebViewBridge
 {
     private readonly IIpcClient _ipcClient;
     private readonly ILogger<WebViewBridge> _logger;
+    private readonly DesktopHostExceptionReporter _exceptionReporter;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public WebViewBridge(IIpcClient ipcClient, ILogger<WebViewBridge> logger)
+    public WebViewBridge(
+        IIpcClient ipcClient,
+        DesktopHostExceptionReporter exceptionReporter,
+        ILogger<WebViewBridge> logger)
     {
         _ipcClient = ipcClient;
+        _exceptionReporter = exceptionReporter;
         _logger = logger;
         _jsonOptions = new JsonSerializerOptions
         {
@@ -72,6 +78,10 @@ public sealed class WebViewBridge
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error sending command: {Command}", command);
+            await _exceptionReporter.ReportAsync(ex, "desktophost.webviewBridge.sendCommand", new Dictionary<string, string?>
+            {
+                ["command"] = command
+            }).ConfigureAwait(false);
 
             var result = new
             {
@@ -139,6 +149,10 @@ public sealed class WebViewBridge
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error sending query: {Query}", query);
+            await _exceptionReporter.ReportAsync(ex, "desktophost.webviewBridge.sendQuery", new Dictionary<string, string?>
+            {
+                ["query"] = query
+            }).ConfigureAwait(false);
 
             var errorResult = new
             {
@@ -189,6 +203,7 @@ public sealed class WebViewBridge
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reconnecting");
+            await _exceptionReporter.ReportAsync(ex, "desktophost.webviewBridge.reconnect").ConfigureAwait(false);
 
             var result = new
             {
@@ -221,6 +236,10 @@ public sealed class WebViewBridge
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error opening external URL: {Url}", url);
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.webviewBridge.openExternal", new Dictionary<string, string?>
+            {
+                ["url"] = url
+            });
         }
     }
 
@@ -239,6 +258,10 @@ public sealed class WebViewBridge
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing event: {EventType}", e.EventType);
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.webviewBridge.processEvent", new Dictionary<string, string?>
+            {
+                ["eventType"] = e.EventType
+            });
         }
     }
 
@@ -257,6 +280,7 @@ public sealed class WebViewBridge
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing connection state change");
+            _ = _exceptionReporter.ReportAsync(ex, "desktophost.webviewBridge.connectionStateChanged");
         }
     }
 

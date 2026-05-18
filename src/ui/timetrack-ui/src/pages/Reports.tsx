@@ -49,6 +49,7 @@ import {
   CategoryDonut,
   DistractionSection,
   ProjectTasksAccordion,
+  AIInsightsSection,
 } from '../components/reports';
 import { CollapsibleFoldersCard } from '../components/folders/CollapsibleFoldersCard';
 import type { PeriodPreset, GroupByOption } from '../types/reports';
@@ -516,6 +517,16 @@ export default function Reports() {
                 periods={data.productivityTrend?.periods ?? []}
                 isLoading={isLoading}
                 title={t('reports.productivityTrend')}
+              />
+            </motion.div>
+
+            {/* AI Insights */}
+            <motion.div variants={fadeUp} initial="hidden" animate="visible">
+              <AIInsightsSection
+                data={data.aiInsights}
+                isLoading={isLoading}
+                error={!!error}
+                onRetry={refresh}
               />
             </motion.div>
 

@@ -32,6 +32,7 @@ public sealed class FocusCycleRepository : IFocusCycleRepository
     {
         if (cycle == null) throw new ArgumentNullException(nameof(cycle));
 
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -67,6 +68,7 @@ public sealed class FocusCycleRepository : IFocusCycleRepository
         DateTime date,
         CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -90,6 +92,7 @@ public sealed class FocusCycleRepository : IFocusCycleRepository
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -113,6 +116,7 @@ public sealed class FocusCycleRepository : IFocusCycleRepository
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -137,6 +141,7 @@ public sealed class FocusCycleRepository : IFocusCycleRepository
         DateTime date,
         CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -158,6 +163,7 @@ public sealed class FocusCycleRepository : IFocusCycleRepository
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -178,6 +184,7 @@ public sealed class FocusCycleRepository : IFocusCycleRepository
 
     public async Task<int> DeleteOlderThanAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         // Only delete cycles that are completed and synced — unsynced cycles must survive until sync

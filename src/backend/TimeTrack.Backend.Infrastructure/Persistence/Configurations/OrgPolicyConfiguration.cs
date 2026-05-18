@@ -54,6 +54,33 @@ internal sealed class OrgPolicyConfiguration : IEntityTypeConfiguration<OrgPolic
             .HasDefaultValueSql("'{}'::jsonb")
             .IsRequired();
 
+        // Evidence policy fields
+        builder.Property(p => p.ScreenshotsEnabled)
+            .HasColumnName("screenshots_enabled")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(p => p.ScreenshotIntervalMinutes)
+            .HasColumnName("screenshot_interval_minutes")
+            .HasDefaultValue(5)
+            .IsRequired();
+
+        builder.Property(p => p.ScreenshotExcludedAppsJson)
+            .HasColumnName("screenshot_excluded_apps_json")
+            .HasColumnType("jsonb")
+            .HasDefaultValueSql("'[]'::jsonb")
+            .IsRequired();
+
+        builder.Property(p => p.EvidenceRetentionDays)
+            .HasColumnName("evidence_retention_days")
+            .HasDefaultValue(30)
+            .IsRequired();
+
+        builder.Property(p => p.WebsiteTrackingEnabled)
+            .HasColumnName("website_tracking_enabled")
+            .HasDefaultValue(true)
+            .IsRequired();
+
         builder.Property(p => p.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()");

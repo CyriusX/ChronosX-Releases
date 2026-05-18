@@ -9,6 +9,7 @@ using TimeTrack.Backend.Application.FocusScore;
 using TimeTrack.Backend.Application.Integrations;
 using TimeTrack.Backend.Application.Integrations.Linear;
 using TimeTrack.Backend.Domain.Interfaces.Repositories;
+using TimeTrack.Backend.Domain.Interfaces.Services;
 using TimeTrack.Backend.Infrastructure.Integrations;
 using TimeTrack.Backend.Infrastructure.Integrations.Linear;
 using TimeTrack.Backend.Infrastructure.Integrations.Stripe;
@@ -71,6 +72,14 @@ public static class InfrastructureServiceCollectionExtensions
         // Agent Event Logs
         services.AddScoped<IAgentEventLogRepository, AgentEventLogRepository>();
 
+        // Platform API keys (SysAdmin-only integrations)
+        services.AddScoped<IPlatformApiKeyRepository, PlatformApiKeyRepository>();
+
+        // Ops / Platform monitoring
+        services.AddScoped<IPlatformEventLogRepository, PlatformEventLogRepository>();
+        services.AddScoped<IPlatformHealthStateRepository, PlatformHealthStateRepository>();
+        services.AddScoped<IOpsDeviceIssueStateRepository, OpsDeviceIssueStateRepository>();
+
         // Remote Commands
         services.AddScoped<IRemoteCommandRepository, RemoteCommandRepository>();
 
@@ -99,6 +108,16 @@ public static class InfrastructureServiceCollectionExtensions
         // Focus Score Services
         services.AddSingleton<AppProductivityClassifier>();
 
+        // Evidence Storage (Media Service integration)
+        services.AddScoped<IEvidenceItemRepository, EvidenceItemRepository>();
+        services.AddSingleton<IMediaServiceConfiguration, MediaServiceConfiguration>();
+        services.AddHttpClient<IMediaServiceClient, MediaServiceClient>();
+
+        // AI Module (Fase 4)
+        services.AddScoped<IAiDecisionLogRepository, AiDecisionLogRepository>();
+        services.AddScoped<IFeatureWeeklyRepository, FeatureWeeklyRepository>();
+        services.AddScoped<IFeatureMonthlyRepository, FeatureMonthlyRepository>();
+
         // Hangfire Background Jobs
         services.AddHangfireJobs(configuration);
 
@@ -109,6 +128,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPasswordGenerator, PasswordGenerator>();
         services.AddScoped<IPasswordValidator, PasswordValidator>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddSingleton<IPlatformApiKeyHasher, PlatformApiKeyHasher>();
 
         // Email Service (Resend SDK oficial)
         services.AddOptions();
