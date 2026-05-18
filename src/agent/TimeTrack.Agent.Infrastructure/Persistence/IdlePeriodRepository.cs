@@ -68,7 +68,7 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
             SELECT id, user_id, start_utc, end_utc, threshold_seconds, is_system_detected,
                    justification_state, justification_reason_code, justification_note, justification_submitted_at_utc
             FROM idle_periods
-            WHERE user_id = @UserId AND start_utc >= @Start AND start_utc < @End
+            WHERE user_id = @UserId AND start_utc < @End AND end_utc > @Start
             ORDER BY start_utc";
 
         var dtos = await connection.QueryAsync<IdlePeriodDto>(sql, new { UserId = userId.ToString(), Start = start, End = end });
@@ -210,12 +210,13 @@ public sealed class IdlePeriodRepository : IIdlePeriodRepository
     {
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
-        // Use date() function for reliable comparison — SQLite stores dates with space separator
-        const string sql = "DELETE FROM idle_periods WHERE date(start_utc) < date(@Cutoff)";
-        var deleted = await connection.ExecuteAsync(sql, new { Cutoff = cutoffUtc.ToString("yyyy-MM-dd") });
+        // Keep any idle period that still overlaps "today" (local day boundaries are computed by caller).
+        // Delete only periods that ended strictly before the cutoff.
+        const string sql = "DELETE FROM idle_periods WHERE end_utc < @Cutoff";
+        var deleted = await connection.ExecuteAsync(sql, new { Cutoff = cutoffUtc });
 
         if (deleted > 0)
-            _logger.LogInformation("Cleaned up {Count} old idle periods (before {Cutoff:yyyy-MM-dd})", deleted, cutoffUtc);
+            _logger.LogInformation("Cleaned up {Count} old idle periods (ended before {Cutoff:o})", deleted, cutoffUtc);
 
         return deleted;
     }
