@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
@@ -19,6 +20,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
     public string QueryName => "GetRecentActivities";
 
     private readonly IActivitySessionRepository _sessionRepository;
+    private readonly IIdlePeriodRepository _idlePeriodRepository;
     private readonly IAppCategoryCacheRepository _categoryCacheRepository;
     private readonly IBackendReportsClient _reportsClient;
     private readonly ICurrentUserContext _userContext;
@@ -40,12 +42,14 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
     public GetRecentActivitiesQueryHandler(
         IActivitySessionRepository sessionRepository,
+        IIdlePeriodRepository idlePeriodRepository,
         IAppCategoryCacheRepository categoryCacheRepository,
         IBackendReportsClient reportsClient,
         ICurrentUserContext userContext,
         ILogger<GetRecentActivitiesQueryHandler> logger)
     {
         _sessionRepository = sessionRepository;
+        _idlePeriodRepository = idlePeriodRepository;
         _categoryCacheRepository = categoryCacheRepository;
         _reportsClient = reportsClient;
         _userContext = userContext;
@@ -82,7 +86,9 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
     /// </summary>
     private async Task<IpcResponse> BuildFromLocalSqlite(int requestId, Guid userId, DateTime targetDate, CancellationToken ct)
     {
+        var (startOfDayUtc, endOfDayUtc) = GetUtcDayBounds(targetDate);
         var sessions = await _sessionRepository.GetByDateAsync(userId, targetDate, ct);
+        var idlePeriods = await _idlePeriodRepository.GetByDateAsync(userId, targetDate, ct);
 
         // Build override lookup from local cache — never let failure break activities
         CategoryLookup categoryLookup;
@@ -102,7 +108,10 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
             .ToList();
 
         var appColors = AssignAppColors(filtered);
-        var blocks = MergeConsecutiveByExe(filtered, appColors, categoryLookup);
+        var blocks = MergeConsecutiveByExe(filtered, appColors, categoryLookup, startOfDayUtc, endOfDayUtc)
+            .Concat(BuildLocalIdleBlocks(idlePeriods, startOfDayUtc, endOfDayUtc))
+            .OrderBy(GetBlockStartUtc)
+            .ToArray();
 
         return SuccessResponse(requestId, new { activities = blocks });
     }
@@ -113,6 +122,7 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
     /// </summary>
     private async Task<IpcResponse> BuildFromBackendApi(int requestId, DateTime targetDate, Guid userId, CancellationToken ct)
     {
+        var (startOfDayUtc, endOfDayUtc) = GetUtcDayBounds(targetDate);
         try
         {
             var result = await _reportsClient.GetDailyActivitiesAsync(targetDate, ct);
@@ -127,7 +137,10 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
                     .ToList();
 
                 var appColors = AssignCloudAppColors(filtered);
-                var blocks = MergeConsecutiveCloudSessions(filtered, appColors);
+                var blocks = MergeConsecutiveCloudSessions(filtered, appColors)
+                    .Concat(BuildCloudIdleBlocks(result.IdlePeriods, startOfDayUtc, endOfDayUtc))
+                    .OrderBy(GetBlockStartUtc)
+                    .ToArray();
 
                 return SuccessResponse(requestId, new { activities = blocks });
             }
@@ -237,6 +250,94 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         return result.ToArray();
     }
 
+
+    private static object[] BuildCloudIdleBlocks(IEnumerable<DailyIdlePeriod> idlePeriods, DateTime startOfDayUtc, DateTime endOfDayUtc)
+    {
+        return idlePeriods
+            .OrderBy(i => i.StartedAt)
+            .Select(i => new
+            {
+                period = i,
+                start = i.StartedAt < startOfDayUtc ? startOfDayUtc : i.StartedAt,
+                end = i.EndedAt > endOfDayUtc ? endOfDayUtc : i.EndedAt,
+            })
+            .Where(x => x.end > x.start)
+            .Select(x => new
+            {
+                id = x.period.Id.ToString(),
+                kind = "idle",
+                name = "Idle",
+                startUtc = x.start.ToString("o"),
+                endUtc = x.end.ToString("o"),
+                duration = (int)Math.Max(1, (x.end - x.start).TotalSeconds),
+                productivity = "idle",
+                subcategory = "idle",
+                color = "#64748b",
+                reasonCode = x.period.ReasonCode,
+                note = x.period.Note,
+                submittedAtUtc = x.period.SubmittedAtUtc?.ToString("o"),
+                tabs = Array.Empty<object>()
+            })
+            .Cast<object>()
+            .ToArray();
+    }
+
+    private static object[] BuildLocalIdleBlocks(IEnumerable<IdlePeriod> idlePeriods, DateTime startOfDayUtc, DateTime endOfDayUtc)
+    {
+        return idlePeriods
+            .OrderBy(i => i.Period.StartUtc)
+            .Select(i => new
+            {
+                period = i,
+                // Clamp to the target day so a long idle spanning midnight doesn't disappear (or paint outside the day).
+                // UI expects blocks to be within day bounds.
+                start = i.Period.StartUtc < startOfDayUtc ? startOfDayUtc : i.Period.StartUtc,
+                end = i.Period.EndUtc > endOfDayUtc ? endOfDayUtc : i.Period.EndUtc,
+            })
+            .Where(x => x.end > x.start)
+            .Select(x => new
+            {
+                id = x.period.Id.ToString(),
+                kind = "idle",
+                name = "Idle",
+                startUtc = x.start.ToString("o"),
+                endUtc = x.end.ToString("o"),
+                duration = (long)(x.end - x.start).TotalSeconds,
+                productivity = "idle",
+                subcategory = "idle",
+                color = "#64748b",
+                reasonCode = x.period.JustificationReasonCode,
+                note = x.period.JustificationNote,
+                submittedAtUtc = x.period.JustificationSubmittedAtUtc?.ToString("o"),
+                tabs = Array.Empty<object>()
+            })
+            .Cast<object>()
+            .ToArray();
+    }
+
+    private static DateTime GetBlockStartUtc(object block)
+    {
+        try
+        {
+            var startUtcProp = block.GetType().GetProperty("startUtc");
+            if (startUtcProp?.GetValue(block) is string startUtcStr
+                && DateTime.TryParse(
+                    startUtcStr,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind,
+                    out var startUtc))
+            {
+                return startUtc;
+            }
+        }
+        catch
+        {
+            // Ignore and fall through
+        }
+
+        return DateTime.MinValue;
+    }
+
     private static void AddCloudTab(List<CloudTabInfo> tabs, DailyActivitySession session)
     {
         var title = !string.IsNullOrWhiteSpace(session.WindowTitle) ? session.WindowTitle : session.ProcessName;
@@ -313,7 +414,12 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
         return map;
     }
 
-    private static object[] MergeConsecutiveByExe(List<ActivitySession> sessions, Dictionary<string, string> appColors, CategoryLookup categoryLookup)
+    private static object[] MergeConsecutiveByExe(
+        List<ActivitySession> sessions,
+        Dictionary<string, string> appColors,
+        CategoryLookup categoryLookup,
+        DateTime startOfDayUtc,
+        DateTime endOfDayUtc)
     {
         if (sessions.Count == 0) return Array.Empty<object>();
 
@@ -331,6 +437,14 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
         void FlushBlock()
         {
+            var clampedStart = currentStart < startOfDayUtc ? startOfDayUtc : currentStart;
+            var clampedEnd = currentEnd > endOfDayUtc ? endOfDayUtc : currentEnd;
+            if (clampedEnd <= clampedStart)
+            {
+                tabs.Clear();
+                return;
+            }
+
             var uniqueTabs = tabs
                 .GroupBy(t => t.Title)
                 .Select(g => new
@@ -348,9 +462,9 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
             {
                 id = Guid.NewGuid().ToString(),
                 name = currentAppName,
-                startUtc = currentStart.ToString("o"),
-                endUtc = currentEnd.ToString("o"),
-                duration = (long)(currentEnd - currentStart).TotalSeconds,
+                startUtc = clampedStart.ToString("o"),
+                endUtc = clampedEnd.ToString("o"),
+                duration = (long)(clampedEnd - clampedStart).TotalSeconds,
                 productivity = currentProductivity,
                 subcategory = currentSubcategory,
                 color = currentColor,
@@ -389,6 +503,16 @@ public sealed class GetRecentActivitiesQueryHandler : IpcHandlerBase, IIpcQueryH
 
         FlushBlock();
         return result.ToArray();
+    }
+
+    private static (DateTime StartUtc, DateTime EndUtc) GetUtcDayBounds(DateTime localDate)
+    {
+        var day = localDate.Date;
+        var startUtc = day.Kind == DateTimeKind.Utc
+            ? day
+            : day.ToUniversalTime();
+        var endUtc = startUtc.AddDays(1);
+        return (startUtc, endUtc);
     }
 
     private static void AddTab(List<TabInfo> tabs, ActivitySession session, CategoryLookup categoryLookup)
