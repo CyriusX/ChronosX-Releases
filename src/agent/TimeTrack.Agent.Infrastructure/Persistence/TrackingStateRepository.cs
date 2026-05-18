@@ -24,6 +24,7 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
 
     public async Task<TrackingState?> GetAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         // Prefer the record for this userId; fall back to NULL user_id (not yet migrated via orphan migration)
@@ -59,6 +60,7 @@ public sealed class TrackingStateRepository : ITrackingStateRepository
     {
         if (state == null) throw new ArgumentNullException(nameof(state));
 
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         // SQLite doesn't have elegant UPSERT, so delete and insert for this user

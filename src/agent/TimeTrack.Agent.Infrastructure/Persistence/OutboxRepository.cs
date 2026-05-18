@@ -38,6 +38,7 @@ public sealed class OutboxRepository : IOutboxRepository
         if (limit <= 0)
             throw new ArgumentException("Limit must be at least 1", nameof(limit));
 
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
         var now = DateTime.UtcNow.ToString("o");
 
@@ -75,6 +76,7 @@ public sealed class OutboxRepository : IOutboxRepository
     {
         if (item == null) throw new ArgumentNullException(nameof(item));
 
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -94,6 +96,7 @@ public sealed class OutboxRepository : IOutboxRepository
     {
         if (items == null) throw new ArgumentNullException(nameof(items));
 
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -121,6 +124,7 @@ public sealed class OutboxRepository : IOutboxRepository
         var idList = ids.ToList();
         if (!idList.Any()) return;
 
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
         var now = DateTime.UtcNow.ToString("o");
         var idStrings = idList.Select(id => id.ToString()).ToList();
@@ -137,6 +141,7 @@ public sealed class OutboxRepository : IOutboxRepository
     /// <inheritdoc />
     public async Task MarkAsFailedAsync(Guid id, string error, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         // Primeiro, obter o attempt_count atual
@@ -166,6 +171,7 @@ public sealed class OutboxRepository : IOutboxRepository
     /// <inheritdoc />
     public async Task<int> RemoveSentOlderThanAsync(TimeSpan olderThan, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
         var cutoff = DateTime.UtcNow.Subtract(olderThan).ToString("o");
 
@@ -182,6 +188,7 @@ public sealed class OutboxRepository : IOutboxRepository
     /// <inheritdoc />
     public async Task<OutboxItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -197,6 +204,7 @@ public sealed class OutboxRepository : IOutboxRepository
     /// <inheritdoc />
     public async Task<bool> HasPendingItemsAsync(CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
         var now = DateTime.UtcNow.ToString("o");
 
@@ -215,6 +223,7 @@ public sealed class OutboxRepository : IOutboxRepository
         int limit,
         CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -234,6 +243,7 @@ public sealed class OutboxRepository : IOutboxRepository
     /// <inheritdoc />
     public async Task<int> ResetStuckItemsAsync(CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
         var now = DateTime.UtcNow.ToString("o");
 

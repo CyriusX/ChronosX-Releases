@@ -20,6 +20,7 @@ public sealed class OrgPolicyCacheRepository : IOrgPolicyCacheRepository
 
     public async Task<OrgPolicyCacheEntry?> GetAsync(Guid orgId, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -49,6 +50,7 @@ public sealed class OrgPolicyCacheRepository : IOrgPolicyCacheRepository
 
     public async Task UpsertAsync(OrgPolicyCacheEntry entry, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
