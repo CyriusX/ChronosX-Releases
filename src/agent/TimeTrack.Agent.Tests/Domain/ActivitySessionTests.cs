@@ -10,9 +10,13 @@ public class ActivitySessionTests
 {
     private readonly Guid _testUserId = Guid.NewGuid();
     private readonly AppIdentity _testApp = new("hash123", "Test App");
-    private readonly TimeRange _testPeriod = new(
-        DateTime.UtcNow,
-        DateTime.UtcNow.AddHours(1));
+    private readonly TimeRange _testPeriod;
+    private static readonly DateTime _baseTime = DateTime.UtcNow;
+
+    public ActivitySessionTests()
+    {
+        _testPeriod = new TimeRange(_baseTime, _baseTime.AddHours(1));
+    }
 
     [Fact]
     public void Create_WithValidData_ShouldCreateSession()

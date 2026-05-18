@@ -1,0 +1,18 @@
+[mcp_servers.figma-desktop]
+url = "http://127.0.0.1:3845/mcp"
+
+[mcp_servers.github]
+url = "https://api.githubcopilot.com/mcp"
+
+[mcp_servers.github.http_headers]
+Authorization = "Bearer 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"
+
+[mcp_servers.linear-server]
+url = "https://mcp.linear.app/mcp"
+
+[mcp_servers.playwright]
+args = ["@playwright/mcp@latest"]
+command = "npx"
+
+[mcp_servers.stripe]
+url = "https://mcp.stripe.com/"

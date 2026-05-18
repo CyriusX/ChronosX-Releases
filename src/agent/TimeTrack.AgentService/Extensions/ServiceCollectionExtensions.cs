@@ -192,6 +192,13 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<ActivityResumeDetector>();
         services.AddHostedService<TaskIdleWatcher>();
 
+        // Evidence (Screenshots + Upload)
+        services.AddSingleton<Agent.Contracts.Services.ILocalEncryptionService, Agent.Infrastructure.Services.LocalEncryptionService>();
+        services.AddSingleton<Agent.Contracts.Providers.IScreenshotCapture, Agent.Infrastructure.Providers.WindowsScreenshotCapture>();
+        services.AddSingleton<Agent.Contracts.Services.IEvidenceUploadQueue, Agent.Infrastructure.Services.EvidenceUploadQueue>();
+        services.AddHostedService<Workers.ScreenshotScheduler>();
+        services.AddHostedService<Workers.EvidenceUploadWorker>();
+
         return services;
     }
 

@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <OutputType>WinExe</OutputType>
     <RootNamespace>TimeTrack.AgentService</RootNamespace>
-    <Version>1.0.34</Version>
+    <Version>1.0.48</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,6 +32,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="appsettings.Development.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="appsettings.Production.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

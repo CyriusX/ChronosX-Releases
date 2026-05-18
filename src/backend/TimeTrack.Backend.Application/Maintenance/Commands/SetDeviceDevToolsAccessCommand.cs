@@ -43,7 +43,8 @@ public sealed class SetDeviceDevToolsAccessCommandHandler
         if (!_currentUser.OrgId.HasValue || !_currentUser.UserId.HasValue)
             throw new UnauthorizedAccessException("User context not available");
 
-        if (_currentUser.OrgId != request.OrgId)
+        // Platform admins can access any organization
+        if (!_currentUser.IsPlatformAdmin && _currentUser.OrgId != request.OrgId)
             throw new ForbiddenException("Access denied to this organization");
 
         var device = await _devices.GetByIdAsync(request.DeviceId, cancellationToken);

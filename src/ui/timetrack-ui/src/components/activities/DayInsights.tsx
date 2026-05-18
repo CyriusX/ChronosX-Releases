@@ -12,6 +12,12 @@ interface DayInsightsProps {
   comparisonText: string;
   productivityComparison: string;
   isToday: boolean;
+  /**
+   * Whether the displayed user is *actively* tracking right now. Drives the "Ao vivo"
+   * badge. Defaults to false so the badge never shows a false positive — callers must
+   * opt in by passing the live signal sourced from heartbeat / local tracking state.
+   */
+  isLive?: boolean;
 }
 
 export function DayInsights({
@@ -19,6 +25,7 @@ export function DayInsights({
   comparisonText,
   productivityComparison,
   isToday,
+  isLive = false,
 }: DayInsightsProps) {
   if (!summary) return null;
 
@@ -59,8 +66,8 @@ export function DayInsights({
         </span>
       </motion.div>
 
-      {/* Live indicator */}
-      {isToday && (
+      {/* Live indicator — only when the displayed user is actively tracking today */}
+      {isToday && isLive && (
         <motion.div
           className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(5,223,114,0.05)] border border-[rgba(5,223,114,0.15)]"
           variants={scaleIn}

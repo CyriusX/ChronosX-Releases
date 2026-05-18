@@ -30,58 +30,50 @@ public sealed class StoreTokensCommandHandler : IpcHandlerBase, IIpcCommandHandl
 
     public async Task<IpcResponse> HandleAsync(IpcRequest request, CancellationToken ct)
     {
-        try
+        var (jwt, refreshToken) = ExtractTokens(request);
+
+        if (string.IsNullOrEmpty(jwt))
         {
-            var (jwt, refreshToken) = ExtractTokens(request);
-
-            if (string.IsNullOrEmpty(jwt))
-            {
-                return ErrorResponse(request.RequestId, "Access token is required");
-            }
-
-            // Activate device on backend (this will store new tokens with device_id)
-            var activationResult = await _deviceActivationService.ActivateDeviceAsync(
-                jwt,
-                refreshToken ?? string.Empty,
-                ct);
-
-            if (!activationResult.IsSuccess)
-            {
-                _logger.LogWarning(
-                    "Device activation failed ({Error}), falling back to storing original tokens so local tracking can start",
-                    activationResult.ErrorMessage);
-
-                // Fallback: store original JWT so UserId is available and tracking can start locally
-                await _tokenStore.StoreTokensAsync(jwt, refreshToken ?? string.Empty, ct);
-            }
-
-            // Refresh user context with new tokens
-            await _userContext.RefreshAsync(ct);
-
-            if (!_userContext.IsAuthenticated)
-            {
-                _logger.LogWarning("Tokens stored but user context not authenticated");
-                return ErrorResponse(request.RequestId, "Failed to authenticate user from token");
-            }
-
-            _logger.LogInformation(
-                "Tokens stored successfully for user {UserId}, device {DeviceId}",
-                _userContext.UserId,
-                activationResult.DeviceId);
-
-            return SuccessResponse(request.RequestId, new
-            {
-                stored = true,
-                userId = _userContext.UserId,
-                deviceId = activationResult.DeviceId,
-                activationStatus = activationResult.IsSuccess ? activationResult.Status : "fallback"
-            });
+            return ErrorResponse(request.RequestId, "Access token is required");
         }
-        catch (Exception ex)
+
+        // Activate device on backend (this will store new tokens with device_id)
+        var activationResult = await _deviceActivationService.ActivateDeviceAsync(
+            jwt,
+            refreshToken ?? string.Empty,
+            ct);
+
+        if (!activationResult.IsSuccess)
         {
-            _logger.LogError(ex, "Error storing tokens");
-            return UnknownErrorResponse(request.RequestId, ex);
+            _logger.LogWarning(
+                "Device activation failed ({Error}), falling back to storing original tokens so local tracking can start",
+                activationResult.ErrorMessage);
+
+            // Fallback: store original JWT so UserId is available and tracking can start locally
+            await _tokenStore.StoreTokensAsync(jwt, refreshToken ?? string.Empty, ct);
         }
+
+        // Refresh user context with new tokens
+        await _userContext.RefreshAsync(ct);
+
+        if (!_userContext.IsAuthenticated)
+        {
+            _logger.LogWarning("Tokens stored but user context not authenticated");
+            return ErrorResponse(request.RequestId, "Failed to authenticate user from token");
+        }
+
+        _logger.LogInformation(
+            "Tokens stored successfully for user {UserId}, device {DeviceId}",
+            _userContext.UserId,
+            activationResult.DeviceId);
+
+        return SuccessResponse(request.RequestId, new
+        {
+            stored = true,
+            userId = _userContext.UserId,
+            deviceId = activationResult.DeviceId,
+            activationStatus = activationResult.IsSuccess ? activationResult.Status : "fallback"
+        });
     }
 
     private static (string? Jwt, string? RefreshToken) ExtractTokens(IpcRequest request)

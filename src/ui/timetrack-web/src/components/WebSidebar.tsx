@@ -29,9 +29,9 @@ export function WebSidebar() {
   const setAlerts = useHealthAlertStore((state) => state.setAlerts);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Poll device list every 60s (Admin only) to keep the bell in sync on any page
+  // Poll device list every 60s (SysAdmin only) to keep the bell in sync on any page
   useEffect(() => {
-    if (user?.role !== 'Admin' || !user?.orgId) return;
+    if (!user?.isPlatformAdmin || !user?.orgId) return;
     const orgId = user.orgId;
     const fetchAlerts = async () => {
       try {
@@ -85,6 +85,8 @@ export function WebSidebar() {
     { icon: <Cog className="w-[16px] h-[16px]" />, label: t('webSidebar.settings'), path: '/settings' },
     ...(user?.role === 'Admin' ? [
       { icon: <CreditCard className="w-[16px] h-[16px]" />, label: t('webSidebar.billing'), path: '/billing' },
+    ] : []),
+    ...(user?.isPlatformAdmin ? [
       { icon: <Wrench className="w-[16px] h-[16px]" />, label: t('webSidebar.maintenance'), path: '/maintenance' },
     ] : []),
   ];
@@ -134,8 +136,8 @@ export function WebSidebar() {
         ))}
       </nav>
 
-      {/* Notification Bell — Admin only */}
-      {user?.role === 'Admin' && (
+      {/* Notification Bell — SysAdmin only */}
+      {user?.isPlatformAdmin && (
         <div className="px-3 pb-2 flex-shrink-0">
           <motion.button
             onClick={() => setNotifOpen(!notifOpen)}

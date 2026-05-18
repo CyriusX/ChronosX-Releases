@@ -90,6 +90,12 @@ public class ExceptionHandlingMiddleware
                 errorDetails = $"UnauthorizedAccessException: {ex.Message}";
                 break;
 
+            case JsonException ex:
+                statusCode = (int)HttpStatusCode.BadRequest;
+                response = new ErrorResponse("invalid_json", "Failed to parse AI response data", traceId);
+                errorDetails = $"JsonException: {ex.Message}";
+                break;
+
             case SubscriptionRequiredException ex:
                 statusCode = (int)HttpStatusCode.PaymentRequired;
                 response = new ErrorResponse(ex.Code, ex.Message, traceId);

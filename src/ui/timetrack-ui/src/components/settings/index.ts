@@ -41,3 +41,7 @@ export { AppCategoryOverrideModal } from './AppCategoryOverrideModal';
 export { AddAppCategoryModal } from './AddAppCategoryModal';
 export { useAppCategories } from './useAppCategories';
 export type { OverrideRequest } from './useAppCategories';
+
+// AI Classifications
+export { AiClassificationsSection } from './AiClassificationsSection';
+export { useAiClassifications } from './useAiClassifications';

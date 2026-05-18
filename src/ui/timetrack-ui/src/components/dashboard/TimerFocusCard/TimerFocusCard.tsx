@@ -48,16 +48,6 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
     const res = await sendCommand('startTracking');
     if (!res.success) notify.error('Failed to start tracking', res.error);
   };
-  const handleTogglePause = async () => {
-    togglePause();
-    const res = await sendCommand(isPaused ? 'resumeTracking' : 'pauseTracking');
-    if (!res.success) notify.error('Failed to update tracking', res.error);
-  };
-  const handleStop = async () => {
-    stop();
-    const res = await sendCommand('pauseTracking');
-    if (!res.success) notify.error('Failed to pause tracking', res.error);
-  };
   const setSelectedProject = useTimerStore(s => s.setSelectedProject);
 
   // --- Local UI state ---
@@ -209,14 +199,14 @@ export function TimerFocusCard({ summary: _summary }: TimerFocusCardProps) {
             ) : (
               <>
                 <button
-                  onClick={handleTogglePause}
+                  onClick={togglePause}
                   className="flex items-center justify-center gap-1 flex-1 py-2 rounded-full bg-gradient-to-r from-[#05df72] to-[#00b8db] text-[11px] font-medium text-white hover:opacity-90 transition-opacity shadow-[0_3px_12px_rgba(5,223,114,0.2)]"
                 >
                   {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
                   {isPaused ? t('timer.resume') : t('timer.pause')}
                 </button>
                 <button
-                  onClick={handleStop}
+                  onClick={stop}
                   className="flex items-center justify-center gap-1 px-4 py-2 rounded-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[11px] font-medium text-[rgba(245,247,251,0.6)] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
                 >
                   <Square className="w-3 h-3" /> {t('timer.finish')}

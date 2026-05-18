@@ -151,4 +151,85 @@ public sealed class ResendEmailService : IEmailService
             _logger.LogError(ex, "Error sending email to {To}", to);
         }
     }
+
+    public async Task SendWeeklyReportEmailAsync(
+        string email,
+        string displayName,
+        string htmlReport,
+        string weekPeriod,
+        CancellationToken cancellationToken = default)
+    {
+        var subject = $"Seu Relatorio Semanal — {weekPeriod}";
+        var dashboardUrl = $"{_frontendBaseUrl}/reports";
+
+        var formattedReport = FormatReportForEmail(htmlReport);
+
+        var htmlBody = $@"
+<!DOCTYPE html>
+<html>
+<head><meta charset=""utf-8""></head>
+<body style=""font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa; padding: 20px;"">
+    <div style=""background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);"">
+        <!-- Header -->
+        <div style=""background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 32px 24px;"">
+            <h1 style=""color: #ffffff; margin: 0; font-size: 22px; font-weight: 600;"">Relatorio Semanal</h1>
+            <p style=""color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;"">Ola, {displayName}! Aqui esta seu resumo da semana.</p>
+            <p style=""color: rgba(255,255,255,0.7); margin: 4px 0 0; font-size: 12px;"">{weekPeriod}</p>
+        </div>
+
+        <!-- Report Content -->
+        <div style=""padding: 24px;"">
+            {formattedReport}
+        </div>
+
+        <!-- CTA -->
+        <div style=""padding: 0 24px 24px; text-align: center;"">
+            <a href=""{dashboardUrl}"" style=""display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 12px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;"">
+                Ver Dashboard Completo
+            </a>
+        </div>
+
+        <!-- Footer -->
+        <div style=""background-color: #f1f3f5; padding: 16px 24px; border-top: 1px solid #e9ecef;"">
+            <p style=""color: #868e96; font-size: 11px; margin: 0; text-align: center;"">
+                Este relatorio foi gerado automaticamente pelo TimeTrack.
+                <a href=""{_frontendBaseUrl}/settings"" style=""color: #8b5cf6;"">Configurar preferencias</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>";
+
+        await SendEmailAsync(email, subject, htmlBody, cancellationToken);
+    }
+
+    private static string FormatReportForEmail(string rawReport)
+    {
+        if (string.IsNullOrWhiteSpace(rawReport))
+            return "<p style='color: #868e96;'>Relatorio indisponivel esta semana.</p>";
+
+        var lines = rawReport.Split('\n');
+        var html = new System.Text.StringBuilder();
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) continue;
+
+            if (trimmed.StartsWith("## "))
+            {
+                var title = trimmed[3..].Trim();
+                html.AppendLine($@"
+            <div style=""margin-top: 24px; margin-bottom: 12px;"">
+                <h2 style=""color: #1c1f2e; font-size: 16px; font-weight: 600; margin: 0; padding-bottom: 8px; border-bottom: 2px solid #8b5cf6;"">{title}</h2>
+            </div>");
+            }
+            else
+            {
+                html.AppendLine($"            <p style=\"color: #495057; font-size: 14px; line-height: 1.6; margin: 8px 0;\">{trimmed}</p>");
+            }
+        }
+
+        return html.ToString();
+    }
 }

@@ -1,5 +1,5 @@
 /**
- * Maintenance — Admin-only page for monitoring agent machine metrics.
+ * Maintenance — SysAdmin-only page for monitoring agent machine metrics.
  *
  * Displays CPU, Memory, and Disk usage for selected devices.
  * Polls every 10s when a device is selected.
@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Monitor, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe, Trash2, User, AlertTriangle, Download } from 'lucide-react';
+import { Monitor, RefreshCw, Cpu, HardDrive, MemoryStick, ShieldAlert, ScrollText, ChevronRight, Power, Play, Square, Zap, Bell, X, Clock, Wifi, Globe, Trash2, User, AlertTriangle, Download, Building2, ChevronDown } from 'lucide-react';
 import { WebSidebar } from '../components/WebSidebar';
 import { useAuthStore } from '../stores/authStore';
 import { useHealthAlertStore } from '../stores/healthAlertStore';
@@ -25,6 +25,7 @@ import {
   clearAllEvents,
   getHealthSummary,
   deleteDevice,
+  listAllOrganizations,
   type DeviceListItem,
   type DeviceMetricsResponse,
   type MetricsHistoryPoint,
@@ -33,7 +34,9 @@ import {
   type CommandHistoryItem,
   type HealthSummaryResponse,
   type HealthAlertItem,
+  type OrganizationListItem,
 } from '../services/maintenanceApi';
+import { getPlatformHealth, listPlatformEvents, type PlatformEventLogDto, type PlatformHealthDto } from '../services/platformEventsApi';
 import { getMaintenanceLogPrefs } from './Settings';
 import { LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
@@ -397,13 +400,19 @@ function MetricCard({
 
 export default function Maintenance() {
   const user = useAuthStore((state) => state.user);
-  const { isAdmin } = usePermissions();
+  const { isPlatformAdmin } = usePermissions();
   const [searchParams] = useSearchParams();
   const setGlobalAlerts = useHealthAlertStore((state) => state.setAlerts);
 
+  const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [orgsLoading, setOrgsLoading] = useState(true);
   const [devices, setDevices] = useState<DeviceListItem[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(true);
   const [healthSummary, setHealthSummary] = useState<HealthSummaryResponse | null>(null);
+
+  // Helper to get the effective orgId to use
+  const effectiveOrgId = selectedOrgId ?? user?.orgId ?? null;
   // Track which device IDs were dismissed rather than a single boolean, so the banner
   // re-appears automatically when new devices enter the alert list or existing ones recover
   // and then break again.
@@ -426,20 +435,45 @@ export default function Maintenance() {
   const [confirmForceUpdate, setConfirmForceUpdate] = useState(false);
   const [deletingDeviceId, setDeletingDeviceId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [platformHealth, setPlatformHealth] = useState<PlatformHealthDto | null>(null);
+  const [platformEvents, setPlatformEvents] = useState<PlatformEventLogDto[]>([]);
+  const [platformLoading, setPlatformLoading] = useState(false);
+  const [showPlatformModal, setShowPlatformModal] = useState(false);
+  const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Admin guard
-  if (!isAdmin) {
+  // Platform Admin guard - only sysAdmin can access maintenance page
+  if (!isPlatformAdmin) {
     return <Navigate to="/" replace />;
   }
 
+  // Fetch all organizations (platform admin only)
+  const fetchOrganizations = useCallback(async () => {
+    if (!isPlatformAdmin) return;
+    setOrgsLoading(true);
+    try {
+      const data = await listAllOrganizations();
+      setOrganizations(data.organizations);
+      // Initialize with user's org if available, otherwise first org
+      if (user?.orgId && data.organizations.some(o => o.id === user.orgId)) {
+        setSelectedOrgId(user.orgId);
+      } else if (data.organizations.length > 0) {
+        setSelectedOrgId(data.organizations[0].id);
+      }
+    } catch (err) {
+      console.error('[Maintenance] Error fetching organizations:', err);
+    } finally {
+      setOrgsLoading(false);
+    }
+  }, [isPlatformAdmin, user?.orgId]);
+
   // Fetch devices + health summary
   const fetchDevices = useCallback(async () => {
-    if (!user?.orgId) return;
+    if (!effectiveOrgId) return;
     try {
       const [devData, summary] = await Promise.all([
-        listOrgDevices(user.orgId),
-        getHealthSummary(user.orgId).catch(() => null),
+        listOrgDevices(effectiveOrgId),
+        getHealthSummary(effectiveOrgId).catch(() => null),
       ]);
       const sorted = [...devData.devices].sort((a, b) => deviceSortKey(a) - deviceSortKey(b));
       setDevices(sorted);
@@ -480,17 +514,42 @@ export default function Maintenance() {
     } finally {
       setDevicesLoading(false);
     }
-  }, [user?.orgId, setGlobalAlerts]);
+  }, [effectiveOrgId, setGlobalAlerts]);
+
+  const fetchPlatform = useCallback(async () => {
+    setPlatformLoading(true);
+    try {
+      const [health, events] = await Promise.all([
+        getPlatformHealth().catch(() => null),
+        listPlatformEvents({ limit: 50 }).catch(() => []),
+      ]);
+
+      if (health) setPlatformHealth(health);
+      setPlatformEvents(events);
+    } catch (err) {
+      console.error('[Maintenance] Error fetching platform alerts:', err);
+    } finally {
+      setPlatformLoading(false);
+    }
+  }, []);
 
   // Initial load + poll device list every 30s
   const devicePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
-    fetchDevices();
+    fetchOrganizations();
+    fetchPlatform();
     devicePollRef.current = setInterval(fetchDevices, 30_000);
     return () => {
       if (devicePollRef.current) { clearInterval(devicePollRef.current); devicePollRef.current = null; }
     };
-  }, [fetchDevices]);
+  }, [fetchOrganizations, fetchDevices, fetchPlatform]);
+
+  // Fetch devices when selected org changes
+  useEffect(() => {
+    if (selectedOrgId) {
+      fetchDevices();
+    }
+  }, [selectedOrgId, fetchDevices]);
 
   // Prune dismissed IDs when devices recover — ensures the banner re-appears
   // if a previously-dismissed device breaks again after recovering.
@@ -505,10 +564,10 @@ export default function Maintenance() {
 
   // Fetch metrics for selected device
   const fetchMetrics = useCallback(async (deviceId: string, isInitial = false) => {
-    if (!user?.orgId) return;
+    if (!effectiveOrgId) return;
     if (isInitial) { setMetricsLoading(true); setMetricsError(null); setMetrics(null); }
     try {
-      const data = await getDeviceMetrics(user.orgId, deviceId);
+      const data = await getDeviceMetrics(effectiveOrgId, deviceId);
       setMetrics(data);
       setMetricsError(null);
     } catch (err) {
@@ -519,17 +578,17 @@ export default function Maintenance() {
     } finally {
       if (isInitial) setMetricsLoading(false);
     }
-  }, [user?.orgId]);
+  }, [effectiveOrgId]);
 
   // Fetch events for selected device — respects maintenance log preferences from Settings
   const fetchEvents = useCallback(async (deviceId: string, category?: string | null) => {
-    if (!user?.orgId) return;
+    if (!effectiveOrgId) return;
     try {
       const prefs = getMaintenanceLogPrefs();
       const effectiveCategory = category ?? (prefs.categories.length === 1 ? prefs.categories[0] : undefined);
       const effectiveSeverity = prefs.severities.length === 1 ? prefs.severities[0] : undefined;
       const data = await getDeviceEvents(
-        user.orgId, deviceId,
+        effectiveOrgId, deviceId,
         effectiveCategory,
         effectiveSeverity,
         prefs.limit
@@ -538,27 +597,27 @@ export default function Maintenance() {
     } catch {
       // Non-critical — don't block UI
     }
-  }, [user?.orgId]);
+  }, [effectiveOrgId]);
 
   // Fetch device info + command history
   const fetchDeviceInfo = useCallback(async (deviceId: string) => {
-    if (!user?.orgId) return;
+    if (!effectiveOrgId) return;
     try {
       const [info, history] = await Promise.all([
-        getDeviceInfo(user.orgId, deviceId),
-        getCommandHistory(user.orgId, deviceId),
+        getDeviceInfo(effectiveOrgId, deviceId),
+        getCommandHistory(effectiveOrgId, deviceId),
       ]);
       setDeviceInfo(info);
       setCommandHistory(history.commands);
     } catch { /* non-critical */ }
-  }, [user?.orgId]);
+  }, [effectiveOrgId]);
 
   // Send remote command
   const handleSendCommand = useCallback(async (commandType: string, payload?: object) => {
-    if (!user?.orgId || !selectedDeviceId) return;
+    if (!effectiveOrgId || !selectedDeviceId) return;
     setSendingCommand(commandType);
     try {
-      await sendRemoteCommand(user.orgId, selectedDeviceId, commandType, payload);
+      await sendRemoteCommand(effectiveOrgId, selectedDeviceId, commandType, payload);
       // Refresh command history immediately
       fetchDeviceInfo(selectedDeviceId);
     } catch (err) {
@@ -570,31 +629,31 @@ export default function Maintenance() {
       setNotifTitle('');
       setNotifBody('');
     }
-  }, [user?.orgId, selectedDeviceId, fetchDeviceInfo]);
+  }, [effectiveOrgId, selectedDeviceId, fetchDeviceInfo]);
 
   const handleToggleDevTools = useCallback(async () => {
-    if (!user?.orgId || !selectedDeviceId || !deviceInfo) return;
+    if (!effectiveOrgId || !selectedDeviceId || !deviceInfo) return;
     const until = deviceInfo.devToolsEnabledUntilUtc;
     const currentlyEnabled = !!until && new Date(until).getTime() > Date.now();
     const nextEnabled = !currentlyEnabled;
 
     setSettingDevTools(true);
     try {
-      await setDeviceDevToolsAccess(user.orgId, selectedDeviceId, nextEnabled);
+      await setDeviceDevToolsAccess(effectiveOrgId, selectedDeviceId, nextEnabled);
       fetchDeviceInfo(selectedDeviceId);
     } catch (err) {
       console.error('Failed to set DevTools access:', err);
     } finally {
       setSettingDevTools(false);
     }
-  }, [user?.orgId, selectedDeviceId, deviceInfo, fetchDeviceInfo]);
+  }, [effectiveOrgId, selectedDeviceId, deviceInfo, fetchDeviceInfo]);
 
   // Delete device
   const handleDeleteDevice = useCallback(async (deviceId: string) => {
-    if (!user?.orgId) return;
+    if (!effectiveOrgId) return;
     setDeletingDeviceId(deviceId);
     try {
-      await deleteDevice(user.orgId, deviceId);
+      await deleteDevice(effectiveOrgId, deviceId);
       if (selectedDeviceId === deviceId) setSelectedDeviceId(null);
       setConfirmDeleteId(null);
       fetchDevices();
@@ -603,7 +662,7 @@ export default function Maintenance() {
     } finally {
       setDeletingDeviceId(null);
     }
-  }, [user?.orgId, selectedDeviceId, fetchDevices]);
+  }, [effectiveOrgId, selectedDeviceId, fetchDevices]);
 
   // Poll metrics on device selection
   useEffect(() => {
@@ -671,16 +730,113 @@ export default function Maintenance() {
                 layoutId="web-maintenance-tab"
               />
               <p className="text-[11px] sm:text-[12px] text-[rgba(245,247,251,0.4)] mt-1">
-                Monitoramento de maquinas · {user?.orgName}
+                Monitoramento de maquinas
               </p>
+
+              {/* Organization Selector */}
+              {isPlatformAdmin && organizations.length > 0 && (
+                <div className="relative mt-2">
+                  <button
+                    onClick={() => setShowOrgDropdown(!showOrgDropdown)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(139,92,246,0.1)] border border-[rgba(139,92,246,0.3)] hover:bg-[rgba(139,92,246,0.15)] transition-colors"
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-[#8B5CF6]" />
+                    <span className="text-[11px] text-[#c4b5fd] font-medium">
+                      {organizations.find(o => o.id === selectedOrgId)?.name ?? user?.orgName ?? 'Selecionar organização'}
+                    </span>
+                    <ChevronDown className={`w-3 h-3 text-[#8B5CF6] transition-transform ${showOrgDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {showOrgDropdown && (
+                      <>
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="fixed inset-0 z-10"
+                          onClick={() => setShowOrgDropdown(false)}
+                        />
+                        <motion.div
+                          initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute left-0 top-full mt-2 w-56 bg-[#1a1d2e] border border-[rgba(255,255,255,0.1)] rounded-xl shadow-2xl z-20 overflow-hidden"
+                        >
+                          <div className="max-h-64 overflow-y-auto">
+                            {orgsLoading ? (
+                              <div className="flex items-center justify-center py-4">
+                                <div className="w-4 h-4 border-2 border-[#8B5CF6] border-t-transparent rounded-full animate-spin" />
+                              </div>
+                            ) : (
+                              organizations.map((org) => {
+                                const isSelected = org.id === selectedOrgId;
+                                return (
+                                  <button
+                                    key={org.id}
+                                    onClick={() => {
+                                      setSelectedOrgId(org.id);
+                                      setShowOrgDropdown(false);
+                                      // Clear device selection when switching orgs
+                                      setSelectedDeviceId(null);
+                                      setMetrics(null);
+                                      setDeviceInfo(null);
+                                      setCommandHistory([]);
+                                      setEvents([]);
+                                    }}
+                                    className={`w-full px-3 py-2.5 flex items-start gap-2 hover:bg-[rgba(255,255,255,0.05)] transition-colors ${
+                                      isSelected ? 'bg-[rgba(139,92,246,0.1)]' : ''
+                                    }`}
+                                  >
+                                    <Building2 className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${isSelected ? 'text-[#8B5CF6]' : 'text-[rgba(245,247,251,0.4)]'}`} />
+                                    <div className="flex-1 min-w-0 text-left">
+                                      <p className={`text-[11px] font-medium truncate ${isSelected ? 'text-[#c4b5fd]' : 'text-[rgba(245,247,251,0.8)]'}`}>
+                                        {org.name}
+                                      </p>
+                                      <p className="text-[9px] text-[rgba(245,247,251,0.4)]">
+                                        {org.userCount} {org.userCount === 1 ? 'usuário' : 'usuários'} · {org.deviceCount} {org.deviceCount === 1 ? 'dispositivo' : 'dispositivos'}
+                                      </p>
+                                    </div>
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </div>
-            <motion.button
-              onClick={() => { fetchDevices(); setDismissedAlertIds(new Set()); if (selectedDeviceId) fetchMetrics(selectedDeviceId, true); }}
-              whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-              className="w-9 h-9 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 text-[rgba(245,247,251,0.6)] ${metricsLoading ? 'animate-spin' : ''}`} />
-            </motion.button>
+            <div className="flex items-center gap-2">
+              <motion.button
+                onClick={() => setShowPlatformModal(true)}
+                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                className="h-9 px-3 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center gap-2 hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+              >
+                <Globe className="w-4 h-4 text-[rgba(245,247,251,0.6)]" />
+                <span className="text-[11px] text-[rgba(245,247,251,0.7)] font-medium">Platform</span>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                    platformHealth?.status === 'healthy'
+                      ? 'text-[#05df72] border-[rgba(5,223,114,0.3)] bg-[rgba(5,223,114,0.08)]'
+                      : 'text-[#f87171] border-[rgba(248,113,113,0.3)] bg-[rgba(248,113,113,0.08)]'
+                  }`}
+                >
+                  {platformHealth?.status ?? 'unknown'}
+                </span>
+              </motion.button>
+
+              <motion.button
+                onClick={() => { fetchDevices(); fetchPlatform(); setDismissedAlertIds(new Set()); if (selectedDeviceId) fetchMetrics(selectedDeviceId, true); }}
+                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                className="w-9 h-9 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 text-[rgba(245,247,251,0.6)] ${(metricsLoading || platformLoading) ? 'animate-spin' : ''}`} />
+              </motion.button>
+            </div>
           </header>
         </div>
 
@@ -1210,8 +1366,8 @@ export default function Maintenance() {
                   <ClearLogsButton
                     label="Limpar usuario"
                     onClear={async () => {
-                      if (!user?.orgId || !selectedDeviceId) return;
-                      await clearDeviceEvents(user.orgId, selectedDeviceId);
+                      if (!effectiveOrgId || !selectedDeviceId) return;
+                      await clearDeviceEvents(effectiveOrgId, selectedDeviceId);
                       setEvents([]);
                     }}
                   />
@@ -1219,8 +1375,8 @@ export default function Maintenance() {
                     label="Limpar todos"
                     variant="danger"
                     onClear={async () => {
-                      if (!user?.orgId) return;
-                      await clearAllEvents(user.orgId);
+                      if (!effectiveOrgId) return;
+                      await clearAllEvents(effectiveOrgId);
                       setEvents([]);
                     }}
                   />
@@ -1308,6 +1464,102 @@ export default function Maintenance() {
           )}
           </div>{/* end right detail panel */}
         </div>{/* end two-column body */}
+
+        {/* Platform Alerts Modal */}
+        <AnimatePresence>
+          {showPlatformModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-[rgba(0,0,0,0.6)] z-50 flex items-center justify-center p-4"
+              onClick={() => setShowPlatformModal(false)}
+            >
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 20, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                className="w-full max-w-2xl bg-gradient-to-br from-[rgba(26,29,46,0.98)] to-[rgba(17,19,28,0.98)] border border-[rgba(255,255,255,0.08)] rounded-2xl shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(255,255,255,0.06)]">
+                  <div>
+                    <h3 className="text-[14px] font-semibold text-[#f5f7fb]">Platform Alerts</h3>
+                    <p className="text-[11px] text-[rgba(245,247,251,0.4)] mt-0.5">
+                      API-level health + critical transitions
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowPlatformModal(false)}
+                    className="text-[rgba(245,247,251,0.4)] hover:text-[rgba(245,247,251,0.8)] transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="p-5 space-y-4 max-h-[70vh] overflow-auto">
+                  <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[12px] text-[rgba(245,247,251,0.7)] font-medium">Platform health</div>
+                      <button
+                        onClick={fetchPlatform}
+                        disabled={platformLoading}
+                        className="text-[12px] text-[#8B5CF6] hover:underline disabled:opacity-50"
+                      >
+                        {platformLoading ? 'Loading…' : 'Refresh'}
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-[13px] text-[rgba(245,247,251,0.85)]">Status:</span>
+                      <span className={`text-[13px] font-semibold ${
+                        platformHealth?.status === 'healthy' ? 'text-[#05df72]' : 'text-[#f87171]'
+                      }`}>
+                        {platformHealth?.status ?? 'unknown'}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-[11px] text-[rgba(245,247,251,0.45)]">
+                      Last changed: {platformHealth?.lastChangedAtUtc ? new Date(platformHealth.lastChangedAtUtc).toLocaleString() : '—'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-[12px] text-[rgba(245,247,251,0.7)] font-medium">Recent platform events</div>
+                    {platformEvents.length === 0 ? (
+                      <div className="text-[12px] text-[rgba(245,247,251,0.4)]">No events.</div>
+                    ) : (
+                      platformEvents.map((e) => (
+                        <div
+                          key={e.id}
+                          className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-[12px] text-[rgba(245,247,251,0.85)] font-semibold truncate">
+                                {e.eventType} · {e.severity}
+                              </div>
+                              <div className="text-[12px] text-[rgba(245,247,251,0.65)] mt-1">
+                                {e.message}
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-[rgba(245,247,251,0.35)] flex-shrink-0">
+                              {new Date(e.timestampUtc).toLocaleString()}
+                            </div>
+                          </div>
+                          {e.metadataJson && (
+                            <pre className="mt-3 text-[11px] text-[rgba(245,247,251,0.55)] bg-[rgba(0,0,0,0.25)] border border-[rgba(255,255,255,0.06)] rounded-lg p-3 overflow-auto">
+{e.metadataJson}
+                            </pre>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );

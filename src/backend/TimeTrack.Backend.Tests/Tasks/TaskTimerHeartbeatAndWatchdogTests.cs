@@ -33,6 +33,19 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
 
         await using var db = new TimeTrackDbContext(options, ctx);
 
+        var user = User.Create(
+            orgId,
+            "test@example.com",
+            "password-hash",
+            "Test User",
+            UserRole.Admin);
+
+        // Use reflection to set the Id to match the deviceId's userId
+        var idProperty = typeof(User).GetProperty("Id");
+        idProperty?.SetValue(user, userId);
+
+        db.Users.Add(user);
+
         var device = Device.Create(
             deviceId,
             orgId,
@@ -49,7 +62,11 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
         var subscriptionServiceMock = new Mock<ISubscriptionService>();
         subscriptionServiceMock
             .Setup(s => s.CheckSubscriptionAccessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new SubscriptionCheckResult { Status = "active", GracePeriodEnd = null });
+            .ReturnsAsync(new SubscriptionCheckResult
+            {
+                HasAccess = true,
+                Status = "active"
+            });
 
         var handler = new HeartbeatCommandHandler(
             new DeviceRepository(db),

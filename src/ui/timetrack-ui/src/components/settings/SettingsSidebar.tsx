@@ -1,4 +1,4 @@
-import { User, Settings2, Bell, Activity, Users, Building2, Info, Cpu, EyeOff, Zap, Wrench, CreditCard } from 'lucide-react';
+import { User, Settings2, Bell, Activity, Users, Building2, Info, Cpu, EyeOff, Zap, Wrench, CreditCard, Brain, Mail } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { SPRING } from '../../lib/animation';
@@ -20,6 +20,8 @@ const SECTIONS: SettingsSectionDef[] = [
   { id: 'integrations', label: 'settings.sidebar.integrations', icon: Zap, group: 'personal' },
   { id: 'team', label: 'settings.sidebar.team', icon: Users, group: 'management', requiresPermission: 'canManageTeam' },
   { id: 'organization', label: 'settings.sidebar.organization', icon: Building2, group: 'management', requiresPermission: 'canViewOrgPolicies' },
+  { id: 'weekly-report', label: 'settings.sidebar.weeklyReport', icon: Mail, group: 'management', requiresPermission: 'canViewOrgPolicies' },
+  { id: 'ai-classifications', label: 'settings.sidebar.aiClassifications', icon: Brain, group: 'management', requiresPermission: 'canManageTeam' },
   { id: 'billing', label: 'settings.sidebar.billing', icon: CreditCard, group: 'management' },
   { id: 'maintenance', label: 'settings.sidebar.maintenance', icon: Wrench, group: 'system' },
   { id: 'agent-status', label: 'settings.sidebar.agentStatus', icon: Cpu, group: 'system' },

@@ -25,7 +25,8 @@ public sealed class GetDeviceInfoQueryHandler
         GetDeviceInfoQuery request,
         CancellationToken cancellationToken)
     {
-        if (_currentUser.OrgId != request.OrgId)
+        // Platform admins can access any organization
+        if (!_currentUser.IsPlatformAdmin && _currentUser.OrgId != request.OrgId)
             return null;
 
         var device = await _deviceRepository.GetByIdAsync(request.DeviceId, cancellationToken);

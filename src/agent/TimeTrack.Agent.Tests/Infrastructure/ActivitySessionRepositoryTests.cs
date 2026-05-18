@@ -128,3 +128,4 @@ public sealed class ActivitySessionRepositoryTests
             windowTitle: "title");
     }
 }
+

@@ -7,7 +7,7 @@
   "targets": {
     ".NETCoreApp,Version=v10.0": {},
     ".NETCoreApp,Version=v10.0/win-x64": {
-      "TimeTrack.AgentService/1.0.19": {
+      "TimeTrack.AgentService/1.0.48": {
         "dependencies": {
           "Microsoft.Extensions.Configuration.CommandLine": "8.0.0",
           "Microsoft.Extensions.Configuration.EnvironmentVariables": "8.0.0",
@@ -17,9 +17,9 @@
           "Microsoft.Extensions.Hosting.WindowsServices": "8.0.0",
           "Microsoft.Extensions.Logging.Console": "8.0.0",
           "Microsoft.Extensions.Logging.EventLog": "8.0.0",
-          "TimeTrack.Agent.Application": "1.0.19",
-          "TimeTrack.Agent.Contracts": "1.0.19",
-          "TimeTrack.Agent.Infrastructure": "1.0.19",
+          "TimeTrack.Agent.Application": "1.0.0",
+          "TimeTrack.Agent.Contracts": "1.0.0",
+          "TimeTrack.Agent.Infrastructure": "1.0.0",
           "runtimepack.Microsoft.NETCore.App.Runtime.win-x64": "10.0.3"
         },
         "runtime": {
@@ -1200,6 +1200,14 @@
           }
         }
       },
+      "Microsoft.Win32.SystemEvents/10.0.7": {
+        "runtime": {
+          "runtimes/win/lib/net10.0/Microsoft.Win32.SystemEvents.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.726.21808"
+          }
+        }
+      },
       "SQLitePCLRaw.bundle_e_sqlite3/2.1.6": {
         "dependencies": {
           "SQLitePCLRaw.lib.e_sqlite3": "2.1.6",
@@ -1250,6 +1258,25 @@
           }
         }
       },
+      "System.Drawing.Common/10.0.7": {
+        "dependencies": {
+          "Microsoft.Win32.SystemEvents": "10.0.7"
+        },
+        "runtime": {
+          "lib/net10.0/System.Drawing.Common.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.726.21808"
+          },
+          "lib/net10.0/System.Private.Windows.Core.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.726.21808"
+          },
+          "lib/net10.0/System.Private.Windows.GdiPlus.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.726.21808"
+          }
+        }
+      },
       "System.Security.Cryptography.ProtectedData/8.0.0": {
         "runtime": {
           "lib/net8.0/System.Security.Cryptography.ProtectedData.dll": {
@@ -1269,40 +1296,40 @@
           }
         }
       },
-      "TimeTrack.Agent.Application/1.0.19": {
+      "TimeTrack.Agent.Application/1.0.0": {
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.2",
           "Microsoft.Extensions.Logging.Abstractions": "8.0.2",
-          "TimeTrack.Agent.Contracts": "1.0.19",
-          "TimeTrack.Agent.Domain": "1.0.19"
+          "TimeTrack.Agent.Contracts": "1.0.0",
+          "TimeTrack.Agent.Domain": "1.0.0"
         },
         "runtime": {
           "TimeTrack.Agent.Application.dll": {
-            "assemblyVersion": "1.0.19.0",
-            "fileVersion": "1.0.19.0"
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
           }
         }
       },
-      "TimeTrack.Agent.Contracts/1.0.19": {
+      "TimeTrack.Agent.Contracts/1.0.0": {
         "dependencies": {
-          "TimeTrack.Agent.Domain": "1.0.19"
+          "TimeTrack.Agent.Domain": "1.0.0"
         },
         "runtime": {
           "TimeTrack.Agent.Contracts.dll": {
-            "assemblyVersion": "1.0.19.0",
-            "fileVersion": "1.0.19.0"
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
           }
         }
       },
-      "TimeTrack.Agent.Domain/1.0.19": {
+      "TimeTrack.Agent.Domain/1.0.0": {
         "runtime": {
           "TimeTrack.Agent.Domain.dll": {
-            "assemblyVersion": "1.0.19.0",
-            "fileVersion": "1.0.19.0"
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
           }
         }
       },
-      "TimeTrack.Agent.Infrastructure/1.0.19": {
+      "TimeTrack.Agent.Infrastructure/1.0.0": {
         "dependencies": {
           "Dapper": "2.1.35",
           "Microsoft.Data.Sqlite": "8.0.11",
@@ -1311,21 +1338,22 @@
           "Microsoft.Extensions.Logging.Abstractions": "8.0.2",
           "Microsoft.Extensions.Options": "8.0.2",
           "System.Diagnostics.EventLog": "8.0.0",
+          "System.Drawing.Common": "10.0.7",
           "System.Security.Cryptography.ProtectedData": "8.0.0",
-          "TimeTrack.Agent.Contracts": "1.0.19",
-          "TimeTrack.Agent.Domain": "1.0.19"
+          "TimeTrack.Agent.Contracts": "1.0.0",
+          "TimeTrack.Agent.Domain": "1.0.0"
         },
         "runtime": {
           "TimeTrack.Agent.Infrastructure.dll": {
-            "assemblyVersion": "1.0.19.0",
-            "fileVersion": "1.0.19.0"
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
           }
         }
       }
     }
   },
   "libraries": {
-    "TimeTrack.AgentService/1.0.19": {
+    "TimeTrack.AgentService/1.0.48": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
@@ -1573,6 +1601,13 @@
       "path": "microsoft.extensions.primitives/8.0.0",
       "hashPath": "microsoft.extensions.primitives.8.0.0.nupkg.sha512"
     },
+    "Microsoft.Win32.SystemEvents/10.0.7": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-yRy88RjP9RlFxiaxwkGSh5e7lhSRCUaSwYW323ssK85XTm13b3y65Yp8HuURXNnxGQGo9L4Bz19aQAbrfTyJqA==",
+      "path": "microsoft.win32.systemevents/10.0.7",
+      "hashPath": "microsoft.win32.systemevents.10.0.7.nupkg.sha512"
+    },
     "SQLitePCLRaw.bundle_e_sqlite3/2.1.6": {
       "type": "package",
       "serviceable": true,
@@ -1608,6 +1643,13 @@
       "path": "system.diagnostics.eventlog/8.0.0",
       "hashPath": "system.diagnostics.eventlog.8.0.0.nupkg.sha512"
     },
+    "System.Drawing.Common/10.0.7": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-t0dLoUJOFMMyHqwpDuTKVlKVry92yUhf7qwihVT2MUrg3y/ZOHKpij5nb+jb20UT3vc7UlQWQlNmV9NQ5c7aSA==",
+      "path": "system.drawing.common/10.0.7",
+      "hashPath": "system.drawing.common.10.0.7.nupkg.sha512"
+    },
     "System.Security.Cryptography.ProtectedData/8.0.0": {
       "type": "package",
       "serviceable": true,
@@ -1622,22 +1664,22 @@
       "path": "system.serviceprocess.servicecontroller/8.0.0",
       "hashPath": "system.serviceprocess.servicecontroller.8.0.0.nupkg.sha512"
     },
-    "TimeTrack.Agent.Application/1.0.19": {
+    "TimeTrack.Agent.Application/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
     },
-    "TimeTrack.Agent.Contracts/1.0.19": {
+    "TimeTrack.Agent.Contracts/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
     },
-    "TimeTrack.Agent.Domain/1.0.19": {
+    "TimeTrack.Agent.Domain/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
     },
-    "TimeTrack.Agent.Infrastructure/1.0.19": {
+    "TimeTrack.Agent.Infrastructure/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

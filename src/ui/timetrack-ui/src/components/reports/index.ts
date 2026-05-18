@@ -42,3 +42,7 @@ export type { DistractionSectionProps } from './DistractionSection';
 // Projects & Tasks Accordion
 export { ProjectTasksAccordion } from './ProjectTasksAccordion';
 export type { ProjectTasksAccordionProps, TaskItem, ProjectTaskItem } from './ProjectTasksAccordion';
+
+// AI Insights Section
+export { AIInsightsSection } from './AIInsightsSection';
+export type { AIInsightsSectionProps } from './AIInsightsSection';

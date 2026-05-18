@@ -81,6 +81,76 @@ internal sealed class DailyFocusScoreConfiguration : IEntityTypeConfiguration<Da
             .HasColumnName("focus_score")
             .IsRequired();
 
+        // Feature Aggregation Fields (CX-208)
+        builder.Property(d => d.ProductiveSeconds)
+            .HasColumnName("productive_seconds")
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.DistractionSeconds)
+            .HasColumnName("distraction_seconds")
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.NeutralSeconds)
+            .HasColumnName("neutral_seconds")
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.ContextSwitchesCount)
+            .HasColumnName("context_switches_count")
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.InterruptionCount)
+            .HasColumnName("interruption_count")
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.TopAppExe)
+            .HasColumnName("top_app_exe")
+            .HasMaxLength(512);
+
+        builder.Property(d => d.TopAppSeconds)
+            .HasColumnName("top_app_seconds")
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.DistinctAppsCount)
+            .HasColumnName("distinct_apps_count")
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.BrowserSeconds)
+            .HasColumnName("browser_seconds")
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.ProductivityRatio)
+            .HasColumnName("productivity_ratio")
+            .IsRequired()
+            .HasDefaultValue(0.0);
+
+        builder.Property(d => d.FocusSessionsCount)
+            .HasColumnName("focus_sessions_count")
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.FocusSessionsCompleted)
+            .HasColumnName("focus_sessions_completed")
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.LongestFocusSeconds)
+            .HasColumnName("longest_focus_seconds")
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(d => d.AvgFocusSeconds)
+            .HasColumnName("avg_focus_seconds")
+            .IsRequired()
+            .HasDefaultValue(0);
+
         // Timestamps
         builder.Property(d => d.CalculatedAt)
             .HasColumnName("calculated_at")

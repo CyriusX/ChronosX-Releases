@@ -1,3 +1,4 @@
+using System.Net;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
@@ -22,12 +23,6 @@ public sealed class DpapiTokenStore : ITokenStore
     private TokenData? _cachedTokens;
     private readonly object _cacheLock = new();
 
-    // Coalesces concurrent RefreshAsync callers (e.g. Agent SyncWorker + UI IPC request)
-    // so only one HTTP call to /auth/refresh is in-flight at a time. Without this the
-    // two would race, one would get 400 "revoked" from the backend's single-use rotation,
-    // and wipe tokens the user is actively using.
-    private readonly SemaphoreSlim _refreshGate = new(1, 1);
-
     private sealed record TokenData(string Jwt, string RefreshToken, DateTime ExpiresAt);
 
     public event EventHandler<TokensStoredEventArgs>? TokensStored;
@@ -36,17 +31,31 @@ public sealed class DpapiTokenStore : ITokenStore
     public DpapiTokenStore(
         ILogger<DpapiTokenStore> logger,
         HttpClient httpClient,
-        Contracts.Configuration.SyncSettings settings)
+        Contracts.Configuration.SyncSettings settings,
+        string? tokenFilePathOverride = null)
     {
         _logger = logger;
         _httpClient = httpClient;
         _backendUrl = settings.BackendUrl;
 
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var timeTrackPath = Path.Combine(appDataPath, "TimeTrack");
+        if (!string.IsNullOrWhiteSpace(tokenFilePathOverride))
+        {
+            var dir = Path.GetDirectoryName(tokenFilePathOverride);
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
 
-        Directory.CreateDirectory(timeTrackPath);
-        _tokenFilePath = Path.Combine(timeTrackPath, "tokens.dat");
+            _tokenFilePath = tokenFilePathOverride;
+        }
+        else
+        {
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var timeTrackPath = Path.Combine(appDataPath, "TimeTrack");
+
+            Directory.CreateDirectory(timeTrackPath);
+            _tokenFilePath = Path.Combine(timeTrackPath, "tokens.dat");
+        }
     }
 
     public async Task<string?> GetJwtAsync(CancellationToken cancellationToken = default)
@@ -108,36 +117,16 @@ public sealed class DpapiTokenStore : ITokenStore
 
     public async Task<bool> RefreshAsync(CancellationToken cancellationToken = default)
     {
-        // Snapshot the refresh token the caller saw before they decided to refresh.
-        // Combined with the semaphore below, this lets the second caller short-circuit
-        // when a concurrent refresh has already rotated the token on disk.
-        var refreshTokenAtEntry = await GetRefreshTokenAsync(cancellationToken);
+        var refreshToken = await GetRefreshTokenAsync(cancellationToken);
 
-        if (string.IsNullOrEmpty(refreshTokenAtEntry))
+        if (string.IsNullOrEmpty(refreshToken))
         {
             _logger.LogWarning("No refresh token available");
             return false;
         }
 
-        await _refreshGate.WaitAsync(cancellationToken);
         try
         {
-            var refreshToken = await GetRefreshTokenAsync(cancellationToken);
-            if (string.IsNullOrEmpty(refreshToken))
-            {
-                _logger.LogWarning("No refresh token available after acquiring refresh gate");
-                return false;
-            }
-
-            // If another caller rotated the token while we waited on the gate, the
-            // token in the store is already fresh — don't fire a second /auth/refresh
-            // that would 400 against the backend's single-use rotation.
-            if (!string.Equals(refreshToken, refreshTokenAtEntry, StringComparison.Ordinal))
-            {
-                _logger.LogDebug("Token was already refreshed by a concurrent caller — skipping HTTP call");
-                return true;
-            }
-
             var request = new { refreshToken = refreshToken };
             var content = new StringContent(
                 JsonSerializer.Serialize(request),
@@ -152,26 +141,23 @@ public sealed class DpapiTokenStore : ITokenStore
             if (!response.IsSuccessStatusCode)
             {
                 // Invalidate cache so next attempt reads fresh tokens from disk
-                // (DesktopHost may have stored new tokens via login/refresh).
+                // (DesktopHost may have stored new tokens via login/refresh)
                 lock (_cacheLock)
                 {
                     _cachedTokens = null;
                 }
 
-                var status = (int)response.StatusCode;
-
-                // Only clear on signals that definitively mean "this refresh token
-                // will never work again": 401 (user deactivated) or 400 with the
-                // backend's validation_failed code ("expired or revoked"). Everything
-                // else — 408, 429, transient 400 from upstream middleware, and any
-                // 5xx — is retryable; keep the token on disk so the next cycle can
-                // recover without forcing the user to log in again.
-                if (await IsTerminalRefreshFailureAsync(response, cancellationToken))
+                // Terminal failures:
+                // - 401: user deactivated / refresh token invalid
+                // - 400: refresh token invalid/expired/revoked (single-use rotation)
+                //
+                // In these cases we must clear stored tokens so the UI re-authenticates,
+                // instead of keeping a stale session that will loop on 401 forever.
+                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.BadRequest)
                 {
                     _logger.LogError(
-                        "Refresh token permanently invalid ({StatusCode}) — clearing stored tokens so user must re-authenticate",
+                        "Token refresh failed with terminal status {StatusCode} — clearing stored tokens so user must re-authenticate",
                         response.StatusCode);
-                    await ClearAsync(cancellationToken);
                     return false;
                 }
 
@@ -204,46 +190,6 @@ public sealed class DpapiTokenStore : ITokenStore
             _logger.LogError(ex, "Error during token refresh");
             return false;
         }
-        finally
-        {
-            _refreshGate.Release();
-        }
-    }
-
-    private static async Task<bool> IsTerminalRefreshFailureAsync(
-        HttpResponseMessage response,
-        CancellationToken cancellationToken)
-    {
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            return true;
-
-        if (response.StatusCode != System.Net.HttpStatusCode.BadRequest)
-            return false;
-
-        // Backend shape for revoked/expired refresh token (see ExceptionHandlingMiddleware +
-        // ValidationException in RefreshTokenCommandHandler): { code: "validation_failed", ... }.
-        try
-        {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            if (string.IsNullOrEmpty(body)) return false;
-
-            using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.TryGetProperty("code", out var codeProp))
-            {
-                var code = codeProp.GetString();
-                if (string.Equals(code, "validation_failed", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(code, "user_deactivated", StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-        }
-        catch
-        {
-            // Body wasn't JSON or was already consumed — be safe and retry.
-        }
-
-        return false;
     }
 
     private async Task<TokenData?> LoadTokensAsync(CancellationToken cancellationToken)

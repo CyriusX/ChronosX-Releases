@@ -14,19 +14,26 @@ public sealed record GetTeamStatusCommand(Guid OrgId, string? Timezone = null) :
 
 public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusCommand, TeamStatusResponse>
 {
+    // Heartbeats fire roughly every 60s; allow a few misses for transient network blips
+    // before considering a device offline.
+    private static readonly TimeSpan LiveHeartbeatWindow = TimeSpan.FromMinutes(3);
+
     private readonly IUserRepository _userRepository;
     private readonly IActivitySessionRepository _sessionRepository;
+    private readonly IDeviceRepository _deviceRepository;
     private readonly ICurrentUserContext _currentUser;
     private readonly ILogger<GetTeamStatusCommandHandler> _logger;
 
     public GetTeamStatusCommandHandler(
         IUserRepository userRepository,
         IActivitySessionRepository sessionRepository,
+        IDeviceRepository deviceRepository,
         ICurrentUserContext currentUser,
         ILogger<GetTeamStatusCommandHandler> logger)
     {
         _userRepository = userRepository;
         _sessionRepository = sessionRepository;
+        _deviceRepository = deviceRepository;
         _currentUser = currentUser;
         _logger = logger;
     }
@@ -96,11 +103,18 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
                 return (int)ComputeMergedSeconds(intervals);
             });
 
-        // Find users currently tracking (had activity in last 5 minutes)
-        var fiveMinutesAgo = DateTime.UtcNow.AddMinutes(-5);
-        var currentlyTracking = sessions
-            .Where(s => s.EndedAt >= fiveMinutesAgo)
-            .Select(s => s.UserId)
+        // "Currently tracking" must reflect the user's *live* status, not stale session data.
+        // Sessions persist in the cloud after the user goes offline, so a recent EndedAt is
+        // not proof the agent is still running; it just means the agent was running when the
+        // session was last extended. Use device heartbeats instead — the agent sends one
+        // every ~60s with the current TrackingState, and stops sending when offline.
+        var devices = await _deviceRepository.GetActiveByOrgIdAsync(request.OrgId, cancellationToken);
+        var heartbeatCutoff = DateTime.UtcNow - LiveHeartbeatWindow;
+        var currentlyTracking = devices
+            .Where(d => d.LastHeartbeatAt is { } hb
+                && hb >= heartbeatCutoff
+                && string.Equals(d.TrackingState, "running", StringComparison.OrdinalIgnoreCase))
+            .Select(d => d.UserId)
             .Distinct()
             .ToHashSet();
 
