@@ -445,7 +445,7 @@ function injectLiveStateBlock(blocks: ActivityBlock[], trackingState: string | n
       ...blocks,
       {
         id: 'idle-live-web',
-        kind: 'idle',
+        kind: 'idle' as const,
         name: 'Idle',
         startUtc,
         endUtc,
@@ -464,7 +464,7 @@ function injectLiveStateBlock(blocks: ActivityBlock[], trackingState: string | n
       ...blocks,
       {
         id: 'tracking-stopped-live-web',
-        kind: 'activity',
+        kind: 'activity' as const,
         name: 'Tracking Stopped',
         startUtc,
         endUtc,
