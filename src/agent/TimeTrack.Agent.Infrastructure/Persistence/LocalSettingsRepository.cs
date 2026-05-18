@@ -28,6 +28,7 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
 
     public async Task<LocalSettings> GetAsync(CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = @"
@@ -76,6 +77,7 @@ public sealed class LocalSettingsRepository : ILocalSettingsRepository
     {
         if (settings == null) throw new ArgumentNullException(nameof(settings));
 
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         // SQLite UPSERT usando INSERT OR REPLACE

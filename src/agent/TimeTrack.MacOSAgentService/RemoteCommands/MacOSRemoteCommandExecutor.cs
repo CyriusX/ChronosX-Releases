@@ -310,8 +310,9 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
     {
         try
         {
+            await using var gate = await _sqliteContext.AcquireDbLockAsync(ct);
             var connection = await _sqliteContext.GetConnectionAsync(ct);
-            using var tx = connection.BeginTransaction();
+            await using var tx = await connection.BeginTransactionAsync(ct);
 
             const string sql = @"
                 DELETE FROM sync_outbox;
@@ -323,7 +324,7 @@ public sealed class MacOSRemoteCommandExecutor : IRemoteCommandExecutor
             ";
 
             await connection.ExecuteAsync(sql, transaction: tx);
-            tx.Commit();
+            await tx.CommitAsync(ct);
 
             if (_ipcServer.IsClientConnected)
             {

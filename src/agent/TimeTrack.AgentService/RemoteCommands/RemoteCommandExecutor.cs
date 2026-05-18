@@ -430,8 +430,9 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
     {
         try
         {
+            await using var gate = await _sqliteContext.AcquireDbLockAsync(ct);
             var connection = await _sqliteContext.GetConnectionAsync(ct);
-            using var tx = connection.BeginTransaction();
+            await using var tx = await connection.BeginTransactionAsync(ct);
 
             // Keep identity/config tables intact (tokens, settings, caches, tracking state).
             // Only delete local tracking history + pending sync so wiped backend data won't be re-uploaded.
@@ -445,7 +446,7 @@ public sealed class RemoteCommandExecutor : IRemoteCommandExecutor
             ";
 
             await connection.ExecuteAsync(sql, transaction: tx);
-            tx.Commit();
+            await tx.CommitAsync(ct);
 
             if (_ipcServer.IsClientConnected)
             {

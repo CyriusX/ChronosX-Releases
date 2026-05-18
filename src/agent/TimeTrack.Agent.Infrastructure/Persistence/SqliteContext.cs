@@ -13,6 +13,28 @@ public sealed class SqliteContext : IAsyncDisposable
     private readonly SemaphoreSlim _lock = new(1, 1);
     private SqliteConnection? _connection;
     private bool _initialized;
+    private readonly SemaphoreSlim _dbGate = new(1, 1);
+
+    private sealed class DbGateReleaser : IAsyncDisposable
+    {
+        private readonly SemaphoreSlim _gate;
+        private bool _released;
+
+        public DbGateReleaser(SemaphoreSlim gate)
+        {
+            _gate = gate;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            if (!_released)
+            {
+                _released = true;
+                _gate.Release();
+            }
+            return ValueTask.CompletedTask;
+        }
+    }
 
     public SqliteContext(string databasePath, ILogger<SqliteContext> logger)
     {
@@ -22,6 +44,16 @@ public sealed class SqliteContext : IAsyncDisposable
             throw new ArgumentException("Database path is required", nameof(databasePath));
 
         _connectionString = $"Data Source={databasePath}";
+    }
+
+    /// <summary>
+    /// Acquires an async gate for all SQLite operations. SqliteConnection is not thread-safe and
+    /// must not be used concurrently across hosted services and IPC handlers.
+    /// </summary>
+    public async Task<IAsyncDisposable> AcquireDbLockAsync(CancellationToken cancellationToken = default)
+    {
+        await _dbGate.WaitAsync(cancellationToken);
+        return new DbGateReleaser(_dbGate);
     }
 
     /// <summary>
@@ -89,6 +121,7 @@ public sealed class SqliteContext : IAsyncDisposable
     /// </summary>
     public async Task InitializeSchemaAsync(CancellationToken cancellationToken = default)
     {
+        await using var gate = await AcquireDbLockAsync(cancellationToken);
         if (_initialized) return;
 
         var connection = await GetConnectionAsync(cancellationToken);
@@ -468,6 +501,7 @@ public sealed class SqliteContext : IAsyncDisposable
     /// </summary>
     public async Task MigrateOrphanRecordsToUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        await using var gate = await AcquireDbLockAsync(cancellationToken);
         var connection = await GetConnectionAsync(cancellationToken);
         var userIdStr = userId.ToString();
 
@@ -501,6 +535,7 @@ public sealed class SqliteContext : IAsyncDisposable
     /// </summary>
     public async Task<SqliteTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
+        await using var gate = await AcquireDbLockAsync(cancellationToken);
         var connection = await GetConnectionAsync(cancellationToken);
         return (SqliteTransaction)await connection.BeginTransactionAsync();
     }
@@ -514,21 +549,15 @@ public sealed class SqliteContext : IAsyncDisposable
         object? param = null,
         CancellationToken cancellationToken = default)
     {
+        await using var gate = await AcquireDbLockAsync(cancellationToken);
         var connection = await GetConnectionAsync(cancellationToken);
         await Dapper.SqlMapper.ExecuteAsync(connection, sql, param, transaction);
     }
 
     public async ValueTask DisposeAsync()
     {
-        await _lock.WaitAsync();
-        try
-        {
-            await DisposeConnectionCoreAsync();
-        }
-        finally
-        {
-            _lock.Release();
-        }
+        await using var gate = await AcquireDbLockAsync();
+        await DisposeConnectionCoreAsync();
     }
 }
 

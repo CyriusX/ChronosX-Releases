@@ -74,6 +74,45 @@ public sealed class ActivitySessionRepositoryTests
         await act.Should().NotThrowAsync();
     }
 
+    [Fact]
+    public async Task ConcurrentReadsAndWrites_ShouldNotThrow_WhenSharingSingleSqliteContext()
+    {
+        await using var context = new SqliteContext(":memory:", NullLogger<SqliteContext>.Instance);
+        await context.InitializeSchemaAsync();
+
+        var repo = new ActivitySessionRepository(
+            context,
+            new Mock<IOutboxRepository>().Object,
+            NullLogger<ActivitySessionRepository>.Instance);
+
+        var now = DateTime.UtcNow;
+        var userId = Guid.NewGuid();
+        var app = new AppIdentity("deadbeefdeadbeef", "Test App", AppCategory.Unknown);
+        var period = new TimeRange(now, now.AddSeconds(5));
+        var session = new ActivitySession(Guid.NewGuid(), userId, app, period, windowHash: "wh", windowTitle: "title");
+
+        var writeTask = Task.Run(async () =>
+        {
+            for (var i = 0; i < 50; i++)
+            {
+                var outboxItem = OutboxItem.Create("activity_session", session.Id, "{\"ok\":true}", $"k:{session.Id}:{i}");
+                await repo.SaveWithOutboxAsync(session, new[] { outboxItem });
+            }
+        });
+
+        var readTask = Task.Run(async () =>
+        {
+            for (var i = 0; i < 50; i++)
+            {
+                await repo.GetMostRecentAsync(userId);
+                await repo.GetByDateRangeAsync(userId, now.AddMinutes(-5), now.AddMinutes(5));
+            }
+        });
+
+        var act = async () => await Task.WhenAll(writeTask, readTask);
+        await act.Should().NotThrowAsync();
+    }
+
     private static ActivitySession CreateSession(DateTime now)
     {
         var userId = Guid.NewGuid();

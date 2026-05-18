@@ -31,6 +31,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             IEnumerable<OutboxItem> outboxItems,
             CancellationToken cancellationToken = default)
         {
+            await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
             var connection = await _context.GetConnectionAsync(cancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -139,6 +140,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             DateTime end,
             CancellationToken cancellationToken = default)
         {
+            await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
             var connection = await _context.GetConnectionAsync(cancellationToken);
 
             const string sql = @"
@@ -158,6 +160,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             Guid userId,
             CancellationToken cancellationToken = default)
         {
+            await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
             var connection = await _context.GetConnectionAsync(cancellationToken);
 
             const string sql = @"
@@ -178,6 +181,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             Guid userId,
             CancellationToken cancellationToken = default)
         {
+            await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
             var connection = await _context.GetConnectionAsync(cancellationToken);
 
             // Uma sessão "ativa" é aquela que terminou nos últimos 60 segundos
@@ -207,6 +211,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
         {
             if (session == null) throw new ArgumentNullException(nameof(session));
 
+            await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
             var connection = await _context.GetConnectionAsync(cancellationToken);
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -310,6 +315,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
         {
             if (session == null) throw new ArgumentNullException(nameof(session));
 
+            await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
             var connection = await _context.GetConnectionAsync(cancellationToken);
 
             const string sql = @"
@@ -349,6 +355,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
         {
             if (sessions == null) throw new ArgumentNullException(nameof(sessions));
 
+            await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
             var connection = await _context.GetConnectionAsync(cancellationToken);
 
             const string sql = @"
@@ -386,6 +393,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
 
         public async Task<int> DeleteOlderThanAsync(DateTime cutoffUtc, CancellationToken cancellationToken = default)
         {
+            await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
             var connection = await _context.GetConnectionAsync(cancellationToken);
 
             // Use date() function for reliable comparison — SQLite stores dates with space separator
@@ -406,6 +414,7 @@ namespace TimeTrack.Agent.Infrastructure.Persistence
             string source,
             CancellationToken cancellationToken = default)
         {
+            await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
             var connection = await _context.GetConnectionAsync(cancellationToken);
 
             const string sql = @"UPDATE activity_sessions

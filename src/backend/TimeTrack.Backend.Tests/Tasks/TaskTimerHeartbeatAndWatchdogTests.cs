@@ -74,7 +74,7 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
             subscriptionServiceMock.Object,
             new TaskTimeEntryRepository(db));
 
-        await handler.Handle(new HeartbeatCommand(deviceId, "1.0.1", null, null, null, "paused", null, null, null, null, null), CancellationToken.None);
+        await handler.Handle(new HeartbeatCommand(deviceId, null, "Windows", null, null, "paused", null, null, null, null, null), CancellationToken.None);
 
         var entryAfter = await db.TaskTimeEntries.FirstAsync(e => e.Id == open.Id, CancellationToken.None);
         entryAfter.IsPaused.Should().BeTrue();

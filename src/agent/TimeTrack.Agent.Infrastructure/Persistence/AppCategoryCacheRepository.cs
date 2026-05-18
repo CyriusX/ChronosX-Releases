@@ -29,6 +29,7 @@ public sealed class AppCategoryCacheRepository : IAppCategoryCacheRepository
     public async Task<AppCategoryCache?> FindByIdentifierAsync(string identifier)
     {
         var normalized = NormalizeIdentifier(identifier);
+        await using var gate = await _context.AcquireDbLockAsync();
         var connection = await _context.GetConnectionAsync();
 
         var row = await connection.QueryFirstOrDefaultAsync<CategoryCacheRow>(
@@ -40,6 +41,7 @@ public sealed class AppCategoryCacheRepository : IAppCategoryCacheRepository
 
     public async Task<IReadOnlyList<AppCategoryCache>> GetAllAsync()
     {
+        await using var gate = await _context.AcquireDbLockAsync();
         var connection = await _context.GetConnectionAsync();
 
         var rows = await connection.QueryAsync<CategoryCacheRow>(
@@ -50,6 +52,7 @@ public sealed class AppCategoryCacheRepository : IAppCategoryCacheRepository
 
     public async Task<int> GetVersionAsync()
     {
+        await using var gate = await _context.AcquireDbLockAsync();
         var connection = await _context.GetConnectionAsync();
 
         var version = await connection.QueryFirstOrDefaultAsync<int?>(
@@ -60,6 +63,7 @@ public sealed class AppCategoryCacheRepository : IAppCategoryCacheRepository
 
     public async Task<DateTime> GetLastSyncAsync()
     {
+        await using var gate = await _context.AcquireDbLockAsync();
         var connection = await _context.GetConnectionAsync();
 
         var lastSync = await connection.QueryFirstOrDefaultAsync<string?>(
@@ -76,6 +80,7 @@ public sealed class AppCategoryCacheRepository : IAppCategoryCacheRepository
 
     public async Task ReplaceAllAsync(IEnumerable<AppCategoryCache> categories, int version)
     {
+        await using var gate = await _context.AcquireDbLockAsync();
         var connection = await _context.GetConnectionAsync();
 
         await using var transaction = await connection.BeginTransactionAsync();
@@ -146,6 +151,7 @@ public sealed class AppCategoryCacheRepository : IAppCategoryCacheRepository
 
     public async Task ClearAsync()
     {
+        await using var gate = await _context.AcquireDbLockAsync();
         var connection = await _context.GetConnectionAsync();
 
         await connection.ExecuteAsync("DELETE FROM app_category_cache");
@@ -160,6 +166,7 @@ public sealed class AppCategoryCacheRepository : IAppCategoryCacheRepository
 
     public async Task<int> CountAsync()
     {
+        await using var gate = await _context.AcquireDbLockAsync();
         var connection = await _context.GetConnectionAsync();
 
         return await connection.QueryFirstOrDefaultAsync<int>(

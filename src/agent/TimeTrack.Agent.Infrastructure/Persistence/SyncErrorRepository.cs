@@ -19,6 +19,7 @@ public sealed class SyncErrorRepository : ISyncErrorRepository
 
     public async Task AddAsync(SyncError error, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = """
@@ -39,6 +40,7 @@ public sealed class SyncErrorRepository : ISyncErrorRepository
 
     public async Task<SyncError?> GetLatestAsync(CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = """
@@ -57,6 +59,7 @@ public sealed class SyncErrorRepository : ISyncErrorRepository
         DateTime to,
         CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = """
@@ -72,6 +75,7 @@ public sealed class SyncErrorRepository : ISyncErrorRepository
 
     public async Task<int> CountConsecutiveFailuresAsync(CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         // Count only errors that occurred AFTER the most recent successful sync.
@@ -93,6 +97,7 @@ public sealed class SyncErrorRepository : ISyncErrorRepository
 
     public async Task CleanupOldErrorsAsync(int retentionDays = 30, CancellationToken cancellationToken = default)
     {
+        await using var gate = await _context.AcquireDbLockAsync(cancellationToken);
         var connection = await _context.GetConnectionAsync(cancellationToken);
 
         const string sql = """
