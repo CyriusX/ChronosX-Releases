@@ -48,11 +48,6 @@ public sealed class MainForm : Form
     /// <summary>Raised when the main window is restored from minimized/tray state.</summary>
     public event EventHandler? WindowRestored;
 
-    /// <summary>Raised when the main window is minimized or hidden to tray.</summary>
-    public event EventHandler? WindowMinimized;
-    /// <summary>Raised when the main window is restored from minimized/tray state.</summary>
-    public event EventHandler? WindowRestored;
-
     public WebViewBridge Bridge => _bridge;
 
     public MainForm(

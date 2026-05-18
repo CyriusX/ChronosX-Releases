@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using TimeTrack.Backend.Application.Auth.Commands;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Domain.Entities;
@@ -45,12 +46,18 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
         db.TaskTimeEntries.Add(open);
         await db.SaveChangesAsync(CancellationToken.None);
 
+        var subscriptionServiceMock = new Mock<ISubscriptionService>();
+        subscriptionServiceMock
+            .Setup(s => s.CheckSubscriptionAccessAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SubscriptionCheckResult { Status = "active", GracePeriodEnd = null });
+
         var handler = new HeartbeatCommandHandler(
             new DeviceRepository(db),
             new RemoteCommandRepository(db),
+            subscriptionServiceMock.Object,
             new TaskTimeEntryRepository(db));
 
-        await handler.Handle(new HeartbeatCommand(deviceId, AgentVersion: "1.0.1", TrackingState: "paused"), CancellationToken.None);
+        await handler.Handle(new HeartbeatCommand(deviceId, null, "Windows", null, null, "paused", null, null, null, null, null), CancellationToken.None);
 
         var entryAfter = await db.TaskTimeEntries.FirstAsync(e => e.Id == open.Id, CancellationToken.None);
         entryAfter.IsPaused.Should().BeTrue();
@@ -118,6 +125,7 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
         public Guid? DeviceId => null;
         public UserRole? Role { get; }
         public bool IsAuthenticated => false; // bypass multi-tenant filters in unit tests
+        public bool IsPlatformAdmin => false;
         public bool IsInRole(UserRole role) => Role == role;
     }
 }

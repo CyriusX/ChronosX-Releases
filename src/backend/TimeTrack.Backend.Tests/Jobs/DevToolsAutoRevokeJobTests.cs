@@ -68,6 +68,7 @@ public sealed class DevToolsAutoRevokeJobTests
         public Guid? DeviceId => null;
         public UserRole? Role { get; }
         public bool IsAuthenticated => false;
+        public bool IsPlatformAdmin => false;
         public bool IsInRole(UserRole role) => Role == role;
     }
 }

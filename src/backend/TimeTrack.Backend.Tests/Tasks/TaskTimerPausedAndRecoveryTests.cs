@@ -143,6 +143,7 @@ public sealed class TaskTimerPausedAndRecoveryTests
         public Guid? DeviceId => null;
         public UserRole? Role { get; }
         public bool IsAuthenticated => false; // bypass multi-tenant filters in unit tests
+        public bool IsPlatformAdmin => false;
         public bool IsInRole(UserRole role) => Role == role;
     }
 }
