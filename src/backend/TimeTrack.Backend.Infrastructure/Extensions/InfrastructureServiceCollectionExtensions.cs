@@ -135,7 +135,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<ResendClient>();
         services.Configure<ResendClientOptions>(options =>
         {
-            options.ApiToken = configuration["Resend:ApiKey"]
+            options.ApiToken =
+                (string.IsNullOrWhiteSpace(configuration["Resend:ApiKey"]) ? null : configuration["Resend:ApiKey"])
                 ?? configuration["RESEND_API_KEY"]
                 ?? throw new InvalidOperationException("Resend API key not found. Set Resend:ApiKey or RESEND_API_KEY");
         });
