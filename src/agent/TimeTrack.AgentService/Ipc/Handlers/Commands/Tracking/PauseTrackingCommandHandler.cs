@@ -8,6 +8,7 @@ using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.Agent.Domain.Entities;
 using TimeTrack.Agent.Domain.ValueObjects;
 using TimeTrack.AgentService.Ipc.Handlers;
+using TimeTrack.AgentService.Workers;
 
 namespace TimeTrack.AgentService.Ipc.Handlers.Commands.Tracking;
 
@@ -25,6 +26,8 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
     private readonly ICurrentUserContext _userContext;
     private readonly IIpcServer _ipcServer;
     private readonly IAgentEventLogger _eventLogger;
+    private readonly IHeartbeatService _heartbeatService;
+    private readonly AgentStatusEventBroadcaster _statusBroadcaster;
     private readonly IExceptionReporter _exceptionReporter;
     private readonly ILogger<PauseTrackingCommandHandler> _logger;
 
@@ -42,6 +45,8 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         ICurrentUserContext userContext,
         IIpcServer ipcServer,
         IAgentEventLogger eventLogger,
+        IHeartbeatService heartbeatService,
+        AgentStatusEventBroadcaster statusBroadcaster,
         IExceptionReporter exceptionReporter,
         ILogger<PauseTrackingCommandHandler> logger)
     {
@@ -50,6 +55,8 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         _userContext = userContext;
         _ipcServer = ipcServer;
         _eventLogger = eventLogger;
+        _heartbeatService = heartbeatService;
+        _statusBroadcaster = statusBroadcaster;
         _exceptionReporter = exceptionReporter;
         _logger = logger;
     }
@@ -84,6 +91,7 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         await _eventLogger.LogAsync("tracking.paused", AgentEventCategory.UserAction, AgentEventSeverity.Info,
             "Monitoramento pausado pelo usuário", new { reason = reason ?? "User requested" }, ct);
 
+        TriggerImmediateHeartbeat();
         return SuccessResponse(request.RequestId, result);
     }
 
@@ -138,6 +146,27 @@ public sealed class PauseTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
                     operation: "ipc.command.PauseTracking.recordTrackingStoppedSession");
                 await _exceptionReporter.ReportAsync(report, CancellationToken.None).ConfigureAwait(false);
             }
+        }
+    }
+
+    private void TriggerImmediateHeartbeat()
+    {
+        try
+        {
+            var snapshot = new AgentHealthSnapshot(
+                HealthStatus: _statusBroadcaster.CurrentHealthStatus,
+                BackendReachable: _statusBroadcaster.CurrentBackendReachable,
+                ConsecutiveSyncFailures: 0,
+                LastSuccessfulSyncAt: null,
+                IpcConnected: _ipcServer.IsClientConnected);
+
+            var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            _ = _heartbeatService.SendHeartbeatAsync(snapshot, cts.Token)
+                .ContinueWith(_ => cts.Dispose(), TaskScheduler.Default);
+        }
+        catch
+        {
+            // ignore
         }
     }
 }

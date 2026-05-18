@@ -127,6 +127,15 @@ public sealed class IdlePeriod : EntityBase
 
     public override string ToString()
         => $"Idle[{Id}] {Period} (threshold: {ThresholdSeconds}s)";
+
+    public void ExtendTo(DateTime endUtc)
+    {
+        var normalizedEnd = DateTime.SpecifyKind(endUtc, DateTimeKind.Utc);
+        if (normalizedEnd <= Period.StartUtc)
+            throw DomainException.InvalidTimeRange();
+
+        Period = new TimeRange(Period.StartUtc, normalizedEnd);
+    }
 }
 
 public static class IdleJustificationStates

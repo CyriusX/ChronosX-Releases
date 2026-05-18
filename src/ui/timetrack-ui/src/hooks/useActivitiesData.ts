@@ -14,6 +14,7 @@ import { isDesktopRuntime } from '../lib/runtime';
 import type { TodaySummaryResponse, WeeklyHistoryItem } from '../types/ipc';
 import { formatDuration } from '../lib/utils';
 import { getDailySummaryRange, getDailyActivities, getTopApps } from '../services/reportApi';
+import { getTeamStatus } from '../services/memberApi';
 
 
 // ============================================================================
@@ -89,7 +90,7 @@ function formatDatePayload(date: Date): string {
 // ============================================================================
 
 export function useActivitiesData(): ActivitiesData {
-  const { sendQuery, isConnected } = useIpc();
+  const { sendQuery, isConnected, subscribeToEvent } = useIpc();
   const currentUser = useAuthStore(s => s.user);
   const hiddenApps = useHiddenAppsStore(s => s.hiddenApps);
   const desktopRuntime = isDesktopRuntime();
@@ -123,12 +124,17 @@ export function useActivitiesData(): ActivitiesData {
   const [summary, setSummary] = useState<TodaySummaryResponse | null>(null);
   const [activities, setActivities] = useState<ActivityBlock[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+<<<<<<< HEAD
+  const [liveTrackingState, setLiveTrackingState] = useState<string | null>(null);
+  const isFetchingRef = useRef(false);
+=======
   // Request-id pattern: every fetchData run gets an id; only the latest run's
   // results are applied. Replaces an in-flight bail-out that was silently
   // dropping the dep-change re-fire (e.g. when `userId` was set after auth
   // rehydration or when web's auto-select fires post-mount), leaving the page
   // stuck on the first request's result.
   const fetchIdRef = useRef(0);
+>>>>>>> origin/dev
 
   const isToday = isSameDay(selectedDate, new Date());
   const datePayload = formatDatePayload(selectedDate);
@@ -225,9 +231,9 @@ export function useActivitiesData(): ActivitiesData {
         const calEnd = formatDatePayload(addDays(selectedDate, 15));
         // NOTE: Intentionally sequential to avoid triggering the Reports rate limiter (429),
         // which can cause long UI stalls due to retry/backoff.
-        const rangeResult = await getDailySummaryRange(calStart, calEnd, userId).catch(() => null);
-        const topAppsResult = await getTopApps(datePayload, datePayload, 20, userId).catch(() => null);
-        const activitiesResult = await getDailyActivities(datePayload, userId).catch(() => null);
+          const rangeResult = await getDailySummaryRange(calStart, calEnd, userId).catch(() => null);
+          const topAppsResult = await getTopApps(datePayload, datePayload, 20, userId).catch(() => null);
+          const activitiesResult = await getDailyActivities(datePayload, userId).catch(() => null);
 
         if (!isLatest()) return;
 
@@ -292,13 +298,12 @@ export function useActivitiesData(): ActivitiesData {
         }
 
         if (activitiesResult?.sessions) {
-          setActivities(
-            convertActivitiesToBlocks(
-              activitiesResult.sessions,
-              activitiesResult.idlePeriods ?? [],
-              hiddenApps
-            )
+          const baseBlocks = convertActivitiesToBlocks(
+            activitiesResult.sessions,
+            activitiesResult.idlePeriods ?? [],
+            hiddenApps
           );
+          setActivities(injectLiveStateBlock(baseBlocks, liveTrackingState, isToday));
         }
       }
     } catch {
@@ -306,12 +311,52 @@ export function useActivitiesData(): ActivitiesData {
     } finally {
       if (isLatest()) setIsLoading(false);
     }
-  }, [sendQuery, desktopRuntime, isConnected, datePayload, isToday, userId, currentUser?.id]);
+  }, [sendQuery, desktopRuntime, isConnected, datePayload, isToday, userId, currentUser?.id, hiddenApps, liveTrackingState]);
 
   // Re-fetch when date changes or connection established
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Desktop: refresh immediately on tracking/idle transitions so Activities page matches Dashboard behavior.
+  useEffect(() => {
+    if (!desktopRuntime || !isToday || userId || !isConnected) return;
+    const unsubTracking = subscribeToEvent('trackingStateChanged', () => fetchData());
+    const unsubIdle = subscribeToEvent('idleStateChanged', () => fetchData());
+    return () => {
+      unsubTracking();
+      unsubIdle();
+    };
+  }, [desktopRuntime, isToday, userId, isConnected, subscribeToEvent, fetchData]);
+
+  // Web: poll team status for today's tracking state so we can show a live Stop/Idle block
+  // even when activity sessions have not been synced yet.
+  useEffect(() => {
+    if (desktopRuntime || !isToday) return;
+
+    let cancelled = false;
+
+    const loadTrackingState = async () => {
+      try {
+        const status = await getTeamStatus();
+        const targetId = userId ?? currentUser?.id ?? null;
+        if (!targetId) return;
+
+        const member = status.members.find(m => m.userId === targetId);
+        const trackingState = String(member?.trackingState ?? (member?.isTracking ? 'running' : 'offline')).toLowerCase();
+        if (!cancelled) setLiveTrackingState(trackingState);
+      } catch {
+        // ignore; keeps last known state
+      }
+    };
+
+    loadTrackingState();
+    const interval = setInterval(loadTrackingState, 10_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [desktopRuntime, isToday, userId, currentUser?.id]);
 
   // Poll every 30s only when viewing today AND own data (not viewing another user)
   useEffect(() => {
@@ -379,6 +424,65 @@ export function useActivitiesData(): ActivitiesData {
 // ============================================================================
 // HELPERS — Convert backend API responses to the shapes the UI expects
 // ============================================================================
+
+function injectLiveStateBlock(blocks: ActivityBlock[], trackingState: string | null, isToday: boolean): ActivityBlock[] {
+  if (!isToday) return blocks;
+
+  const state = String(trackingState ?? '').toLowerCase();
+  if (!state || state === 'running' || state === 'offline' || state === 'unknown') return blocks;
+
+  const now = Date.now();
+  const latestEnd = blocks.reduce((max, b) => {
+    const end = new Date(b.endUtc).getTime();
+    return end > max ? end : max;
+  }, 0);
+
+  // If we have no baseline activity, don't guess — avoid painting a full-day block.
+  if (!latestEnd || latestEnd >= now) return blocks;
+
+  const startUtc = new Date(latestEnd).toISOString();
+  const endUtc = new Date(now).toISOString();
+  const duration = Math.max(1, Math.floor((now - latestEnd) / 1000));
+
+  if (state === 'idle') {
+    return [
+      ...blocks,
+      {
+        id: 'idle-live-web',
+        kind: 'idle',
+        name: 'Idle',
+        startUtc,
+        endUtc,
+        duration,
+        productivity: 'idle',
+        subcategory: 'idle',
+        color: '#64748b',
+        tabs: [],
+      }
+    ].sort((a, b) => new Date(a.startUtc).getTime() - new Date(b.startUtc).getTime());
+  }
+
+  // paused/stopped: show the same "Tracking Stopped" block the Desktop runtime uses.
+  if (state === 'paused' || state === 'stopped') {
+    return [
+      ...blocks,
+      {
+        id: 'tracking-stopped-live-web',
+        kind: 'activity',
+        name: 'Tracking Stopped',
+        startUtc,
+        endUtc,
+        duration,
+        productivity: 'neutral',
+        subcategory: 'system_event',
+        color: '#f87171',
+        tabs: [],
+      }
+    ].sort((a, b) => new Date(a.startUtc).getTime() - new Date(b.startUtc).getTime());
+  }
+
+  return blocks;
+}
 
 function mapCategoryToProductivity(category?: string): string {
   const cat = category?.toLowerCase() ?? '';

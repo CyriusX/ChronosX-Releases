@@ -102,4 +102,41 @@ public class RecordIdlePeriodTests
         Assert.NotNull(idempotencyKey);
         Assert.Contains("idle_period", idempotencyKey);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WithCreateOutboxFalse_Should_SaveIdlePeriodLocallyOnly()
+    {
+        // Arrange
+        var explicitId = Guid.NewGuid();
+        IdlePeriod? captured = null;
+
+        _idlePeriodRepositoryMock
+            .Setup(x => x.SaveAsync(It.IsAny<IdlePeriod>(), It.IsAny<CancellationToken>()))
+            .Callback<IdlePeriod, CancellationToken>((p, _) => captured = p);
+
+        var request = new RecordIdlePeriodRequest
+        {
+            IdlePeriodId = explicitId,
+            StartedAt = _testStartedAt,
+            EndedAt = _testEndedAt,
+            ThresholdSeconds = (int)_testThreshold.TotalSeconds,
+            IsSystemDetected = true,
+            CreateOutbox = false
+        };
+
+        // Act
+        var result = await _useCase.ExecuteAsync(request);
+
+        // Assert
+        _idlePeriodRepositoryMock.Verify(
+            x => x.SaveAsync(It.IsAny<IdlePeriod>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        _idlePeriodRepositoryMock.Verify(
+            x => x.SaveWithOutboxAsync(It.IsAny<IdlePeriod>(), It.IsAny<IEnumerable<OutboxItem>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        Assert.NotNull(captured);
+        Assert.Equal(explicitId, captured!.Id);
+        Assert.Equal(explicitId, result.IdlePeriodId);
+    }
 }

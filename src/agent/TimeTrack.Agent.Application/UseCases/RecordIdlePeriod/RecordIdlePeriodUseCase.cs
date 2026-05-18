@@ -48,16 +48,36 @@ public sealed class RecordIdlePeriodUseCase
 
         // Cria o período de inatividade
         var period = new TimeRange(request.StartedAt, request.EndedAt);
-        var idlePeriod = IdlePeriod.Create(userId, period, request.ThresholdSeconds, request.IsSystemDetected);
+        var idlePeriodId = request.IdlePeriodId ?? Guid.NewGuid();
+        var idlePeriod = new IdlePeriod(idlePeriodId, userId, period, request.ThresholdSeconds, request.IsSystemDetected);
 
-        _logger.LogInformation(
-            "Recording idle period: {Start} to {End} ({Duration:mm\\:ss})",
-            request.StartedAt,
-            request.EndedAt,
-            idlePeriod.Duration);
+        if (request.CreateOutbox)
+        {
+            _logger.LogInformation(
+                "Recording idle period (sync): {Start} to {End} ({Duration:mm\\:ss})",
+                request.StartedAt,
+                request.EndedAt,
+                idlePeriod.Duration);
+        }
+        else
+        {
+            _logger.LogDebug(
+                "Recording idle period (local-only): {Start} to {End} ({Duration:mm\\:ss})",
+                request.StartedAt,
+                request.EndedAt,
+                idlePeriod.Duration);
+        }
 
-        // Salva com outbox para sincronização
-        await SaveWithOutboxAsync(idlePeriod, cancellationToken);
+        if (request.CreateOutbox)
+        {
+            // Salva com outbox para sincronização
+            await SaveWithOutboxAsync(idlePeriod, cancellationToken);
+        }
+        else
+        {
+            // Live/placeholder idle: persist locally only (no outbox)
+            await _idlePeriodRepository.SaveAsync(idlePeriod, cancellationToken);
+        }
 
         return new RecordIdlePeriodResponse
         {

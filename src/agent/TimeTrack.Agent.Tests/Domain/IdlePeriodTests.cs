@@ -136,4 +136,37 @@ public class IdlePeriodTests
         // Assert
         idle.JustificationState.Should().Be(IdleJustificationStates.Dismissed);
     }
+
+    [Fact]
+    public void ExtendTo_WithLaterEnd_ShouldExtendPeriod()
+    {
+        // Arrange
+        var start = DateTime.UtcNow;
+        var end = start.AddMinutes(1);
+        var idle = IdlePeriod.Create(_testUserId, new TimeRange(start, end), thresholdSeconds: 60);
+
+        var newEnd = end.AddMinutes(2);
+
+        // Act
+        idle.ExtendTo(newEnd);
+
+        // Assert
+        idle.Period.EndUtc.Should().Be(newEnd);
+        idle.Duration.Should().Be(newEnd - start);
+    }
+
+    [Fact]
+    public void ExtendTo_WithInvalidEnd_ShouldThrowDomainException()
+    {
+        // Arrange
+        var start = DateTime.UtcNow;
+        var end = start.AddMinutes(1);
+        var idle = IdlePeriod.Create(_testUserId, new TimeRange(start, end), thresholdSeconds: 60);
+
+        // Act
+        var act = () => idle.ExtendTo(start);
+
+        // Assert
+        act.Should().Throw<DomainException>();
+    }
 }

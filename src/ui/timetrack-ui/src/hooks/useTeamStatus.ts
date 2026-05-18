@@ -4,7 +4,7 @@ import type { TeamMemberStatus, Member } from '../types/member';
 import { useIpc } from './useIpc';
 import { useAuthStore } from '../stores/authStore';
 
-const TEAM_STATUS_POLL_INTERVAL_MS = 30_000; // refresh every 30s (matches agent sync interval)
+const TEAM_STATUS_POLL_INTERVAL_MS = 10_000; // near real-time (agent sends immediate heartbeat on transitions)
 
 interface UseTeamStatusReturn {
   members: TeamMemberStatus[];

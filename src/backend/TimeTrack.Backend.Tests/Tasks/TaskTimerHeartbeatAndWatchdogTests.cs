@@ -146,4 +146,3 @@ public sealed class TaskTimerHeartbeatAndWatchdogTests
         public bool IsInRole(UserRole role) => Role == role;
     }
 }
-

@@ -101,10 +101,11 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     }
     return undefined; // today
   }, [dateRange, externalSelectedDate]);
-  const { sendQuery, isConnected } = useIpc();
+  const { sendQuery, subscribeToEvent, isConnected } = useIpc();
   const isTracking = useTrackingStore(s => s.isTracking);
   const isPaused = useTrackingStore(s => s.isPaused);
   const isActive = isTracking && !isPaused;
+  const isLocalViewer = !userId;
 
   const [internalActivities, setInternalActivities] = useState<ActivityBlock[]>([]);
   const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([]);
@@ -356,6 +357,17 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     return () => clearInterval(interval);
   }, [isConnected, fetchActivities, isControlled]);
 
+  // React immediately to state changes so Stop/Idle show up without waiting for the poll interval.
+  useEffect(() => {
+    if (isControlled || !isConnected) return;
+    const unsubTracking = subscribeToEvent('trackingStateChanged', () => fetchActivities());
+    const unsubIdle = subscribeToEvent('idleStateChanged', () => fetchActivities());
+    return () => {
+      unsubTracking();
+      unsubIdle();
+    };
+  }, [isControlled, isConnected, subscribeToEvent, fetchActivities]);
+
   // Build display blocks — extends or injects a live "Tracking Stopped" block when paused
   const blocks = useMemo(() => {
     // Find the most recent "Tracking Stopped" start time so we only ever stretch
@@ -373,8 +385,8 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
       let color = a.color;
 
       if (a.name === TRACKING_STOPPED_NAME) {
-        if (isViewingToday && isTracking && isPaused && s === latestStoppedStart) {
-          // Only stretch the most recent placeholder while the user is currently paused.
+        if (isViewingToday && isLocalViewer && !isActive && s === latestStoppedStart) {
+          // Only stretch the most recent placeholder while the user is currently paused/stopped.
           // Historical short pauses (e.g. a 2-second pause from earlier) must NOT be
           // stretched — they are finalized records, not live placeholders.
           const rawDurationMs = e - s;
@@ -426,7 +438,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     }
 
     return processed;
-  }, [activities, dayStart, dayMs, isViewingToday, now, localGap]);
+  }, [activities, dayStart, dayMs, isViewingToday, isLocalViewer, isActive, now, localGap]);
 
   // Map evidence items to blocks they fall within (capturedAt within block's start-end range)
   const blockEvidenceMap = useMemo(() => {

@@ -123,6 +123,15 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
             .GroupBy(s => s.UserId)
             .ToDictionary(g => g.Key, g => g.Max(s => s.EndedAt));
 
+        // Device heartbeat snapshot (for near real-time status)
+        var latestDeviceByUser = devices
+            .GroupBy(d => d.UserId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(d => d.LastHeartbeatAt ?? DateTime.MinValue).FirstOrDefault());
+
+        var heartbeatCutoffUtc = DateTime.UtcNow.AddSeconds(-120);
+
         // Build response
         var members = users.Select(u =>
         {
@@ -130,6 +139,13 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
             var lastSync = lastSyncByUser.TryGetValue(u.Id, out var syncTime)
                 ? syncTime.ToString("o")
                 : null;
+
+            var latestDevice = latestDeviceByUser.GetValueOrDefault(u.Id);
+            var isOnline = latestDevice?.LastHeartbeatAt != null && latestDevice.LastHeartbeatAt >= heartbeatCutoffUtc;
+            var trackingState = isOnline
+                ? (string.IsNullOrWhiteSpace(latestDevice?.TrackingState) ? "unknown" : latestDevice!.TrackingState!.ToLowerInvariant())
+                : "offline";
+
             return new TeamMemberStatusItem
             {
                 UserId = u.Id,
@@ -138,7 +154,9 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
                 Status = u.Status.ToString(),
                 TodayDurationSeconds = totalSeconds,
                 TodayDurationFormatted = FormatDuration(totalSeconds),
-                IsTracking = currentlyTracking.Contains(u.Id),
+                // Back-compat: treat running+idle as "tracking/online"
+                IsTracking = trackingState is "running" or "idle",
+                TrackingState = trackingState,
                 LastSyncAt = lastSync
             };
         }).ToList();
