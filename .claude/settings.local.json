@@ -548,7 +548,11 @@
       "Bash(ln -s /Users/juniorcarvalho/Repo/Cyriusx/TimeTracking/src/ui/timetrack-web/node_modules /Users/juniorcarvalho/Repo/_worktrees/TimeTracking/cx-228-manager-signup/src/ui/timetrack-web/node_modules)",
       "Bash(ln -s /Users/juniorcarvalho/Repo/Cyriusx/TimeTracking/src/ui/timetrack-ui/node_modules /Users/juniorcarvalho/Repo/_worktrees/TimeTracking/cx-228-manager-signup/src/ui/timetrack-ui/node_modules)",
       "Bash(git merge *)",
-      "Bash(dotnet publish *)"
+      "Bash(dotnet publish *)",
+      "Bash(git -C \"c:\\\\Projetos\\\\TimeTracking\" log --oneline -10)",
+      "Bash(git -C \"c:\\\\Projetos\\\\TimeTracking\" remote -v)",
+      "PowerShell($hash = \\(Get-FileHash \"C:\\\\Projetos\\\\TimeTracking\\\\build\\\\installer\\\\ChronosX-Setup-1.0.48.exe\" -Algorithm SHA256\\).Hash; $size = \\(Get-Item \"C:\\\\Projetos\\\\TimeTracking\\\\build\\\\installer\\\\ChronosX-Setup-1.0.48.exe\"\\).Length; Write-Output \"SHA256: $hash\"; Write-Output \"Size: $size\")",
+      "Bash(gh release create v1.0.48 --repo CyriusX/ChronosX-Releases --title 'ChronosX v1.0.48' --notes ' *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",
