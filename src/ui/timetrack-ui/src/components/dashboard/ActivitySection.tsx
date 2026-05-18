@@ -478,44 +478,6 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
     return evidenceItems.length;
   }, [evidenceItems]);
 
-  // Map evidence items to blocks they fall within (capturedAt within block's start-end range)
-  const blockEvidenceMap = useMemo(() => {
-    const map = new Map<string, EvidenceItem[]>();
-    for (const ev of evidenceItems) {
-      const evTime = new Date(ev.capturedAt).getTime();
-      for (const block of blocks) {
-        const bs = new Date(block.startUtc).getTime();
-        const be = new Date(block.endUtc).getTime();
-        if (evTime >= bs && evTime <= be) {
-          const existing = map.get(block.id) ?? [];
-          existing.push(ev);
-          map.set(block.id, existing);
-          break;
-        }
-      }
-    }
-    return map;
-  }, [evidenceItems, blocks]);
-
-  // Apply evidence/domain filter
-  const filteredBlocks = useMemo(() => {
-    if (evidenceFilter === 'all') return blocks;
-    return blocks.filter(block => {
-      if (block.name === TRACKING_STOPPED_NAME) return true;
-      if (evidenceFilter === 'withEvidence') {
-        return (blockEvidenceMap.get(block.id)?.length ?? 0) > 0;
-      }
-      if (evidenceFilter === 'byDomain') {
-        return !!block.domain;
-      }
-      return true;
-    });
-  }, [blocks, evidenceFilter, blockEvidenceMap]);
-
-  const evidenceCount = useMemo(() => {
-    return evidenceItems.length;
-  }, [evidenceItems]);
-
   const hourLabels = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
   // "Now" pin — recalculated on every tick
