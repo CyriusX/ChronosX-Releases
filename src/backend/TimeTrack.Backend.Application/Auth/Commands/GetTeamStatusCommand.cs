@@ -16,17 +16,20 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
 {
     private readonly IUserRepository _userRepository;
     private readonly IActivitySessionRepository _sessionRepository;
+    private readonly IDeviceRepository _deviceRepository;
     private readonly ICurrentUserContext _currentUser;
     private readonly ILogger<GetTeamStatusCommandHandler> _logger;
 
     public GetTeamStatusCommandHandler(
         IUserRepository userRepository,
         IActivitySessionRepository sessionRepository,
+        IDeviceRepository deviceRepository,
         ICurrentUserContext currentUser,
         ILogger<GetTeamStatusCommandHandler> logger)
     {
         _userRepository = userRepository;
         _sessionRepository = sessionRepository;
+        _deviceRepository = deviceRepository;
         _currentUser = currentUser;
         _logger = logger;
     }
@@ -96,18 +99,20 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
                 return (int)ComputeMergedSeconds(intervals);
             });
 
-        // Find users currently tracking (had activity in last 5 minutes)
-        var fiveMinutesAgo = DateTime.UtcNow.AddMinutes(-5);
-        var currentlyTracking = sessions
-            .Where(s => s.EndedAt >= fiveMinutesAgo)
-            .Select(s => s.UserId)
-            .Distinct()
-            .ToHashSet();
-
         // Most recent session EndedAt per user (last time agent synced data)
         var lastSyncByUser = sessions
             .GroupBy(s => s.UserId)
             .ToDictionary(g => g.Key, g => g.Max(s => s.EndedAt));
+
+        // Device heartbeat snapshot (for near real-time status)
+        var devices = await _deviceRepository.GetActiveByOrgIdAsync(request.OrgId, cancellationToken);
+        var latestDeviceByUser = devices
+            .GroupBy(d => d.UserId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(d => d.LastHeartbeatAt ?? DateTime.MinValue).FirstOrDefault());
+
+        var heartbeatCutoffUtc = DateTime.UtcNow.AddSeconds(-120);
 
         // Build response
         var members = users.Select(u =>
@@ -116,6 +121,13 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
             var lastSync = lastSyncByUser.TryGetValue(u.Id, out var syncTime)
                 ? syncTime.ToString("o")
                 : null;
+
+            var latestDevice = latestDeviceByUser.GetValueOrDefault(u.Id);
+            var isOnline = latestDevice?.LastHeartbeatAt != null && latestDevice.LastHeartbeatAt >= heartbeatCutoffUtc;
+            var trackingState = isOnline
+                ? (string.IsNullOrWhiteSpace(latestDevice?.TrackingState) ? "unknown" : latestDevice!.TrackingState!.ToLowerInvariant())
+                : "offline";
+
             return new TeamMemberStatusItem
             {
                 UserId = u.Id,
@@ -124,7 +136,9 @@ public sealed class GetTeamStatusCommandHandler : IRequestHandler<GetTeamStatusC
                 Status = u.Status.ToString(),
                 TodayDurationSeconds = totalSeconds,
                 TodayDurationFormatted = FormatDuration(totalSeconds),
-                IsTracking = currentlyTracking.Contains(u.Id),
+                // Back-compat: treat running+idle as "tracking/online"
+                IsTracking = trackingState is "running" or "idle",
+                TrackingState = trackingState,
                 LastSyncAt = lastSync
             };
         }).ToList();

@@ -102,6 +102,37 @@ export function MemberCard({ member, index, onSelect }: MemberCardProps) {
 
   const gradient = getMemberGradient(member.displayName);
   const prodColor = productivityPct !== null ? productivityColor(productivityPct) : undefined;
+  const trackingState = String(member.trackingState ?? (member.isTracking ? 'running' : 'offline')).toLowerCase();
+  const isOnline = trackingState !== 'offline';
+  const isRunning = trackingState === 'running';
+  const isIdle = trackingState === 'idle';
+
+  const statusDotClass = isRunning
+    ? 'bg-[#05df72]'
+    : isIdle
+      ? 'bg-[#fbbf24]'
+      : isOnline
+        ? 'bg-[rgba(245,247,251,0.35)]'
+        : 'bg-[rgba(245,247,251,0.2)]';
+
+  const statusTextClass = isRunning
+    ? 'text-[#05df72]'
+    : isIdle
+      ? 'text-[#fbbf24]'
+      : isOnline
+        ? 'text-[rgba(245,247,251,0.45)]'
+        : 'text-[rgba(245,247,251,0.3)]';
+
+  const statusLabel =
+    trackingState === 'running'
+      ? t('teams.online')
+      : trackingState === 'idle'
+        ? (t('teams.idle') as string)
+        : trackingState === 'paused'
+          ? (t('teams.paused') as string)
+          : trackingState === 'stopped'
+            ? (t('teams.stopped') as string)
+            : t('teams.offline');
 
   return (
     <motion.div
@@ -132,17 +163,17 @@ export function MemberCard({ member, index, onSelect }: MemberCardProps) {
         <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
           <div className="flex items-center gap-1.5">
             <div className="relative">
-              {member.isTracking && (
+              {isRunning && (
                 <motion.div
                   className="absolute inset-0 rounded-full bg-[#05df72]"
                   animate={{ opacity: [0.4, 0.1, 0.4], scale: [1, 1.8, 1] }}
                   transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                 />
               )}
-              <div className={`w-2 h-2 rounded-full relative ${member.isTracking ? 'bg-[#05df72]' : 'bg-[rgba(245,247,251,0.2)]'}`} />
+              <div className={`w-2 h-2 rounded-full relative ${statusDotClass}`} />
             </div>
-            <span className={`text-[10px] ${member.isTracking ? 'text-[#05df72]' : 'text-[rgba(245,247,251,0.3)]'}`}>
-              {member.isTracking ? t('teams.online') : t('teams.offline')}
+            <span className={`text-[10px] ${statusTextClass}`}>
+              {statusLabel}
             </span>
           </div>
           {member.lastSyncAt && (

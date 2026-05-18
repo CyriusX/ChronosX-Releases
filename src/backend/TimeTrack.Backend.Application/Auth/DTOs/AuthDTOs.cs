@@ -342,6 +342,10 @@ public sealed class TeamMemberStatusItem
     /// </summary>
     public bool IsTracking { get; init; }
     /// <summary>
+    /// Latest tracking state derived from device heartbeat: running | idle | paused | stopped | unknown | offline
+    /// </summary>
+    public string? TrackingState { get; init; }
+    /// <summary>
     /// Timestamp of the most recent activity session for this user (UTC ISO 8601)
     /// </summary>
     public string? LastSyncAt { get; init; }

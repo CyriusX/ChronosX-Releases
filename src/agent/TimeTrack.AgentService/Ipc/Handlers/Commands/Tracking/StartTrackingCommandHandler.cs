@@ -3,6 +3,7 @@ using TimeTrack.Agent.Application.UseCases.TrackingControl;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
 using TimeTrack.AgentService.Ipc.Handlers;
+using TimeTrack.AgentService.Workers;
 
 namespace TimeTrack.AgentService.Ipc.Handlers.Commands.Tracking;
 
@@ -20,6 +21,8 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
     private readonly ICurrentUserContext _userContext;
     private readonly IIpcServer _ipcServer;
     private readonly IAgentEventLogger _eventLogger;
+    private readonly IHeartbeatService _heartbeatService;
+    private readonly AgentStatusEventBroadcaster _statusBroadcaster;
     private readonly ILogger<StartTrackingCommandHandler> _logger;
 
     public StartTrackingCommandHandler(
@@ -28,6 +31,8 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         ICurrentUserContext userContext,
         IIpcServer ipcServer,
         IAgentEventLogger eventLogger,
+        IHeartbeatService heartbeatService,
+        AgentStatusEventBroadcaster statusBroadcaster,
         ILogger<StartTrackingCommandHandler> logger)
     {
         _trackingControl = trackingControl;
@@ -35,6 +40,8 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         _userContext = userContext;
         _ipcServer = ipcServer;
         _eventLogger = eventLogger;
+        _heartbeatService = heartbeatService;
+        _statusBroadcaster = statusBroadcaster;
         _logger = logger;
     }
 
@@ -75,6 +82,7 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
             await _eventLogger.LogAsync("tracking.started", AgentEventCategory.UserAction, AgentEventSeverity.Info,
                 "Monitoramento iniciado pelo usuário", cancellationToken: ct);
 
+            TriggerImmediateHeartbeat();
             return SuccessResponse(request.RequestId, result);
         }
         catch (Exception ex)
@@ -125,6 +133,27 @@ public sealed class StartTrackingCommandHandler : IpcHandlerBase, IIpcCommandHan
         {
             // Don't prevent tracking from starting if extend fails
             _logger.LogWarning(ex, "Failed to extend 'Tracking Stopped' session");
+        }
+    }
+
+    private void TriggerImmediateHeartbeat()
+    {
+        try
+        {
+            var snapshot = new AgentHealthSnapshot(
+                HealthStatus: _statusBroadcaster.CurrentHealthStatus,
+                BackendReachable: _statusBroadcaster.CurrentBackendReachable,
+                ConsecutiveSyncFailures: 0,
+                LastSuccessfulSyncAt: null,
+                IpcConnected: _ipcServer.IsClientConnected);
+
+            var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            _ = _heartbeatService.SendHeartbeatAsync(snapshot, cts.Token)
+                .ContinueWith(_ => cts.Dispose(), TaskScheduler.Default);
+        }
+        catch
+        {
+            // ignore
         }
     }
 }

@@ -7,6 +7,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
+using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Domain.Enums;
 using TimeTrack.Agent.Domain.ValueObjects;
 
@@ -21,6 +22,9 @@ public sealed class HeartbeatService : IHeartbeatService
     private readonly HttpClient _httpClient;
     private readonly ITokenStore _tokenStore;
     private readonly ITrackingStateRepository _trackingStateRepository;
+    private readonly IIdleDetector _idleDetector;
+    private readonly ILocalSettingsRepository _localSettingsRepository;
+    private readonly IOrgPolicyProvider _orgPolicyProvider;
     private readonly ICurrentUserContext _userContext;
     private readonly ILogger<HeartbeatService> _logger;
 
@@ -38,12 +42,18 @@ public sealed class HeartbeatService : IHeartbeatService
         HttpClient httpClient,
         ITokenStore tokenStore,
         ITrackingStateRepository trackingStateRepository,
+        IIdleDetector idleDetector,
+        ILocalSettingsRepository localSettingsRepository,
+        IOrgPolicyProvider orgPolicyProvider,
         ICurrentUserContext userContext,
         ILogger<HeartbeatService> logger)
     {
         _httpClient = httpClient;
         _tokenStore = tokenStore;
         _trackingStateRepository = trackingStateRepository;
+        _idleDetector = idleDetector;
+        _localSettingsRepository = localSettingsRepository;
+        _orgPolicyProvider = orgPolicyProvider;
         _userContext = userContext;
         _logger = logger;
     }
@@ -100,6 +110,7 @@ public sealed class HeartbeatService : IHeartbeatService
                     response = await _httpClient.PostAsJsonAsync(
                         $"/api/v1/devices/{deviceId}/heartbeat",
                         payload,
+                        JsonWriteOptions,
                         cancellationToken);
                 }
             }
@@ -148,19 +159,46 @@ public sealed class HeartbeatService : IHeartbeatService
                 return "unknown";
             }
 
+            if (state.Status == TrackingStatus.Active)
+            {
+                if (await IsUserIdleAsync(ct))
+                    return "idle";
+                return "running";
+            }
+
             return state.Status switch
             {
-                TrackingStatus.Active => "running",
                 TrackingStatus.PausedByUser => "paused",
                 TrackingStatus.PausedByPolicy => "paused",
                 TrackingStatus.Disabled => "stopped",
-                _ => "idle"
+                _ => "unknown"
             };
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "GetTrackingStateAsync failed — reporting 'unknown'");
             return "unknown";
+        }
+    }
+
+    private async Task<bool> IsUserIdleAsync(CancellationToken ct)
+    {
+        try
+        {
+            var idleTime = await _idleDetector.GetIdleTimeAsync(ct);
+            if (!idleTime.HasValue)
+                return false;
+
+            var localSettings = await _localSettingsRepository.GetAsync(ct);
+            var orgIdleThreshold = await _orgPolicyProvider.GetIdleThresholdSecondsAsync(ct);
+
+            // Fallback to agent default (AgentSettings default is 300s).
+            var thresholdSeconds = orgIdleThreshold ?? localSettings.IdleThresholdSeconds ?? 300;
+            return idleTime.Value.TotalSeconds >= thresholdSeconds;
+        }
+        catch
+        {
+            return false;
         }
     }
 

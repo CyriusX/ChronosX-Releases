@@ -7,7 +7,9 @@ using TimeTrack.Agent.Application.UseCases.TrackingControl;
 using TimeTrack.Agent.Contracts.Providers;
 using TimeTrack.Agent.Contracts.Repositories;
 using TimeTrack.Agent.Contracts.Services;
+using TimeTrack.Agent.Domain.Entities;
 using TimeTrack.Agent.Domain.Enums;
+using TimeTrack.Agent.Domain.ValueObjects;
 using TimeTrack.AgentService.Configuration;
 using TimeTrack.AgentService.Extensions;
 using TimeTrack.AgentService.Ipc;
@@ -25,6 +27,7 @@ public sealed class TrackingWorker : BackgroundService
     private readonly IIdleDetector _idleDetector;
     private readonly ITrackingStateRepository _stateRepository;
     private readonly ILocalSettingsRepository _localSettingsRepository;
+    private readonly IIdlePeriodRepository _idlePeriodRepository;
     private readonly ICurrentUserContext _userContext;
     private readonly IOrgPolicyProvider _orgPolicyProvider;
     private readonly RecordActiveWindowUseCase _recordActiveWindowUseCase;
@@ -32,9 +35,13 @@ public sealed class TrackingWorker : BackgroundService
     private readonly MarkIdleJustificationPendingUseCase _markIdleJustificationPendingUseCase;
     private readonly TrackingControlUseCase _trackingControl;
     private readonly IIpcServer _ipcServer;
+    private readonly IHeartbeatService _heartbeatService;
+    private readonly AgentStatusEventBroadcaster _statusBroadcaster;
 
     private bool _isIdle = false;
     private DateTime? _idleStartedAt;
+    private Guid? _liveIdlePeriodId;
+    private int? _liveIdleThresholdSeconds;
 
     // Sleep detection: track the wall-clock time of the last completed cycle.
     // TickCount64 freezes during sleep so Task.Delay returns immediately on wake,
@@ -58,13 +65,16 @@ public sealed class TrackingWorker : BackgroundService
         IIdleDetector idleDetector,
         ITrackingStateRepository stateRepository,
         ILocalSettingsRepository localSettingsRepository,
+        IIdlePeriodRepository idlePeriodRepository,
         ICurrentUserContext userContext,
         IOrgPolicyProvider orgPolicyProvider,
         RecordActiveWindowUseCase recordActiveWindowUseCase,
         RecordIdlePeriodUseCase recordIdlePeriodUseCase,
         MarkIdleJustificationPendingUseCase markIdleJustificationPendingUseCase,
         TrackingControlUseCase trackingControl,
-        IIpcServer ipcServer)
+        IIpcServer ipcServer,
+        IHeartbeatService heartbeatService,
+        AgentStatusEventBroadcaster statusBroadcaster)
     {
         _logger = logger;
         _settings = settings;
@@ -72,6 +82,7 @@ public sealed class TrackingWorker : BackgroundService
         _idleDetector = idleDetector;
         _stateRepository = stateRepository;
         _localSettingsRepository = localSettingsRepository;
+        _idlePeriodRepository = idlePeriodRepository;
         _userContext = userContext;
         _orgPolicyProvider = orgPolicyProvider;
         _recordActiveWindowUseCase = recordActiveWindowUseCase;
@@ -79,9 +90,32 @@ public sealed class TrackingWorker : BackgroundService
         _markIdleJustificationPendingUseCase = markIdleJustificationPendingUseCase;
         _trackingControl = trackingControl;
         _ipcServer = ipcServer;
+        _heartbeatService = heartbeatService;
+        _statusBroadcaster = statusBroadcaster;
 
         // Configura prioridade do processo
         ServiceCollectionExtensions.ConfigureProcessPriority(_settings.ProcessPriority);
+    }
+
+    private void TriggerImmediateHeartbeat()
+    {
+        try
+        {
+            var snapshot = new AgentHealthSnapshot(
+                HealthStatus: _statusBroadcaster.CurrentHealthStatus,
+                BackendReachable: _statusBroadcaster.CurrentBackendReachable,
+                ConsecutiveSyncFailures: 0,
+                LastSuccessfulSyncAt: null,
+                IpcConnected: _ipcServer.IsClientConnected);
+
+            var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            _ = _heartbeatService.SendHeartbeatAsync(snapshot, cts.Token)
+                .ContinueWith(_ => cts.Dispose(), TaskScheduler.Default);
+        }
+        catch
+        {
+            // ignore
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -306,6 +340,7 @@ public sealed class TrackingWorker : BackgroundService
 
         if (idleTime.HasValue && idleTime.Value >= effectiveIdleThreshold)
         {
+            var nowUtc = DateTime.UtcNow;
             if (!_isIdle)
             {
                 _isIdle = true;
@@ -320,6 +355,83 @@ public sealed class TrackingWorker : BackgroundService
                 _logger.LogInformation(
                     "Usuário entrou em idle. Tempo reportado: {IdleTime}, clamped start: {Start}",
                     idleTime.Value, _idleStartedAt);
+
+                // Create a local-only placeholder idle period immediately so the dashboard
+                // can show idle time in real time (it will be extended while idle).
+                _liveIdlePeriodId = Guid.NewGuid();
+                _liveIdleThresholdSeconds = effectiveIdleThresholdSecs;
+                try
+                {
+                    var startUtc = _idleStartedAt.Value;
+                    var placeholderEnd = startUtc.AddSeconds(1);
+                    if (placeholderEnd <= startUtc)
+                        placeholderEnd = startUtc.AddSeconds(1);
+
+                    var placeholder = new IdlePeriod(
+                        _liveIdlePeriodId.Value,
+                        userId.Value,
+                        new TimeRange(startUtc, placeholderEnd),
+                        effectiveIdleThresholdSecs,
+                        isSystemDetected: true);
+
+                    await _idlePeriodRepository.SaveAsync(placeholder, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to create live idle placeholder period");
+                    _liveIdlePeriodId = null;
+                    _liveIdleThresholdSeconds = null;
+                }
+
+                if (_ipcServer.IsClientConnected)
+                {
+                    try
+                    {
+                        await _ipcServer.SendEventAsync(new IpcEvent
+                        {
+                            EventType = "idleStateChanged",
+                            Payload = new
+                            {
+                                isIdle = true,
+                                idleTimeSeconds = (int)Math.Floor(idleTime.Value.TotalSeconds)
+                            }
+                        }, cancellationToken);
+                    }
+                    catch
+                    {
+                        // ignore push failures
+                    }
+                }
+
+                // Also ping the backend immediately so web dashboards update without waiting for SyncWorker.
+                TriggerImmediateHeartbeat();
+            }
+            else
+            {
+                // Extend the live placeholder while the user remains idle.
+                if (_liveIdlePeriodId.HasValue && _idleStartedAt.HasValue && _liveIdleThresholdSeconds.HasValue)
+                {
+                    try
+                    {
+                        var startUtc = _idleStartedAt.Value;
+                        var endUtc = nowUtc > startUtc ? nowUtc : startUtc.AddSeconds(1);
+                        if (endUtc <= startUtc)
+                            endUtc = startUtc.AddSeconds(1);
+
+                        var live = new IdlePeriod(
+                            _liveIdlePeriodId.Value,
+                            userId.Value,
+                            new TimeRange(startUtc, endUtc),
+                            _liveIdleThresholdSeconds.Value,
+                            isSystemDetected: true);
+
+                        await _idlePeriodRepository.UpdateAsync(live, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to extend live idle placeholder period");
+                    }
+                }
             }
             // Don't record activity while idle — the idle period will be recorded
             // when the user returns. The current session naturally expires from
@@ -328,11 +440,11 @@ public sealed class TrackingWorker : BackgroundService
             return;
         }
 
-            // 3. Se estava idle e retornou - salvar o período de inatividade
-            if (_isIdle)
-            {
-                var idleEndedAt = DateTime.UtcNow;
-                var idleDuration = idleEndedAt - _idleStartedAt!.Value;
+        // 3. Se estava idle e retornou - salvar o período de inatividade
+        if (_isIdle)
+        {
+            var idleEndedAt = DateTime.UtcNow;
+            var idleDuration = idleEndedAt - _idleStartedAt!.Value;
 
             _logger.LogInformation(
                 "Usuário retornou de idle após {Duration}. Salvando período...",
@@ -344,10 +456,12 @@ public sealed class TrackingWorker : BackgroundService
                 var idleResult = await _recordIdlePeriodUseCase.ExecuteAsync(
                     new RecordIdlePeriodRequest
                     {
+                        IdlePeriodId = _liveIdlePeriodId,
                         StartedAt = _idleStartedAt!.Value,
                         EndedAt = idleEndedAt,
                         ThresholdSeconds = effectiveIdleThresholdSecs,
-                        IsSystemDetected = true
+                        IsSystemDetected = true,
+                        CreateOutbox = true
                     },
                     cancellationToken);
 
@@ -383,6 +497,27 @@ public sealed class TrackingWorker : BackgroundService
 
             _isIdle = false;
             _idleStartedAt = null;
+            _liveIdlePeriodId = null;
+            _liveIdleThresholdSeconds = null;
+
+            if (_ipcServer.IsClientConnected)
+            {
+                try
+                {
+                    await _ipcServer.SendEventAsync(new IpcEvent
+                    {
+                        EventType = "idleStateChanged",
+                        Payload = new { isIdle = false, idleTimeSeconds = 0 }
+                    }, cancellationToken);
+                }
+                catch
+                {
+                    // ignore push failures
+                }
+            }
+
+            // Also ping the backend immediately so web dashboards update without waiting for SyncWorker.
+            TriggerImmediateHeartbeat();
         }
 
         // 4. Obter janela ativa

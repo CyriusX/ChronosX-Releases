@@ -60,7 +60,7 @@ public sealed class TaskTimeEntryRepositoryTrackingTests
         public Guid? DeviceId => null;
         public TimeTrack.Backend.Domain.ValueObjects.UserRole? Role => null;
         public bool IsAuthenticated => false; // bypass multi-tenant filters in unit tests
+        public bool IsPlatformAdmin => false;
         public bool IsInRole(TimeTrack.Backend.Domain.ValueObjects.UserRole role) => false;
     }
 }
-

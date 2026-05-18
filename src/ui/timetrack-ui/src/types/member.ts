@@ -27,6 +27,8 @@ export interface TeamMemberStatus {
   todayDurationSeconds: number;
   todayDurationFormatted: string;
   isTracking: boolean;
+  /** running | idle | paused | stopped | unknown | offline (from device heartbeat) */
+  trackingState?: string | null;
   lastSyncAt?: string | null;
   /** Productivity ratio from daily summary (0.0-1.0), enriched by useTeamStatus */
   productivityRatio?: number;
