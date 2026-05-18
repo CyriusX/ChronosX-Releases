@@ -124,17 +124,13 @@ export function useActivitiesData(): ActivitiesData {
   const [summary, setSummary] = useState<TodaySummaryResponse | null>(null);
   const [activities, setActivities] = useState<ActivityBlock[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-<<<<<<< HEAD
   const [liveTrackingState, setLiveTrackingState] = useState<string | null>(null);
-  const isFetchingRef = useRef(false);
-=======
   // Request-id pattern: every fetchData run gets an id; only the latest run's
   // results are applied. Replaces an in-flight bail-out that was silently
   // dropping the dep-change re-fire (e.g. when `userId` was set after auth
   // rehydration or when web's auto-select fires post-mount), leaving the page
   // stuck on the first request's result.
   const fetchIdRef = useRef(0);
->>>>>>> origin/dev
 
   const isToday = isSameDay(selectedDate, new Date());
   const datePayload = formatDatePayload(selectedDate);
