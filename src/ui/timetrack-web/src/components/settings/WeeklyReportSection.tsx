@@ -35,7 +35,7 @@ const TIME_OPTIONS = generateTimeOptions();
 
 export function WeeklyReportSection() {
   const { t } = useTranslation();
-  const notify = useNotifications();
+  const { notify } = useNotifications();
 
   const [schedule, setSchedule] = useState<WeeklyReportSchedule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
