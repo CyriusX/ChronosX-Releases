@@ -552,7 +552,8 @@
       "Bash(git -C \"c:\\\\Projetos\\\\TimeTracking\" log --oneline -10)",
       "Bash(git -C \"c:\\\\Projetos\\\\TimeTracking\" remote -v)",
       "PowerShell($hash = \\(Get-FileHash \"C:\\\\Projetos\\\\TimeTracking\\\\build\\\\installer\\\\ChronosX-Setup-1.0.48.exe\" -Algorithm SHA256\\).Hash; $size = \\(Get-Item \"C:\\\\Projetos\\\\TimeTracking\\\\build\\\\installer\\\\ChronosX-Setup-1.0.48.exe\"\\).Length; Write-Output \"SHA256: $hash\"; Write-Output \"Size: $size\")",
-      "Bash(gh release create v1.0.48 --repo CyriusX/ChronosX-Releases --title 'ChronosX v1.0.48' --notes ' *)"
+      "Bash(gh release create v1.0.48 --repo CyriusX/ChronosX-Releases --title 'ChronosX v1.0.48' --notes ' *)",
+      "Bash(git pull *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Usuario",

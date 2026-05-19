@@ -76,8 +76,13 @@ export function WeeklyReportSection() {
   }, [notify, t]);
 
   useEffect(() => {
+    console.log('[WeeklyReportSection] Component mounted');
     loadSchedule();
   }, [loadSchedule]);
+
+  useEffect(() => {
+    console.log('[WeeklyReportSection] State:', { isLoading, isEnabled, schedule });
+  }, [isLoading, isEnabled, schedule]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -136,6 +141,7 @@ export function WeeklyReportSection() {
             {t('settings.weeklyReport.subtitle')}
           </p>
         </div>
+        <div className="text-[rgba(245,247,251,0.5)] text-[13px]">Loading...</div>
         <div className="animate-pulse space-y-4">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-20 bg-[rgba(255,255,255,0.04)] rounded-2xl" />
@@ -144,6 +150,8 @@ export function WeeklyReportSection() {
       </div>
     );
   }
+
+  console.log('[WeeklyReportSection] Rendering with:', { isLoading, isEnabled });
 
   return (
     <div className="space-y-6 max-w-2xl">
