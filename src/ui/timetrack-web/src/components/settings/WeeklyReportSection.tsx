@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Mail, Clock, Calendar, Users, AlertTriangle, TrendingUp, Eye, Loader2, Check, ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
@@ -53,7 +53,13 @@ export function WeeklyReportSection() {
     includeUnproductiveDays: true,
   });
 
+  // Use ref to avoid re-creating the function on every render
+  const hasLoadedRef = useRef(false);
+
   const loadSchedule = useCallback(async () => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
     setIsLoading(true);
     console.log('[WeeklyReportSection] Loading schedule...');
     try {
@@ -73,16 +79,11 @@ export function WeeklyReportSection() {
       console.log('[WeeklyReportSection] Loading finished');
       setIsLoading(false);
     }
-  }, [notify, t]);
+  }, [t, notify]);
 
   useEffect(() => {
-    console.log('[WeeklyReportSection] Component mounted');
     loadSchedule();
   }, [loadSchedule]);
-
-  useEffect(() => {
-    console.log('[WeeklyReportSection] State:', { isLoading, isEnabled, schedule });
-  }, [isLoading, isEnabled, schedule]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -150,8 +151,6 @@ export function WeeklyReportSection() {
       </div>
     );
   }
-
-  console.log('[WeeklyReportSection] Rendering with:', { isLoading, isEnabled });
 
   return (
     <div className="space-y-6 max-w-2xl">
