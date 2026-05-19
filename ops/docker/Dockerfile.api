@@ -10,6 +10,7 @@ COPY ["src/backend/TimeTrack.Api/TimeTrack.Api.csproj", "TimeTrack.Api/"]
 COPY ["src/backend/TimeTrack.Backend.Application/TimeTrack.Backend.Application.csproj", "TimeTrack.Backend.Application/"]
 COPY ["src/backend/TimeTrack.Backend.Domain/TimeTrack.Backend.Domain.csproj", "TimeTrack.Backend.Domain/"]
 COPY ["src/backend/TimeTrack.Backend.Infrastructure/TimeTrack.Backend.Infrastructure.csproj", "TimeTrack.Backend.Infrastructure/"]
+COPY ["src/backend/TimeTrack.Backend.AI/TimeTrack.Backend.AI.csproj", "TimeTrack.Backend.AI/"]
 
 # Restore
 RUN dotnet restore "TimeTrack.Api/TimeTrack.Api.csproj"
