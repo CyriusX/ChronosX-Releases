@@ -23,6 +23,23 @@ public record PlanFeatureSet
     public Dictionary<string, bool> Flags { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
+/// <summary>
+/// Internal DTO representing a plan fetched directly from Stripe.
+/// Used by ListPlansAsync before DB sync.
+/// </summary>
+public record StripePlanInfo
+{
+    public string StripeProductId { get; init; } = string.Empty;
+    public string StripePriceId { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public string? Description { get; init; }
+    public string Tier { get; init; } = string.Empty;
+    public int MonthlyPriceCents { get; init; }
+    public int MaxUsers { get; init; }
+    public int MaxDevices { get; init; }
+    public Dictionary<string, bool> Features { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
 public record PlanResponse
 {
     public Guid Id { get; init; }

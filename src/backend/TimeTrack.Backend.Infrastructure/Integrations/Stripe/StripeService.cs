@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using TimeTrack.Backend.Application.Billing.DTOs;
 using TimeTrack.Backend.Application.Common.Interfaces;
 
 namespace TimeTrack.Backend.Infrastructure.Integrations.Stripe;
@@ -10,6 +11,8 @@ public sealed class StripeService : IPaymentGatewayService
     private readonly global::Stripe.BillingPortal.SessionService _portalSessionService;
     private readonly global::Stripe.SubscriptionService _subscriptionService;
     private readonly global::Stripe.BillingPortal.ConfigurationService _portalConfigService;
+    private readonly global::Stripe.ProductService _productService;
+    private readonly global::Stripe.PriceService _priceService;
     private readonly StripeWebhookProcessor _webhookProcessor;
     private readonly ILogger<StripeService> _logger;
     private readonly string _webhookSecret;
@@ -34,8 +37,68 @@ public sealed class StripeService : IPaymentGatewayService
         _portalSessionService = new();
         _subscriptionService = new();
         _portalConfigService = new();
+        _productService = new();
+        _priceService = new();
         _webhookProcessor = webhookProcessor;
         _logger = logger;
+    }
+
+    public async Task<IReadOnlyList<StripePlanInfo>> ListPlansAsync(CancellationToken ct = default)
+    {
+        if (!_isConfigured)
+            throw new InvalidOperationException("Stripe is not configured. Set Stripe:SecretKey and Stripe:WebhookSecret.");
+
+        var products = await _productService.ListAsync(new global::Stripe.ProductListOptions
+        {
+            Active = true,
+        }, cancellationToken: ct);
+
+        var result = new List<StripePlanInfo>();
+
+        foreach (var product in products)
+        {
+            if (product.DefaultPriceId is null) continue;
+
+            global::Stripe.Price? price = null;
+            try
+            {
+                price = await _priceService.GetAsync(product.DefaultPriceId, cancellationToken: ct);
+            }
+            catch (global::Stripe.StripeException ex)
+            {
+                _logger.LogWarning(ex, "Skipping product {ProductId}: default price {PriceId} not found",
+                    product.Id, product.DefaultPriceId);
+                continue;
+            }
+
+            if (price?.Recurring is null) continue;
+
+            var tier = product.Metadata.TryGetValue("tier", out var tierValue) ? tierValue : product.Name.ToLowerInvariant();
+            var maxUsers = product.Metadata.TryGetValue("max_users", out var maxUsersStr) && int.TryParse(maxUsersStr, out var mu) ? mu : 0;
+            var maxDevices = product.Metadata.TryGetValue("max_devices", out var maxDevicesStr) && int.TryParse(maxDevicesStr, out var md) ? md : 0;
+
+            var features = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            if (product.Metadata.TryGetValue("features", out var featuresStr))
+            {
+                foreach (var f in featuresStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    features[f] = true;
+            }
+
+            result.Add(new StripePlanInfo
+            {
+                StripeProductId = product.Id,
+                StripePriceId = price.Id,
+                Name = product.Name,
+                Description = product.Description,
+                Tier = tier,
+                MonthlyPriceCents = (int)(price.UnitAmount ?? 0),
+                MaxUsers = maxUsers,
+                MaxDevices = maxDevices,
+                Features = features
+            });
+        }
+
+        return result;
     }
 
     public async Task<string> CreateCheckoutSessionAsync(

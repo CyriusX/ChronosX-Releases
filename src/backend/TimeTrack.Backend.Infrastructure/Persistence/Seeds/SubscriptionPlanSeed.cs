@@ -1,74 +1,45 @@
-using System.Reflection;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using TimeTrack.Backend.Domain.Entities;
 using TimeTrack.Backend.Domain.ValueObjects;
-using TimeTrack.Backend.Infrastructure.Integrations.Stripe;
 using TimeTrack.Backend.Infrastructure.Persistence;
 
 namespace TimeTrack.Backend.Infrastructure.Persistence.Seeds;
 
 public static class SubscriptionPlanSeed
 {
-    private static readonly PropertyInfo[] ConfigFeatureProperties = typeof(PlanFeatures)
-        .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-        .Where(p => p.PropertyType == typeof(bool))
-        .ToArray();
-
     public static async Task SeedAsync(
         TimeTrackDbContext context,
-        IOptions<PlansOptions> plansOptions,
+        ILogger logger,
         CancellationToken cancellationToken = default)
     {
-        var configPlans = plansOptions.Value.Plans;
-        if (configPlans.Count == 0) return;
-
-        var existingPlans = await context.SubscriptionPlans
+        var existingFree = await context.SubscriptionPlans
             .IgnoreQueryFilters()
-            .ToDictionaryAsync(p => p.Tier, cancellationToken);
+            .AnyAsync(p => p.Tier == PlanTier.Free, cancellationToken);
 
-        foreach (var cfg in configPlans)
-        {
-            if (!Enum.TryParse<PlanTier>(cfg.Tier, ignoreCase: true, out var tier))
-                continue;
+        if (existingFree) return;
 
-            var features = ToFeatureDictionary(cfg.Features);
-
-            if (existingPlans.TryGetValue(tier, out var existing))
+        var freePlan = SubscriptionPlan.Create(
+            name: "Free",
+            tier: PlanTier.Free,
+            monthlyPriceCents: 0,
+            maxUsers: 3,
+            maxDevices: 3,
+            features: new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
             {
-                existing.UpdateFromConfig(
-                    cfg.Name,
-                    cfg.MonthlyPriceCents,
-                    cfg.YearlyPriceCents,
-                    cfg.MaxUsers,
-                    cfg.MaxDevices,
-                    features,
-                    cfg.StripePriceId,
-                    cfg.StripeProductId);
-            }
-            else
-            {
-                var plan = SubscriptionPlan.Create(
-                    name: cfg.Name,
-                    tier: tier,
-                    monthlyPriceCents: cfg.MonthlyPriceCents,
-                    maxUsers: cfg.MaxUsers,
-                    maxDevices: cfg.MaxDevices,
-                    features: features,
-                    stripePriceId: cfg.StripePriceId,
-                    stripeProductId: cfg.StripeProductId,
-                    yearlyPriceCents: cfg.YearlyPriceCents);
+                ["MachineMonitoring"] = true,
+                ["AdvancedReports"] = false,
+                ["FocusMode"] = true,
+                ["ApiAccess"] = false,
+                ["PrioritySupport"] = false,
+                ["CustomCategories"] = false,
+                ["LinearIntegration"] = false,
+                ["BillingAnalytics"] = false,
+            });
 
-                await context.SubscriptionPlans.AddAsync(plan, cancellationToken);
-            }
-        }
-
+        await context.SubscriptionPlans.AddAsync(freePlan, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
-    }
 
-    private static Dictionary<string, bool> ToFeatureDictionary(PlanFeatures features) =>
-        ConfigFeatureProperties.ToDictionary(
-            p => p.Name,
-            p => (bool)p.GetValue(features)!,
-            StringComparer.OrdinalIgnoreCase);
+        logger.LogInformation("Seeded Free subscription plan");
+    }
 }

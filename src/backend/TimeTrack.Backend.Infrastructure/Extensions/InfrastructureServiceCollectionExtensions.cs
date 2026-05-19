@@ -94,7 +94,6 @@ public static class InfrastructureServiceCollectionExtensions
         });
 
         // Subscriptions & Billing
-        services.Configure<PlansOptions>(configuration.GetSection("Plans"));
         services.Configure<SubscriptionOptions>(configuration.GetSection("Subscription"));
         services.AddScoped<ISubscriptionPlanRepository, SubscriptionPlanRepository>();
         services.AddScoped<IOrgSubscriptionRepository, OrgSubscriptionRepository>();

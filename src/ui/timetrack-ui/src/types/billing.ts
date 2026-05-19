@@ -11,7 +11,7 @@ export type SubscriptionStatus =
   | 'unpaid'
   | 'incomplete';
 
-export type PlanTier = 'pro' | 'enterprise';
+export type PlanTier = 'free' | 'pro' | 'enterprise';
 
 export type PlanFeatureSet = Record<string, boolean>;
 
