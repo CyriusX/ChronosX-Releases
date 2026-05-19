@@ -158,6 +158,7 @@ public sealed class DpapiTokenStore : ITokenStore
                     _logger.LogError(
                         "Token refresh failed with terminal status {StatusCode} — clearing stored tokens so user must re-authenticate",
                         response.StatusCode);
+                    await ClearAsync(cancellationToken);
                     return false;
                 }
 

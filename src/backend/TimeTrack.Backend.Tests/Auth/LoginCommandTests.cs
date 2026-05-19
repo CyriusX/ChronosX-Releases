@@ -135,7 +135,7 @@ public class LoginCommandTests
         // Act
         await _handler.Handle(command, CancellationToken.None);
 
-        // Assert - Verify audit log was called
+        // Assert
         _auditLogServiceMock.Verify(
             s => s.LogAsync(
                 AuditActions.UserLogin,

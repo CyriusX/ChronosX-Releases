@@ -1,7 +1,10 @@
+using TimeTrack.Backend.Application.Billing.DTOs;
+
 namespace TimeTrack.Backend.Application.Common.Interfaces;
 
 public interface IPaymentGatewayService
 {
+    Task<IReadOnlyList<StripePlanInfo>> ListPlansAsync(CancellationToken ct = default);
     Task<string> CreateCheckoutSessionAsync(Guid orgId, string stripePriceId, string successUrl, string cancelUrl, int quantity = 1, CancellationToken ct = default);
     Task<string> CreateCustomerPortalSessionAsync(string stripeCustomerId, string returnUrl, CancellationToken ct = default);
     Task CancelSubscriptionAsync(string stripeSubscriptionId, bool cancelAtPeriodEnd = true, CancellationToken ct = default);

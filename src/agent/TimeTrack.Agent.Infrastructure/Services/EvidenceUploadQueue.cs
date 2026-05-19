@@ -47,6 +47,8 @@ public sealed class EvidenceUploadQueue : IEvidenceUploadQueue
         _logger.LogDebug("Enqueued evidence upload: {Id}, type={Type}", item.Id, item.EvidenceType);
     }
 
+    private static readonly int MaxBackoffMinutes = 30;
+
     public async Task<IReadOnlyList<EvidenceQueueItem>> GetPendingAsync(int limit, CancellationToken ct = default)
     {
         var conn = await _sqlite.GetConnectionAsync(ct);
@@ -54,9 +56,8 @@ public sealed class EvidenceUploadQueue : IEvidenceUploadQueue
             SELECT id, local_path, evidence_type, captured_at, app_name, window_title_hash,
                    attempt_count, next_attempt_utc, uploaded_at, file_size_bytes, status
             FROM evidence_upload_queue
-            WHERE status = 'pending'
+            WHERE status IN ('pending', 'failed')
               AND datetime(next_attempt_utc) <= datetime('now')
-              AND attempt_count < 3
             ORDER BY captured_at ASC
             LIMIT @Limit",
             new { Limit = limit });
@@ -93,45 +94,27 @@ public sealed class EvidenceUploadQueue : IEvidenceUploadQueue
     {
         var conn = await _sqlite.GetConnectionAsync(ct);
 
-        // Calculate next attempt with exponential backoff: 1min, 2min, 4min
         var item = await Dapper.SqlMapper.QueryFirstOrDefaultAsync<dynamic>(conn,
             "SELECT attempt_count FROM evidence_upload_queue WHERE id = @Id", new { Id = id });
 
         if (item == null) return;
 
         var attemptCount = (int)item.attempt_count + 1;
-        var backoffMinutes = attemptCount switch
-        {
-            1 => 1,
-            2 => 2,
-            _ => 4
-        };
+        var backoffMinutes = Math.Min(
+            (int)Math.Pow(2, Math.Min(attemptCount - 1, 5)),
+            MaxBackoffMinutes);
 
-        if (attemptCount >= 3)
-        {
-            await Dapper.SqlMapper.ExecuteAsync(conn, @"
-                UPDATE evidence_upload_queue
-                SET status = 'failed', attempt_count = @AttemptCount
-                WHERE id = @Id",
-                new { Id = id, AttemptCount = attemptCount });
+        var nextAttempt = DateTime.UtcNow.AddMinutes(backoffMinutes);
+        await Dapper.SqlMapper.ExecuteAsync(conn, @"
+            UPDATE evidence_upload_queue
+            SET attempt_count = @AttemptCount,
+                next_attempt_utc = @NextAttempt,
+                status = 'pending'
+            WHERE id = @Id",
+            new { Id = id, AttemptCount = attemptCount, NextAttempt = nextAttempt.ToString("o") });
 
-            _logger.LogError("Evidence upload permanently failed after {Attempts} attempts: {Id}. Error: {Error}",
-                attemptCount, id, error);
-        }
-        else
-        {
-            var nextAttempt = DateTime.UtcNow.AddMinutes(backoffMinutes);
-            await Dapper.SqlMapper.ExecuteAsync(conn, @"
-                UPDATE evidence_upload_queue
-                SET attempt_count = @AttemptCount,
-                    next_attempt_utc = @NextAttempt,
-                    status = 'pending'
-                WHERE id = @Id",
-                new { Id = id, AttemptCount = attemptCount, NextAttempt = nextAttempt.ToString("o") });
-
-            _logger.LogWarning("Evidence upload attempt {Attempt} failed for {Id}. Retry at {NextAttempt}. Error: {Error}",
-                attemptCount, id, nextAttempt, error);
-        }
+        _logger.LogWarning("Evidence upload attempt {Attempt} failed for {Id}. Retry at {NextAttempt}. Error: {Error}",
+            attemptCount, id, nextAttempt, error);
     }
 
     public async Task CleanupOldEntriesAsync(int olderThanDays, CancellationToken ct = default)
@@ -139,7 +122,7 @@ public sealed class EvidenceUploadQueue : IEvidenceUploadQueue
         var conn = await _sqlite.GetConnectionAsync(ct);
         var deleted = await Dapper.SqlMapper.ExecuteAsync(conn, @"
             DELETE FROM evidence_upload_queue
-            WHERE status IN ('uploaded', 'failed')
+            WHERE status = 'uploaded'
               AND created_at < datetime('now', '-' || @Days || ' days')",
             new { Days = olderThanDays });
 

@@ -95,7 +95,6 @@ public static class InfrastructureServiceCollectionExtensions
         });
 
         // Subscriptions & Billing
-        services.Configure<PlansOptions>(configuration.GetSection("Plans"));
         services.Configure<SubscriptionOptions>(configuration.GetSection("Subscription"));
         services.AddScoped<ISubscriptionPlanRepository, SubscriptionPlanRepository>();
         services.AddScoped<IOrgSubscriptionRepository, OrgSubscriptionRepository>();
@@ -139,7 +138,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<ResendClient>();
         services.Configure<ResendClientOptions>(options =>
         {
-            options.ApiToken = configuration["Resend:ApiKey"]
+            options.ApiToken =
+                (string.IsNullOrWhiteSpace(configuration["Resend:ApiKey"]) ? null : configuration["Resend:ApiKey"])
                 ?? configuration["RESEND_API_KEY"]
                 ?? throw new InvalidOperationException("Resend API key not found. Set Resend:ApiKey or RESEND_API_KEY");
         });

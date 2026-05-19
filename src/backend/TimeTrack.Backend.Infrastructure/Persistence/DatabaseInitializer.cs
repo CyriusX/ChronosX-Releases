@@ -3,9 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Npgsql;
-using TimeTrack.Backend.Infrastructure.Integrations.Stripe;
 using TimeTrack.Backend.Infrastructure.Persistence.Seeds;
 
 namespace TimeTrack.Backend.Infrastructure.Persistence;
@@ -82,8 +80,7 @@ public sealed class DatabaseInitializer : IHostedService
 
         _logger.LogInformation("Running seed data...");
         await AppCategoryGlobalSeed.SeedAsync(dbContext, cancellationToken);
-        var plansOptions = scope.ServiceProvider.GetRequiredService<IOptions<PlansOptions>>();
-        await SubscriptionPlanSeed.SeedAsync(dbContext, plansOptions, cancellationToken);
+        await SubscriptionPlanSeed.SeedAsync(dbContext, _logger, cancellationToken);
         _logger.LogInformation("Seed data completed");
 
         _logger.LogInformation("Database initialization completed successfully");
