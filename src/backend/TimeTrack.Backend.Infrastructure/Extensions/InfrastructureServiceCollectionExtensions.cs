@@ -13,6 +13,7 @@ using TimeTrack.Backend.Domain.Interfaces.Services;
 using TimeTrack.Backend.Infrastructure.Integrations;
 using TimeTrack.Backend.Infrastructure.Integrations.Linear;
 using TimeTrack.Backend.Infrastructure.Integrations.Stripe;
+using TimeTrack.Backend.Infrastructure.Jobs;
 using TimeTrack.Backend.Infrastructure.Jobs.Configuration;
 using TimeTrack.Backend.Infrastructure.Persistence;
 using TimeTrack.Backend.Infrastructure.Repositories;
@@ -112,6 +113,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IEvidenceItemRepository, EvidenceItemRepository>();
         services.AddSingleton<IMediaServiceConfiguration, MediaServiceConfiguration>();
         services.AddHttpClient<IMediaServiceClient, MediaServiceClient>();
+
+        // Weekly Report Data Collector
+        services.AddScoped<WeeklyReportDataCollector>();
 
         // AI Module (Fase 4)
         services.AddScoped<IAiDecisionLogRepository, AiDecisionLogRepository>();
