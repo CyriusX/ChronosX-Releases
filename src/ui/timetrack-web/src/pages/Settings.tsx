@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Building2, ArrowLeft, ShieldAlert, Globe } from 'lucide-react';
+import { Users, Building2, ArrowLeft, ShieldAlert, Globe, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { WebSidebar } from '../components/WebSidebar';
@@ -24,15 +24,17 @@ import { createPlatformApiKey, listPlatformApiKeys, revokePlatformApiKey, type P
 import { MembersSection } from '@desktop/components/settings/MembersSection';
 import { InviteLinkSection } from '../components/settings/InviteLinkSection';
 import { OrganizationSection } from '@desktop/components/settings/OrganizationSection';
+import { WeeklyReportSection } from '../components/settings/WeeklyReportSection';
 import { SkeletonShimmer } from '@desktop/components/ui/SkeletonShimmer';
 import { SPRING } from '@desktop/lib/animation';
 import type { OrgPolicyResponse, UpdateOrgPolicyRequest, AppLanguage } from '@desktop/types/settings';
 
-type WebSettingsSection = 'team' | 'organization' | 'maintenance' | 'preferences';
+type WebSettingsSection = 'team' | 'organization' | 'email-report' | 'maintenance' | 'preferences';
 
 const SECTIONS: { id: WebSettingsSection; label: string; icon: typeof Users }[] = [
   { id: 'team', label: 'settings.members.title', icon: Users },
   { id: 'organization', label: 'settings.organization.title', icon: Building2 },
+  { id: 'email-report', label: 'settings.weeklyReport.title', icon: Mail },
   { id: 'maintenance', label: 'maintenance.title', icon: ShieldAlert },
   { id: 'preferences', label: 'maintenance.preferences', icon: Globe },
 ];
@@ -116,6 +118,8 @@ export default function Settings() {
             <InviteLinkSection />
           </>
         );
+      case 'email-report':
+        return <WeeklyReportSection />;
       case 'maintenance':
         return <MaintenanceSection />;
       case 'preferences':

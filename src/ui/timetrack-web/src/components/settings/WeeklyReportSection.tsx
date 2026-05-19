@@ -10,7 +10,7 @@ import {
   type WeeklyReportSchedule,
   type ReportPreferences,
 } from '../../services/weeklyReportApi';
-import { useNotifications } from '../../stores/uiStore';
+import { useNotifications } from '@desktop/stores/uiStore';
 
 const DAYS_OF_WEEK = [
   { value: 0, label: 'Domingo' },
@@ -35,7 +35,7 @@ const TIME_OPTIONS = generateTimeOptions();
 
 export function WeeklyReportSection() {
   const { t } = useTranslation();
-  const { notify } = useNotifications();
+  const notify = useNotifications();
 
   const [schedule, setSchedule] = useState<WeeklyReportSchedule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -127,7 +127,7 @@ export function WeeklyReportSection() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-2xl">
         <div>
           <h2 className="text-[20px] font-semibold text-[#f5f7fb]">
             {t('settings.weeklyReport.title')}
@@ -146,7 +146,7 @@ export function WeeklyReportSection() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-2xl">
       {/* Header */}
       <div>
         <h2 className="text-[20px] font-semibold text-[#f5f7fb]">
