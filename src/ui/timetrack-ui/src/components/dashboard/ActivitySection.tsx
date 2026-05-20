@@ -10,7 +10,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical, Camera } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { useIpc } from '../../hooks/useIpc';
 import { useTrackingStore } from '../../stores/trackingStore';
@@ -555,7 +555,6 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                   </span>
                   {!hideEvidence && evidenceCount > 0 && (
                     <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded bg-[rgba(139,92,246,0.08)] border border-[rgba(139,92,246,0.15)] text-[#a78bfa] font-mono">
-                      <Camera className="w-2.5 h-2.5" />
                       {evidenceCount}
                     </span>
                   )}
@@ -614,11 +613,7 @@ export function ActivitySection({ activities: controlledActivities, selectedDate
                               setEvidenceModalIndex(0);
                             }
                           }}
-                        >
-                          {!hideEvidence && hasEvidence && (
-                            <Camera className="absolute top-0 right-0 w-2.5 h-2.5 text-white opacity-80 pointer-events-none" />
-                          )}
-                        </div>
+                        />
                       );
                     })}
                     {nowPct >= 0 && (
@@ -761,8 +756,7 @@ function ActivityTooltip({ block, anchorRect, blockEvidence }: { block: Activity
           <span className="text-[rgba(245,247,251,0.7)] font-medium ml-1.5">{fmtDuration(block.duration)}</span>
         </p>
         {(blockEvidence && blockEvidence.length > 0) && (
-          <div className="flex items-center gap-1 mb-1.5">
-            <Camera className="w-2.5 h-2.5 text-[#a78bfa]" />
+          <div className="mb-1.5">
             <span className="text-[9px] text-[#a78bfa]">{blockEvidence.length} {blockEvidence.length === 1 ? t('evidence.screenshot') : t('evidence.screenshots')}</span>
           </div>
         )}
