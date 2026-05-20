@@ -69,6 +69,7 @@ public static class HangfireConfiguration
         services.AddScoped<IDevToolsAutoRevokeJob, DevToolsAutoRevokeJob>();
         services.AddScoped<IOpsDeviceIssueStateMonitorJob, OpsDeviceIssueStateMonitorJob>();
         services.AddScoped<IPlatformSelfHealthMonitorJob, PlatformSelfHealthMonitorJob>();
+        services.AddScoped<IWeeklyEmailReportJob, WeeklyEmailReportJob>();
 
         return services;
     }
@@ -222,6 +223,17 @@ public static class HangfireConfiguration
             "devtools-auto-revoke",
             job => job.ExecuteAsync(),
             "*/10 * * * *", // Every 10 minutes
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        // Weekly email report job - runs every hour
+        // Checks schedules matching current day/hour and sends weekly reports via email
+        RecurringJob.AddOrUpdate<IWeeklyEmailReportJob>(
+            "weekly-email-report",
+            job => job.ExecuteAsync(),
+            "0 * * * *", // Every hour at :00
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc

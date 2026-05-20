@@ -4,11 +4,23 @@ using Microsoft.Extensions.Logging;
 using TimeTrack.Backend.AI.Interfaces;
 using TimeTrack.Backend.Application.Common.Interfaces;
 using TimeTrack.Backend.Domain.Entities;
+using TimeTrack.Backend.Infrastructure.Jobs.Interfaces;
 using TimeTrack.Backend.Infrastructure.Persistence;
 
 namespace TimeTrack.Backend.Infrastructure.Jobs;
 
-public sealed class WeeklyEmailReportJob
+/// <summary>
+/// Job Hangfire para envio de relatorio semanal por e-mail
+///
+/// Responsabilidades:
+/// - Verifica schedules que correspondem ao dia/hora atual
+/// - Coleta dados via WeeklyReportDataCollector
+/// - Gera relatorio via IA
+/// - Envia e-mail via IEmailService
+///
+/// SRP: Apenas orquestra o processo de envio
+/// </summary>
+public sealed class WeeklyEmailReportJob : IWeeklyEmailReportJob
 {
     private readonly TimeTrackDbContext _context;
     private readonly WeeklyReportDataCollector _dataCollector;
@@ -36,6 +48,18 @@ public sealed class WeeklyEmailReportJob
         _logger = logger;
     }
 
+    /// <summary>
+    /// Executa o job de relatorio semanal
+    /// Verifica schedules que correspondem ao dia/hora atual e envia os e-mails
+    /// </summary>
+    public async Task ExecuteAsync()
+    {
+        await ExecuteAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Executa o job de relatorio semanal com token de cancelamento
+    /// </summary>
     public async Task ExecuteAsync(CancellationToken ct = default)
     {
         var nowUtc = DateTime.UtcNow;
