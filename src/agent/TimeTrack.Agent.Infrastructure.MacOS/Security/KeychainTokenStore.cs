@@ -32,6 +32,17 @@ public sealed class KeychainTokenStore : ITokenStore
     // the backend's single-use refresh-token rotation, and we'd clear tokens unnecessarily.
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
+    // Track consecutive refresh failures to avoid clearing tokens on transient issues
+    private int _consecutiveRefreshFailures;
+    private DateTime _lastRefreshAttempt = DateTime.MinValue;
+    private const int MaxConsecutiveFailuresBeforeClear = 3;
+    private static readonly TimeSpan[] RefreshRetryDelays = new[]
+    {
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(5)
+    };
+
     private sealed record TokenData(string Jwt, string RefreshToken, DateTime ExpiresAt);
 
     public event EventHandler<TokensStoredEventArgs>? TokensStored;
@@ -80,6 +91,7 @@ public sealed class KeychainTokenStore : ITokenStore
         lock (_cacheLock)
         {
             _cachedTokens = tokens;
+            _consecutiveRefreshFailures = 0; // Reset failure counter on successful token storage
         }
 
         _logger.LogInformation("Tokens stored securely in macOS Keychain");
@@ -98,6 +110,7 @@ public sealed class KeychainTokenStore : ITokenStore
         lock (_cacheLock)
         {
             _cachedTokens = null;
+            _consecutiveRefreshFailures = 0; // Reset failure counter when tokens are cleared
         }
 
         _logger.LogInformation("Tokens cleared from Keychain");
@@ -129,6 +142,16 @@ public sealed class KeychainTokenStore : ITokenStore
             return false;
         }
 
+        // Rate limit refresh attempts to avoid hammering the backend during issues
+        var timeSinceLastAttempt = DateTime.UtcNow - _lastRefreshAttempt;
+        if (timeSinceLastAttempt < TimeSpan.FromSeconds(30))
+        {
+            _logger.LogDebug(
+                "Token refresh skipped: last attempt was {Seconds}s ago (min 30s required)",
+                timeSinceLastAttempt.TotalSeconds);
+            return false;
+        }
+
         await _refreshGate.WaitAsync(cancellationToken);
         try
         {
@@ -148,68 +171,139 @@ public sealed class KeychainTokenStore : ITokenStore
                 return true;
             }
 
-            var request = new { refreshToken = refreshToken };
-            var content = new StringContent(
-                JsonSerializer.Serialize(request),
-                System.Text.Encoding.UTF8,
-                "application/json");
+            _lastRefreshAttempt = DateTime.UtcNow;
 
-            var response = await _httpClient.PostAsync(
-                $"{_backendUrl}/api/v1/auth/refresh",
-                content,
-                cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
+            // Try refresh with exponential backoff retry for transient errors
+            for (int attempt = 0; attempt < RefreshRetryDelays.Length; attempt++)
             {
-                // Invalidate cache so next attempt reads fresh tokens from the store.
-                lock (_cacheLock)
+                try
                 {
-                    _cachedTokens = null;
-                }
+                    var request = new { refreshToken = refreshToken };
+                    var content = new StringContent(
+                        JsonSerializer.Serialize(request),
+                        System.Text.Encoding.UTF8,
+                        "application/json");
 
-                // Terminal failures:
-                // - 401: user deactivated / refresh token invalid
-                // - 400: refresh token invalid/expired/revoked (single-use rotation)
-                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.BadRequest)
+                    var response = await _httpClient.PostAsync(
+                        $"{_backendUrl}/api/v1/auth/refresh",
+                        content,
+                        cancellationToken);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                        var refreshResponse = JsonSerializer.Deserialize<RefreshTokenResponse>(responseBody, new JsonSerializerOptions
+                        {
+                            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                        });
+
+                        if (refreshResponse is not null && !string.IsNullOrEmpty(refreshResponse.AccessToken))
+                        {
+                            var refreshTokenToStore = string.IsNullOrWhiteSpace(refreshResponse.RefreshToken)
+                                ? refreshToken
+                                : refreshResponse.RefreshToken;
+
+                            await StoreTokensAsync(
+                                refreshResponse.AccessToken,
+                                refreshTokenToStore,
+                                cancellationToken);
+
+                            // Reset failure counter on success
+                            lock (_cacheLock)
+                            {
+                                _consecutiveRefreshFailures = 0;
+                            }
+
+                            _logger.LogInformation("Token refreshed successfully");
+                            return true;
+                        }
+                    }
+
+                    // Invalidate cache so next attempt reads fresh tokens from the store.
+                    lock (_cacheLock)
+                    {
+                        _cachedTokens = null;
+                    }
+
+                    // Handle failure responses
+                    var isTerminalFailure = response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.BadRequest;
+                    var isTransientFailure = response.StatusCode is HttpStatusCode.ServiceUnavailable ||
+                                             response.StatusCode is HttpStatusCode.BadGateway ||
+                                             response.StatusCode is HttpStatusCode.GatewayTimeout ||
+                                             response.StatusCode is HttpStatusCode.RequestTimeout ||
+                                             (int)response.StatusCode >= 500;
+
+                    if (isTerminalFailure)
+                    {
+                        _consecutiveRefreshFailures++;
+
+                        // Only clear tokens after multiple consecutive terminal failures
+                        if (_consecutiveRefreshFailures >= MaxConsecutiveFailuresBeforeClear)
+                        {
+                            _logger.LogError(
+                                "Token refresh failed with terminal status {StatusCode} after {Failures} consecutive attempts — clearing stored tokens",
+                                response.StatusCode, _consecutiveRefreshFailures);
+                            await ClearAsync(cancellationToken);
+                            return false;
+                        }
+
+                        _logger.LogWarning(
+                            "Token refresh failed with terminal status {StatusCode} (attempt {Attempt}/{MaxAttempts}). Will retry after delay.",
+                            response.StatusCode, attempt + 1, RefreshRetryDelays.Length);
+                    }
+                    else if (isTransientFailure)
+                    {
+                        _logger.LogWarning(
+                            "Token refresh failed with transient status {StatusCode} (attempt {Attempt}/{MaxAttempts}). Retrying after {Delay}s...",
+                            response.StatusCode, attempt + 1, RefreshRetryDelays.Length, RefreshRetryDelays[attempt].TotalSeconds);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Token refresh failed with unexpected status {StatusCode}",
+                            response.StatusCode);
+                        return false;
+                    }
+
+                    // Wait before retry (except on last attempt)
+                    if (attempt < RefreshRetryDelays.Length - 1)
+                    {
+                        await Task.Delay(RefreshRetryDelays[attempt], cancellationToken);
+                    }
+                }
+                catch (HttpRequestException ex)
                 {
-                    _logger.LogError(
-                        "Token refresh failed with terminal status {StatusCode} — clearing stored tokens so user must re-authenticate",
-                        response.StatusCode);
-                    await ClearAsync(cancellationToken);
-                    return false;
-                }
+                    _logger.LogWarning(
+                        ex, "Token refresh failed due to network error (attempt {Attempt}/{MaxAttempts}). Retrying after {Delay}s...",
+                        attempt + 1, RefreshRetryDelays.Length, RefreshRetryDelays[attempt].TotalSeconds);
 
-                _logger.LogWarning("Token refresh failed with status {StatusCode}", response.StatusCode);
-                return false;
+                    if (attempt < RefreshRetryDelays.Length - 1)
+                    {
+                        await Task.Delay(RefreshRetryDelays[attempt], cancellationToken);
+                    }
+                }
+                catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogWarning(
+                        "Token refresh timed out (attempt {Attempt}/{MaxAttempts}). Retrying after {Delay}s...",
+                        attempt + 1, RefreshRetryDelays.Length, RefreshRetryDelays[attempt].TotalSeconds);
+
+                    if (attempt < RefreshRetryDelays.Length - 1)
+                    {
+                        await Task.Delay(RefreshRetryDelays[attempt], cancellationToken);
+                    }
+                }
             }
 
-            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            var refreshResponse = JsonSerializer.Deserialize<RefreshTokenResponse>(responseBody, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
-
-            if (refreshResponse is null || string.IsNullOrEmpty(refreshResponse.AccessToken))
-            {
-                _logger.LogError("Invalid refresh response");
-                return false;
-            }
-
-            var refreshTokenToStore = string.IsNullOrWhiteSpace(refreshResponse.RefreshToken)
-                ? refreshToken
-                : refreshResponse.RefreshToken;
-
-            await StoreTokensAsync(
-                refreshResponse.AccessToken,
-                refreshTokenToStore,
-                cancellationToken);
-
-            _logger.LogInformation("Token refreshed successfully");
-            return true;
+            // All retries exhausted
+            _logger.LogError(
+                "Token refresh failed after {Attempts} attempts. Tokens remain stored - will retry on next cycle.",
+                RefreshRetryDelays.Length);
+            return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during token refresh");
+            _logger.LogError(ex, "Unexpected error during token refresh");
             return false;
         }
         finally
