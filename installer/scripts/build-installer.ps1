@@ -4,7 +4,7 @@
 param(
     [string]$Configuration = "Release",
     [string]$Version = "1.0.0",
-    [string]$InnoSetupPath = "C:\ProgramData\chocolatey\bin\ISCC.exe"
+    [string]$InnoSetupPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,10 +19,27 @@ Write-Host "TimeTrack Installer Build Script" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
+# Auto-detect Inno Setup if not specified
+if ([string]::IsNullOrEmpty($InnoSetupPath)) {
+    $possiblePaths = @(
+        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        "C:\Program Files (x86)\Inno Setup 7\ISCC.exe",
+        "C:\Program Files\Inno Setup 6\ISCC.exe",
+        "C:\Program Files\Inno Setup 7\ISCC.exe",
+        "C:\ProgramData\chocolatey\bin\ISCC.exe"
+    )
+    foreach ($path in $possiblePaths) {
+        if (Test-Path $path) {
+            $InnoSetupPath = $path
+            Write-Host "Found Inno Setup at: $InnoSetupPath" -ForegroundColor Green
+            break
+        }
+    }
+}
+
 # Validate Inno Setup
-if (-not (Test-Path $InnoSetupPath)) {
-    Write-Error "Inno Setup not found at: $InnoSetupPath"
-    Write-Host "Please install Inno Setup 6.x from https://jrsoftware.org/isinfo.php"
+if ([string]::IsNullOrEmpty($InnoSetupPath) -or -not (Test-Path $InnoSetupPath)) {
+    Write-Error "Inno Setup not found. Please install Inno Setup from https://jrsoftware.org/isinfo.php or use winget: winget install JRSoftware.InnoSetup"
     exit 1
 }
 
