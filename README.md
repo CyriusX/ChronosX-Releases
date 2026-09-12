@@ -4,7 +4,7 @@ Public release assets for the ChronosX desktop app.
 
 ## Latest release
 
-- Version: `v1.0.84`
-- Installer: `ChronosX-Setup-1.0.84.exe`
+- Version: `v1.0.85`
+- Installer: `ChronosX-Setup-1.0.85.exe`
 - Test backend: `https://chronosx-dev-timetrack-api.gpoda0.easypanel.host`
-- SHA-256: `320e608a207391607a1e1b5ab45a5cdcacf1b4450d537130632410086dfee7db`
+- SHA-256: `a9152b0c2f71beb346d9a2d439ba9278db8f0d4325d7d5c92b4f4a4b179592b0`
