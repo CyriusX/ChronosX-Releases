@@ -1,27 +1,26 @@
 # ChronosX Releases
 
-Public release assets for the ChronosX desktop app.
+## Latest release: v1.0.88
 
-## Latest release
+- [Download ChronosX 1.0.88 for Windows x64](https://github.com/CyriusX/ChronosX-Releases/releases/download/v1.0.88/ChronosX-Setup-1.0.88.exe)
+- SHA-256: `127db372f297b35fd7394952113f9e5cca8e60b63d1ed383228c193326856c2e`
+- Size: `100871909` bytes
+- Source commit: `30552d31c766706ec1e8d9df16f6f8bfc96f2011`
+- [Build and browser tests](https://github.com/CyriusX/TimeTracking/actions/runs/44519806999)
+- [Installed application E2E on Windows](https://github.com/CyriusX/TimeTracking/actions/runs/44535868478)
 
-- Version: `v1.0.87`
-- Installer: `ChronosX-Setup-1.0.87.exe` (Windows x64)
-- Test backend: `https://chronosx-dev-timetrack-api.gpoda0.easypanel.host`
-- SHA-256: `8d71bf3936aff82c2d8adabb84fff9fdb7fef709cd99102d4ded1fbb3e9e7790`
-- Size: `100850058` bytes
-- Download: [ChronosX 1.0.87](https://github.com/CyriusX/ChronosX-Releases/releases/download/v1.0.87/ChronosX-Setup-1.0.87.exe)
-- Source commit: `f80ddd143f2031bc1f93b7be9513546c558cf423`
-- Build: [Windows installer](https://github.com/CyriusX/TimeTracking/actions/runs/44372397714)
+Password setup, recovery and changes happen on the web. The desktop app opens the
+web account page, refuses temporary-password sessions and preserves the mandatory
+password-change flag when restoring a session.
 
-This version preserves pending screenshots/data in a shared 512 MiB local buffer
-when cloud capacity is full, pauses new collection when the buffer fills, and
-resumes uploads/tracking after paid capacity becomes available. It also includes
-storage warnings and the one-time capacity purchase interface.
+Validation: 261 agent tests, 95 UI tests, 24 Chromium/WebKit scenarios and the
+installed WebView2 application with real agent IPC. UI tests simulate API responses
+and capture external browser opening. Password integration was tested separately
+against real JWT, BCrypt and PostgreSQL.
 
-**Deploy the compatible backend and storage migrations before distributing this
-agent.** Configure the Stripe prices and signed webhooks in the matching environment.
-Installing this client does not deploy the backend or enable live payments.
+Compatible API, frontend and credential-version migration are required. Public API
+and frontend routes were verified on 20 November 2026. Installing this client does
+not deploy the backend. The shared 512 MiB local buffer remains available; a full
+buffer pauses new collection and does not guarantee a fixed number of days.
 
-See the [release notes](https://github.com/CyriusX/ChronosX-Releases/releases/tag/v1.0.87)
-for limitations and validation. A full local buffer pauses new collection; it does
-not guarantee recording a fixed number of days.
+See the [release notes and validation evidence](https://github.com/CyriusX/ChronosX-Releases/releases/tag/v1.0.88).
